@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CharacterMind — AI Character Chat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- API Key Modal -->
+<div id="apiModal" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-logo">
+      <span class="logo-icon">✦</span>
+      <span class="logo-text">CharacterMind</span>
+    </div>
+    <h2>Enter your API Key</h2>
+    <p>Your Google Gemini API key powers the AI characters. It's stored locally and never shared.</p>
+    <div class="api-input-wrap">
+      <input type="password" id="apiKeyInput" placeholder="Your Gemini API key..." autocomplete="off">
+      <button id="apiKeyToggle" class="btn-icon" onclick="toggleApiVis()">👁</button>
+    </div>
+    <a href="https://aistudio.google.com/app/apikey" target="_blank" class="modal-link">Get a free key at aistudio.google.com →</a>
+    <button class="btn-primary btn-full" onclick="saveApiKey()">Start Chatting</button>
+  </div>
+</div>
+
+<!-- App Shell -->
+<div class="app" id="app" style="display:none">
+
+  <!-- Left Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <div class="logo">
+        <span class="logo-icon">✦</span>
+        <span class="logo-text">CharacterMind</span>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" onclick="showHome()">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+          <span>Home</span>
+        </button>
+        <button class="nav-item" onclick="showDiscover()">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+          <span>Discover</span>
+        </button>
+        <button class="nav-item" onclick="showFeed()">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+          <span>Feed</span>
+        </button>
+        <button class="nav-item" onclick="showCreate()">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+          <span>Create</span>
+        </button>
+      </nav>
+      <div class="sidebar-search">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <input type="text" placeholder="Search characters..." id="sidebarSearch" oninput="filterChats(this.value)">
+      </div>
+    </div>
+    <div class="sidebar-chats" id="sidebarChats">
+      <div class="chats-section-label">Recent</div>
+      <div id="recentList"></div>
+    </div>
+    <div class="sidebar-bottom">
+      <button class="nav-item" onclick="changeApiKey()">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
+        <span>API Key</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main" id="mainContent">
+
+    <!-- Home View -->
+    <div class="view" id="homeView">
+      <div class="home-header">
+        <h1>Who do you want to talk with?</h1>
+        <p>Choose a character and start an immersive AI conversation</p>
+      </div>
+      <div id="featuredBanner"></div>
+      <div class="section-title" id="homeGridLabel">Your Characters</div>
+      <div class="char-grid" id="charGrid"></div>
+    </div>
+
+    <!-- Discover View -->
+    <div class="view hidden" id="discoverView">
+      <div class="discover-header">
+        <h1>Discover Characters</h1>
+        <div class="filter-bar">
+          <button class="filter-btn active" onclick="setFilter(this,'all')">All</button>
+          <button class="filter-btn" onclick="setFilter(this,'Sci-Fi')">Sci-Fi</button>
+          <button class="filter-btn" onclick="setFilter(this,'Action')">Action</button>
+          <button class="filter-btn" onclick="setFilter(this,'Romance')">Romance</button>
+          <button class="filter-btn" onclick="setFilter(this,'Supportive')">Supportive</button>
+          <button class="filter-btn" onclick="setFilter(this,'Music')">Music</button>
+          <button class="filter-btn" onclick="setFilter(this,'Philosophy')">Philosophy</button>
+        </div>
+      </div>
+      <div class="char-grid-wide" id="discoverGrid"></div>
+    </div>
+
+    <!-- Feed View -->
+    <div class="view hidden" id="feedView">
+      <div class="discover-header"><h1>Community Feed</h1></div>
+      <div class="feed-list" id="feedList"></div>
+    </div>
+
+    <!-- Create View -->
+    <div class="view hidden" id="createView">
+      <div class="create-container">
+        <form class="create-form" onsubmit="createCharacter(event)">
+
+          <!-- Avatar upload -->
+          <div class="create-avatar-wrap" onclick="document.getElementById('avatarUpload').click()">
+            <div class="create-avatar-preview" id="avatarPreview">
+              <svg viewBox="0 0 24 24" fill="currentColor" style="width:48px;height:48px;opacity:0.3"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+            </div>
+            <div class="create-avatar-edit">
+              <svg viewBox="0 0 24 24" fill="currentColor" style="width:16px;height:16px"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+            </div>
+            <input type="file" id="avatarUpload" accept="image/*" style="display:none" onchange="previewAvatar(event)">
+          </div>
+
+          <div class="create-field">
+            <label>Character name</label>
+            <input type="text" id="newName" placeholder="e.g. Albert Einstein" maxlength="20" required oninput="updateCount('newName','nameCount',20)">
+            <div class="field-count"><span id="nameCount">0</span>/20</div>
+          </div>
+
+          <div class="create-field">
+            <label>Tagline</label>
+            <input type="text" id="newTagline" placeholder="e.g. A detective who solves crimes... before they happen." maxlength="50" oninput="updateCount('newTagline','taglineCount',50)">
+            <div class="field-count"><span id="taglineCount">0</span>/50</div>
+          </div>
+
+          <div class="create-field">
+            <label>Description</label>
+            <textarea id="newDesc" placeholder="e.g. She's a retired pirate queen who now runs a cozy seaside inn. But trouble still finds her." rows="4" maxlength="500" oninput="updateCount('newDesc','descCount',500)"></textarea>
+            <div class="field-count"><span id="descCount">0</span>/500</div>
+          </div>
+
+          <div class="create-field">
+            <label>Greeting <span class="field-hint">— first thing they say to you</span></label>
+            <textarea id="newGreeting" placeholder='e.g. "Took you long enough. I\'ve been waiting."' rows="3" maxlength="4096" oninput="updateCount('newGreeting','greetingCount',4096)"></textarea>
+            <div class="field-count"><span id="greetingCount">0</span>/4096</div>
+          </div>
+
+          <div class="create-field">
+            <label>Character Persona <span class="field-hint">— how they think and speak</span></label>
+            <textarea id="newPrompt" placeholder="You are [Name]. You speak... You believe... You never..." rows="5"></textarea>
+          </div>
+
+          <div class="create-field create-field-row">
+            <div>
+              <label>Accent Color</label>
+              <div class="color-row">
+                <input type="color" id="newColor" value="#7c3aed">
+                <span>Matches character's vibe</span>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-create">Create Character</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Chat View -->
+    <div class="view hidden" id="chatView">
+      <div class="chat-header" id="chatHeader">
+        <button class="btn-icon" onclick="showHome()">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        </button>
+        <div class="chat-header-char">
+          <div class="header-avatar" id="headerAvatar"></div>
+          <div>
+            <div class="header-name" id="headerName"></div>
+            <div class="header-sub" id="headerSub"></div>
+          </div>
+        </div>
+        <div class="chat-header-actions">
+          <button class="btn-icon" title="New Chat" onclick="newChat()">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14l4-4h12c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
+          </button>
+          <button class="btn-icon" title="Character Info" onclick="toggleInfoPanel()">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="chat-body" id="chatBody">
+        <div class="chat-welcome" id="chatWelcome"></div>
+        <div id="messages"></div>
+        <div id="typingIndicator" class="typing-indicator hidden">
+          <div class="avatar-sm" id="typingAvatar"></div>
+          <div class="typing-dots"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="chat-footer">
+        <div class="input-row">
+          <div class="input-wrap">
+            <textarea id="messageInput" placeholder="Message…" rows="1"
+              onkeydown="handleKey(event)"
+              oninput="autoResize(this)"></textarea>
+          </div>
+          <button class="btn-send" id="sendBtn" onclick="sendMessage()">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
+        <div class="disclaimer">This is A.I. and not a real person. Treat everything it says as fiction ▾</div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Right Info Panel -->
+  <aside class="info-panel" id="infoPanel" style="display:none">
+    <div class="info-avatar-wrap">
+      <div class="info-avatar" id="infoAvatar"></div>
+    </div>
+    <div class="info-name" id="infoName"></div>
+    <div class="info-creator" id="infoCreator"></div>
+    <div class="info-stats">
+      <div class="info-stat">
+        <span class="info-stat-val" id="infoInteractions"></span>
+        <span class="info-stat-label">interactions</span>
+      </div>
+    </div>
+    <div class="info-actions">
+      <button class="info-action-btn" onclick="newChat()">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14l4-4h12c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
+        New chat
+      </button>
+      <button class="info-action-btn" onclick="editCurrentChar()">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+        Edit
+      </button>
+      <button class="info-action-btn info-action-delete" onclick="deleteCurrentChar()">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+        Delete
+      </button>
+    </div>
+    <div class="info-desc" id="infoDesc"></div>
+    <div class="info-tags" id="infoTags"></div>
+    <div class="info-section-title">Customize</div>
+    <div class="info-options">
+      <div class="info-option">
+        <span>Style</span>
+        <select class="info-select" onchange="setStyle(this.value)">
+          <option>Default</option>
+          <option>Formal</option>
+          <option>Casual</option>
+          <option>Playful</option>
+        </select>
+      </div>
+    </div>
+  </aside>
+
+</div>
+
+<!-- Crop Modal -->
+<div id="cropModal" class="modal-overlay" style="display:none">
+  <div class="crop-modal-inner">
+    <div class="crop-modal-header">
+      <span>Adjust Photo</span>
+      <button class="btn-icon crop-close-btn" onclick="closeCropModal()">
+        <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+    </div>
+    <div class="crop-hint">Drag to reposition &nbsp;·&nbsp; Scroll or pinch to zoom</div>
+    <div class="crop-container" id="cropContainer">
+      <img id="cropImg" draggable="false" alt="">
+      <div class="crop-circle-overlay"></div>
+    </div>
+    <div class="crop-zoom-row">
+      <button class="crop-zoom-btn" onclick="adjustZoom(-0.1)">−</button>
+      <input type="range" id="zoomSlider" class="crop-zoom-slider" min="0.05" max="8" step="0.005" oninput="setZoomFromSlider(this.value)">
+      <button class="crop-zoom-btn" onclick="adjustZoom(0.1)">+</button>
+    </div>
+    <div class="crop-actions">
+      <button class="btn-secondary" onclick="closeCropModal()">Cancel</button>
+      <button class="btn-primary" onclick="confirmCrop()">Use Photo</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
