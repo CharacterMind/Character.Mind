@@ -85,10 +85,11 @@ function renderHome() {
 
   // Show first character as featured
   const featured = characters[0];
+  const c = featured.color || '#7c3aed';
   const featAvatar = featured.image
-    ? `<div class="featured-avatar" style="background:#111;overflow:hidden"><img src="${featured.image}" style="width:100%;height:100%;object-fit:cover"></div>`
-    : `<div class="featured-avatar" style="background:${featured.color}">${featured.name[0]}</div>`;
-  banner.innerHTML = `<div class="featured-banner">
+    ? `<div class="feat-avatar" style="background:#111;overflow:hidden"><img src="${featured.image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>`
+    : `<div class="feat-avatar" style="background:${c}">${featured.name[0]}</div>`;
+  banner.innerHTML = `<div class="featured-inner" style="background:linear-gradient(135deg,${c}1a 0%,${c}08 50%,transparent 100%)">
     <div class="featured-text">
       <span class="featured-tag">✦ Featured</span>
       <h2>${featured.name}</h2>
@@ -274,9 +275,9 @@ async function sendMessage() {
       throw new Error(err.error || 'Server error');
     }
 
-    const msgEl = createAiMessage();
-    const bubble = msgEl.querySelector('.bubble');
-    showTyping(false);
+    let msgEl = null;
+    let bubble = null;
+    let gotFirst = false;
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -294,18 +295,25 @@ async function sendMessage() {
         if (!line.startsWith('data: ')) continue;
         const data = JSON.parse(line.slice(6));
         if (data.error) throw new Error(data.error);
-        if (data.text) { streamText += data.text; bubble.innerHTML = renderMarkdown(streamText); scrollToBottom(); }
+        if (data.text) {
+          if (!gotFirst) {
+            gotFirst = true;
+            showTyping(false);
+            msgEl = createAiMessage();
+            bubble = msgEl.querySelector('.bubble');
+            bubble.classList.add('streaming');
+          }
+          streamText += data.text;
+          bubble.innerHTML = renderMarkdown(streamText);
+          scrollToBottom();
+        }
       }
     }
+    if (bubble) bubble.classList.remove('streaming');
   } catch (err) {
     showTyping(false);
-    // Write error into the existing bubble instead of creating a new one
-    const existingBubble = document.querySelector('#messages .msg.ai:last-child .bubble');
-    if (existingBubble && existingBubble.textContent === '') {
-      existingBubble.textContent = `⚠️ ${err.message}`;
-    } else {
-      appendMessage('ai', `⚠️ ${err.message}`);
-    }
+    document.querySelectorAll('.bubble.streaming').forEach(b => b.classList.remove('streaming'));
+    appendMessage('ai', `⚠️ ${err.message}`);
   } finally {
     isStreaming = false;
     document.getElementById('sendBtn').disabled = false;
@@ -333,9 +341,9 @@ function appendMessage(role, text) {
       <div>
         <div class="bubble">${renderMarkdown(text)}</div>
         <div class="msg-footer">
-          <button class="reaction-btn" onclick="regenerate()" title="Regenerate response">↺</button>
-          <button class="reaction-btn like-btn" onclick="toggleLike(this)">👍</button>
-          <button class="reaction-btn dislike-btn" onclick="toggleDislike(this)">👎</button>
+          <button class="reaction-btn regen-btn" onclick="regenerate()" title="Regenerate"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4C7.58 4 4 7.58 4 12s3.58 8 8 8 8-3.58 8-8h-2c0 3.31-2.69 6-6 6s-6-2.69-6-6 2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg></button>
+          <button class="reaction-btn like-btn" onclick="toggleLike(this)" title="Like"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg></button>
+          <button class="reaction-btn dislike-btn" onclick="toggleDislike(this)" title="Dislike"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L10.83 23l6.59-6.59c.36-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2zm4 0v12h4V3h-4z"/></svg></button>
         </div>
       </div>`;
   } else {
@@ -356,9 +364,9 @@ function createAiMessage() {
     <div>
       <div class="bubble"></div>
       <div class="msg-footer">
-        <button class="reaction-btn" onclick="regenerate()" title="Regenerate response">↺</button>
-        <button class="reaction-btn like-btn" onclick="toggleLike(this)">👍</button>
-        <button class="reaction-btn dislike-btn" onclick="toggleDislike(this)">👎</button>
+        <button class="reaction-btn regen-btn" onclick="regenerate()" title="Regenerate"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4C7.58 4 4 7.58 4 12s3.58 8 8 8 8-3.58 8-8h-2c0 3.31-2.69 6-6 6s-6-2.69-6-6 2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg></button>
+        <button class="reaction-btn like-btn" onclick="toggleLike(this)" title="Like"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg></button>
+        <button class="reaction-btn dislike-btn" onclick="toggleDislike(this)" title="Dislike"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L10.83 23l6.59-6.59c.36-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2zm4 0v12h4V3h-4z"/></svg></button>
       </div>
     </div>`;
   document.getElementById('messages').appendChild(div);
@@ -397,10 +405,12 @@ async function regenerate() {
   const allMsgs = [...messagesDiv.querySelectorAll('.msg.ai')];
   if (allMsgs.length > 0) allMsgs[allMsgs.length - 1].remove();
 
-  // Create the single bubble we'll use for success OR error
-  const msgEl = createAiMessage();
-  const bubble = msgEl.querySelector('.bubble');
-  showTyping(false);
+  // Show typing dots while waiting for first chunk
+  showTyping(true);
+
+  let msgEl = null;
+  let bubble = null;
+  let gotFirstChunk = false;
 
   try {
     const res = await fetch(`/api/regenerate/${currentChar.id}`, {
@@ -429,12 +439,32 @@ async function regenerate() {
         if (!line.startsWith('data: ')) continue;
         const data = JSON.parse(line.slice(6));
         if (data.error) throw new Error(data.error);
-        if (data.text) { streamText += data.text; bubble.innerHTML = renderMarkdown(streamText); scrollToBottom(); }
+        if (data.text) {
+          if (!gotFirstChunk) {
+            // First text arrived — swap typing dots for the real bubble
+            gotFirstChunk = true;
+            showTyping(false);
+            msgEl = createAiMessage();
+            bubble = msgEl.querySelector('.bubble');
+            bubble.classList.add('streaming');
+          }
+          streamText += data.text;
+          bubble.innerHTML = renderMarkdown(streamText);
+          scrollToBottom();
+        }
       }
     }
+    if (bubble) bubble.classList.remove('streaming');
   } catch (err) {
-    bubble.innerHTML = `<p>Error: ${escHtml(err.message)}</p>`;
+    showTyping(false);
+    if (bubble) {
+      bubble.classList.remove('streaming');
+      bubble.innerHTML = `<p>⚠️ ${escHtml(err.message)}</p>`;
+    } else {
+      appendMessage('ai', `⚠️ ${err.message}`);
+    }
   } finally {
+    showTyping(false);
     isStreaming = false;
     document.getElementById('sendBtn').disabled = false;
   }

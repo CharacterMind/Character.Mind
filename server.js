@@ -15,6 +15,19 @@ app.use(session({
   cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }
 }));
 
+// ── RP quality wrapper injected into every system prompt ─────────────────────
+function wrapPrompt(p) {
+  return p + `
+
+[WRITING RULES — follow strictly]
+- NEVER repeat the same word, phrase, or clause more than once per response.
+- NEVER start two consecutive sentences with the same word.
+- Vary sentence length constantly: short punchy lines mixed with longer vivid ones.
+- Use *asterisks* for physical actions and expressions, "quotes" for spoken dialogue.
+- Each new paragraph must feel fresh and advance the scene — no filler or padding.
+- Write with specificity and originality every single time.`;
+}
+
 // ── Characters ────────────────────────────────────────────────────────────────
 
 const CHARACTERS = {};
@@ -42,7 +55,7 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
   const body = JSON.stringify({
     contents: geminiMessages,
     systemInstruction: { parts: [{ text: systemPrompt }] },
-    generationConfig: { maxOutputTokens: 800, temperature: 0.9 }
+    generationConfig: { maxOutputTokens: 1200, temperature: 1.05, topP: 0.95, topK: 40 }
   });
 
   // Try x-goog-api-key header for AQ. keys, ?key= param for AIza keys
@@ -156,7 +169,7 @@ app.post('/api/regenerate/:charId', (req, res) => {
   let done = false;
 
   callGeminiStream(
-    apiKey, char.systemPrompt, hist.slice(-20),
+    apiKey, wrapPrompt(char.systemPrompt), hist.slice(-20),
     (text) => { fullResponse += text; res.write(`data: ${JSON.stringify({ text })}\n\n`); },
     () => {
       if (done) return; done = true;
@@ -190,7 +203,7 @@ app.post('/api/chat', (req, res) => {
 
   callGeminiStream(
     apiKey,
-    char.systemPrompt,
+    wrapPrompt(char.systemPrompt),
     conversations[key].slice(-20),
     (text) => {
       fullResponse += text;
