@@ -38,6 +38,10 @@
         <span class="logo-icon">✦</span>
         <span class="logo-text">CharacterMind</span>
       </div>
+      <button class="btn-create-top" onclick="showCreate()">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        Create
+      </button>
       <nav class="sidebar-nav">
         <button class="nav-item active" onclick="showHome()">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
@@ -165,38 +169,22 @@
             </div>
           </div>
 
-          <button type="submit" class="btn-create">Create Character</button>
+          <button type="submit" class="btn-submit">Create Character</button>
         </form>
       </div>
     </div>
 
     <!-- Chat View -->
     <div class="view hidden" id="chatView">
-      <div class="chat-header" id="chatHeader">
-        <button class="btn-icon" onclick="showHome()">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
-        </button>
-        <div class="chat-header-char">
-          <div class="header-avatar" id="headerAvatar"></div>
-          <div>
-            <div class="header-name" id="headerName"></div>
-            <div class="header-sub" id="headerSub"></div>
-          </div>
-        </div>
-        <div class="chat-header-actions">
-          <button class="btn-icon" title="New Chat" onclick="newChat()">
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14l4-4h12c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
-          </button>
-          <button class="btn-icon" title="Character Info" onclick="toggleInfoPanel()">
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-          </button>
-        </div>
-      </div>
       <div class="chat-body" id="chatBody">
         <div class="chat-welcome" id="chatWelcome"></div>
         <div id="messages"></div>
         <div id="typingIndicator" class="typing-indicator hidden">
-          <div class="avatar-sm" id="typingAvatar"></div>
+          <div class="typing-header">
+            <div class="typing-avatar" id="typingAvatar"></div>
+            <span class="msg-name" id="typingName">AI</span>
+            <span class="msg-badge">CM</span>
+          </div>
           <div class="typing-dots"><span></span><span></span><span></span></div>
         </div>
       </div>
