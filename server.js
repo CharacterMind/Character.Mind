@@ -20,6 +20,10 @@ const db = process.env.DATABASE_URL
   ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
   : null;
 
+if (!process.env.DATABASE_URL) {
+  console.warn('[WARN] DATABASE_URL is not set — character save/load will not work');
+}
+
 if (db) {
   db.query(`
     CREATE TABLE IF NOT EXISTS characters (
@@ -432,22 +436,27 @@ function validateChar(body) {
 
 app.post('/api/characters', requireAuth, async (req, res) => {
   if (!db) return res.status(503).json({ error: 'No database configured' });
-  const validErr = validateChar(req.body);
+
+  // Apply known-character template BEFORE validation so a blank persona gets filled in
+  const rawBody = req.body;
+  const tpl = matchCharacterTemplate(rawBody.name);
+  const useTemplate = tpl && (rawBody.systemPrompt || '').trim().length < 150;
+  const body = useTemplate ? {
+    ...rawBody,
+    systemPrompt: tpl.systemPrompt,
+    tagline:      (rawBody.tagline||'').trim()     || tpl.tagline,
+    description:  (rawBody.description||'').trim() || (tpl.description||''),
+    greeting:     (rawBody.greeting||'').trim()    || tpl.greeting,
+    greetingMode: tpl.greetingMode,
+    color:        (!rawBody.color || rawBody.color === '#7c3aed') ? (tpl.color||'#7c3aed') : rawBody.color,
+    tags:         (rawBody.tags||[]).length ? rawBody.tags : (tpl.tags||[])
+  } : rawBody;
+
+  const validErr = validateChar(body);
   if (validErr) return res.status(400).json({ error: validErr });
 
-  const { id, name, tagline, description, systemPrompt, greeting, greetingMode, color, creatorName, image, tags } = req.body;
+  const { id, name, tagline, description, systemPrompt, greeting, greetingMode, color, creatorName, image, tags } = body;
   const userId = req.user.googleId;
-
-  // Auto-apply known-character template when the personality field is blank or minimal
-  const tpl = matchCharacterTemplate(name);
-  const useTemplate = tpl && (systemPrompt || '').trim().length < 150;
-  const finalSystemPrompt  = useTemplate ? tpl.systemPrompt                                       : (systemPrompt || '').trim();
-  const finalTagline       = useTemplate && !(tagline||'').trim()    ? tpl.tagline                : (tagline||'').trim();
-  const finalDescription   = useTemplate && !(description||'').trim() ? (tpl.description||'')    : (description||'').trim();
-  const finalGreeting      = useTemplate && !(greeting||'').trim()   ? tpl.greeting               : (greeting||null);
-  const finalGreetingMode  = useTemplate                             ? tpl.greetingMode            : (greetingMode||'auto');
-  const finalColor         = useTemplate && (!color || color === '#7c3aed') ? (tpl.color||'#7c3aed') : (color||'#7c3aed');
-  const finalTags          = useTemplate && !(tags||[]).length       ? (tpl.tags||[])              : (tags||[]);
 
   try {
     // Enforce per-user character creation cap (free tier)
@@ -473,8 +482,9 @@ app.post('/api/characters', requireAuth, async (req, res) => {
          system_prompt=EXCLUDED.system_prompt, greeting=EXCLUDED.greeting, greeting_mode=EXCLUDED.greeting_mode,
          color=EXCLUDED.color, creator_name=EXCLUDED.creator_name, image=EXCLUDED.image, tags=EXCLUDED.tags
        RETURNING id, name, tagline, color`,
-      [id, name.trim(), finalTagline, finalDescription, finalSystemPrompt, finalGreeting,
-       finalGreetingMode, finalColor, (creatorName||'Anonymous').trim(), userId, image||null, JSON.stringify(finalTags.slice(0,10))]
+      [id, name.trim(), (tagline||'').trim(), (description||'').trim(), systemPrompt.trim(),
+       greeting||null, greetingMode||'auto', color||'#7c3aed', (creatorName||'Anonymous').trim(),
+       userId, image||null, JSON.stringify((tags||[]).slice(0,10))]
     );
     res.json({ ...rows[0], isMine: true });
   } catch (err) {
@@ -485,22 +495,27 @@ app.post('/api/characters', requireAuth, async (req, res) => {
 
 app.put('/api/characters/:id', requireAuth, async (req, res) => {
   if (!db) return res.status(503).json({ error: 'No database' });
-  const validErr = validateChar({ id: req.params.id, ...req.body });
+
+  // Apply known-character template BEFORE validation so a blank persona gets filled in
+  const rawBody2 = req.body;
+  const tpl2 = matchCharacterTemplate(rawBody2.name);
+  const useTemplate2 = tpl2 && (rawBody2.systemPrompt || '').trim().length < 150;
+  const body2 = useTemplate2 ? {
+    ...rawBody2,
+    systemPrompt: tpl2.systemPrompt,
+    tagline:      (rawBody2.tagline||'').trim()     || tpl2.tagline,
+    description:  (rawBody2.description||'').trim() || (tpl2.description||''),
+    greeting:     (rawBody2.greeting||'').trim()    || tpl2.greeting,
+    greetingMode: tpl2.greetingMode,
+    color:        (!rawBody2.color || rawBody2.color === '#7c3aed') ? (tpl2.color||'#7c3aed') : rawBody2.color,
+    tags:         (rawBody2.tags||[]).length ? rawBody2.tags : (tpl2.tags||[])
+  } : rawBody2;
+
+  const validErr = validateChar({ id: req.params.id, ...body2 });
   if (validErr) return res.status(400).json({ error: validErr });
 
-  const { name, tagline, description, systemPrompt, greeting, greetingMode, color, image, tags } = req.body;
+  const { name, tagline, description, systemPrompt, greeting, greetingMode, color, image, tags } = body2;
   const userId = req.user.googleId;
-
-  // Auto-apply known-character template when the personality field is blank or minimal
-  const tpl2 = matchCharacterTemplate(name);
-  const useTemplate2 = tpl2 && (systemPrompt || '').trim().length < 150;
-  const finalSystemPrompt2  = useTemplate2 ? tpl2.systemPrompt                                        : (systemPrompt || '').trim();
-  const finalTagline2       = useTemplate2 && !(tagline||'').trim()    ? tpl2.tagline                 : (tagline||'').trim();
-  const finalDescription2   = useTemplate2 && !(description||'').trim() ? (tpl2.description||'')     : (description||'').trim();
-  const finalGreeting2      = useTemplate2 && !(greeting||'').trim()   ? tpl2.greeting                : (greeting||null);
-  const finalGreetingMode2  = useTemplate2                             ? tpl2.greetingMode             : (greetingMode||'auto');
-  const finalColor2         = useTemplate2 && (!color || color === '#7c3aed') ? (tpl2.color||'#7c3aed') : (color||'#7c3aed');
-  const finalTags2          = useTemplate2 && !(tags||[]).length       ? (tpl2.tags||[])               : (tags||[]);
 
   try {
     const check = await db.query('SELECT device_id FROM characters WHERE id = $1', [req.params.id]);
@@ -508,8 +523,9 @@ app.put('/api/characters/:id', requireAuth, async (req, res) => {
     if (check.rows[0].device_id !== userId) return res.status(403).json({ error: 'Not your character' });
     await db.query(
       `UPDATE characters SET name=$1, tagline=$2, description=$3, system_prompt=$4, greeting=$5, greeting_mode=$6, color=$7, image=$8, tags=$9 WHERE id=$10`,
-      [name.trim(), finalTagline2, finalDescription2, finalSystemPrompt2, finalGreeting2,
-       finalGreetingMode2, finalColor2, image||null, JSON.stringify(finalTags2.slice(0,10)), req.params.id]
+      [name.trim(), (tagline||'').trim(), (description||'').trim(), systemPrompt.trim(),
+       greeting||null, greetingMode||'auto', color||'#7c3aed', image||null,
+       JSON.stringify((tags||[]).slice(0,10)), req.params.id]
     );
     res.json({ ok: true });
   } catch (err) {
