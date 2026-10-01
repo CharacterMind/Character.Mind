@@ -697,20 +697,124 @@ function safeColor(c) {
   return '#7c3aed';
 }
 
-// ── Gradient color picker ──────────────────────────────────────────────────────
+// ── Custom hue-strip color picker ─────────────────────────────────────────────
+// Color stops shown on the hue slider per vision type.
+// Each array defines the gradient — only hues distinguishable for that type.
+const CB_HUE_STOPS = {
+  '':            ['#ff0000','#ff8000','#ffff00','#00dd00','#00ccff','#0000ff','#8800ff','#ff00cc','#ff0000'],
+  protanopia:    ['#1d4ed8','#0ea5e9','#06b6d4','#84cc16','#eab308','#f97316','#a855f7','#7c3aed','#1d4ed8'],
+  deuteranopia:  ['#1d4ed8','#0ea5e9','#22d3ee','#86efac','#facc15','#f97316','#d946ef','#7c3aed','#1d4ed8'],
+  tritanopia:    ['#dc2626','#ea580c','#ca8a04','#84cc16','#22c55e','#0d9488','#db2777','#ec4899','#dc2626'],
+  achromatopsia: ['#f5f5f5','#d4d4d4','#a3a3a3','#737373','#525252','#404040','#262626','#0a0a0a'],
+};
+
+function _lerpHex(h1, h2, t) {
+  const r1=parseInt(h1.slice(1,3),16),g1=parseInt(h1.slice(3,5),16),b1=parseInt(h1.slice(5,7),16);
+  const r2=parseInt(h2.slice(1,3),16),g2=parseInt(h2.slice(3,5),16),b2=parseInt(h2.slice(5,7),16);
+  const r=Math.round(r1+(r2-r1)*t),g=Math.round(g1+(g2-g1)*t),b=Math.round(b1+(b2-b1)*t);
+  return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+
+function _sampleStops(stops, pos) {
+  const n = stops.length - 1;
+  const i = Math.min(Math.floor(pos * n), n - 1);
+  return _lerpHex(stops[i], stops[i+1], pos * n - i);
+}
+
+function _hexDist(h1, h2) {
+  return Math.abs(parseInt(h1.slice(1,3),16)-parseInt(h2.slice(1,3),16))
+       + Math.abs(parseInt(h1.slice(3,5),16)-parseInt(h2.slice(3,5),16))
+       + Math.abs(parseInt(h1.slice(5,7),16)-parseInt(h2.slice(5,7),16));
+}
+
+function _posForHex(stops, hex) {
+  let best=0, bestD=Infinity;
+  for (let i=0;i<=200;i++) {
+    const pos=i/200, d=_hexDist(hex, _sampleStops(stops, pos));
+    if (d<bestD) { bestD=d; best=pos; }
+  }
+  return best;
+}
+
+function _refreshSwatchGradients() {
+  const mode = document.documentElement.dataset.colorblind || '';
+  const stops = CB_HUE_STOPS[mode] || CB_HUE_STOPS[''];
+  const grad = `linear-gradient(to right,${stops.join(',')})`;
+  document.querySelectorAll('.gc-hue-track').forEach(track => {
+    track.style.background = grad;
+    // Re-position thumb to closest color in new stops
+    const inp = track.closest('.gc-swatch')?.querySelector('.gc-swatch-input');
+    if (!inp) return;
+    const pos = _posForHex(stops, inp.value);
+    const thumb = track.querySelector('.gc-hue-thumb');
+    if (thumb) thumb.style.left = (pos*100)+'%';
+  });
+}
+
 function addGradientSwatch(color) {
   const container = document.getElementById('gradientSwatches');
   if (!container) return;
   if (container.querySelectorAll('.gc-swatch').length >= 4) return;
 
+  const mode = document.documentElement.dataset.colorblind || '';
+  const stops = CB_HUE_STOPS[mode] || CB_HUE_STOPS[''];
+  const initHex = (color && /^#[0-9a-fA-F]{6}$/.test(color)) ? color : stops[0];
+  let pos = _posForHex(stops, initHex);
+
   const wrap = document.createElement('div');
   wrap.className = 'gc-swatch';
 
+  // Color dot — visual preview of current selection
+  const dot = document.createElement('div');
+  dot.className = 'gc-swatch-dot';
+  dot.style.background = initHex;
+
+  // Hue track
+  const track = document.createElement('div');
+  track.className = 'gc-hue-track';
+  track.style.background = `linear-gradient(to right,${stops.join(',')})`;
+
+  const thumb = document.createElement('div');
+  thumb.className = 'gc-hue-thumb';
+  thumb.style.left = (pos*100)+'%';
+  track.appendChild(thumb);
+
+  // Hidden value — read by updateGradientPreview / initGradientPicker
   const inp = document.createElement('input');
-  inp.type = 'color';
+  inp.type = 'hidden';
   inp.className = 'gc-swatch-input';
-  inp.value = color || '#7c3aed';
-  inp.addEventListener('input', updateGradientPreview);
+  inp.value = initHex;
+
+  function applyPos(x) {
+    pos = Math.max(0, Math.min(1, x));
+    thumb.style.left = (pos*100)+'%';
+    const hex = _sampleStops(stops, pos);
+    inp.value = hex;
+    dot.style.background = hex;
+    updateGradientPreview();
+  }
+
+  function eventX(e) {
+    const rect = track.getBoundingClientRect();
+    return (e.clientX - rect.left) / rect.width;
+  }
+
+  track.addEventListener('mousedown', e => {
+    applyPos(eventX(e));
+    const move = e => applyPos(eventX(e));
+    const up = () => document.removeEventListener('mousemove', move);
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up, {once:true});
+    e.preventDefault();
+  });
+
+  track.addEventListener('touchstart', e => {
+    applyPos((e.touches[0].clientX - track.getBoundingClientRect().left) / track.getBoundingClientRect().width);
+    const move = e => { e.preventDefault(); applyPos((e.touches[0].clientX - track.getBoundingClientRect().left) / track.getBoundingClientRect().width); };
+    track.addEventListener('touchmove', move, {passive:false});
+    track.addEventListener('touchend', () => track.removeEventListener('touchmove', move), {once:true});
+    e.preventDefault();
+  }, {passive:false});
 
   const rm = document.createElement('button');
   rm.type = 'button';
@@ -718,6 +822,8 @@ function addGradientSwatch(color) {
   rm.textContent = '×';
   rm.addEventListener('click', () => { wrap.remove(); updateGradientPreview(); _gcUpdateAddBtn(); });
 
+  wrap.appendChild(dot);
+  wrap.appendChild(track);
   wrap.appendChild(inp);
   wrap.appendChild(rm);
   container.appendChild(wrap);
@@ -761,8 +867,20 @@ function _gcApplyHex(raw) {
   if (hexInp) hexInp.classList.toggle('gc-hex-invalid', raw.length > 0 && !valid);
   if (!valid) return;
   const container = document.getElementById('gradientSwatches');
-  const first = container?.querySelector('.gc-swatch-input');
+  const firstSwatch = container?.querySelector('.gc-swatch');
+  const first = firstSwatch?.querySelector('.gc-swatch-input');
+  const firstDot = firstSwatch?.querySelector('.gc-swatch-dot');
   if (first) { first.value = v; updateGradientPreview(); }
+  if (firstDot) firstDot.style.background = v;
+  // Re-position thumb to nearest color on the hue strip
+  const track = firstSwatch?.querySelector('.gc-hue-track');
+  const thumb = track?.querySelector('.gc-hue-thumb');
+  if (track && thumb) {
+    const mode = document.documentElement.dataset.colorblind || '';
+    const stops = CB_HUE_STOPS[mode] || CB_HUE_STOPS[''];
+    const pos = _posForHex(stops, v);
+    thumb.style.left = (pos*100)+'%';
+  }
 }
 
 function initGradientPicker(color) {

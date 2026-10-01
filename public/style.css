@@ -2049,13 +2049,25 @@ html, body {
 
 /* ── Gradient color picker ───────────────────────────────────────────────────── */
 .color-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
-.gradient-builder { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.gc-swatch { position: relative; flex-shrink: 0; }
-.gc-swatch-input { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--border2); cursor: pointer; padding: 0; -webkit-appearance: none; appearance: none; background: none; display: block; }
-.gc-swatch-input::-webkit-color-swatch-wrapper { padding: 0; border-radius: 50%; }
-.gc-swatch-input::-webkit-color-swatch { border: none; border-radius: 50%; }
-.gc-swatch-remove { position: absolute; top: -3px; right: -3px; width: 14px; height: 14px; border-radius: 50%; background: var(--bg); border: 1px solid var(--border2); font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text3); padding: 0; line-height: 1; }
-.gc-swatch-remove:hover { background: var(--bg3); color: var(--text1); }
+.gradient-builder { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.gc-swatch { display: flex; align-items: center; gap: 7px; position: relative; flex-shrink: 0; }
+.gc-swatch-input { display: none; }
+/* Color dot — shows the currently picked hue */
+.gc-swatch-dot { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border2); flex-shrink: 0; }
+/* Hue strip track */
+.gc-hue-track {
+  position: relative; height: 16px; width: 140px; border-radius: 8px;
+  cursor: crosshair; border: 1px solid var(--border2); flex-shrink: 0;
+  user-select: none; -webkit-user-select: none;
+}
+.gc-hue-thumb {
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; border: 2px solid rgba(0,0,0,.7);
+  box-shadow: 0 1px 4px rgba(0,0,0,.5); pointer-events: none;
+}
+.gc-swatch-remove { width: 18px; height: 18px; border-radius: 50%; background: var(--bg); border: 1px solid var(--border2); font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text3); padding: 0; line-height: 1; flex-shrink: 0; }
+.gc-swatch-remove:hover { background: var(--bg3); color: var(--text); }
 .gc-add-btn { width: 30px; height: 30px; border-radius: 50%; background: var(--bg3); border: 1px solid var(--border2); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text3); padding: 0; flex-shrink: 0; transition: background .12s; }
 .gc-add-btn:hover { background: var(--bg); color: var(--text1); }
 .gc-preview { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border2); flex-shrink: 0; }
