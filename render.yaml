@@ -1,7 +1,22 @@
 services:
   - type: web
     name: charactermind
-    env: node
-    buildCommand: npm install
-    startCommand: node server.js
+    runtime: node
     plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: SITE_URL
+        value: https://charactermind.onrender.com

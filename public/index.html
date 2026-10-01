@@ -3,28 +3,119 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CharacterMind — AI Character Chat</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>character.mind — AI Character Chat</title>
+<meta name="description" content="Chat with AI-powered characters from Poppy Playtime and beyond. Create your own characters, give them personalities, and have real conversations. Free to use.">
+<meta name="keywords" content="AI character chat, Poppy Playtime AI, chat with AI characters, character.mind, Huggy Wuggy AI, Kissy Missy AI, AI roleplay">
+<meta property="og:title" content="character.mind — AI Character Chat">
+<meta property="og:description" content="Chat with AI-powered characters from Poppy Playtime and beyond. Create your own characters and have real conversations.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://charactermind.onrender.com">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="character.mind — AI Character Chat">
+<meta name="twitter:description" content="Chat with AI-powered characters from Poppy Playtime and beyond. Free to use.">
+<link rel="canonical" href="https://charactermind.onrender.com">
+<link rel="icon" type="image/webp" href="/logo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=20">
+<style>
+  #nl-badge-frame { display: none !important; }
+</style>
 </head>
 <body>
 
-<!-- API Key Modal -->
-<div id="apiModal" class="modal-overlay">
-  <div class="modal">
-    <div class="modal-logo">
-      <span class="logo-icon">✦</span>
-      <span class="logo-text">CharacterMind</span>
+<!-- Loading screen — shown until auth check resolves -->
+<div id="appLoading" class="app-loading">
+  <div class="app-loading-logo">
+    <img class="logo-icon logo-img" src="/logo.webp" alt="c.m">
+    <span class="logo-text">character.mind</span>
+  </div>
+</div>
+
+<!-- Auth Landing -->
+<div id="authLanding" class="auth-landing" style="display:none">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <img class="logo-icon logo-img" src="/logo.webp" alt="c.m">
+      <span class="logo-text">character.mind</span>
     </div>
-    <h2>Enter your API Key</h2>
-    <p>Your Google Gemini API key powers the AI characters. It's stored locally and never shared.</p>
-    <div class="api-input-wrap">
-      <input type="password" id="apiKeyInput" placeholder="Your Gemini API key..." autocomplete="off">
-      <button id="apiKeyToggle" class="btn-icon" onclick="toggleApiVis()">👁</button>
+    <h1 class="auth-headline">Bring any character<br>to life.</h1>
+    <p class="auth-sub">Create and chat with AI characters.</p>
+    <a href="/auth/google" class="auth-google-btn">
+      <svg viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Continue with Google
+    </a>
+    <p class="auth-footer">By continuing, you agree to our <a href="/terms.html" style="color:inherit;text-decoration:underline;opacity:0.7">Terms of Service</a> and <a href="/privacy.html" style="color:inherit;text-decoration:underline;opacity:0.7">Privacy Policy</a>.</p>
+  </div>
+</div>
+
+<!-- Toast notifications -->
+<div id="toastContainer" class="toast-container"></div>
+
+<!-- Usage Modal -->
+<div id="usageModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeUsageModal()">
+  <div class="usage-modal">
+    <div class="usage-modal-head">
+      <span class="usage-modal-title">Usage</span>
+      <button class="btn-icon" onclick="closeUsageModal()">
+        <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
     </div>
-    <a href="https://aistudio.google.com/app/apikey" target="_blank" class="modal-link">Get a free key at aistudio.google.com →</a>
-    <button class="btn-primary btn-full" onclick="saveApiKey()">Start Chatting</button>
+    <p class="usage-headline" id="usageHeadline">Loading your usage...</p>
+    <div class="usage-modal-rule"></div>
+
+    <!-- Session -->
+    <div class="usage-section">
+      <div class="usage-sec-top">
+        <div>
+          <div class="usage-sec-label">Current session</div>
+          <div class="usage-sec-sub" id="usageSessionSub">Starts when you send your first message</div>
+        </div>
+      </div>
+      <div class="usage-track-modal"><div class="usage-fill-modal green" id="usageSessionBar"></div></div>
+      <div class="session-reset-timer" id="sessionResetTimer" style="display:none">
+        Session limit reached &nbsp;·&nbsp; Resets at <span id="sessionResetTimerVal"></span>
+      </div>
+    </div>
+
+    <div class="usage-modal-rule"></div>
+
+    <!-- Weekly -->
+    <div class="usage-section">
+      <div class="usage-sec-top">
+        <div>
+          <div class="usage-sec-label">This week</div>
+          <div class="usage-sec-sub" id="usageWeeklySub">Starts when you send your first message</div>
+        </div>
+      </div>
+      <div class="usage-track-modal"><div class="usage-fill-modal green" id="usageWeeklyBar"></div></div>
+    </div>
+
+    <div class="usage-modal-rule"></div>
+    <div class="usage-limits-note">Session limit &nbsp;·&nbsp; 2-hour cooldown &nbsp;·&nbsp; Weekly limit &nbsp;·&nbsp; 7-day rolling reset</div>
+    <div class="usage-updated-row">
+      <span id="usageUpdatedText"></span>
+      <button class="usage-refresh-btn" onclick="refreshUsageManual()" title="Refresh">
+        <svg viewBox="0 0 24 24" fill="currentColor" style="width:13px;height:13px"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+      </button>
+    </div>
+    <div style="margin-top:12px;text-align:center" id="resetLimitsWrap" hidden>
+      <button class="reset-limits-btn" onclick="adminResetLimits()" id="resetLimitsBtn">Reset limits</button>
+      <div id="notifyWrap" style="margin-top:16px;border-top:1px solid var(--border2);padding-top:16px;text-align:left">
+        <p style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);margin-bottom:10px">Notify users of policy update</p>
+        <input id="notifySubject" type="text" placeholder="Subject line…" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:8px 10px;margin-bottom:8px;outline:none" />
+        <textarea id="notifyMsg" placeholder="Summarize what changed…" rows="4" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:8px 10px;margin-bottom:8px;outline:none;resize:vertical;font-family:inherit"></textarea>
+        <button class="reset-limits-btn" onclick="adminNotifyUsers()" id="notifyBtn" style="width:100%;text-align:center">Send to all users</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -32,11 +123,16 @@
 <div class="app" id="app" style="display:none">
 
   <!-- Left Sidebar -->
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
     <div class="sidebar-top">
-      <div class="logo">
-        <span class="logo-icon">✦</span>
-        <span class="logo-text">CharacterMind</span>
+      <div class="sidebar-header-row">
+        <div class="logo" onclick="showHome()">
+          <img class="logo-icon logo-img" src="/logo.webp" alt="c.m">
+          <span class="logo-text">character.mind</span>
+        </div>
+        <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" onclick="toggleSidebar()" title="Collapse sidebar">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="17" height="17"><path d="M18.41 16.59L13.82 12l4.59-4.59L17 6l-6 6 6 6zM6 6h2v12H6z"/></svg>
+        </button>
       </div>
       <button class="btn-create-top" onclick="showCreate()">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
@@ -70,26 +166,68 @@
       <div id="recentList"></div>
     </div>
     <div class="sidebar-bottom">
-      <button class="nav-item" onclick="changeApiKey()">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
-        <span>API Key</span>
+      <!-- User dropdown (anchors to sidebar-bottom which is position:relative) -->
+      <div id="userDropdown" class="user-dropdown">
+        <div class="ud-profile-header">
+          <div class="ud-avatar" id="udAvatar"></div>
+          <div class="ud-info">
+            <div class="ud-info-name" id="udName"></div>
+            <div class="ud-info-email" id="udEmail"></div>
+          </div>
+        </div>
+        <div class="ud-divider"></div>
+        <button class="ud-item" onclick="openSettings('profile')">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+          Public Profile
+        </button>
+        <button class="ud-item" onclick="openSettings('preferences')">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+          Settings
+        </button>
+        <div class="ud-policies-wrap">
+          <button class="ud-item-inner" onclick="toggleUdPolicies(event)">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+            Policies
+            <svg class="ud-chevron-r" viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+          </button>
+          <div class="ud-policies-sub" id="udPoliciesSub" style="display:none">
+            <a href="/terms.html" class="ud-sub-link" target="_blank">Terms of Service</a>
+            <a href="/privacy.html" class="ud-sub-link" target="_blank">Privacy Policy</a>
+          </div>
+        </div>
+        <div class="ud-divider"></div>
+        <button class="ud-item ud-item-danger" onclick="signOut()">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+          Sign out
+        </button>
+      </div>
+      <button class="nav-item" onclick="openUsageModal()">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg>
+        <span>Usage</span>
       </button>
+      <button id="userBadge" class="user-badge"></button>
     </div>
   </aside>
+
+  <!-- Sidebar expand button — visible only when sidebar is collapsed -->
+  <button class="sidebar-expand-btn" onclick="toggleSidebar()" title="Open sidebar">
+    <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+  </button>
 
   <!-- Main Content -->
   <main class="main" id="mainContent">
 
-    <!-- Home View -->
-    <div class="view" id="homeView">
-      <div class="home-header">
-        <h1>Who do you want to talk with?</h1>
-        <p>Choose a character and start an immersive AI conversation</p>
-      </div>
-      <div id="featuredBanner"></div>
-      <div class="section-title" id="homeGridLabel">Your Characters</div>
-      <div class="char-grid" id="charGrid"></div>
+    <!-- Mobile top bar (hidden on desktop) -->
+    <div class="mob-nav-bar" id="mobNavBar">
+      <button class="mob-nav-menu" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+      </button>
+      <img class="logo-img" src="/logo.webp" alt="c.m" style="width:20px;height:20px">
+      <span class="mob-nav-title">character.mind</span>
     </div>
+
+    <!-- Home View — rendered entirely by renderHome() in app.js -->
+    <div class="view" id="homeView"></div>
 
     <!-- Discover View -->
     <div class="view hidden" id="discoverView">
@@ -127,44 +265,69 @@
             <div class="create-avatar-edit">
               <svg viewBox="0 0 24 24" fill="currentColor" style="width:16px;height:16px"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
             </div>
-            <input type="file" id="avatarUpload" accept="image/*" style="display:none" onchange="previewAvatar(event)">
+            <input type="file" id="avatarUpload" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none" onchange="previewAvatar(event)">
           </div>
+          <div class="avatar-policy-note">JPEG, PNG, WebP or GIF only. No nudity, explicit content, or images of minors — violations result in account removal.</div>
 
           <div class="create-field">
             <label>Character name</label>
-            <input type="text" id="newName" placeholder="e.g. Albert Einstein" maxlength="20" required oninput="updateCount('newName','nameCount',20)">
-            <div class="field-count"><span id="nameCount">0</span>/20</div>
+            <input type="text" id="newName" placeholder="e.g. Albert Einstein" maxlength="60" required oninput="updateCount('newName','nameCount',60);checkTemplateName()" onblur="autoGeneratePersonaOnNameBlur()">
+            <div class="field-count"><span id="nameCount">0</span>/60</div>
           </div>
 
           <div class="create-field">
             <label>Tagline</label>
-            <input type="text" id="newTagline" placeholder="e.g. A detective who solves crimes... before they happen." maxlength="50" oninput="updateCount('newTagline','taglineCount',50)">
-            <div class="field-count"><span id="taglineCount">0</span>/50</div>
+            <input type="text" id="newTagline" placeholder="e.g. A detective who solves crimes... before they happen." maxlength="160" oninput="updateCount('newTagline','taglineCount',160)">
+            <div class="field-count"><span id="taglineCount">0</span>/160</div>
           </div>
 
           <div class="create-field">
             <label>Description</label>
-            <textarea id="newDesc" placeholder="e.g. She's a retired pirate queen who now runs a cozy seaside inn. But trouble still finds her." rows="4" maxlength="500" oninput="updateCount('newDesc','descCount',500)"></textarea>
-            <div class="field-count"><span id="descCount">0</span>/500</div>
+            <textarea id="newDesc" placeholder="e.g. She's a retired pirate queen who now runs a cozy seaside inn. But trouble still finds her." rows="4" maxlength="2000" oninput="updateCount('newDesc','descCount',2000)"></textarea>
+            <div class="field-count"><span id="descCount">0</span>/2000</div>
           </div>
 
           <div class="create-field">
             <label>Greeting <span class="field-hint">— first thing they say to you</span></label>
             <textarea id="newGreeting" placeholder='e.g. "Took you long enough. I\'ve been waiting."' rows="3" maxlength="4096" oninput="updateCount('newGreeting','greetingCount',4096)"></textarea>
             <div class="field-count"><span id="greetingCount">0</span>/4096</div>
+            <div class="greeting-mode-row">
+              <span class="greeting-mode-lbl">Each new chat:</span>
+              <div class="greeting-mode-pills">
+                <button type="button" class="gm-pill active" id="gmFixed" onclick="setGreetingMode('fixed')">Use this greeting</button>
+                <button type="button" class="gm-pill" id="gmAuto" onclick="setGreetingMode('auto')">AI-generate</button>
+              </div>
+            </div>
           </div>
 
           <div class="create-field">
             <label>Character Persona <span class="field-hint">— how they think and speak</span></label>
-            <textarea id="newPrompt" placeholder="You are [Name]. You speak... You believe... You never..." rows="5"></textarea>
+            <div class="persona-gen-row">
+              <button type="button" class="persona-gen-btn" id="personaGenBtn" onclick="generatePersona()">✨ Auto-generate</button>
+              <button type="button" class="persona-gen-btn persona-reset-btn" id="personaResetBtn" onclick="resetToTemplate()" style="display:none">↺ Reset to built-in lore</button>
+            </div>
+            <textarea id="newPrompt" placeholder="Describe their personality, speech style, flaws, and backstory — or hit Auto-generate." rows="5"></textarea>
           </div>
 
           <div class="create-field create-field-row">
             <div>
               <label>Accent Color</label>
               <div class="color-row">
-                <input type="color" id="newColor" value="#7c3aed">
-                <span>Matches character's vibe</span>
+                <div class="gradient-builder">
+                  <div class="gradient-swatches" id="gradientSwatches"></div>
+                  <button type="button" class="gc-add-btn" id="gcAddBtn" onclick="addGradientSwatch()">+</button>
+                </div>
+                <input type="text" class="gc-hex-input" id="gcHexInput" placeholder="#7c3aed" maxlength="7" spellcheck="false" autocomplete="off">
+                <div class="gc-preview" id="gcPreview"></div>
+                <input type="hidden" id="newColor" value="#7c3aed">
+                <span class="gc-hint">Hit <strong>+</strong> to blend colors into a gradient</span>
+                <select class="gc-cb-select" id="gcColorblindPicker" onchange="setColorblindMode(this.value)" title="Color vision mode">
+                  <option value="">👁 Normal</option>
+                  <option value="deuteranopia">Deuteranopia (green weak)</option>
+                  <option value="protanopia">Protanopia (red weak)</option>
+                  <option value="tritanopia">Tritanopia (blue-yellow)</option>
+                  <option value="achromatopsia">Achromatopsia</option>
+                </select>
               </div>
             </div>
           </div>
@@ -176,6 +339,19 @@
 
     <!-- Chat View -->
     <div class="view hidden" id="chatView">
+      <!-- Mobile-only top bar (hidden on desktop via CSS) -->
+      <div class="mob-chat-hdr" id="mobChatHdr">
+        <button class="mob-back-btn" onclick="showHome()">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        </button>
+        <div class="mob-char-info">
+          <div class="mob-char-avatar" id="mobChatAvatar"></div>
+          <span class="mob-char-name" id="mobChatName">Character</span>
+        </div>
+        <button class="mob-panel-btn" onclick="toggleInfoPanel()">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+        </button>
+      </div>
       <div class="chat-body" id="chatBody">
         <div class="chat-welcome" id="chatWelcome"></div>
         <div id="messages"></div>
@@ -183,12 +359,19 @@
           <div class="typing-header">
             <div class="typing-avatar" id="typingAvatar"></div>
             <span class="msg-name" id="typingName">AI</span>
-            <span class="msg-badge">CM</span>
+            <span class="msg-badge">C.M</span>
           </div>
           <div class="typing-dots"><span></span><span></span><span></span></div>
         </div>
       </div>
       <div class="chat-footer">
+        <div id="warningBanners"></div>
+        <div class="lockout-bar" id="lockoutBar" style="display:none">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+          <span id="lockoutMsg">Session limit reached</span>
+          <span class="lockout-dot">·</span>
+          <span id="lockoutCountdown">Resets in 2:00:00</span>
+        </div>
         <div class="input-row">
           <div class="input-wrap">
             <textarea id="messageInput" placeholder="Message…" rows="1"
@@ -199,6 +382,55 @@
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
           </button>
         </div>
+        <!-- Model/effort bar -->
+        <div class="model-bar-zone">
+          <div class="model-dropdown" id="modelDropdown" style="display:none">
+            <button class="md-item" id="optOpas" onclick="setModelTier('opas')">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" class="md-item-icon"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
+              <div class="md-item-body">
+                <div class="md-item-name">Opas</div>
+                <div class="md-item-sub">Fast · Great for most chats</div>
+              </div>
+              <span class="md-item-key">1</span>
+            </button>
+            <button class="md-item" id="optOpes" onclick="setModelTier('opes')">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" class="md-item-icon"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+              <div class="md-item-body">
+                <div class="md-item-name">Opes</div>
+                <div class="md-item-sub">Latest · Richer responses</div>
+              </div>
+              <span class="md-item-key">2</span>
+            </button>
+          </div>
+          <div class="effort-panel-popup" id="effortPanelPopup" style="display:none">
+            <div class="epp-header">
+              <div class="epp-title">Effort&nbsp;<strong id="eppCurrentLabel">Medium</strong></div>
+              <div class="epp-help-wrap">
+                <button class="epp-help">?</button>
+                <div class="epp-tooltip">
+                  <div class="epp-tooltip-title">Effort</div>
+                  <div class="epp-tooltip-body">Higher effort means more thorough responses, but takes longer and uses your limits faster.</div>
+                </div>
+              </div>
+            </div>
+            <div class="epp-slider-area">
+              <span class="epp-side-label">Faster</span>
+              <input type="range" class="effort-range" id="effortRange" min="0" max="2" step="1" value="1" oninput="setEffortIdx(parseInt(this.value))">
+              <span class="epp-side-label">Smarter</span>
+            </div>
+            <div class="epp-recommended">Recommended</div>
+          </div>
+          <div class="model-bar">
+            <button class="mb-model-btn" id="mbModelBtn" onclick="toggleModelDropdown()">
+              <svg class="mb-model-icon" id="modelBarIcon" viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
+              <span id="mbModelLabel">Opas</span>
+            </button>
+            <span class="mb-sep">·</span>
+            <button class="mb-effort-btn" id="mbEffortBtn" onclick="toggleEffortPanel()">
+              <span id="mbEffortLabel">Medium</span>
+            </button>
+          </div>
+        </div>
         <div class="disclaimer">This is A.I. and not a real person. Treat everything it says as fiction ▾</div>
       </div>
     </div>
@@ -207,45 +439,110 @@
 
   <!-- Right Info Panel -->
   <aside class="info-panel" id="infoPanel" style="display:none">
-    <div class="info-avatar-wrap">
-      <div class="info-avatar" id="infoAvatar"></div>
-    </div>
-    <div class="info-name" id="infoName"></div>
-    <div class="info-creator" id="infoCreator"></div>
-    <div class="info-stats">
-      <div class="info-stat">
-        <span class="info-stat-val" id="infoInteractions"></span>
-        <span class="info-stat-label">interactions</span>
+
+    <!-- Header: avatar + name/meta side by side -->
+    <div class="ip-header">
+      <div class="ip-avatar" id="infoAvatar"></div>
+      <div class="ip-header-text">
+        <div class="ip-name" id="infoName"></div>
+        <div class="ip-sub">By <span id="infoCreator"></span></div>
+        <div class="ip-sub"><span id="infoInteractions"></span> interactions</div>
       </div>
     </div>
-    <div class="info-actions">
-      <button class="info-action-btn" onclick="newChat()">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14l4-4h12c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
+
+    <!-- Social action row -->
+    <div class="ip-socials">
+      <button class="ip-soc" title="Share" onclick="shareChar()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      </button>
+      <button class="ip-soc ip-soc-like" id="ipLikeBtn" title="Like" onclick="toggleLike()">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>
+        <span id="ipLikeCount">0</span>
+      </button>
+      <button class="ip-soc" title="Dislike" onclick="toggleDislike()">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 23l6.59-6.59c.36-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2zm4 0v12h4V3h-4z"/></svg>
+      </button>
+      <div class="ip-soc-gap"></div>
+      <button class="ip-soc" title="Report" onclick="comingSoon('Report')">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/></svg>
+      </button>
+      <button class="ip-soc" id="ipEditBtn" title="Edit" onclick="editCurrentChar()" style="display:none">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+      </button>
+    </div>
+
+    <div class="ip-divider"></div>
+
+    <!-- Menu -->
+    <nav class="ip-menu">
+
+      <!-- New chat pill -->
+      <button class="ip-new-chat" onclick="requestNewChat()">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M19 3H5c-1.1 0-2 .9-2 2v14l4-4h12c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
         New chat
       </button>
-      <button class="info-action-btn" onclick="editCurrentChar()">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-        Edit
+
+      <!-- Voice -->
+      <button class="ip-row ip-row-soon" onclick="comingSoon('Voice')">
+        <span class="ip-row-ico"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 15c1.66 0 2.99-1.34 2.99-3L15 6c0-1.66-1.34-3-3-3S9 4.34 9 6v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 15 6.7 12H5c0 3.42 2.72 6.23 6 6.72V22h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg></span>
+        <span class="ip-row-label">Voice</span>
+        <span class="ip-row-right"><span class="ip-badge-soon">Coming soon</span></span>
       </button>
-      <button class="info-action-btn info-action-delete" onclick="deleteCurrentChar()">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-        Delete
+
+      <!-- History -->
+      <button class="ip-row ip-row-soon" onclick="comingSoon('History')">
+        <span class="ip-row-ico"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg></span>
+        <span class="ip-row-label">History</span>
+        <span class="ip-row-right"><span class="ip-badge-soon">Coming soon</span></span>
       </button>
-    </div>
-    <div class="info-desc" id="infoDesc"></div>
-    <div class="info-tags" id="infoTags"></div>
-    <div class="info-section-title">Customize</div>
-    <div class="info-options">
-      <div class="info-option">
-        <span>Style</span>
-        <select class="info-select" onchange="setStyle(this.value)">
-          <option>Default</option>
-          <option>Formal</option>
-          <option>Casual</option>
-          <option>Playful</option>
-        </select>
+
+      <!-- Lorebook -->
+      <button class="ip-row" onclick="comingSoon('Lorebook')">
+        <span class="ip-row-ico"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM9 4h2v5l-1-.75L9 9V4zm9 16H6V4h1v9l3-2.25L13 13V4h5v16z"/></svg></span>
+        <span class="ip-row-label">Lorebook</span>
+        <span class="ip-row-right"><span class="ip-badge-new">New!</span><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></span>
+      </button>
+
+      <!-- Customize (expandable) -->
+      <button class="ip-row" onclick="toggleCustomize()">
+        <span class="ip-row-ico"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg></span>
+        <span class="ip-row-label">Customize</span>
+        <span class="ip-row-right"><svg class="ip-chevron" id="customizeChevron" viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></span>
+      </button>
+      <div class="ip-expand" id="customizePanel">
+        <div class="ip-expand-inner">
+          <span class="ip-expand-label">Response length is controlled by <strong>Effort</strong> in the model bar</span>
+        </div>
       </div>
-    </div>
+
+      <!-- Pinned -->
+      <button class="ip-row" onclick="comingSoon('Pinned')">
+        <span class="ip-row-ico"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/></svg></span>
+        <span class="ip-row-label">Pinned</span>
+        <span class="ip-row-right"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></span>
+      </button>
+
+      <!-- Persona -->
+      <button class="ip-row" onclick="comingSoon('Persona')">
+        <span class="ip-row-ico"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg></span>
+        <span class="ip-row-label">Persona</span>
+      </button>
+
+      <div class="ip-divider ip-divider-menu"></div>
+
+      <!-- Edit (custom chars only) -->
+      <button class="ip-row" id="ipEditRowBtn" onclick="editCurrentChar()" style="display:none">
+        <span class="ip-row-ico"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></span>
+        <span class="ip-row-label">Edit character</span>
+      </button>
+
+      <!-- Delete (custom chars only) -->
+      <button class="ip-row ip-row-danger" id="ipDeleteBtn" onclick="deleteCurrentChar()" style="display:none">
+        <span class="ip-row-ico"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></span>
+        <span class="ip-row-label">Delete character</span>
+      </button>
+
+    </nav>
   </aside>
 
 </div>
@@ -276,6 +573,251 @@
   </div>
 </div>
 
-<script src="app.js"></script>
+<!-- Welcome / Announcement Modal -->
+<div id="welcomeModal" class="modal-overlay" style="display:none">
+  <div class="welcome-modal">
+    <button class="welcome-close" onclick="closeWelcome()">
+      <svg viewBox="0 0 24 24" fill="currentColor" style="width:16px;height:16px"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+    </button>
+
+    <div class="welcome-header">
+      <div class="welcome-logo">
+        <img class="logo-icon logo-img" src="/logo.webp" alt="c.m">
+        <span class="logo-text">character.mind</span>
+      </div>
+      <h2 class="welcome-greeting" id="welcomeGreeting">Welcome.</h2>
+      <p class="welcome-greeting-sub">You can now create and chat with AI characters — anyone you can imagine.</p>
+      <div class="welcome-divider"></div>
+      <h3 class="welcome-title">What's new &amp; what's coming</h3>
+      <p class="welcome-sub">Here's a look at what you can do right now — and what we're building next.</p>
+    </div>
+
+    <div class="welcome-cols">
+      <!-- Can do now -->
+      <div class="welcome-col">
+        <div class="welcome-col-label welcome-col-label--now">✓ Available now</div>
+        <div class="welcome-features">
+          <div class="wf">
+            <span class="wf-icon">🧠</span>
+            <div>
+              <div class="wf-name">Create AI characters</div>
+              <div class="wf-desc">Give them a name, persona, backstory and greeting — then chat instantly.</div>
+            </div>
+          </div>
+          <div class="wf">
+            <span class="wf-icon">💬</span>
+            <div>
+              <div class="wf-name">Fast AI responses</div>
+              <div class="wf-desc">Every character responds intelligently — expressive, in-character, and fast.</div>
+            </div>
+          </div>
+          <div class="wf">
+            <span class="wf-icon">🖼️</span>
+            <div>
+              <div class="wf-name">Profile picture upload</div>
+              <div class="wf-desc">Upload your own avatar — it shows up everywhere across the app.</div>
+            </div>
+          </div>
+          <div class="wf">
+            <span class="wf-icon">🔍</span>
+            <div>
+              <div class="wf-name">Search characters</div>
+              <div class="wf-desc">Find any character by name, creator, or description right from the home screen.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Coming soon -->
+      <div class="welcome-col">
+        <div class="welcome-col-label welcome-col-label--soon">🔮 Coming soon</div>
+        <div class="welcome-features">
+          <div class="wf">
+            <span class="wf-icon">🎙️</span>
+            <div>
+              <div class="wf-name">Voice</div>
+              <div class="wf-desc">Upload a 5–15 second clip and the character speaks in that exact voice using AI.</div>
+            </div>
+          </div>
+          <div class="wf">
+            <span class="wf-icon">📖</span>
+            <div>
+              <div class="wf-name">Chat history</div>
+              <div class="wf-desc">Browse and continue past conversations with any character, anytime.</div>
+            </div>
+          </div>
+          <div class="wf">
+            <span class="wf-icon">👤</span>
+            <div>
+              <div class="wf-name">Persona</div>
+              <div class="wf-desc">Play as a custom character yourself — with your own name and personality in every chat.</div>
+            </div>
+          </div>
+          <div class="wf">
+            <span class="wf-icon">📌</span>
+            <div>
+              <div class="wf-name">Pinned messages</div>
+              <div class="wf-desc">Pin key moments in a conversation so the character always remembers them.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="welcome-footer">
+      <button class="welcome-cta" onclick="closeWelcome()">Let's go →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Limit Modal -->
+<div id="limitModal" class="modal-overlay lm-overlay" style="display:none" onclick="if(event.target===this)closeLimitModal()">
+  <div class="lm-box">
+    <button class="lm-close" onclick="closeLimitModal()" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+    </button>
+    <div class="lm-icon-ring">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+    </div>
+    <h2 class="lm-title" id="limitModalTitle">Session limit reached</h2>
+    <p class="lm-sub" id="limitModalSub">Come back later to keep chatting.</p>
+    <div class="lm-cards">
+      <div class="lm-card">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+        <div class="lm-card-text">
+          <div class="lm-card-title">Take a break</div>
+          <div class="lm-card-sub" id="limitOutdoorMsg">Go touch some grass.</div>
+        </div>
+      </div>
+      <div class="lm-card">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+        <div class="lm-card-text">
+          <div class="lm-card-title">Limit resets automatically</div>
+          <div class="lm-card-sub">No action needed — just come back.</div>
+        </div>
+      </div>
+    </div>
+    <button class="lm-got-it" onclick="closeLimitModal()">Got it</button>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div id="settingsModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeSettings()">
+  <div class="settings-modal">
+    <!-- Sidebar -->
+    <div class="settings-sidebar">
+      <div class="settings-user-header" id="settingsUserHeader"></div>
+      <nav class="settings-nav">
+        <button class="settings-nav-item active" id="stab-profile" onclick="showSettingsTab('profile')">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="17" height="17"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+          Public Profile
+        </button>
+        <button class="settings-nav-item" id="stab-preferences" onclick="showSettingsTab('preferences')">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="17" height="17"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
+          Preferences
+        </button>
+        <button class="settings-nav-item" id="stab-account" onclick="showSettingsTab('account')">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="17" height="17"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg>
+          Account
+        </button>
+      </nav>
+    </div>
+    <!-- Content -->
+    <div class="settings-content">
+      <button class="settings-close" onclick="closeSettings()">
+        <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <!-- Profile Tab -->
+      <div id="stab-content-profile" class="settings-tab-content">
+        <h2 class="settings-tab-title">Public Profile</h2>
+        <div class="settings-pfp-wrap">
+          <div class="settings-profile-avatar" id="settingsProfileAvatar" onclick="document.getElementById('pfpFileInput').click()" title="Change photo"></div>
+          <div class="settings-pfp-overlay" onclick="document.getElementById('pfpFileInput').click()">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M12 15.2A3.2 3.2 0 1 0 12 8.8a3.2 3.2 0 0 0 0 6.4zm0-8.4A5.2 5.2 0 1 1 12 17.2 5.2 5.2 0 0 1 12 6.8zM1.5 6h3L6 4h12l1.5 2H23a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H1a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h.5z"/></svg>
+          </div>
+          <input type="file" id="pfpFileInput" accept="image/*" style="display:none" onchange="uploadPfp(event)">
+        </div>
+        <button id="pfpRemoveBtn" class="settings-pfp-remove" onclick="removePfp()" style="display:none">Remove photo</button>
+        <div class="settings-field">
+          <label class="settings-label" for="settingsNameInput">Display name</label>
+          <div class="settings-editable-row">
+            <input class="settings-input" id="settingsNameInput" type="text" maxlength="60" autocomplete="off" oninput="settingsFieldDirty('name')">
+            <button class="settings-save-btn" id="settingsNameSave" onclick="saveProfileField('name')" style="display:none">Save</button>
+          </div>
+        </div>
+        <div class="settings-field">
+          <label class="settings-label" for="settingsEmailInput">Email</label>
+          <div class="settings-editable-row">
+            <input class="settings-input" id="settingsEmailInput" type="email" maxlength="120" autocomplete="off" oninput="settingsFieldDirty('email')">
+            <button class="settings-save-btn" id="settingsEmailSave" onclick="saveProfileField('email')" style="display:none">Save</button>
+          </div>
+        </div>
+        <p class="settings-note">Changes are saved on this device. Your Google account info is unchanged.</p>
+      </div>
+      <!-- Preferences Tab -->
+      <div id="stab-content-preferences" class="settings-tab-content hidden">
+        <h2 class="settings-tab-title">Preferences</h2>
+        <div class="settings-field">
+          <label class="settings-label">Response length</label>
+          <p class="settings-field-sub">Controlled by the <strong>Effort</strong> slider in the model bar (Low = brief, Max = extended)</p>
+        </div>
+        <div class="settings-field">
+          <label class="settings-label">Color vision</label>
+          <p class="settings-field-sub">Adjusts usage bar colors for different types of color vision deficiency.</p>
+          <select class="settings-select" id="colorblindMode" onchange="setColorblindMode(this.value)">
+            <option value="">None</option>
+            <option value="deuteranopia">Deuteranopia — red-green [green weakness, most common]</option>
+            <option value="protanopia">Protanopia — red-green [red weakness]</option>
+            <option value="tritanopia">Tritanopia — blue-yellow</option>
+            <option value="achromatopsia">Achromatopsia — monochromacy</option>
+          </select>
+        </div>
+      </div>
+      <!-- Account Tab -->
+      <div id="stab-content-account" class="settings-tab-content hidden">
+        <h2 class="settings-tab-title">Account</h2>
+        <div class="settings-plan-card">
+          <div class="settings-plan-badge">Free</div>
+          <div>
+            <div class="settings-plan-name">Free Plan</div>
+            <div class="settings-plan-sub">Session limit · 2-hour cooldown · Weekly limit</div>
+          </div>
+        </div>
+        <div class="settings-field">
+          <label class="settings-label">Usage this week</label>
+          <div class="settings-usage-row">
+            <span class="settings-usage-label">Session</span>
+            <div class="usage-track-modal" style="flex:1"><div class="usage-fill-modal green" id="settingsSessionBar"></div></div>
+          </div>
+          <div class="settings-usage-row" style="margin-top:10px">
+            <span class="settings-usage-label">Weekly</span>
+            <div class="usage-track-modal" style="flex:1"><div class="usage-fill-modal green" id="settingsWeeklyBar"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- New Chat Warning Modal -->
+<div class="modal-overlay" id="newChatWarningModal" style="display:none" onclick="if(event.target===this)closeNewChatWarning()">
+  <div class="ncw-modal">
+    <div class="ncw-icon">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="26" height="26"><path d="M19 3H5c-1.1 0-2 .9-2 2v14l4-4h12c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg>
+    </div>
+    <h3 class="ncw-title">Start a new chat?</h3>
+    <p class="ncw-body">All messages and memory in this conversation will be <strong>permanently lost</strong> — the character won't remember anything from here.</p>
+    <div class="ncw-notice">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+      Your session &amp; weekly usage limits <strong>do not reset</strong> when you start a new chat. They stay exactly where they are.
+    </div>
+    <div class="ncw-actions">
+      <button class="ncw-cancel" onclick="closeNewChatWarning()">Keep chatting</button>
+      <button class="ncw-confirm" onclick="confirmNewChat()">Start new chat</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js?v=47"></script>
 </body>
 </html>

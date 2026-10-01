@@ -1,0 +1,5 @@
+[[redirects]]
+  from = "/*"
+  to = "https://persons-part-lie-groove.trycloudflare.com/:splat"
+  status = 200
+  force = true

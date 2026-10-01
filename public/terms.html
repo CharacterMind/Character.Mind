@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terms of Service — character.mind</title>
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --surface: #111111;
+      --border: #222222;
+      --text1: #f0f0f0;
+      --text2: #aaaaaa;
+      --text3: #666666;
+      --accent: #7c5cbf;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f5f5f5;
+        --surface: #ffffff;
+        --border: #e0e0e0;
+        --text1: #111111;
+        --text2: #555555;
+        --text3: #999999;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text1);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+      padding: 0 16px;
+    }
+    .wrap {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 60px 0 80px;
+    }
+    .back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text3);
+      text-decoration: none;
+      font-size: 13px;
+      margin-bottom: 40px;
+    }
+    .back:hover { color: var(--text2); }
+    .site-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -.02em;
+      margin-bottom: 8px;
+    }
+    .updated {
+      font-size: 13px;
+      color: var(--text3);
+      margin-bottom: 48px;
+    }
+    h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 36px 0 10px;
+      color: var(--text1);
+    }
+    p { color: var(--text2); margin-bottom: 14px; }
+    ul { color: var(--text2); padding-left: 20px; margin-bottom: 14px; }
+    li { margin-bottom: 6px; }
+    .rule-box {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin: 16px 0;
+      background: var(--surface);
+    }
+    .rule-box .rule-label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--text3);
+      margin-bottom: 8px;
+    }
+    .rule-box p { margin-bottom: 0; }
+    hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="/">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      Back to character.mind
+    </a>
+
+    <div class="site-name">character.mind</div>
+    <h1>Terms of Service</h1>
+    <p class="updated">Last updated: September 30, 2026</p>
+
+    <p>By signing in and using character.mind ("the Service"), you agree to these terms. If you don't agree, please don't use the Service.</p>
+
+    <h2>1. What the Service Is</h2>
+    <p>character.mind is an AI character chat platform. You can create characters with custom personalities and have conversations with them, powered by Google's Gemini AI. The characters are fictional and AI-generated. Nothing said by an AI character constitutes professional advice of any kind.</p>
+
+    <h2>2. Who Can Use It</h2>
+    <p>You must be at least 18 years old to use the Service. By signing in, you confirm you meet this requirement.</p>
+
+    <h2>3. Your Account</h2>
+    <p>You sign in using your Google account. You're responsible for anything that happens through your account. We reserve the right to suspend access for violations of these terms.</p>
+
+    <h2>4. Content Policy</h2>
+
+    <div class="rule-box">
+      <div class="rule-label">Profanity</div>
+      <p>Strong language and profanity are allowed. We don't sanitize natural human speech.</p>
+    </div>
+
+    <div class="rule-box">
+      <div class="rule-label">Hate speech &amp; slurs</div>
+      <p>Racial slurs, homophobic slurs, and similar hate speech are not permitted. If slurs are detected in your messages, you will receive up to two warnings. On the third instance, the conversation will be automatically ended. You can start a new chat afterward.</p>
+    </div>
+
+    <div class="rule-box">
+      <div class="rule-label">Crisis &amp; distress</div>
+      <p>If your message suggests you may be personally struggling — real suicidal thoughts, self-harm, or severe emotional distress — the AI character may briefly step out of its role to check in with you as a human being. It may include local crisis resources based on your approximate location. This is a care feature, not a clinical service. If you are in immediate danger, please contact your local emergency services.</p>
+    </div>
+
+    <div class="rule-box">
+      <div class="rule-label">Explicit sexual content</div>
+      <p>Sexually explicit content is not permitted. Messages containing explicit sexual language or requests will be deflected automatically and will not be sent to the AI.</p>
+    </div>
+
+    <p>You may not use the Service to generate content that sexualizes minors, facilitates real-world harm, or is designed to harass specific individuals.</p>
+
+    <h2>5. Usage Limits</h2>
+    <p>The Service operates on a token-based usage system to ensure fair access:</p>
+    <ul>
+      <li><strong>Session limit:</strong> 20,000 tokens per session, with a ~2-hour cooldown after the limit is reached.</li>
+      <li><strong>Weekly limit:</strong> 200,000 tokens per rolling 7-day period.</li>
+    </ul>
+    <p>These limits may change over time. Attempting to circumvent them is a violation of these terms.</p>
+
+    <h2>6. AI Limitations</h2>
+    <p>AI characters can and do make things up. They may say inaccurate, inconsistent, or unexpected things. Do not rely on AI-generated content for medical, legal, financial, or any other professional decisions. The characters are for entertainment and creative purposes only.</p>
+
+    <h2>7. Intellectual Property</h2>
+    <p>Characters you create belong to you. The platform, its design, and its code belong to character.mind. You grant us a license to store your characters and process your conversations to provide the Service. Characters based on third-party intellectual property (such as characters from games, films, or other media) remain subject to the original rights holder's terms; you are responsible for ensuring your use does not infringe on others' rights.</p>
+
+    <h2>8. Availability</h2>
+    <p>We make no guarantees about uptime or availability. The Service is provided as-is. We may change, suspend, or discontinue it at any time.</p>
+
+    <h2>9. Disclaimer of Warranties</h2>
+    <p>The Service is provided "as is" without warranties of any kind, express or implied. We are not liable for any damages arising from your use of the Service.</p>
+
+    <h2>10. Changes to These Terms</h2>
+    <p>We may update these terms from time to time. Continued use of the Service after changes are posted means you accept the updated terms.</p>
+
+    <h2>11. Contact</h2>
+    <p>Questions? Reach out at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a>.</p>
+
+    <hr>
+    <p style="font-size:13px;color:var(--text3)">See also: <a href="/privacy.html">Privacy Policy</a></p>
+  </div>
+</body>
+</html>
