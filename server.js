@@ -691,14 +691,14 @@ const GROQ_PRO_MODELS = [
 // Per-tier effort configs
 const EFFORT_CONFIG = {
   opas: {
-    low:    { maxOutputTokens: 600,  temperature: 0.75 },
-    medium: { maxOutputTokens: 700,  temperature: 0.95 },
-    high:   { maxOutputTokens: 2500, temperature: 1.05 },
+    low:    { maxOutputTokens: 600,  temperature: 0.75, reasoningEffort: 'low'    },
+    medium: { maxOutputTokens: 700,  temperature: 0.95, reasoningEffort: 'low'    },
+    high:   { maxOutputTokens: 2500, temperature: 1.05, reasoningEffort: 'medium' },
   },
   opes: {
-    low:    { maxOutputTokens: 700,  temperature: 0.75 },
-    medium: { maxOutputTokens: 1000, temperature: 0.95 },
-    high:   { maxOutputTokens: 5000, temperature: 1.1  },
+    low:    { maxOutputTokens: 700,  temperature: 0.75, reasoningEffort: 'low'    },
+    medium: { maxOutputTokens: 1000, temperature: 0.95, reasoningEffort: 'medium' },
+    high:   { maxOutputTokens: 5000, temperature: 1.1,  reasoningEffort: 'high'   },
   },
 };
 
@@ -740,7 +740,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     temperature: effortCfg.temperature,
     top_p: 0.95,
     stream: true,
-    ...(model.startsWith('openai/') ? { reasoning_effort: 'none' } : {})
+    ...(model.startsWith('openai/') && effortCfg.reasoningEffort ? { reasoning_effort: effortCfg.reasoningEffort } : {})
   });
 
   const promptTokensEstimate = Math.ceil((systemPrompt.length + messages.reduce((s, m) => s + (m.content || '').length, 0)) / 4);
