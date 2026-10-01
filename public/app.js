@@ -1529,7 +1529,7 @@ function updateSessionTimer(expiresAt) {
   }, 30000);
 }
 
-function showWarning(msg) {
+function showWarning(msg, autoCloseMs) {
   const container = document.getElementById('warningBanners');
   if (!container) return;
   const banner = document.createElement('div');
@@ -1544,6 +1544,7 @@ function showWarning(msg) {
   banner.appendChild(text);
   banner.appendChild(close);
   container.appendChild(banner);
+  if (autoCloseMs) setTimeout(() => banner.remove(), autoCloseMs);
 }
 
 function processWarnings(warnings) {
@@ -1904,7 +1905,7 @@ function copyMsgText(btn) {
     } catch(_) {}
   });
   btn.closest('.msg-dropdown').classList.add('hidden');
-  showWarning('Copied!');
+  showWarning('Copied!', 5000);
 }
 
 function editMsgText(btn) {
