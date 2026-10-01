@@ -71,7 +71,8 @@ if (db) {
       updated_at BIGINT DEFAULT 0
     )
   `).then(() => loadLimitsFromDB())
-    .catch(err => console.error('user_limits table init error:', err));
+    .catch(err => console.error('user_limits table init error:', err))
+    .finally(() => startListening());
 } else {
   console.warn('No DATABASE_URL — characters will not be persisted');
 }
@@ -1432,6 +1433,12 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`\nAI Character Site running at http://localhost:${PORT}\n`);
-});
+function startListening() {
+  app.listen(PORT, () => {
+    console.log(`\nAI Character Site running at http://localhost:${PORT}\n`);
+  });
+}
+
+if (!db) {
+  startListening();
+}
