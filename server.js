@@ -140,7 +140,7 @@ if (GOOGLE_AUTH_ENABLED) {
   passport.use(new GoogleStrategy({
     clientID:     process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL:  (process.env.APP_URL || 'http://localhost:8080') + '/auth/google/callback',
+    callbackURL:  (process.env.SITE_URL || process.env.APP_URL || 'http://localhost:8080') + '/auth/google/callback',
     state:        true
   }, (_at, _rt, profile, done) => {
     const user = {
