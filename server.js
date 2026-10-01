@@ -681,12 +681,6 @@ const GEMINI_MODELS = [
   'gemini-2.5-flash',
   'gemini-2.0-flash',
   'gemini-2.0-flash-lite',
-  'gemini-flash-latest',
-  'gemini-3.8-flash',
-  'gemini-3.6-flash',
-  'gemini-3.1-flash-lite',
-  'gemini-flash-lite-latest',
-  'gemini-3.1-flash-lite-preview',
   'gemini-1.5-flash-latest'
 ];
 // Pro tier — smarter models, falls back to flash if unavailable
@@ -700,12 +694,12 @@ const GEMINI_PRO_MODELS = [
 // Per-tier effort configs — Opes gets more tokens since it's the premium model
 const EFFORT_CONFIG = {
   opas: {
-    low:    { maxOutputTokens: 400,  temperature: 0.75 },
+    low:    { maxOutputTokens: 600,  temperature: 0.75 },
     medium: { maxOutputTokens: 700,  temperature: 0.95 },
     high:   { maxOutputTokens: 2500, temperature: 1.05 },
   },
   opes: {
-    low:    { maxOutputTokens: 500,  temperature: 0.75 },
+    low:    { maxOutputTokens: 700,  temperature: 0.75 },
     medium: { maxOutputTokens: 1000, temperature: 0.95 },
     high:   { maxOutputTokens: 5000, temperature: 1.1  },
   },
@@ -745,7 +739,13 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
   const body = JSON.stringify({
     contents: geminiMessages,
     systemInstruction: { parts: [{ text: systemPrompt }] },
-    generationConfig: { maxOutputTokens: effortCfg.maxOutputTokens, temperature: effortCfg.temperature, topP: 0.95, topK: 40 }
+    generationConfig: {
+      maxOutputTokens: effortCfg.maxOutputTokens,
+      temperature: effortCfg.temperature,
+      topP: 0.95,
+      topK: 40,
+      thinkingConfig: { thinkingBudget: 0 }
+    }
   });
   // Estimate input tokens (system prompt + all history) so the fallback is accurate
   const promptTokensEstimate = Math.ceil((systemPrompt.length + messages.reduce((s, m) => s + (m.content || '').length, 0)) / 4);
@@ -810,12 +810,25 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
           }
           const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
           if (text) onChunk(text);
-          if (parsed.candidates?.[0]?.finishReason === 'STOP' && !finished) { finished = true; onDone(usageTokens || promptTokensEstimate); }
+          const reason = parsed.candidates?.[0]?.finishReason;
+          if ((reason === 'STOP' || reason === 'MAX_TOKENS') && !finished) { finished = true; onDone(usageTokens || promptTokensEstimate); }
         } catch (_) {}
       }
     });
 
-    res.on('end', () => { if (!finished) { finished = true; onDone(usageTokens || promptTokensEstimate); } });
+    res.on('end', () => {
+      if (buffer.trim()) {
+        const raw = buffer.startsWith('data: ') ? buffer.slice(6).trim() : '';
+        if (raw && raw !== '[DONE]') {
+          try {
+            const parsed = JSON.parse(raw);
+            const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text && !finished) onChunk(text);
+          } catch (_) {}
+        }
+      }
+      if (!finished) { finished = true; onDone(usageTokens || promptTokensEstimate); }
+    });
   });
 
   req.on('error', onError);
