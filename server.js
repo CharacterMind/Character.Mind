@@ -678,19 +678,17 @@ async function getCharPrompt(charId) {
   return null;
 }
 
-// ── Gemini API streaming helper ───────────────────────────────────────────────
+// ── Groq API streaming helper ─────────────────────────────────────────────────
 
-const GEMINI_MODELS = [
-  'gemini-3.5-flash-lite',
-  'gemini-3.8-flash',
+const GROQ_MODELS = [
+  'llama-3.3-70b-versatile',
+  'llama-3.1-8b-instant',
 ];
-// Pro tier — smarter models, falls back to flash if unavailable
-const GEMINI_PRO_MODELS = [
-  'gemini-2.5-pro',
-  'gemini-2.5-flash',
-  ...GEMINI_MODELS
+const GROQ_PRO_MODELS = [
+  'llama-3.3-70b-versatile',
+  'llama-3.1-8b-instant',
 ];
-// Per-tier effort configs — Opes gets more tokens since it's the premium model
+// Per-tier effort configs
 const EFFORT_CONFIG = {
   opas: {
     low:    { maxOutputTokens: 600,  temperature: 0.75 },
@@ -710,57 +708,50 @@ function getEffortCfg(effort, tier) {
 }
 
 function getModelList(tier) {
-  return tier === 'opes' ? GEMINI_PRO_MODELS : GEMINI_MODELS;
+  return tier === 'opes' ? GROQ_PRO_MODELS : GROQ_MODELS;
 }
 
 const workingModels = {}; // keyed by tier: 'opas' | 'opes'
 
-function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex, effortCfg, modelList) {
-  modelList = modelList || GEMINI_MODELS;
-  effortCfg = effortCfg || EFFORT_CONFIG.high;
+function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex, effortCfg, modelList) {
+  modelList = modelList || GROQ_MODELS;
+  effortCfg = effortCfg || EFFORT_CONFIG.opas.high;
   if (modelIndex === undefined) {
-    const tier = modelList === GEMINI_PRO_MODELS ? 'opes' : 'opas';
+    const tier = modelList === GROQ_PRO_MODELS ? 'opes' : 'opas';
     const wm = workingModels[tier];
     const wi = wm ? modelList.indexOf(wm) : -1;
     modelIndex = wi >= 0 ? wi : 0;
   }
   if (modelIndex >= modelList.length) {
-    return onError(new Error('No working Gemini model found. Check your API key.'));
+    return onError(new Error('No working model found. Check your Groq API key.'));
   }
 
   const model = modelList[modelIndex];
 
-  const geminiMessages = messages.map(m => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }]
-  }));
-
-  const generationConfig = {
-    maxOutputTokens: effortCfg.maxOutputTokens,
-    temperature: effortCfg.temperature,
-    topP: 0.95,
-    topK: 40
-  };
-  // Only 2.5-series models support thinkingConfig; disable thinking for fast first-token
-  if (model.includes('2.5')) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  const groqMessages = [
+    { role: 'system', content: systemPrompt },
+    ...messages.map(m => ({ role: m.role, content: m.content }))
+  ];
 
   const body = JSON.stringify({
-    contents: geminiMessages,
-    systemInstruction: { parts: [{ text: systemPrompt }] },
-    generationConfig
+    model,
+    messages: groqMessages,
+    max_tokens: effortCfg.maxOutputTokens,
+    temperature: effortCfg.temperature,
+    top_p: 0.95,
+    stream: true
   });
-  // Estimate input tokens (system prompt + all history) so the fallback is accurate
+
   const promptTokensEstimate = Math.ceil((systemPrompt.length + messages.reduce((s, m) => s + (m.content || '').length, 0)) / 4);
 
-  // Always send key both ways — works for AIza* and AQ.* formats
-  const path = `/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${encodeURIComponent(apiKey)}`;
+  const reqPath = '/openai/v1/chat/completions';
   const headers = {
     'content-type': 'application/json',
     'content-length': Buffer.byteLength(body),
-    'x-goog-api-key': apiKey
+    'authorization': `Bearer ${apiKey}`
   };
 
-  const req = https.request({ hostname: 'generativelanguage.googleapis.com', path, method: 'POST', headers }, (res) => {
+  const req = https.request({ hostname: 'api.groq.com', path: reqPath, method: 'POST', headers }, (res) => {
     if (res.statusCode !== 200) {
       let errBody = '';
       res.on('data', d => errBody += d);
@@ -770,16 +761,13 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
           const msg = parsed.error?.message || '';
           console.log(`Model ${model} status ${res.statusCode}: ${msg}`);
           if (res.statusCode === 401 || res.statusCode === 403) {
-            return onError(new Error(`Invalid API key: ${msg}`));
+            return onError(new Error(`Invalid Groq API key: ${msg}`));
           }
-          if (res.statusCode === 429) {
-            return callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList);
-          }
-          if (msg.includes('not found') || msg.includes('not supported') || msg.includes('deprecated') || msg.includes('no longer available') || res.statusCode === 404 || res.statusCode === 503) {
-            return callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList);
+          if (res.statusCode === 429 || res.statusCode === 503 || res.statusCode === 404) {
+            return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList);
           }
           if (res.statusCode === 400 && modelIndex + 1 < modelList.length) {
-            return callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList);
+            return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList);
           }
           onError(new Error(msg || `HTTP ${res.statusCode}`));
         } catch (_) { onError(new Error(`HTTP ${res.statusCode}`)); }
@@ -787,7 +775,7 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
       return;
     }
 
-    const tier = modelList === GEMINI_PRO_MODELS ? 'opes' : 'opas';
+    const tier = modelList === GROQ_PRO_MODELS ? 'opes' : 'opas';
     workingModels[tier] = model;
     console.log(`Using model: ${model} (tier=${tier})`);
 
@@ -805,18 +793,15 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
         if (raw === '[DONE]') { if (!finished) { finished = true; onDone(usageTokens || promptTokensEstimate); } return; }
         try {
           const parsed = JSON.parse(raw);
-          if (parsed.usageMetadata) {
-            if (parsed.usageMetadata.totalTokenCount) {
-              usageTokens = parsed.usageMetadata.totalTokenCount;
-            } else if (parsed.usageMetadata.candidatesTokenCount) {
-              // Streaming sometimes only reports output tokens — add estimated input so the bar fills correctly
-              usageTokens = promptTokensEstimate + parsed.usageMetadata.candidatesTokenCount;
-            }
+          if (parsed.x_groq?.usage?.total_tokens) {
+            usageTokens = parsed.x_groq.usage.total_tokens;
+          } else if (parsed.usage?.total_tokens) {
+            usageTokens = parsed.usage.total_tokens;
           }
-          const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+          const text = parsed.choices?.[0]?.delta?.content;
           if (text) onChunk(text);
-          const reason = parsed.candidates?.[0]?.finishReason;
-          if ((reason === 'STOP' || reason === 'MAX_TOKENS') && !finished) { finished = true; onDone(usageTokens || promptTokensEstimate); }
+          const reason = parsed.choices?.[0]?.finish_reason;
+          if ((reason === 'stop' || reason === 'length') && !finished) { finished = true; onDone(usageTokens || promptTokensEstimate); }
         } catch (_) {}
       }
     });
@@ -827,7 +812,7 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
         if (raw && raw !== '[DONE]') {
           try {
             const parsed = JSON.parse(raw);
-            const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+            const text = parsed.choices?.[0]?.delta?.content;
             if (text && !finished) onChunk(text);
           } catch (_) {}
         }
@@ -1076,7 +1061,7 @@ app.post('/api/conversations/:charId/sync', requireAuth, (req, res) => {
 });
 
 app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
   const { charId } = req.params;
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
@@ -1121,7 +1106,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   const regenModelList = getModelList(modelTier);
   const regenEffortCfg = getEffortCfg(effort, modelTier);
 
-  callGeminiStream(
+  callGroqStream(
     apiKey, applyEffortDirective(wrapPrompt(systemPrompt), effort), hist.slice(-12),
     (text) => { fullResponse += text; res.write(`data: ${JSON.stringify({ text })}\n\n`); },
     (tokensUsed) => {
@@ -1153,7 +1138,7 @@ app.post('/api/rewind/:charId', requireAuth, (req, res) => {
 });
 
 app.post('/api/generate-persona', requireAuth, (req, res) => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
   const { name, tagline, description } = req.body;
   if (!name || typeof name !== 'string' || !name.trim() || name.length > 60) return res.status(400).json({ error: 'Name required, max 60 chars' });
@@ -1169,7 +1154,7 @@ Include: core personality and temperament, distinct speech style and vocabulary,
 Write ONLY the persona prompt itself. Start with "You are ${name}." No preamble, no commentary, no explanation. Under 400 words.`;
 
   let fullText = '', done = false;
-  callGeminiStream(
+  callGroqStream(
     apiKey,
     'You write detailed, accurate character personas for AI roleplay apps. You research fictional characters and portray them faithfully.',
     [{ role: 'user', content: userMsg }],
@@ -1185,7 +1170,7 @@ Write ONLY the persona prompt itself. Start with "You are ${name}." No preamble,
 });
 
 app.post('/api/greet/:charId', requireAuth, async (req, res) => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
   const { effort, modelTier } = req.body;
   const { charId } = req.params;
@@ -1215,7 +1200,7 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   const trigger = [{ role: 'user', content: `[Scene opens. ${charName} enters or is already present. Begin the scene — speak first, act first, set the atmosphere. The other person has just arrived. Go.]` }];
   let fullResponse = '', done = false;
 
-  callGeminiStream(
+  callGroqStream(
     apiKey, applyEffortDirective(wrapPrompt(systemPrompt), effort), trigger,
     (text) => { fullResponse += text; res.write(`data: ${JSON.stringify({ text })}\n\n`); },
     (tokensUsed) => {
@@ -1235,7 +1220,7 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
 });
 
 app.post('/api/chat', requireAuth, async (req, res) => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
   const { charId, message, modelTier, effort } = req.body;
   const modelList = getModelList(modelTier);
@@ -1298,10 +1283,10 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     conversations[key].push({ role: 'user', content: message });
   }
 
-  // Gemini requires the last turn to be a user turn — inject a hidden continuation trigger if needed
+  // Chat APIs require the last turn to be a user turn — inject a hidden continuation trigger if needed
   const history = conversations[key].slice(-12);
   const lastRole = history[history.length - 1]?.role;
-  const messagesForGemini = (isContinuation && lastRole !== 'user')
+  const messagesForGroq = (isContinuation && lastRole !== 'user')
     ? [...history, { role: 'user', content: '...' }]
     : history;
 
@@ -1314,10 +1299,10 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   let fullResponse = '';
   let done = false;
 
-  callGeminiStream(
+  callGroqStream(
     apiKey,
     applyEffortDirective(wrapPrompt(char.systemPrompt) + crisisContext, effort),
-    messagesForGemini,
+    messagesForGroq,
     (text) => {
       fullResponse += text;
       res.write(`data: ${JSON.stringify({ text })}\n\n`);
