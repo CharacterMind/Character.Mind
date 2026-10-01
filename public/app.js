@@ -209,6 +209,14 @@ function settingsFieldDirty(field) {
   if (btn) btn.style.display = 'inline-flex';
 }
 
+// Colorblind-safe defaults for the character accent color picker
+const CB_SAFE_COLOR = {
+  protanopia:    '#0ea5e9',
+  deuteranopia:  '#0ea5e9',
+  tritanopia:    '#f97316',
+  achromatopsia: '#9ca3af'
+};
+
 function setColorblindMode(mode) {
   try { localStorage.setItem('cm_colorblind', mode || ''); } catch(_) {}
   if (mode) {
@@ -222,6 +230,14 @@ function setColorblindMode(mode) {
   const s2 = document.getElementById('gcColorblindPicker');
   if (s1) s1.value = v;
   if (s2) s2.value = v;
+  // Update the character accent color picker to a safe default for this mode
+  const safeColor = CB_SAFE_COLOR[mode] || '#7c3aed';
+  const container = document.getElementById('gradientSwatches');
+  const firstSwatch = container && container.querySelector('.gc-swatch-input');
+  if (firstSwatch) {
+    firstSwatch.value = safeColor;
+    updateGradientPreview();
+  }
 }
 
 function loadColorblindMode() {
@@ -232,6 +248,13 @@ function loadColorblindMode() {
     const s2 = document.getElementById('gcColorblindPicker');
     if (s1) s1.value = mode;
     if (s2) s2.value = mode;
+    // Pre-seed the accent color picker with the safe default
+    if (mode) {
+      const safeColor = CB_SAFE_COLOR[mode] || '#7c3aed';
+      const container = document.getElementById('gradientSwatches');
+      const firstSwatch = container && container.querySelector('.gc-swatch-input');
+      if (firstSwatch) { firstSwatch.value = safeColor; updateGradientPreview(); }
+    }
   } catch(_) {}
 }
 
