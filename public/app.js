@@ -1229,13 +1229,13 @@ async function generateGreeting() {
         }
       }
     }
-    // Flush all remaining text instantly, THEN update usage — no drain animation
     if (msgEl) stopStreamStats(msgEl, null);
-    flushTypewriter();
-    scrollToBottom();
-    if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings); }
-    if (bubble) bubble.classList.remove('streaming');
-    if (streamText) saveHistoryLocal();
+    drainTypewriter(() => {
+      scrollToBottom();
+      if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings); }
+      if (bubble) bubble.classList.remove('streaming');
+      if (streamText) saveHistoryLocal();
+    });
   } catch (err) {
     flushTypewriter();
     showTyping(false);
@@ -1349,16 +1349,16 @@ async function sendMessage(overrideText, skipAppend) {
       }
       if (convEnded) { isStreaming = false; return; }
     }
-    // Hide stats immediately when stream ends, before typewriter drains
     if (msgEl) stopStreamStats(msgEl, null);
-    flushTypewriter();
-    scrollToBottom();
-    if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings); }
-    if (bubble) {
-      bubble.classList.remove('streaming');
-      playSound('done');
-    }
-    saveHistoryLocal();
+    drainTypewriter(() => {
+      scrollToBottom();
+      if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings); }
+      if (bubble) {
+        bubble.classList.remove('streaming');
+        playSound('done');
+      }
+      saveHistoryLocal();
+    });
   } catch (err) {
     flushTypewriter();
     showTyping(false);
@@ -2257,6 +2257,7 @@ let twMsgEl = null;
 let twRevealed = '';
 let twQueue = '';
 let twInterval = null;
+let twOnDrain = null;
 
 // Typewriter speed by effort level — lower effort = slower (fewer tokens, more visible)
 const TW_SPEED = {
@@ -2272,7 +2273,10 @@ function startTypewriter(bubble, msgEl) {
   if (twInterval) clearInterval(twInterval);
   const spd = TW_SPEED[selectedEffort] || TW_SPEED.high;
   twInterval = setInterval(() => {
-    if (!twQueue.length) return;
+    if (!twQueue.length) {
+      if (twOnDrain) { const cb = twOnDrain; twOnDrain = null; cb(); }
+      return;
+    }
     let chunk;
     if (spd.word) {
       const wsIdx = twQueue.search(/\s/);
@@ -2294,7 +2298,14 @@ function feedTypewriter(chunk) {
   twQueue += chunk;
 }
 
+// Let the queue drain at normal speed, then call cb. Use for stream-end cleanup.
+function drainTypewriter(cb) {
+  if (!twInterval || !twQueue.length) { if (cb) cb(); flushTypewriter(); return; }
+  twOnDrain = () => { if (cb) cb(); flushTypewriter(); };
+}
+
 function flushTypewriter() {
+  twOnDrain = null;
   if (twInterval) { clearInterval(twInterval); twInterval = null; }
   if (twQueue.length && twBubble) {
     twRevealed += twQueue;
@@ -2541,19 +2552,19 @@ async function regenerate() {
     }
 
     stopStreamStats(msgEl, null);
-    flushTypewriter();
-    scrollToBottom();
-    if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings); }
-    if (bubble) bubble.classList.remove('streaming');
-
-    if (streamText) {
-      const store = regenStore.get(id);
-      store.texts.push(streamText);
-      store.idx = store.texts.length - 1;
-      regenNavUpdate(msgEl);
-      playSound('done');
-    }
-    saveHistoryLocal();
+    drainTypewriter(() => {
+      scrollToBottom();
+      if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings); }
+      if (bubble) bubble.classList.remove('streaming');
+      if (streamText) {
+        const store = regenStore.get(id);
+        store.texts.push(streamText);
+        store.idx = store.texts.length - 1;
+        regenNavUpdate(msgEl);
+        playSound('done');
+      }
+      saveHistoryLocal();
+    });
 
   } catch (err) {
     flushTypewriter();
