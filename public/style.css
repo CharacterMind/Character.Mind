@@ -1984,6 +1984,64 @@ html, body {
 [data-colorblind="achromatopsia"] .usage-fill.red,
 [data-colorblind="achromatopsia"] .usage-fill-modal.red      { background: #111827; }
 
+/* ── Colorblind mode: global accent & chrome overrides ──────────────────────── */
+/*
+  Red-green modes (protanopia / deuteranopia)
+  ─ Purple sits near blue, which both types can distinguish, but we shift it
+    to a clear sky blue to maximise legibility against dark backgrounds.
+  ─ User message bubble moves from dark purple to dark navy.
+*/
+[data-colorblind="protanopia"],
+[data-colorblind="deuteranopia"] {
+  --accent:      #0ea5e9;
+  --accent-l:    #38bdf8;
+  --accent-d:    #0284c7;
+  --accent-dim:  rgba(14,165,233,0.14);
+  --user-bubble: #0c2840;
+}
+
+/*
+  Blue-yellow mode (tritanopia)
+  ─ Blue/purple are ambiguous; shift accent to bright orange and bubble to
+    a very dark amber so all interactive chrome reads as red-orange vs teal.
+*/
+[data-colorblind="tritanopia"] {
+  --accent:      #f97316;
+  --accent-l:    #fb923c;
+  --accent-d:    #ea580c;
+  --accent-dim:  rgba(249,115,22,0.14);
+  --user-bubble: #1f0a00;
+}
+
+/*
+  Full monochromacy (achromatopsia)
+  ─ No colour perception at all; maximise lightness contrast instead.
+  ─ Accent becomes near-white so it reads clearly on dark surfaces.
+  ─ Background ramp, borders, and text are tuned for maximum separation.
+  ─ Images are desaturated so colour never carries meaning.
+*/
+[data-colorblind="achromatopsia"] {
+  --accent:      #d4d4d4;
+  --accent-l:    #f5f5f5;
+  --accent-d:    #a3a3a3;
+  --accent-dim:  rgba(212,212,212,0.14);
+  --user-bubble: #1c1c1e;
+  --bg:          #0a0a0a;
+  --bg2:         #111111;
+  --bg3:         #1a1a1a;
+  --bg4:         #252525;
+  --border:      #333333;
+  --border2:     #404040;
+  --text:        #f5f5f5;
+  --text2:       #b0b0b0;
+  --text3:       #606060;
+}
+[data-colorblind="achromatopsia"] .char-card-img,
+[data-colorblind="achromatopsia"] .char-avatar,
+[data-colorblind="achromatopsia"] .profile-pic,
+[data-colorblind="achromatopsia"] .settings-profile-avatar img,
+[data-colorblind="achromatopsia"] .user-badge-avatar { filter: grayscale(1); }
+
 /* ── Gradient color picker ───────────────────────────────────────────────────── */
 .color-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
 .gradient-builder { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
