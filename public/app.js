@@ -240,15 +240,29 @@ const CB_PALETTES = {
 
 function _applyGCPalette(mode) {
   const container = document.getElementById('gradientSwatches');
+  const colorRow = document.getElementById('gcColorRow');
+  const achroNote = document.getElementById('gcAchroNote');
+  const strip = document.getElementById('gcPaletteStrip');
+
+  // Achromatopsia — hide the whole picker, show a note instead
+  if (mode === 'achromatopsia') {
+    if (colorRow) colorRow.style.display = 'none';
+    if (strip) strip.style.display = 'none';
+    if (achroNote) achroNote.style.display = 'flex';
+    return;
+  }
+
+  // All other modes — show the picker
+  if (colorRow) colorRow.style.display = '';
+  if (achroNote) achroNote.style.display = 'none';
   if (!container) return;
+
   const palette = CB_PALETTES[mode];
-  // Replace all swatches with mode-specific defaults
   container.innerHTML = '';
   const startColors = palette ? palette.defaults : ['#7c3aed'];
   startColors.forEach(c => addGradientSwatch(c));
   updateGradientPreview();
-  // Rebuild the chip strip
-  const strip = document.getElementById('gcPaletteStrip');
+
   if (!strip) return;
   if (!palette) { strip.style.display = 'none'; return; }
   strip.style.display = 'flex';
@@ -1212,7 +1226,6 @@ async function generateGreeting() {
           feedTypewriter(data.text);
           streamCharCount += data.text.length;
           liveUpdateBars(Math.round(streamCharCount / 4));
-          updateStreamTokens(msgEl, streamCharCount);
         }
       }
     }
@@ -1332,7 +1345,6 @@ async function sendMessage(overrideText, skipAppend) {
           feedTypewriter(data.text);
           streamCharCount += data.text.length;
           liveUpdateBars(Math.round(streamCharCount / 4));
-          updateStreamTokens(msgEl, streamCharCount);
         }
       }
       if (convEnded) { isStreaming = false; return; }
@@ -2248,9 +2260,9 @@ let twInterval = null;
 
 // Typewriter speed by effort level — lower effort = slower (fewer tokens, more visible)
 const TW_SPEED = {
-  low:    { chars: 2, ms: 60 },
-  medium: { chars: 3, ms: 40 },
-  high:   { chars: 5, ms: 22 },
+  low:    { word: true, ms: 220 },
+  medium: { chars: 2, ms: 50 },
+  high:   { chars: 5, ms: 20 },
   extra:  { chars: 8, ms: 14 },
   max:    { chars: 12, ms: 10 },
 };
@@ -2261,13 +2273,20 @@ function startTypewriter(bubble, msgEl) {
   const spd = TW_SPEED[selectedEffort] || TW_SPEED.high;
   twInterval = setInterval(() => {
     if (!twQueue.length) return;
-    const chunk = twQueue.slice(0, spd.chars);
-    twQueue = twQueue.slice(spd.chars);
+    let chunk;
+    if (spd.word) {
+      const wsIdx = twQueue.search(/\s/);
+      chunk = wsIdx === -1 ? twQueue : twQueue.slice(0, wsIdx + 1);
+    } else {
+      chunk = twQueue.slice(0, spd.chars);
+    }
+    twQueue = twQueue.slice(chunk.length);
     twRevealed += chunk;
     if (twBubble) {
       twBubble.innerHTML = renderMarkdown(twRevealed);
       scrollToBottom();
     }
+    updateStreamTokens(twMsgEl, twRevealed.length);
   }, spd.ms);
 }
 
@@ -2517,7 +2536,6 @@ async function regenerate() {
           feedTypewriter(data.text);
           streamCharCount += data.text.length;
           liveUpdateBars(Math.round(streamCharCount / 4));
-          updateStreamTokens(msgEl, streamCharCount);
         }
       }
     }
