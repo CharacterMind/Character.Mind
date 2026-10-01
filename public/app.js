@@ -1229,8 +1229,8 @@ async function generateGreeting() {
         }
       }
     }
-    if (msgEl) stopStreamStats(msgEl, null);
     drainTypewriter(() => {
+      if (msgEl) stopStreamStats(msgEl, null);
       isStreaming = false;
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
       if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
@@ -1352,8 +1352,8 @@ async function sendMessage(overrideText, skipAppend) {
       }
       if (convEnded) { isStreaming = false; return; }
     }
-    if (msgEl) stopStreamStats(msgEl, null);
     drainTypewriter(() => {
+      if (msgEl) stopStreamStats(msgEl, null);
       isStreaming = false;
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
       if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
@@ -2567,8 +2567,8 @@ async function regenerate() {
       }
     }
 
-    stopStreamStats(msgEl, null);
     drainTypewriter(() => {
+      stopStreamStats(msgEl, null);
       isStreaming = false;
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
       if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
