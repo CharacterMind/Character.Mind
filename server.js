@@ -1020,22 +1020,62 @@ app.put('/api/characters/:id', requireAuth, async (req, res) => {
   }
 });
 
-// Server-side image proxy — lets the browser fetch external images without CORS issues.
-// Only allows image/* content types; used by the batch-image-update flow.
-app.get('/api/img-proxy', async (req, res) => {
-  const { url } = req.query;
-  if (!url || !url.startsWith('https://')) return res.status(400).end();
-  try {
-    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CharacterMind/1.0)' } });
-    if (!r.ok) return res.status(r.status).end();
-    const ct = r.headers.get('content-type') || '';
-    if (!ct.startsWith('image/')) return res.status(400).end();
-    const buf = Buffer.from(await r.arrayBuffer());
-    // Resize to ~200x200 is handled client-side via canvas; just proxy the raw bytes
-    res.setHeader('Content-Type', ct);
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-    res.send(buf);
-  } catch (e) { res.status(500).end(); }
+// One-time admin: fetch all character images from the Poppy Playtime wiki and store as base64
+app.post('/api/admin/populate-images', requireAuth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'No database' });
+  const userId = req.user.googleId;
+
+  const IMAGE_MAP = [
+    { id: 'custom_1790776698867',         url: 'https://poppyplaytime.wiki.gg/images/thumb/PoppyPlaytimeHD.png/300px-PoppyPlaytimeHD.png' },
+    { id: 'custom_1790774765927',         url: 'https://poppyplaytime.wiki.gg/images/thumb/Doey_The_Doughman_Render_3.png/300px-Doey_The_Doughman_Render_3.png' },
+    { id: 'custom_1790766558393',         url: 'https://poppyplaytime.wiki.gg/images/thumb/The_Doctor_Searching.png/300px-The_Doctor_Searching.png' },
+    { id: 'custom_1790894243871_huggy',   url: 'https://poppyplaytime.wiki.gg/images/thumb/HuggyRenderRemake.webp/300px-HuggyRenderRemake.webp' },
+    { id: 'custom_1790894243872_mll',     url: 'https://poppyplaytime.wiki.gg/images/thumb/Mommy_Long_Legs.png/300px-Mommy_Long_Legs.png' },
+    { id: 'custom_1790894243873_catnap',  url: 'https://poppyplaytime.wiki.gg/images/thumb/CatNap_Render.png/300px-CatNap_Render.png' },
+    { id: 'custom_1790894243874_dogday',  url: 'https://poppyplaytime.wiki.gg/images/thumb/Dogday_now_with_spot.png/300px-Dogday_now_with_spot.png' },
+    { id: 'custom_1790894243875_prototype', url: 'https://poppyplaytime.wiki.gg/images/thumb/The_Prototype_Render.png/300px-The_Prototype_Render.png' },
+    { id: 'custom_1790894243876_kissy',   url: 'https://poppyplaytime.wiki.gg/images/thumb/KissyMissyBlueHD.png/300px-KissyMissyBlueHD.png' },
+    { id: 'custom_1790895433252_bunzo',   url: 'https://poppyplaytime.wiki.gg/images/thumb/Bunzo_Bunny.png/300px-Bunzo_Bunny.png' },
+    { id: 'custom_1790895433253_pj',      url: 'https://poppyplaytime.wiki.gg/images/thumb/PJ_Pug-a-Pillar.png/300px-PJ_Pug-a-Pillar.png' },
+    { id: 'custom_1790895433254_boxy',    url: 'https://poppyplaytime.wiki.gg/images/thumb/Boxy_Boo_HDwikisize.png/300px-Boxy_Boo_HDwikisize.png' },
+    { id: 'custom_1790895433255_delight', url: 'https://poppyplaytime.wiki.gg/images/thumb/Missd2.png/300px-Missd2.png' },
+    { id: 'custom_1790895433256_bubba',   url: 'https://poppyplaytime.wiki.gg/images/thumb/SmilingCritters-BlueElephant.png/300px-SmilingCritters-BlueElephant.png' },
+    { id: 'custom_1790895671421_yarnaby', url: 'https://poppyplaytime.wiki.gg/images/thumb/Yarnaby.webp/300px-Yarnaby.webp' },
+    { id: 'custom_1790895671422_craftycorn', url: 'https://poppyplaytime.wiki.gg/images/thumb/SmilingCritters-WhiteUnicorn.png/299px-SmilingCritters-WhiteUnicorn.png' },
+    { id: 'custom_1790895671423_pickypiggy', url: 'https://poppyplaytime.wiki.gg/images/thumb/SmilingCritters-PinkPig.png/300px-SmilingCritters-PinkPig.png' },
+    { id: 'custom_1790895671424_kickin',  url: 'https://poppyplaytime.wiki.gg/images/thumb/SmilingCritters-YellowBird.png/300px-SmilingCritters-YellowBird.png' },
+    { id: 'custom_1790895671425_bobby',   url: 'https://poppyplaytime.wiki.gg/images/thumb/SmilingCritters-RedBear.png/300px-SmilingCritters-RedBear.png' },
+    { id: 'custom_1790895671426_hoppy',   url: 'https://poppyplaytime.wiki.gg/images/thumb/SmilingCritters-GreenBunny.png/300px-SmilingCritters-GreenBunny.png' },
+    { id: 'custom_1790895746935_elliot',  url: 'https://poppyplaytime.wiki.gg/images/thumb/Elliot_Ludwig.png/299px-Elliot_Ludwig.png' },
+    { id: 'custom_1790895746936_stella',  url: 'https://poppyplaytime.wiki.gg/images/thumb/Stella_greybur_enhanced_reference.jpg/300px-Stella_greybur_enhanced_reference.jpg' },
+    { id: 'custom_1790895746937_leith',   url: 'https://poppyplaytime.wiki.gg/images/thumb/Leith_Pierre_Slide.png/300px-Leith_Pierre_Slide.png' },
+    { id: 'custom_1790895746938_gracie',  url: 'https://poppyplaytime.wiki.gg/images/thumb/LilyLovebraidsFriendlyCH5.webp/300px-LilyLovebraidsFriendlyCH5.webp' },
+  ];
+
+  const results = [];
+  for (const entry of IMAGE_MAP) {
+    try {
+      const check = await db.query('SELECT device_id FROM characters WHERE id = $1', [entry.id]);
+      if (!check.rows.length) { results.push({ id: entry.id, error: 'not found' }); continue; }
+      if (check.rows[0].device_id !== userId) { results.push({ id: entry.id, error: 'not yours' }); continue; }
+
+      const r = await fetch(entry.url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CharacterMind/1.0)' } });
+      if (!r.ok) { results.push({ id: entry.id, error: `HTTP ${r.status} from wiki` }); continue; }
+      const ct = (r.headers.get('content-type') || 'image/png').split(';')[0].trim();
+      if (!['image/jpeg','image/jpg','image/png','image/webp','image/gif'].includes(ct)) {
+        results.push({ id: entry.id, error: `unexpected content-type: ${ct}` }); continue;
+      }
+      const buf = Buffer.from(await r.arrayBuffer());
+      const dataUri = `data:${ct};base64,${buf.toString('base64')}`;
+      if (dataUri.length > 512000) { results.push({ id: entry.id, error: `too large: ${dataUri.length}` }); continue; }
+
+      await db.query('UPDATE characters SET image = $1 WHERE id = $2', [dataUri, entry.id]);
+      results.push({ id: entry.id, ok: true, bytes: buf.length });
+    } catch (e) {
+      results.push({ id: entry.id, error: e.message });
+    }
+  }
+  res.json({ done: results.filter(r => r.ok).length, total: IMAGE_MAP.length, results });
 });
 
 app.delete('/api/characters/:id', requireAuth, async (req, res) => {
