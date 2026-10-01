@@ -678,8 +678,8 @@ async function getCharPrompt(charId) {
 // ── Gemini API streaming helper ───────────────────────────────────────────────
 
 const GEMINI_MODELS = [
-  'gemini-3.8-flash',
   'gemini-3.5-flash-lite',
+  'gemini-3.8-flash',
 ];
 // Pro tier — smarter models, falls back to flash if unavailable
 const GEMINI_PRO_MODELS = [
@@ -813,7 +813,6 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
           const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
           if (text) onChunk(text);
           const reason = parsed.candidates?.[0]?.finishReason;
-          if (reason) console.log(`[stream] finishReason=${reason} model=${model} textLen=${text?.length||0}`);
           if ((reason === 'STOP' || reason === 'MAX_TOKENS') && !finished) { finished = true; onDone(usageTokens || promptTokensEstimate); }
         } catch (_) {}
       }
