@@ -209,13 +209,70 @@ function settingsFieldDirty(field) {
   if (btn) btn.style.display = 'inline-flex';
 }
 
-// Colorblind-safe defaults for the character accent color picker
-const CB_SAFE_COLOR = {
-  protanopia:    '#0ea5e9',
-  deuteranopia:  '#0ea5e9',
-  tritanopia:    '#f97316',
-  achromatopsia: '#9ca3af'
+// Curated colorblind-safe palettes — colors that are maximally distinguishable
+// for each vision type, completely replacing the normal color picker options
+const CB_PALETTES = {
+  protanopia: {
+    label: 'Red-weak safe palette',
+    // Blues, yellows, purples — red & green look identical to protanopes
+    colors: ['#0ea5e9','#1d4ed8','#eab308','#f97316','#7c3aed','#06b6d4','#facc15','#a78bfa'],
+    defaults: ['#0ea5e9','#eab308']
+  },
+  deuteranopia: {
+    label: 'Green-weak safe palette',
+    // Blues, oranges, purples — green & red look identical to deuteranopes
+    colors: ['#0ea5e9','#1d4ed8','#f97316','#fb923c','#7c3aed','#06b6d4','#facc15','#c084fc'],
+    defaults: ['#0ea5e9','#f97316']
+  },
+  tritanopia: {
+    label: 'Blue-yellow safe palette',
+    // Reds, greens, magentas — blue & yellow are indistinguishable to tritanopes
+    colors: ['#ef4444','#dc2626','#22c55e','#16a34a','#ec4899','#db2777','#f43f5e','#4ade80'],
+    defaults: ['#ef4444','#22c55e']
+  },
+  achromatopsia: {
+    label: 'High-contrast grayscale',
+    // Only luminance — no hue is visible, only brightness difference matters
+    colors: ['#ffffff','#d4d4d4','#a3a3a3','#737373','#404040','#1a1a1a','#e5e5e5','#525252'],
+    defaults: ['#d4d4d4','#525252']
+  }
 };
+
+function _applyGCPalette(mode) {
+  const container = document.getElementById('gradientSwatches');
+  if (!container) return;
+  const palette = CB_PALETTES[mode];
+  // Replace all swatches with mode-specific defaults
+  container.innerHTML = '';
+  const startColors = palette ? palette.defaults : ['#7c3aed'];
+  startColors.forEach(c => addGradientSwatch(c));
+  updateGradientPreview();
+  // Rebuild the chip strip
+  const strip = document.getElementById('gcPaletteStrip');
+  if (!strip) return;
+  if (!palette) { strip.style.display = 'none'; return; }
+  strip.style.display = 'flex';
+  strip.innerHTML = '';
+  const lbl = document.createElement('span');
+  lbl.className = 'gc-palette-label';
+  lbl.textContent = palette.label + ':';
+  strip.appendChild(lbl);
+  palette.colors.forEach(hex => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'gc-palette-chip';
+    chip.style.background = hex;
+    chip.title = hex;
+    chip.setAttribute('aria-label', 'Use color ' + hex);
+    chip.addEventListener('click', () => {
+      const sw = container.querySelector('.gc-swatch-input');
+      if (sw) { sw.value = hex; updateGradientPreview(); }
+      strip.querySelectorAll('.gc-palette-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+    });
+    strip.appendChild(chip);
+  });
+}
 
 function setColorblindMode(mode) {
   try { localStorage.setItem('cm_colorblind', mode || ''); } catch(_) {}
@@ -224,20 +281,12 @@ function setColorblindMode(mode) {
   } else {
     delete document.documentElement.dataset.colorblind;
   }
-  // Sync all colorblind selects
   const v = mode || '';
   const s1 = document.getElementById('colorblindMode');
   const s2 = document.getElementById('gcColorblindPicker');
   if (s1) s1.value = v;
   if (s2) s2.value = v;
-  // Update the character accent color picker to a safe default for this mode
-  const safeColor = CB_SAFE_COLOR[mode] || '#7c3aed';
-  const container = document.getElementById('gradientSwatches');
-  const firstSwatch = container && container.querySelector('.gc-swatch-input');
-  if (firstSwatch) {
-    firstSwatch.value = safeColor;
-    updateGradientPreview();
-  }
+  _applyGCPalette(mode);
 }
 
 function loadColorblindMode() {
@@ -248,13 +297,7 @@ function loadColorblindMode() {
     const s2 = document.getElementById('gcColorblindPicker');
     if (s1) s1.value = mode;
     if (s2) s2.value = mode;
-    // Pre-seed the accent color picker with the safe default
-    if (mode) {
-      const safeColor = CB_SAFE_COLOR[mode] || '#7c3aed';
-      const container = document.getElementById('gradientSwatches');
-      const firstSwatch = container && container.querySelector('.gc-swatch-input');
-      if (firstSwatch) { firstSwatch.value = safeColor; updateGradientPreview(); }
-    }
+    if (mode) _applyGCPalette(mode);
   } catch(_) {}
 }
 

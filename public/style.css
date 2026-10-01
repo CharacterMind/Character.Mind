@@ -2075,3 +2075,16 @@ html, body {
   flex-shrink: 0;
 }
 .gc-cb-select:focus { border-color: var(--accent); }
+.gc-palette-strip {
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+  margin-bottom: 10px; padding: 10px 12px;
+  background: var(--bg3); border: 1px solid var(--border2); border-radius: 10px;
+}
+.gc-palette-label { font-size: 11px; font-weight: 600; color: var(--text3); white-space: nowrap; margin-right: 2px; }
+.gc-palette-chip {
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 2px solid transparent; cursor: pointer; padding: 0; flex-shrink: 0;
+  transition: transform .12s, border-color .12s;
+}
+.gc-palette-chip:hover { transform: scale(1.18); border-color: var(--text); }
+.gc-palette-chip.active { border-color: var(--text); transform: scale(1.15); box-shadow: 0 0 0 2px var(--accent); }
