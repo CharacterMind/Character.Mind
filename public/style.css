@@ -1986,11 +1986,16 @@ html, body {
 
 /* ── Colorblind mode: global accent & chrome overrides ──────────────────────── */
 /*
-  Red-green modes (protanopia / deuteranopia)
-  ─ Purple sits near blue, which both types can distinguish, but we shift it
-    to a clear sky blue to maximise legibility against dark backgrounds.
-  ─ User message bubble moves from dark purple to dark navy.
+  Each mode applies TWO layers:
+  1. CSS variable overrides — change every var(--accent) element
+  2. body filter — transforms EVERY rendered pixel (images, hardcoded colors,
+     character cards, etc.) so the whole UI adapts, not just CSS-var elements.
+
+  body has height:100%; overflow:hidden so it equals the viewport; fixed-
+  position modals stay in place because they are contained by body.
 */
+
+/* ── Protanopia / Deuteranopia (red-green confusion) ─────────────────────── */
 [data-colorblind="protanopia"],
 [data-colorblind="deuteranopia"] {
   --accent:      #0ea5e9;
@@ -1999,12 +2004,14 @@ html, body {
   --accent-dim:  rgba(14,165,233,0.14);
   --user-bubble: #0c2840;
 }
+/* Hue-rotate pushes reds toward orange and greens toward teal,
+   increasing the perceptible gap between them. */
+[data-colorblind="protanopia"] body,
+[data-colorblind="deuteranopia"] body {
+  filter: hue-rotate(20deg) saturate(0.85) contrast(1.05);
+}
 
-/*
-  Blue-yellow mode (tritanopia)
-  ─ Blue/purple are ambiguous; shift accent to bright orange and bubble to
-    a very dark amber so all interactive chrome reads as red-orange vs teal.
-*/
+/* ── Tritanopia (blue-yellow confusion) ──────────────────────────────────── */
 [data-colorblind="tritanopia"] {
   --accent:      #f97316;
   --accent-l:    #fb923c;
@@ -2012,14 +2019,13 @@ html, body {
   --accent-dim:  rgba(249,115,22,0.14);
   --user-bubble: #1f0a00;
 }
+/* Negative hue-rotate shifts blues toward green/teal and yellows toward
+   orange-red, making the formerly-ambiguous pair clearly distinct. */
+[data-colorblind="tritanopia"] body {
+  filter: hue-rotate(-30deg) saturate(0.9) contrast(1.05);
+}
 
-/*
-  Full monochromacy (achromatopsia)
-  ─ No colour perception at all; maximise lightness contrast instead.
-  ─ Accent becomes near-white so it reads clearly on dark surfaces.
-  ─ Background ramp, borders, and text are tuned for maximum separation.
-  ─ Images are desaturated so colour never carries meaning.
-*/
+/* ── Achromatopsia (full monochromacy) ───────────────────────────────────── */
 [data-colorblind="achromatopsia"] {
   --accent:      #d4d4d4;
   --accent-l:    #f5f5f5;
@@ -2036,11 +2042,10 @@ html, body {
   --text2:       #b0b0b0;
   --text3:       #606060;
 }
-[data-colorblind="achromatopsia"] .char-card-img,
-[data-colorblind="achromatopsia"] .char-avatar,
-[data-colorblind="achromatopsia"] .profile-pic,
-[data-colorblind="achromatopsia"] .settings-profile-avatar img,
-[data-colorblind="achromatopsia"] .user-badge-avatar { filter: grayscale(1); }
+/* body grayscale covers everything — images, character cards, all of it. */
+[data-colorblind="achromatopsia"] body {
+  filter: grayscale(1) contrast(1.25);
+}
 
 /* ── Gradient color picker ───────────────────────────────────────────────────── */
 .color-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
