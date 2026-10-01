@@ -1582,7 +1582,7 @@ async function adminResetLimits() {
   if (btn) { btn.textContent = 'Resetting…'; btn.disabled = true; }
   try {
     const d = await fetch('/api/admin/reset-mine', { method: 'POST' }).then(r => r.json());
-    if (d.ok) { await loadUsage(); if (lastKnownUsage) updateUsageModal(lastKnownUsage); showWarning('Limits reset ✓'); }
+    if (d.ok) { await loadUsage(); if (lastKnownUsage) updateUsageModal(lastKnownUsage); showWarning('Limits reset ✓', 5000); }
     else showWarning('Reset failed.');
   } catch (_) { showWarning('Reset failed.'); }
   if (btn) { btn.textContent = 'Reset limits'; btn.disabled = false; }
@@ -1606,7 +1606,7 @@ async function adminNotifyUsers() {
       body: JSON.stringify({ subject, message })
     }).then(r => r.json());
     if (d.ok) {
-      showWarning(`Sent to ${d.sent} user(s) ✓`);
+      showWarning(`Sent to ${d.sent} user(s) ✓`, 5000);
       document.getElementById('notifySubject').value = '';
       document.getElementById('notifyMsg').value = '';
     } else {
@@ -1816,14 +1816,14 @@ function toggleCustomize() {
 }
 
 function comingSoon(feature) {
-  showWarning(feature + ' — coming soon!');
+  showWarning(feature + ' — coming soon!', 5000);
 }
 
 function shareChar() {
   if (!currentChar) return;
   const url = window.location.href.split('?')[0] + '?char=' + currentChar.id;
   navigator.clipboard.writeText(url).catch(() => {});
-  showWarning('Link copied to clipboard!');
+  showWarning('Link copied to clipboard!', 5000);
 }
 
 function getCharLikes(charId) {
@@ -1856,7 +1856,7 @@ function toggleLike() {
 }
 
 function toggleDislike() {
-  showWarning('Feedback recorded — thank you!');
+  showWarning('Feedback recorded — thank you!', 5000);
 }
 
 // ── Message context menu icons ────────────────────────────────────────────────
@@ -2595,7 +2595,7 @@ function resetToTemplate() {
   document.getElementById('newPrompt').value = '';
   document.getElementById('newGreeting').value = '';
   updateCount('newGreeting','greetingCount',4096);
-  showWarning('Persona cleared — built-in lore will be applied automatically when you save.');
+  showWarning('Persona cleared — built-in lore will be applied automatically when you save.', 5000);
 }
 
 function autoGeneratePersonaOnNameBlur() {
