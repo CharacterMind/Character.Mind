@@ -2100,3 +2100,9 @@ html, body {
 }
 .gc-palette-chip:hover { transform: scale(1.18); border-color: var(--text); }
 .gc-palette-chip.active { border-color: var(--text); transform: scale(1.15); box-shadow: 0 0 0 2px var(--accent); }
+.gc-achro-note {
+  font-size: 12px; font-style: italic; color: var(--text3);
+  padding: 10px 14px; background: var(--bg3);
+  border: 1px solid var(--border2); border-radius: 10px;
+  line-height: 1.5;
+}

@@ -20,7 +20,7 @@
 <link rel="icon" type="image/webp" href="/logo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=23">
+<link rel="stylesheet" href="style.css?v=24">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -313,7 +313,7 @@
             <div>
               <label>Accent Color</label>
               <div id="gcPaletteStrip" class="gc-palette-strip" style="display:none"></div>
-              <div class="color-row">
+              <div class="color-row" id="gcColorRow">
                 <div class="gradient-builder">
                   <div class="gradient-swatches" id="gradientSwatches"></div>
                   <button type="button" class="gc-add-btn" id="gcAddBtn" onclick="addGradientSwatch()">+</button>
@@ -329,6 +329,9 @@
                   <option value="tritanopia">Tritanopia (blue-yellow)</option>
                   <option value="achromatopsia">Achromatopsia</option>
                 </select>
+              </div>
+              <div id="gcAchroNote" class="gc-achro-note" style="display:none">
+                You have complete colorblindness — accent color won't be visible to you. A default will be used; other users will see it.
               </div>
             </div>
           </div>
