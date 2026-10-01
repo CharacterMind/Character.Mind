@@ -15,6 +15,7 @@
   --accent-l:    #a78bfa;
   --accent-d:    #7c3aed;
   --accent-dim:  rgba(139,92,246,0.12);
+  --narration:   #b8a4e8;
   --user-bubble: #1e1040;
   --ai-bubble:   #26272b;
   --input-bg:    #202024;
@@ -694,7 +695,8 @@ html, body {
 /* Markdown in bubbles */
 .bubble p { margin: 0 0 8px; line-height: 1.75; }
 .bubble p:last-child { margin-bottom: 0; }
-.bubble em { font-style: italic; color: var(--text2); }
+.bubble em { font-style: italic; color: var(--narration); }
+.msg.ai .bubble em { opacity: 0.78; }
 .bubble strong { font-weight: 700; }
 
 /* ── Message context menu ────────────────────────────────────────────────── */
