@@ -2182,7 +2182,7 @@ function rewindToHere(btn) {
   const msgEl = btn.closest('.msg');
   const msgs = [...document.getElementById('messages').querySelectorAll('.msg')];
   const idx = msgs.indexOf(msgEl);
-  msgs.slice(idx).forEach(m => m.remove());
+  msgs.slice(idx + 1).forEach(m => m.remove());
   saveHistoryLocal();
   resyncServer();
 }
