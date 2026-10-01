@@ -678,17 +678,13 @@ async function getCharPrompt(charId) {
 // ── Gemini API streaming helper ───────────────────────────────────────────────
 
 const GEMINI_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-lite',
-  'gemini-1.5-flash-latest'
+  'gemini-3.8-flash',
+  'gemini-3.5-flash-lite',
 ];
 // Pro tier — smarter models, falls back to flash if unavailable
 const GEMINI_PRO_MODELS = [
-  'gemini-2.5-pro-preview-06-05',
   'gemini-2.5-pro',
-  'gemini-1.5-pro-latest',
-  'gemini-1.5-pro',
+  'gemini-2.5-flash',
   ...GEMINI_MODELS
 ];
 // Per-tier effort configs — Opes gets more tokens since it's the premium model
