@@ -1020,6 +1020,24 @@ app.put('/api/characters/:id', requireAuth, async (req, res) => {
   }
 });
 
+// Server-side image proxy — lets the browser fetch external images without CORS issues.
+// Only allows image/* content types; used by the batch-image-update flow.
+app.get('/api/img-proxy', async (req, res) => {
+  const { url } = req.query;
+  if (!url || !url.startsWith('https://')) return res.status(400).end();
+  try {
+    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CharacterMind/1.0)' } });
+    if (!r.ok) return res.status(r.status).end();
+    const ct = r.headers.get('content-type') || '';
+    if (!ct.startsWith('image/')) return res.status(400).end();
+    const buf = Buffer.from(await r.arrayBuffer());
+    // Resize to ~200x200 is handled client-side via canvas; just proxy the raw bytes
+    res.setHeader('Content-Type', ct);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(buf);
+  } catch (e) { res.status(500).end(); }
+});
+
 app.delete('/api/characters/:id', requireAuth, async (req, res) => {
   if (!db) return res.status(503).json({ error: 'No database' });
   const userId = req.user.googleId;
