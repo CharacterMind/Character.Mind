@@ -813,6 +813,7 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
           const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
           if (text) onChunk(text);
           const reason = parsed.candidates?.[0]?.finishReason;
+          if (reason) console.log(`[stream] finishReason=${reason} model=${model} textLen=${text?.length||0}`);
           if ((reason === 'STOP' || reason === 'MAX_TOKENS') && !finished) { finished = true; onDone(usageTokens || promptTokensEstimate); }
         } catch (_) {}
       }
