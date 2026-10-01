@@ -1230,7 +1230,7 @@ async function generateGreeting() {
       }
     }
     drainTypewriter(() => {
-      if (msgEl) stopStreamStats(msgEl, null);
+      if (msgEl) stopStreamStats(msgEl, streamRealTokens);
       isStreaming = false;
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
       if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
@@ -1353,7 +1353,7 @@ async function sendMessage(overrideText, skipAppend) {
       if (convEnded) { isStreaming = false; return; }
     }
     drainTypewriter(() => {
-      if (msgEl) stopStreamStats(msgEl, null);
+      if (msgEl) stopStreamStats(msgEl, streamRealTokens);
       isStreaming = false;
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
       if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
@@ -2337,8 +2337,15 @@ function startStreamStats(msgEl) {
   const stats = msgEl.querySelector('.stream-stats');
   if (!stats) return;
   streamStartTime = Date.now();
-  stats.style.display = ''; // clear any inline style from previous stop
+  stats.style.display = '';
+  stats.classList.remove('done');
   stats.classList.add('active');
+  const spinner = stats.querySelector('.stream-spinner');
+  if (spinner) spinner.style.display = '';
+  const tokEl = stats.querySelector('.stream-tok');
+  if (tokEl) tokEl.textContent = '0 tok';
+  const timeEl = stats.querySelector('.stream-time');
+  if (timeEl) timeEl.textContent = '0s';
   if (streamTimer) clearInterval(streamTimer);
   // Interval only ticks the elapsed time; tokens update per-chunk
   streamTimer = setInterval(() => {
@@ -2358,9 +2365,20 @@ function updateStreamTokens(msgEl, charCount) {
 
 function stopStreamStats(msgEl, finalTokens) {
   if (streamTimer) { clearInterval(streamTimer); streamTimer = null; }
+  const elapsed = streamStartTime ? ((Date.now() - streamStartTime) / 1000).toFixed(1) : null;
   streamStartTime = null;
   const stats = msgEl?.querySelector('.stream-stats');
-  if (stats) stats.style.display = 'none';
+  if (!stats) return;
+  stats.classList.remove('active');
+  stats.classList.add('done');
+  if (elapsed) {
+    const timeEl = stats.querySelector('.stream-time');
+    if (timeEl) timeEl.textContent = elapsed + 's';
+  }
+  if (finalTokens != null) {
+    const tokEl = stats.querySelector('.stream-tok');
+    if (tokEl) tokEl.textContent = fmtLiveTokens(finalTokens) + ' tok';
+  }
 }
 
 // ── Regeneration history ──────────────────────────────────────────────────────
@@ -2568,7 +2586,7 @@ async function regenerate() {
     }
 
     drainTypewriter(() => {
-      stopStreamStats(msgEl, null);
+      stopStreamStats(msgEl, streamRealTokens);
       isStreaming = false;
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
       if (!lockoutActive) document.getElementById('sendBtn').disabled = false;

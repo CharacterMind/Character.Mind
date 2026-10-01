@@ -739,7 +739,8 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     max_tokens: effortCfg.maxOutputTokens,
     temperature: effortCfg.temperature,
     top_p: 0.95,
-    stream: true
+    stream: true,
+    ...(model.startsWith('openai/') ? { reasoning_effort: 'none' } : {})
   });
 
   const promptTokensEstimate = Math.ceil((systemPrompt.length + messages.reduce((s, m) => s + (m.content || '').length, 0)) / 4);

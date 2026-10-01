@@ -626,7 +626,7 @@ html, body {
   font-variant-numeric: tabular-nums; letter-spacing: .01em;
 }
 .stream-stats.active { display: flex; }
-.stream-stats.done { display: none; }
+.stream-stats.done { display: flex; opacity: 0.45; }
 .stream-spinner {
   width: 11px; height: 11px; border: 1.5px solid var(--border2);
   border-top-color: var(--accent-l); border-radius: 50%;
