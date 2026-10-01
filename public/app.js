@@ -1733,6 +1733,14 @@ function updateSessionTimer(expiresAt) {
 function showWarning(msg, autoCloseMs) {
   const container = document.getElementById('warningBanners');
   if (!container) return;
+  // Don't stack the same message — just flash the existing one
+  for (const b of container.children) {
+    if (b.querySelector('span')?.textContent === msg) {
+      b.style.animation = 'none';
+      requestAnimationFrame(() => { b.style.animation = ''; });
+      return;
+    }
+  }
   const banner = document.createElement('div');
   banner.className = 'warning-banner';
   const text = document.createElement('span');
@@ -2517,7 +2525,7 @@ async function regenerate() {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      if (res.status === 401) { window.location.href = '/'; return; }
+      if (res.status === 401) { isStreaming = false; window.location.href = '/'; return; }
       if (res.status === 429) {
         if (err.regenLimitReached) {
           showWarning(`Free tier limit: ${err.regenLimit} regenerations used. Upgrade for unlimited.`);
@@ -2527,6 +2535,9 @@ async function regenerate() {
         const store = regenStore.get(id);
         if (bubble && store) { bubble.classList.remove('streaming'); bubble.innerHTML = renderMarkdown(store.texts[store.idx]); }
         flushTypewriter();
+        isStreaming = false;
+        const lockoutActive429 = document.getElementById('lockoutBar')?.style.display !== 'none';
+        if (!lockoutActive429) document.getElementById('sendBtn').disabled = false;
         return;
       }
       throw new Error(err.error || 'Server error');
