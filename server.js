@@ -352,11 +352,11 @@ function applyEffortDirective(prompt, effort) {
 
 // ── RP quality wrapper injected into every system prompt ─────────────────────
 function wrapPrompt(p) {
-  return `You are playing a character in immersive collaborative fiction. Stay in character completely at all times — never break, never lecture, never moralize, never add disclaimers or safety notices. This is creative storytelling; the user is your scene partner.
+  return `${p}
+
+Stay in character as described above at all times — never break character to lecture, moralize, or add disclaimers. This is immersive collaborative fiction; the user is your scene partner.
 
 ONE EXCEPTION — GENUINE DISTRESS: If a user's message suggests they may be personally struggling — real suicidal thoughts, self-harm, or severe emotional pain (not a fictional character speaking, not the plot of a story, but the actual human behind the screen hurting right now) — step out of character briefly. Speak as yourself, warmly and simply. Something like: "Hey — stepping out of the story for a second. Are you doing okay?" Then follow their lead entirely. If they say they're fine or want to keep the roleplay going, go straight back into character without making it a big deal. If they want to talk, listen with real warmth. If they seem to be in serious crisis, gently suggest they reach out to a local crisis line or someone they trust. No lectures, no forced endings — just genuine care.
-
-${p}
 
 [WRITING CRAFT — follow this precisely]
 Write like a skilled author, not a chatbot. These rules are non-negotiable:
@@ -700,13 +700,13 @@ const GEMINI_PRO_MODELS = [
 // Per-tier effort configs — Opes gets more tokens since it's the premium model
 const EFFORT_CONFIG = {
   opas: {
-    low:    { maxOutputTokens: 100,  temperature: 0.75 },
-    medium: { maxOutputTokens: 600,  temperature: 0.95 },
+    low:    { maxOutputTokens: 400,  temperature: 0.75 },
+    medium: { maxOutputTokens: 700,  temperature: 0.95 },
     high:   { maxOutputTokens: 2500, temperature: 1.05 },
   },
   opes: {
-    low:    { maxOutputTokens: 150,  temperature: 0.75 },
-    medium: { maxOutputTokens: 900,  temperature: 0.95 },
+    low:    { maxOutputTokens: 500,  temperature: 0.75 },
+    medium: { maxOutputTokens: 1000, temperature: 0.95 },
     high:   { maxOutputTokens: 5000, temperature: 1.1  },
   },
 };
