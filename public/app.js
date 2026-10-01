@@ -1231,6 +1231,9 @@ async function generateGreeting() {
     }
     if (msgEl) stopStreamStats(msgEl, null);
     drainTypewriter(() => {
+      isStreaming = false;
+      const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
+      if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
       scrollToBottom();
       if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings); }
       if (bubble) bubble.classList.remove('streaming');
@@ -1239,6 +1242,9 @@ async function generateGreeting() {
   } catch (err) {
     flushTypewriter();
     showTyping(false);
+    isStreaming = false;
+    const lockoutActiveErr = document.getElementById('lockoutBar')?.style.display !== 'none';
+    if (!lockoutActiveErr) document.getElementById('sendBtn').disabled = false;
     if (!gotFirst) {
       document.getElementById('chatWelcome').innerHTML = `
         <div class="chat-welcome-name">${escHtml(currentChar.name)}</div>
@@ -1246,9 +1252,6 @@ async function generateGreeting() {
     }
   } finally {
     showTyping(false);
-    isStreaming = false;
-    const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
-    if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
   }
 }
 
@@ -1351,6 +1354,9 @@ async function sendMessage(overrideText, skipAppend) {
     }
     if (msgEl) stopStreamStats(msgEl, null);
     drainTypewriter(() => {
+      isStreaming = false;
+      const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
+      if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
       scrollToBottom();
       if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings); }
       if (bubble) {
@@ -1362,12 +1368,11 @@ async function sendMessage(overrideText, skipAppend) {
   } catch (err) {
     flushTypewriter();
     showTyping(false);
+    isStreaming = false;
+    const lockoutActiveErr = document.getElementById('lockoutBar')?.style.display !== 'none';
+    if (!lockoutActiveErr) document.getElementById('sendBtn').disabled = false;
     document.querySelectorAll('.bubble.streaming').forEach(b => b.classList.remove('streaming'));
     appendMessage('ai', `⚠️ ${err.message}`);
-  } finally {
-    isStreaming = false;
-    const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
-    if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
   }
 }
 
@@ -2553,6 +2558,9 @@ async function regenerate() {
 
     stopStreamStats(msgEl, null);
     drainTypewriter(() => {
+      isStreaming = false;
+      const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
+      if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
       scrollToBottom();
       if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings); }
       if (bubble) bubble.classList.remove('streaming');
@@ -2568,6 +2576,10 @@ async function regenerate() {
 
   } catch (err) {
     flushTypewriter();
+    showTyping(false);
+    isStreaming = false;
+    const lockoutActiveErr = document.getElementById('lockoutBar')?.style.display !== 'none';
+    if (!lockoutActiveErr) document.getElementById('sendBtn').disabled = false;
     const store = regenStore.get(id);
     if (bubble) {
       bubble.classList.remove('streaming');
@@ -2575,9 +2587,6 @@ async function regenerate() {
     }
   } finally {
     showTyping(false);
-    isStreaming = false;
-    const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
-    if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
   }
 }
 
