@@ -736,16 +736,19 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
     parts: [{ text: m.content }]
   }));
 
+  const generationConfig = {
+    maxOutputTokens: effortCfg.maxOutputTokens,
+    temperature: effortCfg.temperature,
+    topP: 0.95,
+    topK: 40
+  };
+  // Only 2.5-series models support thinkingConfig; disable thinking for fast first-token
+  if (model.includes('2.5')) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+
   const body = JSON.stringify({
     contents: geminiMessages,
     systemInstruction: { parts: [{ text: systemPrompt }] },
-    generationConfig: {
-      maxOutputTokens: effortCfg.maxOutputTokens,
-      temperature: effortCfg.temperature,
-      topP: 0.95,
-      topK: 40,
-      thinkingConfig: { thinkingBudget: 0 }
-    }
+    generationConfig
   });
   // Estimate input tokens (system prompt + all history) so the fallback is accurate
   const promptTokensEstimate = Math.ceil((systemPrompt.length + messages.reduce((s, m) => s + (m.content || '').length, 0)) / 4);
@@ -774,6 +777,9 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
             return callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList);
           }
           if (msg.includes('not found') || msg.includes('not supported') || msg.includes('deprecated') || msg.includes('no longer available') || res.statusCode === 404 || res.statusCode === 503) {
+            return callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList);
+          }
+          if (res.statusCode === 400 && modelIndex + 1 < modelList.length) {
             return callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList);
           }
           onError(new Error(msg || `HTTP ${res.statusCode}`));
