@@ -2871,23 +2871,37 @@ function interruptCall() {
 }
 
 function listenForSpeech() {
-  if (!callModeActive) return;
+  if (!callModeActive || callMuted) return;
   setCallState('listening');
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return;
+  if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
   callRecognition = new SR();
   callRecognition.continuous = false;
   callRecognition.interimResults = false;
   callRecognition.lang = 'en-US';
+  let handled = false;
   callRecognition.onresult = (e) => {
+    handled = true;
     const transcript = e.results[0][0].transcript.trim();
     if (transcript) sendCallMessage(transcript);
   };
   callRecognition.onerror = (e) => {
-    if (!callModeActive || callMuted) return;
-    if (e.error === 'no-speech') { setTimeout(() => listenForSpeech(), 300); }
-    else if (e.error !== 'aborted') { setTimeout(() => listenForSpeech(), 1500); }
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      handled = true;
+      setCallState('listening');
+      const statusEl = document.getElementById('callStatus');
+      if (statusEl) { statusEl.style.display = ''; statusEl.textContent = 'Microphone access denied'; }
+    }
   };
-  callRecognition.start();
+  callRecognition.onend = () => {
+    if (handled || !callModeActive || callMuted) return;
+    const state = document.getElementById('callOverlay')?.dataset.state;
+    if (state === 'listening') setTimeout(() => listenForSpeech(), 250);
+  };
+  try { callRecognition.start(); } catch(_) {
+    setTimeout(() => listenForSpeech(), 1000);
+  }
 }
 
 function sendCallMessage(text) {
