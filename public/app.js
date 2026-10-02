@@ -1091,18 +1091,49 @@ function initSidebarContextMenu() {
   });
 }
 
+function getRecentChats() {
+  try { return JSON.parse(localStorage.getItem('cm_recents_v2') || '{}'); } catch { return {}; }
+}
+function touchRecentChat(charId) {
+  try {
+    const r = getRecentChats();
+    r[charId] = Date.now();
+    localStorage.setItem('cm_recents_v2', JSON.stringify(r));
+  } catch (_) {}
+}
+
 function renderSidebarChats() {
   const list = document.getElementById('recentList');
-  if (characters.length === 0) { list.innerHTML = ''; return; }
+  if (!list) return;
   const hidden = getHiddenRecents();
-  const visible = characters.filter(c => !hidden.has(c.id)).slice(0, 10);
-  list.innerHTML = visible.map(c => `
-    <div class="chat-item ${currentChar?.id===c.id?'active':''}" data-id="${escHtml(c.id)}" onclick="openChat(this.dataset.id)">
-      ${charAvatarHtml(c, 'chat-item-avatar')}
-      <div class="chat-item-info">
-        <div class="chat-item-name">${escHtml(c.name)}</div>
-      </div>
-    </div>`).join('');
+  const recents = getRecentChats();
+
+  const chatted = characters
+    .filter(c => recents[c.id] && !hidden.has(c.id))
+    .sort((a, b) => recents[b.id] - recents[a.id]);
+
+  if (chatted.length === 0) { list.innerHTML = ''; return; }
+
+  const now = Date.now();
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const yestStart = new Date(todayStart); yestStart.setDate(yestStart.getDate() - 1);
+  const weekStart = new Date(todayStart); weekStart.setDate(weekStart.getDate() - 7);
+
+  const buckets = [
+    { label: 'Today',         chars: chatted.filter(c => recents[c.id] >= todayStart.getTime()) },
+    { label: 'Yesterday',     chars: chatted.filter(c => recents[c.id] >= yestStart.getTime() && recents[c.id] < todayStart.getTime()) },
+    { label: 'Last week',     chars: chatted.filter(c => recents[c.id] >= weekStart.getTime() && recents[c.id] < yestStart.getTime()) },
+    { label: 'Long time ago', chars: chatted.filter(c => recents[c.id] < weekStart.getTime()) },
+  ];
+
+  list.innerHTML = buckets.filter(b => b.chars.length).map(b => `
+    <div class="sidebar-section-label">${b.label}</div>
+    ${b.chars.map(c => `
+      <div class="chat-item ${currentChar?.id===c.id?'active':''}" data-id="${escHtml(c.id)}" onclick="openChat(this.dataset.id)">
+        ${charAvatarHtml(c, 'chat-item-avatar')}
+        <div class="chat-item-info"><div class="chat-item-name">${escHtml(c.name)}</div></div>
+      </div>`).join('')}
+  `).join('');
 }
 
 function filterChats(q) {
@@ -1140,6 +1171,7 @@ async function openChat(charId) {
   currentChar = characters.find(c => c.id === charId);
   if (!currentChar) return;
   const snapChar = currentChar;
+  touchRecentChat(charId);
 
   showView('chatView');
   document.getElementById('chatView').classList.remove('hidden');

@@ -1149,11 +1149,6 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   const { modelTier, effort } = req.body;
   const userId = req.user.googleId;
 
-  const u = getLimits(userId);
-  if ((u.regenCount || 0) >= LIMITS.REGEN_FREE) {
-    return res.status(429).json({ error: 'Regeneration limit reached', regenLimitReached: true, regenCount: u.regenCount, regenLimit: LIMITS.REGEN_FREE });
-  }
-
   const limit = checkLimits(userId);
   if (limit.blocked) return res.status(429).json({ error: limit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limit });
 
@@ -1194,7 +1189,6 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
       if (done) return; done = true;
       hist.push({ role: 'assistant', content: fullResponse });
       const tokens = tokensUsed || Math.round(fullResponse.length / 3.5);
-      const uLim = getLimits(userId); uLim.regenCount = (uLim.regenCount || 0) + 1;
       const usage = addTokens(userId, tokens);
       res.write(`data: ${JSON.stringify({ done: true, usage, responseTokens: tokens, warnings: usage.warnings })}\n\n`); res.end();
     },
