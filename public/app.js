@@ -3103,6 +3103,7 @@ async function createCharacter(e) {
   const color = (document.getElementById('newColor').value || '#7c3aed').trim();
   const editingId = document.getElementById('newName').dataset.editingId;
   const id = editingId || 'custom_' + Date.now();
+  const oldChar = editingId ? characters.find(c => c.id === editingId) : null;
 
   if (!name) { alert('Character name is required'); return; }
 
@@ -3159,6 +3160,18 @@ async function createCharacter(e) {
     if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Save failed'); }
 
     await loadCharacters();
+    if (editingId && oldChar) {
+      const greetingChanged = (char.greeting || '') !== (oldChar.greeting || '') ||
+                              char.greetingMode !== (oldChar.greetingMode || 'fixed');
+      if (greetingChanged) {
+        try {
+          const ls = JSON.parse(localStorage.getItem('cm_history') || '{}');
+          delete ls[editingId];
+          localStorage.setItem('cm_history', JSON.stringify(ls));
+        } catch (_) {}
+        fetch(`/api/conversations/${editingId}`, { method: 'DELETE' }).catch(() => {});
+      }
+    }
     e.target.reset();
     pendingAvatarData = null;
     setGreetingMode('fixed');
