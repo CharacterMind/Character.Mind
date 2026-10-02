@@ -2032,43 +2032,23 @@ function updateUsageModal(u) {
   const sPct = Math.min(100, Math.round((u.sessionTokens / u.sessionLimit) * 100));
   const wPct = Math.min(100, Math.round((u.weeklyTokens / u.weeklyLimit) * 100));
 
-  // Session section
-  const sPctEl = document.getElementById('usageSessionPct');
-  if (sPctEl) sPctEl.textContent = sPct + '% used';
   const sBar = document.getElementById('usageSessionBar');
   if (sBar) { sBar.style.width = sPct + '%'; sBar.className = 'usage-fill-modal ' + usageFillClass(sPct); }
 
-  let sSub;
-  if (!u.sessionStartedAt) {
-    sSub = 'Starts when you send your first message';
-  } else if (u.cooldownUntil && Date.now() < u.cooldownUntil) {
-    sSub = formatResetTime(u.cooldownUntil);
-  } else {
-    sSub = '';
-  }
   const sSubEl = document.getElementById('usageSessionSub');
-  if (sSubEl) sSubEl.textContent = sSub;
-
-  // Session countdown timer — only shows when in cooldown
-  if (u.cooldownUntil && Date.now() < u.cooldownUntil) {
-    updateSessionTimer(u.cooldownUntil);
-  } else {
-    const el = document.getElementById('sessionResetTimer');
-    if (el) el.style.display = 'none';
+  if (sSubEl) {
+    if (u.cooldownUntil && Date.now() < u.cooldownUntil) {
+      sSubEl.textContent = formatResetTime(u.cooldownUntil);
+    } else {
+      sSubEl.textContent = 'Resets every 2 hours';
+    }
   }
 
-  // Weekly section
   const wBar = document.getElementById('usageWeeklyBar');
   if (wBar) { wBar.style.width = wPct + '%'; wBar.className = 'usage-fill-modal ' + usageFillClass(wPct); }
 
-  let wSub;
-  if (!u.weeklyStart) {
-    wSub = 'Starts when you send your first message';
-  } else {
-    wSub = formatWeeklyReset(u.weeklyResetsAt) || '';
-  }
   const wSubEl = document.getElementById('usageWeeklySub');
-  if (wSubEl) wSubEl.textContent = wSub;
+  if (wSubEl) wSubEl.textContent = u.weeklyResetsAt ? formatWeeklyReset(u.weeklyResetsAt) : 'Resets weekly';
 }
 
 function startUsageModalTimer() {
