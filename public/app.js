@@ -1519,6 +1519,7 @@ function handleKey(e) {
 
 // ── Usage / rate-limit system ─────────────────────────────────────────────────
 let cooldownTimer = null;
+let cooldownSyncTimeout = null;
 
 const OUTDOOR_MESSAGES = [
   // encouraging
@@ -1798,10 +1799,16 @@ function startCooldown(until, type, showModal) {
     }
   }
 
-  if (cooldownTimer) clearInterval(cooldownTimer);
+  if (cooldownTimer) { clearInterval(cooldownTimer); cooldownTimer = null; }
+  if (cooldownSyncTimeout) { clearTimeout(cooldownSyncTimeout); cooldownSyncTimeout = null; }
   updateCountdown();
-  // update every minute so the countdown visibly ticks
-  cooldownTimer = setInterval(updateCountdown, 60000);
+  // Sync to real-world minute boundary so display ticks exactly when the clock rolls over
+  const msToNextMinute = 60000 - (Date.now() % 60000);
+  cooldownSyncTimeout = setTimeout(() => {
+    cooldownSyncTimeout = null;
+    updateCountdown();
+    cooldownTimer = setInterval(updateCountdown, 60000);
+  }, msToNextMinute);
 
   if (showModal) {
     const displayStr = type === 'weekly' ? formatWeeklyReset(until) : formatSessionCooldown(until);
@@ -1829,6 +1836,7 @@ function closeLimitModal() {
 }
 
 function clearLockout() {
+  if (cooldownSyncTimeout) { clearTimeout(cooldownSyncTimeout); cooldownSyncTimeout = null; }
   if (cooldownTimer) { clearInterval(cooldownTimer); cooldownTimer = null; }
   const bar = document.getElementById('lockoutBar');
   if (bar) bar.style.display = 'none';
