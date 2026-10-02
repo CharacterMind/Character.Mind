@@ -171,7 +171,7 @@ if (GOOGLE_AUTH_ENABLED) {
 
 app.get('/auth/google', (req, res, next) => {
   if (!GOOGLE_AUTH_ENABLED) return res.redirect('/?auth=unavailable');
-  passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
+  passport.authenticate('google', { scope: ['profile', 'email'], prompt: 'select_account' })(req, res, next);
 });
 app.get('/auth/google/callback',
   (req, res, next) => {
