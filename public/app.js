@@ -1005,25 +1005,42 @@ function getHiddenRecents() {
 function setHiddenRecents(set) {
   try { localStorage.setItem('cm_hidden_recents', JSON.stringify([...set])); } catch {}
 }
-function removeFromRecent(id, e) {
-  e.stopPropagation();
+function removeFromRecent(id) {
   const hidden = getHiddenRecents();
   hidden.add(id);
   setHiddenRecents(hidden);
+  closeSidebarContextMenu();
   renderSidebarChats();
 }
+
+let _sidebarCtxMenu = null;
+function closeSidebarContextMenu() {
+  if (_sidebarCtxMenu) { _sidebarCtxMenu.remove(); _sidebarCtxMenu = null; }
+}
+function openSidebarContextMenu(id, x, y) {
+  closeSidebarContextMenu();
+  const menu = document.createElement('div');
+  menu.className = 'sidebar-ctx-menu';
+  menu.style.cssText = `left:${x}px;top:${y}px`;
+  menu.innerHTML = `<button onclick="removeFromRecent('${escHtml(id)}')">Remove from recents</button>`;
+  document.body.appendChild(menu);
+  _sidebarCtxMenu = menu;
+  setTimeout(() => document.addEventListener('click', closeSidebarContextMenu, { once: true }), 0);
+}
+
 function renderSidebarChats() {
   const list = document.getElementById('recentList');
   if (characters.length === 0) { list.innerHTML = ''; return; }
   const hidden = getHiddenRecents();
   const visible = characters.filter(c => !hidden.has(c.id)).slice(0, 10);
   list.innerHTML = visible.map(c => `
-    <div class="chat-item ${currentChar?.id===c.id?'active':''}" data-id="${escHtml(c.id)}" onclick="openChat(this.dataset.id)">
+    <div class="chat-item ${currentChar?.id===c.id?'active':''}" data-id="${escHtml(c.id)}"
+      onclick="openChat(this.dataset.id)"
+      oncontextmenu="event.preventDefault();openSidebarContextMenu('${escHtml(c.id)}',event.clientX,event.clientY)">
       ${charAvatarHtml(c, 'chat-item-avatar')}
       <div class="chat-item-info">
         <div class="chat-item-name">${escHtml(c.name)}</div>
       </div>
-      <button class="chat-item-remove" title="Remove from recent" onclick="removeFromRecent('${escHtml(c.id)}', event)">×</button>
     </div>`).join('');
 }
 
