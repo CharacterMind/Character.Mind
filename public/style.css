@@ -206,6 +206,19 @@ html, body {
 .nav-item:hover { background: var(--bg3); color: var(--text2); }
 .nav-item.active { background: var(--accent-dim); color: var(--accent-l); }
 
+.sidebar-usage-mini {
+  margin: 0 6px 2px; padding: 8px 10px; border-radius: 8px;
+  cursor: pointer; background: var(--bg2); transition: background .15s;
+}
+.sidebar-usage-mini:hover { background: var(--bg3); }
+.sb-usage-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.sb-usage-label { font-size: 10px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; }
+.sb-usage-info { font-size: 10px; color: var(--text3); }
+.sb-usage-track { height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+.sb-usage-fill { height: 100%; border-radius: 2px; transition: width .4s; background: var(--accent); }
+.sb-usage-fill.yellow { background: #f59e0b; }
+.sb-usage-fill.red { background: #ef4444; }
+
 .sidebar-search {
   display: flex; align-items: center; gap: 8px; background: var(--bg3);
   border-radius: 8px; padding: 8px 11px; margin-top: 10px;

@@ -589,6 +589,29 @@ function updateSettingsUsage(u) {
   }
   const wResetEl = document.getElementById('settingsWeeklyReset');
   if (wResetEl) wResetEl.textContent = u.weeklyResetsAt ? formatWeeklyResetShort(u.weeklyResetsAt) : 'Resets weekly';
+
+  const sbSBar = document.getElementById('sidebarSessionBar');
+  const sbWBar = document.getElementById('sidebarWeeklyBar');
+  if (sbSBar) { sbSBar.style.width = sPct + '%'; sbSBar.className = 'sb-usage-fill ' + usageFillClass(sPct); }
+  if (sbWBar) { sbWBar.style.width = wPct + '%'; sbWBar.className = 'sb-usage-fill ' + usageFillClass(wPct); }
+  const sbSPct = document.getElementById('sidebarSessionPct');
+  if (sbSPct) sbSPct.textContent = sPct + '%';
+  const sbWPct = document.getElementById('sidebarWeeklyPct');
+  if (sbWPct) sbWPct.textContent = wPct + '%';
+  const sbSReset = document.getElementById('sidebarSessionReset');
+  if (sbSReset) {
+    const expiry = u.cooldownUntil || u.sessionExpiresAt;
+    if (expiry && Date.now() < expiry) {
+      const rem = expiry - Date.now();
+      const h = Math.floor(rem / 3600000);
+      const m = Math.floor((rem % 3600000) / 60000);
+      sbSReset.textContent = h > 0 ? `${h}h ${m}m` : `${m}m`;
+    } else {
+      sbSReset.textContent = '2 hr reset';
+    }
+  }
+  const sbWReset = document.getElementById('sidebarWeeklyReset');
+  if (sbWReset) sbWReset.textContent = u.weeklyResetsAt ? formatWeeklyResetShort(u.weeklyResetsAt) : 'Weekly';
 }
 
 function formatWeeklyResetShort(until) {
@@ -1749,14 +1772,24 @@ function liveUpdateBars(extraTokens) {
   const wEst = wBase + extraTokens;
   const sPct = Math.min(100, Math.round(sEst / lastKnownUsage.sessionLimit * 100));
   const wPct = Math.min(100, Math.round(wEst / lastKnownUsage.weeklyLimit  * 100));
-  ['usageSessionBar','settingsSessionBar'].forEach(id => {
+  ['usageSessionBar','settingsSessionBar','sidebarSessionBar'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) { el.style.width = sPct + '%'; el.className = 'usage-fill-modal ' + usageFillClass(sPct); }
+    if (el) {
+      el.style.width = sPct + '%';
+      el.className = (id === 'sidebarSessionBar' ? 'sb-usage-fill ' : 'usage-fill-modal ') + usageFillClass(sPct);
+    }
   });
-  ['usageWeeklyBar','settingsWeeklyBar'].forEach(id => {
+  ['usageWeeklyBar','settingsWeeklyBar','sidebarWeeklyBar'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) { el.style.width = wPct + '%'; el.className = 'usage-fill-modal ' + usageFillClass(wPct); }
+    if (el) {
+      el.style.width = wPct + '%';
+      el.className = (id === 'sidebarWeeklyBar' ? 'sb-usage-fill ' : 'usage-fill-modal ') + usageFillClass(wPct);
+    }
   });
+  const sbSPct = document.getElementById('sidebarSessionPct');
+  if (sbSPct) sbSPct.textContent = sPct + '%';
+  const sbWPct = document.getElementById('sidebarWeeklyPct');
+  if (sbWPct) sbWPct.textContent = wPct + '%';
 }
 
 function updateUsageBars(usage) {
@@ -3103,7 +3136,6 @@ async function createCharacter(e) {
   const color = (document.getElementById('newColor').value || '#7c3aed').trim();
   const editingId = document.getElementById('newName').dataset.editingId;
   const id = editingId || 'custom_' + Date.now();
-  const oldChar = editingId ? characters.find(c => c.id === editingId) : null;
 
   if (!name) { alert('Character name is required'); return; }
 
@@ -3160,18 +3192,6 @@ async function createCharacter(e) {
     if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Save failed'); }
 
     await loadCharacters();
-    if (editingId && oldChar) {
-      const greetingChanged = (char.greeting || '') !== (oldChar.greeting || '') ||
-                              char.greetingMode !== (oldChar.greetingMode || 'fixed');
-      if (greetingChanged) {
-        try {
-          const ls = JSON.parse(localStorage.getItem('cm_history') || '{}');
-          delete ls[editingId];
-          localStorage.setItem('cm_history', JSON.stringify(ls));
-        } catch (_) {}
-        fetch(`/api/conversations/${editingId}`, { method: 'DELETE' }).catch(() => {});
-      }
-    }
     e.target.reset();
     pendingAvatarData = null;
     setGreetingMode('fixed');
