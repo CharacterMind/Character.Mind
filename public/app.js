@@ -1240,6 +1240,17 @@ async function openChat(charId) {
   // Update typing indicator
   updateTypingAvatar();
 
+  // Check if this chat has been permanently locked by moderation
+  try {
+    const lockRes = await fetch(`/api/chat/lock-status/${charId}`);
+    if (currentChar !== snapChar) return;
+    if (lockRes.ok) {
+      const { locked } = await lockRes.json();
+      if (locked) { showLockedChat(); return; }
+    }
+  } catch (_) {}
+  if (currentChar !== snapChar) return;
+
   // Load conversation history — server first, localStorage fallback
   let history = [];
   try {
@@ -1287,6 +1298,22 @@ async function openChat(charId) {
 
   renderSidebarChats();
   document.getElementById('messageInput').focus();
+  scrollToBottom();
+}
+
+function showLockedChat() {
+  showView('chatView');
+  document.getElementById('chatView').classList.remove('hidden');
+  const messagesDiv = document.getElementById('messages');
+  if (messagesDiv) messagesDiv.innerHTML = '';
+  const inp = document.getElementById('messageInput');
+  const btn = document.getElementById('sendBtn');
+  if (inp) inp.disabled = true;
+  if (btn) btn.disabled = true;
+  const lockBar = document.createElement('div');
+  lockBar.className = 'chat-locked-bar';
+  lockBar.innerHTML = '<span>🚫</span><span>This chat was permanently ended due to repeated policy violations. You cannot send messages here.</span>';
+  if (messagesDiv) messagesDiv.appendChild(lockBar);
   scrollToBottom();
 }
 
@@ -1461,13 +1488,17 @@ async function sendMessage(overrideText, skipAppend) {
         if (data.conversationEnded) {
           convEnded = true;
           showTyping(false);
-          const endDiv = document.createElement('div');
-          endDiv.className = 'conv-ended-msg';
-          endDiv.textContent = data.reason || 'This conversation has ended. Start a new chat to continue.';
-          document.getElementById('messages').appendChild(endDiv);
-          document.getElementById('messageInput').disabled = true;
-          document.getElementById('sendBtn').disabled = true;
-          scrollToBottom();
+          if (data.locked) {
+            showLockedChat();
+          } else {
+            const endDiv = document.createElement('div');
+            endDiv.className = 'conv-ended-msg';
+            endDiv.textContent = data.reason || 'This conversation has ended. Start a new chat to continue.';
+            document.getElementById('messages').appendChild(endDiv);
+            document.getElementById('messageInput').disabled = true;
+            document.getElementById('sendBtn').disabled = true;
+            scrollToBottom();
+          }
           break;
         }
         if (data.done && data.usage) { streamRealTokens = data.responseTokens || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }

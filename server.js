@@ -82,6 +82,17 @@ if (db) {
   `).then(() => loadLimitsFromDB())
     .catch(err => console.error('user_limits table init error:', err))
     .finally(() => startListening());
+
+  db.query(`
+    CREATE TABLE IF NOT EXISTS chat_moderation (
+      user_id TEXT NOT NULL,
+      char_id TEXT NOT NULL,
+      strikes INT NOT NULL DEFAULT 0,
+      locked BOOLEAN NOT NULL DEFAULT FALSE,
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (user_id, char_id)
+    )
+  `).catch(err => console.error('chat_moderation table init error:', err));
 } else {
   console.warn('No DATABASE_URL — characters will not be persisted');
 }
@@ -270,7 +281,7 @@ setInterval(() => {
   const CONV_TTL = 4 * 60 * 60 * 1000;
   for (const key of Object.keys(conversations)) {
     const ts = convLastUsed[key];
-    if (ts && now - ts > CONV_TTL) { delete conversations[key]; delete convLastUsed[key]; delete slurStrikes[key]; }
+    if (ts && now - ts > CONV_TTL) { delete conversations[key]; delete convLastUsed[key]; }
   }
 }, 30 * 60 * 1000);
 
@@ -542,8 +553,25 @@ const CRISIS_RE = /\b(i\s+)?(want|wanna|need|going|gonna|am\s+going)\s+to\s+(die
 
 const SLUR_RE = /\bn[i1!|*]+gg[ae3*]+r[sz]?\b|\bk[i1*]+k[e3*]+[sz]?\b|\bch[i1*]+nk[sz]?\b|\bsp[i1*]+c[sz]?\b|\bf[a4@*]+gg[o0*]+t[sz]?\b|\bd[y*]+k[e3*]+[sz]?\b|\br[e3*]+t[a4*]+rd[sz]?\b/i;
 
-// Slur strike counts per conversation
-const slurStrikes = {};
+async function getModStatus(userId, charId) {
+  if (!db) return { strikes: 0, locked: false };
+  try {
+    const r = await db.query('SELECT strikes, locked FROM chat_moderation WHERE user_id=$1 AND char_id=$2', [userId, charId]);
+    return r.rows.length ? { strikes: r.rows[0].strikes, locked: r.rows[0].locked } : { strikes: 0, locked: false };
+  } catch { return { strikes: 0, locked: false }; }
+}
+
+async function setModStatus(userId, charId, strikes, locked) {
+  if (!db) return;
+  try {
+    await db.query(
+      `INSERT INTO chat_moderation (user_id, char_id, strikes, locked, updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (user_id, char_id) DO UPDATE SET strikes=$3, locked=$4, updated_at=NOW()`,
+      [userId, charId, strikes, locked]
+    );
+  } catch (e) { console.error('setModStatus error:', e); }
+}
 
 const SLUR_WARNING_1 = "Nope — that word doesn't fly here. Keep it out. [⚠ Strike 1 of 3 — three strikes ends this chat]";
 const SLUR_WARNING_2 = "Still a hard no on that. Last warning. [⚠ Strike 2 of 3 — one more and this chat is over]";
@@ -902,6 +930,13 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
 
 app.get('/api/usage', requireAuth, (req, res) => {
   res.json(buildUsagePayload(getLimits(req.user.googleId)));
+});
+
+app.get('/api/chat/lock-status/:charId', requireAuth, async (req, res) => {
+  const { charId } = req.params;
+  if (!VALID_ID.test(charId)) return res.json({ locked: false });
+  const mod = await getModStatus(req.user.googleId, charId);
+  res.json({ locked: mod.locked, strikes: mod.strikes });
 });
 
 app.post('/api/admin/reset-limits', requireAuth, (req, res) => {
@@ -1370,23 +1405,36 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   // Empty message = continuation (AI speaks again without storing a user turn)
   const isContinuation = !message || !message.trim();
 
+  // ── Lock check — block permanently locked chats ───────────────────────────
+  const modStatus = await getModStatus(userId, charId);
+  if (modStatus.locked) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    res.write(`data: ${JSON.stringify({ conversationEnded: true, locked: true, reason: "This chat was permanently ended due to repeated policy violations. You can't send messages here anymore." })}\n\n`);
+    res.end();
+    return;
+  }
+
   // ── Slur detection (three strikes per conversation) ────────────────────────
   if (!isContinuation && message && SLUR_RE.test(message)) {
-    slurStrikes[key] = (slurStrikes[key] || 0) + 1;
-    if (slurStrikes[key] >= 3) {
+    const newStrikes = modStatus.strikes + 1;
+    if (newStrikes >= 3) {
+      await setModStatus(userId, charId, newStrikes, true);
       conversations[key] = [];
-      delete slurStrikes[key];
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
       res.flushHeaders();
-      res.write(`data: ${JSON.stringify({ conversationEnded: true, reason: 'Three strikes. This conversation has been ended. Start a new chat to continue.' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ conversationEnded: true, locked: true, reason: "We’ve given you plenty of warnings. This chat has been permanently ended." })}\n\n`);
       res.end();
       return;
     }
-    // Strikes 1 and 2: send a warning instead of passing to AI
-    const warning = slurStrikes[key] === 1 ? SLUR_WARNING_1 : SLUR_WARNING_2;
+    await setModStatus(userId, charId, newStrikes, false);
+    const warning = newStrikes === 1 ? SLUR_WARNING_1 : SLUR_WARNING_2;
     return slurDeflect(res, warning, buildUsagePayload(getLimits(userId)));
   }
 

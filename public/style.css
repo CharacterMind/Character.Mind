@@ -867,6 +867,13 @@ html, body {
   border: 1px solid var(--border2); border-radius: 8px;
   background: var(--bg2); max-width: 420px;
 }
+.chat-locked-bar {
+  display: flex; align-items: center; gap: 10px;
+  margin: 32px auto; padding: 16px 20px;
+  background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.35);
+  border-radius: 10px; color: #f87171; font-size: 14px; max-width: 460px;
+  text-align: left; line-height: 1.45;
+}
 
 /* ── Toast notifications ─────────────────────────────────────────────────── */
 .toast-container {
