@@ -1039,8 +1039,8 @@ html, body {
   transition: width .5s ease, background .4s ease;
 }
 
-.usage-fill-modal.green  { background: #3b82f6; }
-.usage-fill-modal.yellow { background: #3b82f6; }
+.usage-fill-modal.green  { background: #22c55e; }
+.usage-fill-modal.yellow { background: #eab308; }
 .usage-fill-modal.orange { background: #f97316; }
 .usage-fill-modal.red    { background: #ef4444; }
 .usage-limits-note {
