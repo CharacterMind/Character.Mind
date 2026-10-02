@@ -854,14 +854,13 @@ html, body {
   position: fixed; inset: 0; z-index: 900;
   background: #0b1120;
   display: flex; flex-direction: column; align-items: center;
-  justify-content: space-between;
   padding: 40px 0 52px;
   overflow: hidden;
 }
 .call-overlay::before {
   content: '';
   position: absolute; inset: 0;
-  background: radial-gradient(ellipse 88% 68% at 50% 30%, var(--call-glow, rgba(24,92,220,.92)) 0%, rgba(0,0,0,0) 56%);
+  background: radial-gradient(ellipse 88% 68% at 50% 42%, var(--call-glow, rgba(24,92,220,.92)) 0%, rgba(0,0,0,0) 56%);
   pointer-events: none; transition: background 0.7s ease;
 }
 .call-overlay[data-state="listening"]::before {
@@ -874,9 +873,10 @@ html, body {
   white-space: nowrap; z-index: 2; pointer-events: none;
 }
 .call-main {
-  display: flex; flex-direction: column; align-items: center;
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 10px; position: relative; z-index: 1;
-  margin-top: 90px;
+  padding-bottom: 50px;
 }
 .call-avatar-glow {
   position: relative; display: flex; align-items: center; justify-content: center;
