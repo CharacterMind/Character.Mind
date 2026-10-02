@@ -2133,6 +2133,7 @@ function msgMenuHtml(role) {
        <button class='msg-di danger' onclick='removeMsgEl(this)'>${MI.remove}Remove message</button>
        <button class='msg-di' onclick='rewindToHere(this)'>${MI.rewind}Rewind to here</button>`
     : `<button class='msg-di' onclick='copyMsgText(this)'>${MI.copy}Copy</button>
+       <button class='msg-di' onclick='editMsgText(this)'>${MI.edit}Edit response</button>
        <button class='msg-di danger' onclick='removeMsgEl(this)'>${MI.remove}Remove message</button>
        <button class='msg-di' onclick='rewindToHere(this)'>${MI.rewind}Rewind to here</button>`;
   return `<div class='msg-menu-wrap'><button class='msg-menu-btn' onclick='toggleMsgMenu(this)'>⋯</button><div class='msg-dropdown hidden'>${items}</div></div>`;
@@ -2169,19 +2170,38 @@ function copyMsgText(btn) {
 
 function editMsgText(btn) {
   const msgEl = btn.closest('.msg');
+  const isAi = msgEl.classList.contains('ai');
   const bubble = msgEl.querySelector('.bubble');
   btn.closest('.msg-dropdown').classList.add('hidden');
-  const orig = bubble.innerText;
+  const origHtml = bubble.innerHTML;
+  const origText = bubble.innerText;
   bubble.contentEditable = 'true';
   bubble.classList.add('editing');
+  // Show as plain text while editing so user sees raw content
+  bubble.textContent = origText;
   bubble.focus();
   const sel = window.getSelection(), r = document.createRange();
   r.selectNodeContents(bubble); sel.removeAllRanges(); sel.addRange(r);
   const ctrl = document.createElement('div');
   ctrl.className = 'msg-edit-ctrl';
-  ctrl.dataset.orig = orig;
-  ctrl.innerHTML = `<button onclick="saveEdit(this)">Save & Resend</button><button onclick="cancelEdit(this)">Cancel</button>`;
+  ctrl.dataset.origHtml = origHtml;
+  if (isAi) {
+    ctrl.innerHTML = `<button onclick="saveAiEdit(this)">Save</button><button onclick="cancelEdit(this)">Cancel</button>`;
+  } else {
+    ctrl.innerHTML = `<button onclick="saveEdit(this)">Save & Resend</button><button onclick="cancelEdit(this)">Cancel</button>`;
+  }
   bubble.after(ctrl);
+}
+
+function saveAiEdit(btn) {
+  const ctrl = btn.closest('.msg-edit-ctrl');
+  const bubble = ctrl.closest('.msg').querySelector('.bubble');
+  const newText = bubble.innerText.trim();
+  bubble.contentEditable = 'false';
+  bubble.classList.remove('editing');
+  ctrl.remove();
+  bubble.innerHTML = newText ? renderMarkdown(newText) : ctrl.dataset.origHtml;
+  saveHistoryLocal();
 }
 
 function saveEdit(btn) {
@@ -2214,7 +2234,7 @@ function saveEdit(btn) {
 function cancelEdit(btn) {
   const ctrl = btn.closest('.msg-edit-ctrl');
   const bubble = ctrl.closest('.msg').querySelector('.bubble');
-  bubble.textContent = ctrl.dataset.orig;
+  bubble.innerHTML = ctrl.dataset.origHtml;
   bubble.contentEditable = 'false';
   bubble.classList.remove('editing');
   ctrl.remove();
@@ -2675,9 +2695,27 @@ function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replac
 function renderMarkdown(text) {
   let s = escHtml(text);
   s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
-  s = s.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
   const paras = s.split(/\n\n+/);
-  return paras.map(p => p.trim() ? `<p>${p.replace(/\n/g, '<br>')}</p>` : '').filter(Boolean).join('');
+  return paras.map(p => {
+    if (!p.trim()) return '';
+    // Split into narration (*...*) and dialogue segments
+    const parts = p.split(/(\*[^*\n]+\*)/g);
+    const html = parts.map(part => {
+      if (/^\*[^*\n]+\*$/.test(part)) {
+        // Narration: purple italic
+        return `<span class="narration">${part.slice(1, -1)}</span>`;
+      }
+      if (!part.trim()) return part; // whitespace only, preserve
+      // Dialogue: strip existing surrounding quotes then add curly ones
+      const leadWs = part.match(/^(\s*)/)[1];
+      const trailWs = part.match(/(\s*)$/)[1];
+      const inner = part.slice(leadWs.length, part.length - trailWs.length || undefined);
+      const cleaned = inner.replace(/^[“”"]+/, '').replace(/[“”"]+$/, '');
+      if (!cleaned.trim()) return part;
+      return `${leadWs}<span class="dialogue">“${cleaned}”</span>${trailWs}`;
+    }).join('');
+    return `<p>${html.replace(/\n/g, '<br>')}</p>`;
+  }).filter(Boolean).join('');
 }
 
 function showTyping(v) {
