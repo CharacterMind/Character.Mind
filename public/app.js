@@ -179,6 +179,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function loadCharacters() {
+  await syncHiddenRecentsFromServer();
   try {
     const res = await fetch('/api/characters');
     if (res.status === 401) { characters = []; renderSidebarChats(); return; }
@@ -1005,6 +1006,24 @@ function getHiddenRecents() {
 }
 function setHiddenRecents(set) {
   try { localStorage.setItem('cm_hidden_recents', JSON.stringify([...set])); } catch {}
+  if (currentUser) {
+    fetch('/api/user/hidden-recents', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hidden: [...set] })
+    }).catch(() => {});
+  }
+}
+async function syncHiddenRecentsFromServer() {
+  if (!currentUser) return;
+  try {
+    const res = await fetch('/api/user/hidden-recents');
+    if (!res.ok) return;
+    const { hidden } = await res.json();
+    if (!hidden.length) return;
+    const local = getHiddenRecents();
+    const merged = new Set([...local, ...hidden]);
+    try { localStorage.setItem('cm_hidden_recents', JSON.stringify([...merged])); } catch {}
+  } catch (_) {}
 }
 
 let _sidebarCtxMenu = null;

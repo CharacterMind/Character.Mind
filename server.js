@@ -64,6 +64,9 @@ if (db) {
     )
   `).catch(err => console.error('Users table init error:', err));
 
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS hidden_recents TEXT[] NOT NULL DEFAULT '{}'`)
+    .catch(err => console.error('Add hidden_recents column error:', err));
+
   db.query(`
     CREATE TABLE IF NOT EXISTS user_limits (
       user_id TEXT PRIMARY KEY,
@@ -192,6 +195,23 @@ app.get('/auth/me', (req, res) => {
 });
 app.post('/auth/logout', (req, res) => {
   req.logout(() => res.json({ ok: true }));
+});
+
+app.get('/api/user/hidden-recents', requireAuth, async (req, res) => {
+  if (!db) return res.json({ hidden: [] });
+  try {
+    const { rows } = await db.query('SELECT hidden_recents FROM users WHERE google_id = $1', [req.user.googleId]);
+    res.json({ hidden: rows[0]?.hidden_recents || [] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/user/hidden-recents', requireAuth, async (req, res) => {
+  if (!db) return res.json({ ok: true });
+  const hidden = Array.isArray(req.body.hidden) ? req.body.hidden.map(String) : [];
+  try {
+    await db.query('UPDATE users SET hidden_recents = $1 WHERE google_id = $2', [hidden, req.user.googleId]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 function requireAuth(req, res, next) {
