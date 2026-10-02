@@ -1966,8 +1966,10 @@ function formatResetTime(timestamp) {
   if (remaining < DAY) {
     const h = Math.floor(remaining / 3600000);
     const m = Math.floor((remaining % 3600000) / 60000);
-    if (h > 0) return `Resets in ${h} hr ${m} min`;
-    return `Resets in ${m} min`;
+    const mStr = m === 1 ? 'min' : 'mins';
+    if (h > 0 && m > 0) return `Resets in ${h} hr ${m} ${mStr}`;
+    if (h > 0) return `Resets in ${h} hr`;
+    return `Resets in ${m} ${mStr}`;
   }
   const d = new Date(timestamp);
   const day = d.toLocaleDateString('en-US', { weekday: 'long' });
