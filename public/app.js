@@ -1559,6 +1559,7 @@ async function sendMessage(overrideText, skipAppend) {
     if (!lockoutActiveErr) document.getElementById('sendBtn').disabled = false;
     document.querySelectorAll('.bubble.streaming').forEach(b => b.classList.remove('streaming'));
     appendMessage('ai', `⚠️ ${err.message}`);
+    if (callModeActive) setTimeout(() => listenForSpeech(), 2000);
   }
 }
 
@@ -2782,6 +2783,22 @@ function callModeTTS(bubble) {
 // ── Call mode ─────────────────────────────────────────────────────────────────
 let callModeActive = false;
 let callMuted = false;
+let callFirstConnect = false;
+let voiceOnTimer = null;
+
+function showVoiceOnPill() {
+  const pill = document.getElementById('callVoiceOn');
+  if (!pill) return;
+  pill.style.display = '';
+  if (voiceOnTimer) clearTimeout(voiceOnTimer);
+  voiceOnTimer = setTimeout(() => hideVoiceOnPill(), 5000);
+}
+
+function hideVoiceOnPill() {
+  const pill = document.getElementById('callVoiceOn');
+  if (pill) pill.style.display = 'none';
+  if (voiceOnTimer) { clearTimeout(voiceOnTimer); voiceOnTimer = null; }
+}
 let callRecognition = null;
 
 function toggleCallMode() {
@@ -2794,6 +2811,7 @@ function startCallMode() {
   if (!currentChar) return;
   callModeActive = true;
   callMuted = false;
+  callFirstConnect = true;
   document.getElementById('callBtn')?.classList.add('active');
   const overlay = document.getElementById('callOverlay');
   if (overlay) {
@@ -2829,24 +2847,24 @@ function endCallMode() {
 
 function setCallState(state) {
   const overlay = document.getElementById('callOverlay');
-  const voiceOn = document.getElementById('callVoiceOn');
   const statusEl = document.getElementById('callStatus');
   const interruptBtn = document.getElementById('callInterruptBtn');
   if (overlay) overlay.dataset.state = state;
   if (state === 'calling') {
-    if (voiceOn) voiceOn.style.display = 'none';
+    hideVoiceOnPill();
     if (statusEl) { statusEl.style.display = ''; statusEl.textContent = 'Calling...'; }
     if (interruptBtn) interruptBtn.style.display = 'none';
   } else if (state === 'listening') {
-    if (voiceOn) voiceOn.style.display = '';
+    showVoiceOnPill();
+    if (callFirstConnect) { callFirstConnect = false; playSound('call-connect'); }
     if (statusEl) { statusEl.style.display = ''; statusEl.textContent = 'Start speaking'; }
     if (interruptBtn) interruptBtn.style.display = 'none';
   } else if (state === 'thinking') {
-    if (voiceOn) voiceOn.style.display = 'none';
+    hideVoiceOnPill();
     if (statusEl) { statusEl.style.display = ''; statusEl.textContent = 'AI thinking'; }
     if (interruptBtn) interruptBtn.style.display = 'none';
   } else if (state === 'responding') {
-    if (voiceOn) voiceOn.style.display = 'none';
+    hideVoiceOnPill();
     if (statusEl) statusEl.style.display = 'none';
     if (interruptBtn) interruptBtn.style.display = '';
   }
@@ -2854,6 +2872,7 @@ function setCallState(state) {
 
 function toggleCallMute() {
   callMuted = !callMuted;
+  playSound(callMuted ? 'mute' : 'unmute');
   const btn = document.getElementById('callMuteBtn');
   if (btn) btn.classList.toggle('muted', callMuted);
   if (callMuted) {
@@ -2905,12 +2924,11 @@ function listenForSpeech() {
 }
 
 function sendCallMessage(text) {
-  if (!callModeActive) return;
+  if (!callModeActive || !text.trim()) return;
   setCallState('thinking');
-  if (callRecognition) { try { callRecognition.stop(); } catch(_){} }
-  const input = document.getElementById('messageInput');
-  if (input) { input.value = text; autoResize(input); }
-  sendMessage();
+  playSound('call-send');
+  if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
+  sendMessage(text);
 }
 
 function openImagePicker() {
@@ -2966,6 +2984,44 @@ function playSound(type) {
         g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
         osc.start(t); osc.stop(t + 0.12);
       });
+    } else if (type === 'call-connect') {
+      [[0, 523, 0.14], [0.16, 784, 0.22]].forEach(([when, freq, dur]) => {
+        const osc = ctx.createOscillator(), g = ctx.createGain();
+        osc.connect(g); g.connect(ctx.destination);
+        osc.type = 'sine'; osc.frequency.value = freq;
+        const t = ctx.currentTime + when;
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.09, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        osc.start(t); osc.stop(t + dur + 0.05);
+      });
+    } else if (type === 'call-send') {
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.type = 'sine';
+      const t = ctx.currentTime;
+      osc.frequency.setValueAtTime(680, t);
+      osc.frequency.linearRampToValueAtTime(380, t + 0.18);
+      g.gain.setValueAtTime(0.055, t);
+      g.gain.linearRampToValueAtTime(0.001, t + 0.18);
+      osc.start(t); osc.stop(t + 0.2);
+    } else if (type === 'mute') {
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.type = 'sine'; osc.frequency.value = 200;
+      const t = ctx.currentTime;
+      g.gain.setValueAtTime(0.09, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+      osc.start(t); osc.stop(t + 0.09);
+    } else if (type === 'unmute') {
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.type = 'sine'; osc.frequency.value = 1050;
+      const t = ctx.currentTime;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.07, t + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+      osc.start(t); osc.stop(t + 0.14);
     }
   } catch (_) {}
 }
