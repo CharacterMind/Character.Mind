@@ -1405,7 +1405,7 @@ async function sendMessage(overrideText, skipAppend) {
   }
 
   if (text) lastUserMessage = text;
-  if (!text && !skipAppend) return;
+  if (!text && !skipAppend && !document.getElementById('messages').children.length) return;
 
   if (!skipAppend) {
     if (text) {
