@@ -1966,9 +1966,10 @@ function formatResetTime(timestamp) {
   if (remaining < DAY) {
     const h = Math.floor(remaining / 3600000);
     const m = Math.floor((remaining % 3600000) / 60000);
+    const hStr = h === 1 ? 'hr' : 'hrs';
     const mStr = m === 1 ? 'min' : 'mins';
-    if (h > 0 && m > 0) return `Resets in ${h} hr ${m} ${mStr}`;
-    if (h > 0) return `Resets in ${h} hr`;
+    if (h > 0 && m > 0) return `Resets in ${h} ${hStr} ${m} ${mStr}`;
+    if (h > 0) return `Resets in ${h} ${hStr}`;
     return `Resets in ${m} ${mStr}`;
   }
   const d = new Date(timestamp);
@@ -2021,7 +2022,7 @@ function updateUsageModal(u) {
     if (u.cooldownUntil && Date.now() < u.cooldownUntil) {
       sSubEl.textContent = formatResetTime(u.cooldownUntil);
     } else {
-      sSubEl.textContent = 'Resets every 2 hours';
+      sSubEl.textContent = 'Starts when you send your first message';
     }
   }
 
