@@ -1792,13 +1792,16 @@ function startCooldown(until, type, showModal) {
       // Keep modal sub in sync
       const sub = document.getElementById('limitModalSub');
       if (sub && document.getElementById('limitModal')?.style.display !== 'none') sub.textContent = str;
+      // Keep session bar sub-text counting down
+      const sSubEl = document.getElementById('usageSessionSub');
+      if (sSubEl) sSubEl.textContent = formatResetTime(until);
     }
   }
 
   if (cooldownTimer) clearInterval(cooldownTimer);
   updateCountdown();
-  // weekly ≤24h needs per-minute updates; session just needs expiry checks
-  cooldownTimer = setInterval(updateCountdown, type === 'weekly' && (until - Date.now()) <= 24 * 60 * 60 * 1000 ? 60000 : 30000);
+  // update every minute so the countdown visibly ticks
+  cooldownTimer = setInterval(updateCountdown, 60000);
 
   if (showModal) {
     const displayStr = type === 'weekly' ? formatWeeklyReset(until) : formatSessionCooldown(until);
@@ -2484,23 +2487,11 @@ function updateStreamTokens(msgEl, charCount) {
 
 function stopStreamStats(msgEl, finalTokens) {
   if (streamTimer) { clearInterval(streamTimer); streamTimer = null; }
-  const elapsed = streamStartTime ? ((Date.now() - streamStartTime) / 1000).toFixed(1) : null;
   streamStartTime = null;
   const stats = msgEl?.querySelector('.stream-stats');
   if (!stats) return;
-  stats.classList.remove('active');
-  stats.classList.add('done');
-  if (elapsed) {
-    const timeEl = stats.querySelector('.stream-time');
-    if (timeEl) timeEl.textContent = elapsed + 's';
-  }
-  if (finalTokens != null) {
-    const tokEl = stats.querySelector('.stream-tok');
-    if (tokEl) tokEl.textContent = fmtLiveTokens(finalTokens) + ' tok';
-  }
-  // CSS animation fades it out after 3s; hide from layout after animation ends
-  const _s = stats;
-  setTimeout(() => { if (_s.isConnected && _s.classList.contains('done')) _s.style.display = 'none'; }, 3900);
+  // Hide immediately without revealing final token count
+  stats.style.display = 'none';
 }
 
 // ── Regeneration history ──────────────────────────────────────────────────────
