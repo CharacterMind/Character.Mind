@@ -2001,13 +2001,16 @@ function formatResetTime(timestamp) {
   if (remaining <= 0) return 'Resetting now…';
   const DAY = 24 * 60 * 60 * 1000;
   if (remaining < DAY) {
-    const h = Math.floor(remaining / 3600000);
-    const m = Math.floor((remaining % 3600000) / 60000);
+    // Round to nearest minute so display matches "end time minus clock time" mental math
+    const totalMins = Math.round(remaining / 60000);
+    const h = Math.floor(totalMins / 60);
+    const m = totalMins % 60;
     const hStr = h === 1 ? 'hr' : 'hrs';
     const mStr = m === 1 ? 'min' : 'mins';
     if (h > 0 && m > 0) return `Resets in ${h} ${hStr} ${m} ${mStr}`;
     if (h > 0) return `Resets in ${h} ${hStr}`;
-    return `Resets in ${m} ${mStr}`;
+    if (m > 0) return `Resets in ${m} ${mStr}`;
+    return 'Resetting now…';
   }
   const d = new Date(timestamp);
   const day = d.toLocaleDateString('en-US', { weekday: 'long' });
