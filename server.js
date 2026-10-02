@@ -9,6 +9,7 @@ const path = require('path');
 const { Pool } = require('pg');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const crypto = require('crypto');
 const { matchCharacterTemplate, TEMPLATES } = require('./characterTemplates');
 
 const app = express();
@@ -128,7 +129,7 @@ if (db) {
 
 app.use(session({
   store: db ? new pgSession({ pool: db, tableName: 'session', createTableIfMissing: false }) : undefined,
-  secret: SESSION_SECRET || ('cm-fallback-' + Math.random().toString(36)),
+  secret: SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -212,7 +213,7 @@ app.get('/api/user/hidden-recents', requireAuth, async (req, res) => {
 
 app.post('/api/user/hidden-recents', requireAuth, async (req, res) => {
   if (!db) return res.json({ ok: true });
-  const hidden = Array.isArray(req.body.hidden) ? req.body.hidden.map(String) : [];
+  const hidden = Array.isArray(req.body.hidden) ? req.body.hidden.slice(0, 500).map(s => String(s).slice(0, 128)) : [];
   try {
     await db.query('UPDATE users SET hidden_recents = $1 WHERE google_id = $2', [hidden, req.user.googleId]);
     res.json({ ok: true });
@@ -509,6 +510,7 @@ async function getGeoForIp(ip) {
             const parsed = JSON.parse(data);
             if (parsed.country_code) {
               const geo = { country: parsed.country_code, region: parsed.region_code || '' };
+              if (ipGeoCache.size >= 5000) ipGeoCache.delete(ipGeoCache.keys().next().value);
               ipGeoCache.set(ip, geo);
               setTimeout(() => ipGeoCache.delete(ip), 60 * 60 * 1000);
               resolve(geo);
@@ -902,7 +904,7 @@ app.get('/api/usage', requireAuth, (req, res) => {
   res.json(buildUsagePayload(getLimits(req.user.googleId)));
 });
 
-app.post('/api/admin/reset-limits', (req, res) => {
+app.post('/api/admin/reset-limits', requireAuth, (req, res) => {
   const { secret, targetId } = req.body;
   const adminSecret = process.env.ADMIN_SECRET;
   if (!adminSecret || secret !== adminSecret) return res.status(403).json({ error: 'Forbidden' });
@@ -1267,6 +1269,10 @@ app.post('/api/generate-persona', requireAuth, (req, res) => {
   if (tagline && (typeof tagline !== 'string' || tagline.length > 160)) return res.status(400).json({ error: 'Tagline max 160 chars' });
   if (description && (typeof description !== 'string' || description.length > 2000)) return res.status(400).json({ error: 'Description max 2000 chars' });
 
+  const userId = req.user.googleId;
+  const personaLimit = checkLimits(userId);
+  if (personaLimit.blocked) return res.status(429).json({ error: personaLimit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...personaLimit });
+
   const userMsg = `Character name: ${name}${tagline ? `\nTagline: ${tagline}` : ''}${description ? `\nDescription: ${description}` : ''}
 
 Write a roleplay system prompt for this character. If they are a recognizable fictional character (from a game, anime, book, movie, TV show, etc.), use their canon personality, lore, relationships, speech patterns, knowledge, and backstory accurately — stay true to who they are in the source material. If they are original, build a rich, consistent character from the details provided.
@@ -1348,6 +1354,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   const modelList = getModelList(modelTier);
   const effortCfg = getEffortCfg(effort, modelTier);
   if (!charId) return res.status(400).json({ error: 'charId required' });
+  if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
   if (message && message.length > 20000) return res.status(400).json({ error: 'Message too long (max 20000 characters)' });
   const userId = req.user.googleId;
 
@@ -1391,7 +1398,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   // ── Crisis keyword detection ───────────────────────────────────────────────
   let crisisContext = '';
   if (!isContinuation && message && CRISIS_RE.test(message)) {
-    const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip;
+    const clientIp = req.ip;
     const geo = await getGeoForIp(clientIp);
     const info = getCrisisInfo(geo);
     if (info) {
@@ -1476,7 +1483,7 @@ async function sendWelcomeEmail(userName, email) {
       subject: `Hey ${firstName}, you're in`,
       text: `Hey ${firstName},\n\nYou're all set on Character.Mind. Log in whenever you're ready:\n\n${process.env.SITE_URL || 'https://charactermind.onrender.com'}\n\n— Character.Mind\n\n(This is an automated message. Please do not reply to this email.)`
     });
-    console.log('Welcome email sent to', email);
+    console.log('Welcome email sent');
   } catch (err) {
     console.error('Welcome email error:', err.message);
   }
@@ -1494,7 +1501,7 @@ function buildPolicyEmailHtml(userName, message) {
       <tr><td>
         <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#7c5cbf">Character.Mind</p>
         <h1 style="margin:0 0 24px;font-size:22px;font-weight:700;color:#f0f0f0;letter-spacing:-.02em">Policy Update</h1>
-        <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">Hi ${name},</p>
+        <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">Hi ${name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')},</p>
         <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">We've updated our Terms of Service and/or Privacy Policy. Here's a summary of what changed:</p>
         <div style="background:#0a0a0a;border:1px solid #222222;border-radius:8px;padding:20px;margin:0 0 24px">
           <p style="margin:0;font-size:15px;color:#f0f0f0;line-height:1.6;white-space:pre-wrap">${message.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>
