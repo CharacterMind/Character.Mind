@@ -2807,9 +2807,9 @@ function startCallMode() {
     if (hexMatch) {
       const h = hexMatch[1];
       const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
-      overlay.style.setProperty('--call-glow', `rgba(${r},${g},${b},0.48)`);
-      overlay.style.setProperty('--call-glow-strong', `rgba(${r},${g},${b},0.52)`);
-      overlay.style.setProperty('--call-avatar-glow', `rgba(${r},${g},${b},0.35)`);
+      overlay.style.setProperty('--call-glow', `rgba(${r},${g},${b},0.72)`);
+      overlay.style.setProperty('--call-glow-strong', `rgba(${r},${g},${b},0.75)`);
+      overlay.style.setProperty('--call-avatar-glow', `rgba(${r},${g},${b},0.5)`);
     }
     overlay.style.display = 'flex';
     setCallState('calling');
