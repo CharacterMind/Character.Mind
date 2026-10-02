@@ -905,6 +905,7 @@ app.get('/api/usage', requireAuth, (req, res) => {
 });
 
 app.post('/api/admin/reset-limits', requireAuth, (req, res) => {
+  if (req.user.email !== 'support.charactermind@gmail.com') return res.status(403).json({ error: 'Forbidden' });
   const { secret, targetId } = req.body;
   const adminSecret = process.env.ADMIN_SECRET;
   if (!adminSecret || secret !== adminSecret) return res.status(403).json({ error: 'Forbidden' });
@@ -918,8 +919,7 @@ app.post('/api/admin/reset-limits', requireAuth, (req, res) => {
 
 // Owner-only reset — no secret needed, just must be the owner's Google account
 app.post('/api/admin/reset-mine', requireAuth, (req, res) => {
-  const ownerEmail = process.env.OWNER_EMAIL;
-  if (!ownerEmail || req.user.email !== ownerEmail) return res.status(403).json({ error: 'Forbidden' });
+  if (req.user.email !== 'support.charactermind@gmail.com') return res.status(403).json({ error: 'Forbidden' });
   const uid = req.user.googleId;
   delete userLimits[uid];
   if (db) db.query('DELETE FROM user_limits WHERE user_id = $1', [uid]).catch(() => {});
@@ -1523,8 +1523,7 @@ function buildPolicyEmailHtml(userName, message) {
 }
 
 app.post('/api/admin/notify-policy-update', requireAuth, async (req, res) => {
-  const ownerEmail = process.env.OWNER_EMAIL;
-  if (!ownerEmail || req.user.email !== ownerEmail) return res.status(403).json({ error: 'Forbidden' });
+  if (req.user.email !== 'support.charactermind@gmail.com') return res.status(403).json({ error: 'Forbidden' });
 
   const transporter = getMailTransporter();
   if (!transporter) return res.status(503).json({ error: 'Email service not configured — add GMAIL_USER and GMAIL_APP_PASSWORD to .env' });
