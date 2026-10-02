@@ -2769,7 +2769,7 @@ function callModeTTS(bubble) {
   if (!callModeActive || !bubble) return;
   const text = (bubble.innerText || bubble.textContent).trim();
   if (!text) { listenForSpeech(); return; }
-  setCallStatus('Speaking...');
+  setCallState('responding');
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   applyVoice(utterance);
@@ -2781,6 +2781,7 @@ function callModeTTS(bubble) {
 
 // ── Call mode ─────────────────────────────────────────────────────────────────
 let callModeActive = false;
+let callMuted = false;
 let callRecognition = null;
 
 function toggleCallMode() {
@@ -2792,6 +2793,7 @@ function startCallMode() {
   if (!SR) { alert('Voice calls need a browser with speech recognition — try Chrome.'); return; }
   if (!currentChar) return;
   callModeActive = true;
+  callMuted = false;
   document.getElementById('callBtn')?.classList.add('active');
   const overlay = document.getElementById('callOverlay');
   if (overlay) {
@@ -2800,12 +2802,14 @@ function startCallMode() {
     const avatarEl = document.getElementById('callAvatarWrap');
     if (avatarEl) avatarEl.innerHTML = msgAvatarHtml('call-avatar-img');
     overlay.style.display = 'flex';
+    setCallState('calling');
+    setTimeout(() => { if (callModeActive) listenForSpeech(); }, 1500);
   }
-  listenForSpeech();
 }
 
 function endCallMode() {
   callModeActive = false;
+  callMuted = false;
   if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
   if (activeTTSUtterance) { window.speechSynthesis.cancel(); if (activeTTSBtn) activeTTSBtn.classList.remove('playing'); activeTTSUtterance = null; activeTTSBtn = null; }
   document.getElementById('callBtn')?.classList.remove('active');
@@ -2813,16 +2817,52 @@ function endCallMode() {
   if (overlay) overlay.style.display = 'none';
 }
 
-function setCallStatus(status) {
-  const el = document.getElementById('callStatus');
-  if (el) el.textContent = status;
-  const waves = document.querySelector('.call-waves');
-  if (waves) waves.dataset.state = status === 'Listening...' ? 'listening' : status === 'Speaking...' ? 'speaking' : 'idle';
+function setCallState(state) {
+  const overlay = document.getElementById('callOverlay');
+  const voiceOn = document.getElementById('callVoiceOn');
+  const statusEl = document.getElementById('callStatus');
+  const interruptBtn = document.getElementById('callInterruptBtn');
+  if (overlay) overlay.dataset.state = state;
+  if (state === 'calling') {
+    if (voiceOn) voiceOn.style.display = 'none';
+    if (statusEl) { statusEl.style.display = ''; statusEl.textContent = 'Calling...'; }
+    if (interruptBtn) interruptBtn.style.display = 'none';
+  } else if (state === 'listening') {
+    if (voiceOn) voiceOn.style.display = '';
+    if (statusEl) { statusEl.style.display = ''; statusEl.textContent = 'Start speaking'; }
+    if (interruptBtn) interruptBtn.style.display = 'none';
+  } else if (state === 'thinking') {
+    if (voiceOn) voiceOn.style.display = 'none';
+    if (statusEl) { statusEl.style.display = ''; statusEl.textContent = 'AI thinking'; }
+    if (interruptBtn) interruptBtn.style.display = 'none';
+  } else if (state === 'responding') {
+    if (voiceOn) voiceOn.style.display = 'none';
+    if (statusEl) statusEl.style.display = 'none';
+    if (interruptBtn) interruptBtn.style.display = '';
+  }
+}
+
+function toggleCallMute() {
+  callMuted = !callMuted;
+  const btn = document.getElementById('callMuteBtn');
+  if (btn) btn.classList.toggle('muted', callMuted);
+  if (callMuted) {
+    if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
+  } else {
+    const overlay = document.getElementById('callOverlay');
+    if (overlay && overlay.dataset.state === 'listening') listenForSpeech();
+  }
+}
+
+function interruptCall() {
+  window.speechSynthesis.cancel();
+  activeTTSUtterance = null;
+  if (callModeActive) listenForSpeech();
 }
 
 function listenForSpeech() {
   if (!callModeActive) return;
-  setCallStatus('Listening...');
+  setCallState('listening');
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   callRecognition = new SR();
   callRecognition.continuous = false;
@@ -2833,7 +2873,7 @@ function listenForSpeech() {
     if (transcript) sendCallMessage(transcript);
   };
   callRecognition.onerror = (e) => {
-    if (!callModeActive) return;
+    if (!callModeActive || callMuted) return;
     if (e.error === 'no-speech') { setTimeout(() => listenForSpeech(), 300); }
     else if (e.error !== 'aborted') { setTimeout(() => listenForSpeech(), 1500); }
   };
@@ -2842,7 +2882,7 @@ function listenForSpeech() {
 
 function sendCallMessage(text) {
   if (!callModeActive) return;
-  setCallStatus('Responding...');
+  setCallState('thinking');
   if (callRecognition) { try { callRecognition.stop(); } catch(_){} }
   const input = document.getElementById('messageInput');
   if (input) { input.value = text; autoResize(input); }
