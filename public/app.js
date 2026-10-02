@@ -544,6 +544,7 @@ function openSettings(tab) {
   if (emailSave) { emailSave.textContent = 'Save'; emailSave.style.display = 'none'; }
 
   if (lastKnownUsage) updateSettingsUsage(lastKnownUsage);
+  loadUsage(); // refresh usage data every time settings opens
 
   document.getElementById('settingsModal').style.display = 'flex';
   showSettingsTab(tab || 'profile');
@@ -1111,9 +1112,13 @@ function renderSidebarChats() {
   const hidden = getHiddenRecents();
   const recents = getRecentChats();
 
+  // Also include characters with saved local history even if no explicit open-timestamp
+  let histKeys = {};
+  try { histKeys = JSON.parse(localStorage.getItem('cm_history') || '{}'); } catch {}
+
   const chatted = characters
-    .filter(c => recents[c.id] && !hidden.has(c.id))
-    .sort((a, b) => recents[b.id] - recents[a.id]);
+    .filter(c => !hidden.has(c.id) && (recents[c.id] || histKeys[c.id]))
+    .sort((a, b) => (recents[b.id] || 0) - (recents[a.id] || 0));
 
   if (chatted.length === 0) { list.innerHTML = ''; return; }
 
@@ -2532,12 +2537,9 @@ function stopStreamStats(msgEl, finalTokens) {
     const tokEl = stats.querySelector('.stream-tok');
     if (tokEl) tokEl.textContent = fmtLiveTokens(finalTokens) + ' tok';
   }
-  // Fade out and hide after 3 seconds
-  setTimeout(() => {
-    stats.style.transition = 'opacity 0.6s';
-    stats.style.opacity = '0';
-    setTimeout(() => { stats.style.display = 'none'; stats.style.transition = ''; stats.style.opacity = ''; }, 650);
-  }, 3000);
+  // CSS animation fades it out after 3s; hide from layout after animation ends
+  const _s = stats;
+  setTimeout(() => { if (_s.isConnected && _s.classList.contains('done')) _s.style.display = 'none'; }, 3900);
 }
 
 // ── Regeneration history ──────────────────────────────────────────────────────
@@ -2687,7 +2689,7 @@ async function regenerate() {
   flushTypewriter();
   if (bubble) { bubble.innerHTML = ''; bubble.classList.add('streaming'); }
   const oldStats = msgEl.querySelector('.stream-stats');
-  if (oldStats) { oldStats.classList.remove('done'); oldStats.classList.remove('active'); }
+  if (oldStats) { oldStats.classList.remove('done'); oldStats.classList.remove('active'); oldStats.style.display = ''; }
   startTypewriter(bubble, msgEl);
   startStreamStats(msgEl);
   showTyping(false);

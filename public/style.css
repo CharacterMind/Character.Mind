@@ -642,7 +642,8 @@ html, body {
   font-variant-numeric: tabular-nums; letter-spacing: .01em;
 }
 .stream-stats.active { display: flex; }
-.stream-stats.done { display: flex; opacity: 0.45; }
+.stream-stats.done { display: flex; animation: stats-fadeout 0.8s ease 3s forwards; opacity: 0.45; }
+@keyframes stats-fadeout { from { opacity: 0.45; } to { opacity: 0; } }
 .stream-spinner {
   width: 11px; height: 11px; border: 1.5px solid var(--border2);
   border-top-color: var(--accent-l); border-radius: 50%;
