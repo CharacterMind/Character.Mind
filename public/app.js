@@ -1833,14 +1833,8 @@ function startCooldown(until, type, showModal) {
   if (cooldownTimer) { clearInterval(cooldownTimer); cooldownTimer = null; }
   if (cooldownSyncTimeout) { clearTimeout(cooldownSyncTimeout); cooldownSyncTimeout = null; }
   updateCountdown();
-  // Sync to the cooldown's own minute boundary: fire exactly when remaining time
-  // crosses a whole minute (i.e. when Date.now() % 60000 === until % 60000)
-  const msToNextCooldownMinute = ((until % 60000) - (Date.now() % 60000) + 60000) % 60000 || 60000;
-  cooldownSyncTimeout = setTimeout(() => {
-    cooldownSyncTimeout = null;
-    updateCountdown();
-    cooldownTimer = setInterval(updateCountdown, 60000);
-  }, msToNextCooldownMinute);
+  // 1-second interval: always exactly in sync, no drift possible
+  cooldownTimer = setInterval(updateCountdown, 1000);
 
   if (showModal) {
     const displayStr = type === 'weekly' ? formatWeeklyReset(until) : formatSessionCooldown(until);
