@@ -2801,6 +2801,16 @@ function startCallMode() {
     if (nameEl) nameEl.textContent = currentChar.name || 'Character';
     const avatarEl = document.getElementById('callAvatarWrap');
     if (avatarEl) avatarEl.innerHTML = msgAvatarHtml('call-avatar-img');
+    // Apply character accent color to glow
+    const rawColor = currentChar.color || '#7c3aed';
+    const hexMatch = /#([0-9a-fA-F]{6})/.exec(rawColor);
+    if (hexMatch) {
+      const h = hexMatch[1];
+      const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
+      overlay.style.setProperty('--call-glow', `rgba(${r},${g},${b},0.48)`);
+      overlay.style.setProperty('--call-glow-strong', `rgba(${r},${g},${b},0.52)`);
+      overlay.style.setProperty('--call-avatar-glow', `rgba(${r},${g},${b},0.35)`);
+    }
     overlay.style.display = 'flex';
     setCallState('calling');
     setTimeout(() => { if (callModeActive) listenForSpeech(); }, 1500);

@@ -862,12 +862,12 @@ html, body {
   content: '';
   position: absolute; top: 0; left: 50%; transform: translateX(-50%);
   width: 100%; height: 70%;
-  background: radial-gradient(ellipse 60% 55% at 50% 30%, rgba(24,92,220,.48) 0%, transparent 70%);
+  background: radial-gradient(ellipse 60% 55% at 50% 30%, var(--call-glow, rgba(24,92,220,.48)) 0%, transparent 70%);
   pointer-events: none; transition: all 0.7s ease;
 }
 .call-overlay[data-state="listening"]::before {
   top: auto; bottom: -20%; height: 60%;
-  background: radial-gradient(ellipse 80% 60% at 50% 100%, rgba(24,92,220,.52) 0%, transparent 65%);
+  background: radial-gradient(ellipse 80% 60% at 50% 100%, var(--call-glow-strong, rgba(24,92,220,.52)) 0%, transparent 65%);
 }
 .call-voice-on {
   position: absolute; top: 32px; left: 50%; transform: translateX(-50%);
@@ -888,7 +888,7 @@ html, body {
   content: '';
   position: absolute;
   width: 200px; height: 200px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(40,120,255,.35) 0%, transparent 68%);
+  background: radial-gradient(circle, var(--call-avatar-glow, rgba(40,120,255,.35)) 0%, transparent 68%);
   transition: transform .5s ease, opacity .5s ease;
 }
 .call-overlay[data-state="responding"] .call-avatar-glow::before {
