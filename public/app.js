@@ -133,6 +133,7 @@ async function confirmNewChat() {
 // ── Init ──────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
   loadColorblindMode();
+  initSidebarContextMenu();
   initGradientPicker('#7c3aed');
   const gcHex = document.getElementById('gcHexInput');
   if (gcHex) {
@@ -1005,13 +1006,6 @@ function getHiddenRecents() {
 function setHiddenRecents(set) {
   try { localStorage.setItem('cm_hidden_recents', JSON.stringify([...set])); } catch {}
 }
-function removeFromRecent(id) {
-  const hidden = getHiddenRecents();
-  hidden.add(id);
-  setHiddenRecents(hidden);
-  closeSidebarContextMenu();
-  renderSidebarChats();
-}
 
 let _sidebarCtxMenu = null;
 function closeSidebarContextMenu() {
@@ -1021,11 +1015,36 @@ function openSidebarContextMenu(id, x, y) {
   closeSidebarContextMenu();
   const menu = document.createElement('div');
   menu.className = 'sidebar-ctx-menu';
-  menu.style.cssText = `left:${x}px;top:${y}px`;
-  menu.innerHTML = `<button onclick="removeFromRecent('${escHtml(id)}')">Remove from recents</button>`;
+  // Keep menu on screen
+  const menuW = 180, menuH = 44;
+  const left = Math.min(x, window.innerWidth - menuW - 8);
+  const top = Math.min(y, window.innerHeight - menuH - 8);
+  menu.style.cssText = `left:${left}px;top:${top}px`;
+  const btn = document.createElement('button');
+  btn.textContent = 'Remove from recents';
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const hidden = getHiddenRecents();
+    hidden.add(id);
+    setHiddenRecents(hidden);
+    closeSidebarContextMenu();
+    renderSidebarChats();
+  });
+  menu.appendChild(btn);
   document.body.appendChild(menu);
   _sidebarCtxMenu = menu;
   setTimeout(() => document.addEventListener('click', closeSidebarContextMenu, { once: true }), 0);
+}
+
+function initSidebarContextMenu() {
+  const list = document.getElementById('recentList');
+  if (!list) return;
+  list.addEventListener('contextmenu', (e) => {
+    const item = e.target.closest('.chat-item[data-id]');
+    if (!item) return;
+    e.preventDefault();
+    openSidebarContextMenu(item.dataset.id, e.clientX, e.clientY);
+  });
 }
 
 function renderSidebarChats() {
@@ -1034,9 +1053,7 @@ function renderSidebarChats() {
   const hidden = getHiddenRecents();
   const visible = characters.filter(c => !hidden.has(c.id)).slice(0, 10);
   list.innerHTML = visible.map(c => `
-    <div class="chat-item ${currentChar?.id===c.id?'active':''}" data-id="${escHtml(c.id)}"
-      onclick="openChat(this.dataset.id)"
-      oncontextmenu="event.preventDefault();openSidebarContextMenu('${escHtml(c.id)}',event.clientX,event.clientY)">
+    <div class="chat-item ${currentChar?.id===c.id?'active':''}" data-id="${escHtml(c.id)}" onclick="openChat(this.dataset.id)">
       ${charAvatarHtml(c, 'chat-item-avatar')}
       <div class="chat-item-info">
         <div class="chat-item-name">${escHtml(c.name)}</div>
