@@ -877,17 +877,17 @@ html, body {
 .call-main {
   flex: 1;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 10px; position: relative; z-index: 1;
-  padding-bottom: 50px;
+  gap: 4px; position: relative; z-index: 1;
+  padding-bottom: 20px;
 }
 .call-avatar-glow {
   position: relative; display: flex; align-items: center; justify-content: center;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 .call-avatar-glow::before {
   content: '';
   position: absolute;
-  width: 200px; height: 200px; border-radius: 50%;
+  width: 220px; height: 220px; border-radius: 50%;
   background: radial-gradient(circle, var(--call-avatar-glow, rgba(40,120,255,.35)) 0%, transparent 68%);
   transition: transform .5s ease, opacity .5s ease;
 }
@@ -900,16 +900,16 @@ html, body {
 }
 .call-avatar-wrap .msg-avatar,
 .call-avatar-wrap .call-avatar-img {
-  width: 130px; height: 130px; font-size: 50px; border-radius: 50%;
+  width: 140px; height: 140px; font-size: 54px; border-radius: 50%;
   object-fit: cover; display: block;
   box-shadow: 0 0 0 4px rgba(255,255,255,.09);
   isolation: isolate; position: relative; z-index: 2;
 }
 .call-char-name { font-size: 17px; font-weight: 400; color: rgba(255,255,255,.85); letter-spacing: .01em; }
-.call-app-name { font-size: 62px; font-weight: 800; color: #fff; letter-spacing: -.03em; line-height: 1.05; text-shadow: 0 2px 24px rgba(0,0,0,0.6); }
-.call-status { font-size: 16px; color: rgba(255,255,255,.68); margin-top: 6px; letter-spacing: .01em; min-height: 24px; }
+.call-app-name { font-size: 62px; font-weight: 800; color: #fff; letter-spacing: -.03em; line-height: 1.05; text-shadow: 0 2px 24px rgba(0,0,0,0.6); margin-top: 2px; }
+.call-status { font-size: 16px; color: rgba(255,255,255,.68); margin-top: 14px; letter-spacing: .01em; min-height: 24px; }
 .call-interrupt-btn {
-  margin-top: 10px;
+  margin-top: 14px;
   background: rgba(255,255,255,.92); color: #111;
   font-size: 15px; font-weight: 600; padding: 11px 28px; border-radius: 30px;
   border: none; cursor: pointer; transition: background .15s, transform .1s;
