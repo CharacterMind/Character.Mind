@@ -1328,6 +1328,10 @@ html, body {
 .settings-plan-sub { font-size: 12px; color: var(--text3); }
 .settings-usage-row { display: flex; align-items: center; gap: 12px; }
 .settings-usage-label { font-size: 12px; color: var(--text3); min-width: 52px; }
+.settings-usage-block { display: flex; flex-direction: column; gap: 6px; }
+.settings-usage-header { display: flex; align-items: center; justify-content: space-between; }
+.settings-usage-header .settings-usage-label { font-size: 13px; font-weight: 500; color: var(--text); min-width: unset; }
+.settings-usage-meta { font-size: 12px; color: var(--text3); white-space: nowrap; }
 
 /* ── Seasonal / birthday events ─────────────────────────────────────────────── */
 #seasonal-particles {

@@ -568,6 +568,31 @@ function updateSettingsUsage(u) {
   const wBar = document.getElementById('settingsWeeklyBar');
   if (sBar) { sBar.style.width = sPct + '%'; sBar.className = 'usage-fill-modal ' + usageFillClass(sPct); }
   if (wBar) { wBar.style.width = wPct + '%'; wBar.className = 'usage-fill-modal ' + usageFillClass(wPct); }
+  const sPctEl = document.getElementById('settingsSessionPct');
+  if (sPctEl) sPctEl.textContent = sPct + '%';
+  const wPctEl = document.getElementById('settingsWeeklyPct');
+  if (wPctEl) wPctEl.textContent = wPct + '%';
+  const sResetEl = document.getElementById('settingsSessionReset');
+  if (sResetEl) {
+    if (u.cooldownUntil && Date.now() < u.cooldownUntil) {
+      const rem = u.cooldownUntil - Date.now();
+      const h = Math.floor(rem / 3600000);
+      const m = Math.floor((rem % 3600000) / 60000);
+      sResetEl.textContent = h > 0 ? `Resets in ${h} hr ${m} min` : `Resets in ${m} min`;
+    } else {
+      sResetEl.textContent = '';
+    }
+  }
+  const wResetEl = document.getElementById('settingsWeeklyReset');
+  if (wResetEl) wResetEl.textContent = u.weeklyResetsAt ? formatWeeklyResetShort(u.weeklyResetsAt) : '';
+}
+
+function formatWeeklyResetShort(until) {
+  const d = new Date(until);
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const h = d.getHours(); const m = String(d.getMinutes()).padStart(2,'0');
+  const ampm = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 || 12;
+  return `Resets ${days[d.getDay()]} ${h12}:${m} ${ampm}`;
 }
 
 // ── Navigation ─────────────────────────────────────────────────────────────────
@@ -2468,6 +2493,12 @@ function stopStreamStats(msgEl, finalTokens) {
     const tokEl = stats.querySelector('.stream-tok');
     if (tokEl) tokEl.textContent = fmtLiveTokens(finalTokens) + ' tok';
   }
+  // Fade out and hide after 3 seconds
+  setTimeout(() => {
+    stats.style.transition = 'opacity 0.6s';
+    stats.style.opacity = '0';
+    setTimeout(() => { stats.style.display = 'none'; stats.style.transition = ''; stats.style.opacity = ''; }, 650);
+  }, 3000);
 }
 
 // ── Regeneration history ──────────────────────────────────────────────────────

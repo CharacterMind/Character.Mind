@@ -789,13 +789,19 @@
         </div>
         <div class="settings-field">
           <label class="settings-label">Usage this week</label>
-          <div class="settings-usage-row">
-            <span class="settings-usage-label">Session</span>
-            <div class="usage-track-modal" style="flex:1"><div class="usage-fill-modal green" id="settingsSessionBar"></div></div>
+          <div class="settings-usage-block">
+            <div class="settings-usage-header">
+              <span class="settings-usage-label">Session limit</span>
+              <span class="settings-usage-meta"><span id="settingsSessionReset"></span>&nbsp;&nbsp;<span id="settingsSessionPct">0%</span></span>
+            </div>
+            <div class="usage-track-modal"><div class="usage-fill-modal green" id="settingsSessionBar"></div></div>
           </div>
-          <div class="settings-usage-row" style="margin-top:10px">
-            <span class="settings-usage-label">Weekly</span>
-            <div class="usage-track-modal" style="flex:1"><div class="usage-fill-modal green" id="settingsWeeklyBar"></div></div>
+          <div class="settings-usage-block" style="margin-top:14px">
+            <div class="settings-usage-header">
+              <span class="settings-usage-label">Weekly · all models</span>
+              <span class="settings-usage-meta"><span id="settingsWeeklyReset"></span>&nbsp;&nbsp;<span id="settingsWeeklyPct">0%</span></span>
+            </div>
+            <div class="usage-track-modal"><div class="usage-fill-modal green" id="settingsWeeklyBar"></div></div>
           </div>
         </div>
       </div>
@@ -822,6 +828,6 @@
   </div>
 </div>
 
-<script src="app.js?v=51"></script>
+<script src="app.js?v=52"></script>
 </body>
 </html>
