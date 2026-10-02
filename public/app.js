@@ -8,30 +8,31 @@ let isStreaming = false;
 let currentFilter = 'all';
 let lastUserMessage = '';
 // ── Model & Effort state ───────────────────────────────────────────────────────
-const EFFORT_LEVELS = ['low','medium','high'];
+const EFFORT_LEVELS = ['low','medium','high','extra'];
 let selectedModelTier = (() => {
   try {
     const s = localStorage.getItem('cm_model_tier') || 'opas';
     // Migrate old tier names
     const migrate = { standard:'opas', flash:'opas', pro:'opes', ultra:'opes' };
-    return (s === 'opas' || s === 'opes') ? s : (migrate[s] || 'opas');
+    return (s === 'opas' || s === 'opes' || s === 'opus') ? s : (migrate[s] || 'opas');
   } catch(_){ return 'opas'; }
 })();
 let selectedEffort = (() => {
   try {
     const s = localStorage.getItem('cm_effort') || 'medium';
     // Migrate old effort values
-    const migrate = { quick:'low', standard:'medium', deep:'high', extra:'high', max:'high' };
+    const migrate = { quick:'low', standard:'medium', deep:'high', max:'extra' };
     return EFFORT_LEVELS.includes(s) ? s : (migrate[s] || 'medium');
   } catch(_){ return 'medium'; }
 })();
 
-const MODEL_LABELS  = { opas:'Opas', opes:'Opes' };
-const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High' };
+const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opus:'Opis' };
+const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra' };
 
 const MODEL_ICONS = {
   opas: '<path d="M7 2v11h3v9l7-12h-4l4-8z"/>',
   opes: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>',
+  opus: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
 };
 
 function updateModelBarLabel() {
@@ -41,8 +42,8 @@ function updateModelBarLabel() {
   if (effortEl) effortEl.textContent = EFFORT_LABELS[selectedEffort] || selectedEffort;
   const icon = document.getElementById('modelBarIcon');
   if (icon) icon.innerHTML = MODEL_ICONS[selectedModelTier] || MODEL_ICONS.opas;
-  ['optOpas','optOpes'].forEach(id => document.getElementById(id)?.classList.remove('active'));
-  const modelId = { opas:'optOpas', opes:'optOpes' }[selectedModelTier];
+  ['optOpas','optOpes','optOpus'].forEach(id => document.getElementById(id)?.classList.remove('active'));
+  const modelId = { opas:'optOpas', opes:'optOpes', opus:'optOpus' }[selectedModelTier];
   if (modelId) document.getElementById(modelId)?.classList.add('active');
   const idx = EFFORT_LEVELS.indexOf(selectedEffort);
   const rangeEl = document.getElementById('effortRange');
@@ -108,11 +109,12 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// Keyboard shortcuts: 1 = Opas, 2 = Opes (when model dropdown open)
+// Keyboard shortcuts: 1 = Opas, 2 = Opes, 3 = Opis (when model dropdown open)
 document.addEventListener('keydown', (e) => {
   if (modelDropdownOpen && !e.target.matches('input,textarea')) {
     if (e.key === '1') setModelTier('opas');
     if (e.key === '2') setModelTier('opes');
+    if (e.key === '3') setModelTier('opus');
   }
 });
 
@@ -574,13 +576,14 @@ function updateSettingsUsage(u) {
   if (wPctEl) wPctEl.textContent = wPct + '%';
   const sResetEl = document.getElementById('settingsSessionReset');
   if (sResetEl) {
-    if (u.cooldownUntil && Date.now() < u.cooldownUntil) {
-      const rem = u.cooldownUntil - Date.now();
+    const expiry = u.cooldownUntil || u.sessionExpiresAt;
+    if (expiry && Date.now() < expiry) {
+      const rem = expiry - Date.now();
       const h = Math.floor(rem / 3600000);
       const m = Math.floor((rem % 3600000) / 60000);
       sResetEl.textContent = h > 0 ? `Resets in ${h} hr ${m} min` : `Resets in ${m} min`;
     } else {
-      sResetEl.textContent = '';
+      sResetEl.textContent = u.sessionStartedAt ? '' : '';
     }
   }
   const wResetEl = document.getElementById('settingsWeeklyReset');
@@ -2423,14 +2426,18 @@ const TW_SPEED = {
   low:    { word: true, ms: 220 },
   medium: { chars: 2, ms: 50 },
   high:   { chars: 5, ms: 20 },
-  extra:  { chars: 8, ms: 14 },
-  max:    { chars: 12, ms: 10 },
+  extra:  { chars: 10, ms: 10 },
+  max:    { chars: 12, ms: 8 },
 };
 
 function startTypewriter(bubble, msgEl) {
   twBubble = bubble; twMsgEl = msgEl; twRevealed = ''; twQueue = '';
   if (twInterval) clearInterval(twInterval);
-  const spd = TW_SPEED[selectedEffort] || TW_SPEED.high;
+  // Opis (opus) model uses faster streaming — bump speed one level up
+  const effortKey = selectedModelTier === 'opus'
+    ? (selectedEffort === 'extra' ? 'max' : selectedEffort === 'high' ? 'extra' : selectedEffort === 'medium' ? 'high' : 'medium')
+    : selectedEffort;
+  const spd = TW_SPEED[effortKey] || TW_SPEED.high;
   twInterval = setInterval(() => {
     if (!twQueue.length) {
       if (twOnDrain) { const cb = twOnDrain; twOnDrain = null; cb(); }

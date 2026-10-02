@@ -365,6 +365,7 @@ const EFFORT_DIRECTIVES = {
   low:    'RESPONSE LENGTH: Keep your reply extremely brief — 1 to 3 sentences maximum. One sharp moment. No more.',
   medium: 'RESPONSE LENGTH: Keep your reply focused — 1 to 2 paragraphs, 4 to 6 sentences. Tight and punchy.',
   high:   'RESPONSE LENGTH: Write a full, immersive reply — 3 to 5 paragraphs. Rich, atmospheric, fully developed.',
+  extra:  'RESPONSE LENGTH: Write a deeply immersive, expansive reply — 5 to 9 paragraphs minimum. Explore every sensory detail, emotion, and narrative beat. This is your most thorough, cinematic, richly crafted response.',
 };
 
 function applyEffortDirective(prompt, effort) {
@@ -710,26 +711,38 @@ const GROQ_PRO_MODELS = [
   'openai/gpt-oss-120b',
   'openai/gpt-oss-20b',
 ];
+const GROQ_OPUS_MODELS = [
+  'openai/gpt-oss-120b',
+];
 // Per-tier effort configs
 const EFFORT_CONFIG = {
   opas: {
-    low:    { maxOutputTokens: 600,  temperature: 0.75, reasoningEffort: 'low'    },
-    medium: { maxOutputTokens: 700,  temperature: 0.95, reasoningEffort: 'low'    },
-    high:   { maxOutputTokens: 2500, temperature: 1.05, reasoningEffort: 'medium' },
+    low:    { maxOutputTokens: 600,   temperature: 0.75, reasoningEffort: 'low'    },
+    medium: { maxOutputTokens: 700,   temperature: 0.95, reasoningEffort: 'low'    },
+    high:   { maxOutputTokens: 2500,  temperature: 1.05, reasoningEffort: 'medium' },
+    extra:  { maxOutputTokens: 4000,  temperature: 1.1,  reasoningEffort: 'high'   },
   },
   opes: {
-    low:    { maxOutputTokens: 700,  temperature: 0.75, reasoningEffort: 'low'    },
-    medium: { maxOutputTokens: 1000, temperature: 0.95, reasoningEffort: 'medium' },
-    high:   { maxOutputTokens: 5000, temperature: 1.1,  reasoningEffort: 'high'   },
+    low:    { maxOutputTokens: 700,   temperature: 0.75, reasoningEffort: 'low'    },
+    medium: { maxOutputTokens: 1000,  temperature: 0.95, reasoningEffort: 'medium' },
+    high:   { maxOutputTokens: 5000,  temperature: 1.1,  reasoningEffort: 'high'   },
+    extra:  { maxOutputTokens: 8000,  temperature: 1.1,  reasoningEffort: 'high'   },
+  },
+  opus: {
+    low:    { maxOutputTokens: 2000,  temperature: 0.75, reasoningEffort: 'medium' },
+    medium: { maxOutputTokens: 5000,  temperature: 0.95, reasoningEffort: 'high'   },
+    high:   { maxOutputTokens: 10000, temperature: 1.0,  reasoningEffort: 'high'   },
+    extra:  { maxOutputTokens: 16000, temperature: 1.05, reasoningEffort: 'high'   },
   },
 };
 
 function getEffortCfg(effort, tier) {
-  const t = tier === 'opes' ? 'opes' : 'opas';
-  return (EFFORT_CONFIG[t] || EFFORT_CONFIG.opas)[effort] || EFFORT_CONFIG.opas.medium;
+  const t = (tier === 'opes' || tier === 'opus') ? tier : 'opas';
+  return (EFFORT_CONFIG[t] || EFFORT_CONFIG.opas)[effort] || EFFORT_CONFIG[t === 'opus' ? 'opus' : 'opas'].medium;
 }
 
 function getModelList(tier) {
+  if (tier === 'opus') return GROQ_OPUS_MODELS;
   return tier === 'opes' ? GROQ_PRO_MODELS : GROQ_MODELS;
 }
 
@@ -739,7 +752,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
   modelList = modelList || GROQ_MODELS;
   effortCfg = effortCfg || EFFORT_CONFIG.opas.high;
   if (modelIndex === undefined) {
-    const tier = modelList === GROQ_PRO_MODELS ? 'opes' : 'opas';
+    const tier = modelList === GROQ_OPUS_MODELS ? 'opus' : modelList === GROQ_PRO_MODELS ? 'opes' : 'opas';
     const wm = workingModels[tier];
     const wi = wm ? modelList.indexOf(wm) : -1;
     modelIndex = wi >= 0 ? wi : 0;
@@ -798,7 +811,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
       return;
     }
 
-    const tier = modelList === GROQ_PRO_MODELS ? 'opes' : 'opas';
+    const tier = modelList === GROQ_OPUS_MODELS ? 'opus' : modelList === GROQ_PRO_MODELS ? 'opes' : 'opas';
     workingModels[tier] = model;
     console.log(`Using model: ${model} (tier=${tier})`);
 

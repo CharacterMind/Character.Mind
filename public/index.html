@@ -405,6 +405,14 @@
               </div>
               <span class="md-item-key">2</span>
             </button>
+            <button class="md-item md-item-opus" id="optOpus" onclick="setModelTier('opus')">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" class="md-item-icon"><path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/></svg>
+              <div class="md-item-body">
+                <div class="md-item-name">Opis</div>
+                <div class="md-item-sub">Powerful · Longest replies · Extra effort</div>
+              </div>
+              <span class="md-item-key">3</span>
+            </button>
           </div>
           <div class="effort-panel-popup" id="effortPanelPopup" style="display:none">
             <div class="epp-header">
@@ -419,7 +427,7 @@
             </div>
             <div class="epp-slider-area">
               <span class="epp-side-label">Faster</span>
-              <input type="range" class="effort-range" id="effortRange" min="0" max="2" step="1" value="1" oninput="setEffortIdx(parseInt(this.value))">
+              <input type="range" class="effort-range" id="effortRange" min="0" max="3" step="1" value="1" oninput="setEffortIdx(parseInt(this.value))">
               <span class="epp-side-label">Smarter</span>
             </div>
             <div class="epp-recommended">Recommended</div>
@@ -828,6 +836,6 @@
   </div>
 </div>
 
-<script src="app.js?v=54"></script>
+<script src="app.js?v=55"></script>
 </body>
 </html>
