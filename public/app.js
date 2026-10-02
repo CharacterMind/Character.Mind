@@ -1199,6 +1199,7 @@ async function openChat(charId) {
   if (!currentChar) return;
   const snapChar = currentChar;
   touchRecentChat(charId);
+  loadCharVoice();
 
   showView('chatView');
   document.getElementById('chatView').classList.remove('hidden');
@@ -2601,6 +2602,132 @@ function dislikeBtn() {
   return `<button class="reaction-btn dislike-btn" onclick="toggleMsgDislike(this)" title="Dislike"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L10.83 23l6.59-6.59c.36-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2zm4 0v12h4V3h-4z"/></svg></button>`;
 }
 
+// ── Voice selection ───────────────────────────────────────────────────────────
+let selectedVoice = null;
+
+function getCharVoiceKey() { return currentChar ? `cm_voice_${currentChar.id}` : null; }
+
+function loadCharVoice() {
+  selectedVoice = null;
+  const key = getCharVoiceKey();
+  if (!key) return;
+  try {
+    const saved = localStorage.getItem(key);
+    if (!saved) return;
+    const voices = window.speechSynthesis.getVoices();
+    selectedVoice = voices.find(v => v.voiceURI === saved) || null;
+  } catch(_) {}
+}
+
+function applyVoice(utterance) {
+  if (selectedVoice) utterance.voice = selectedVoice;
+}
+
+function openVoicePanel() {
+  const overlay = document.getElementById('voicePanelOverlay');
+  if (!overlay) return;
+  const nameEl = document.getElementById('voicePanelCharName');
+  if (nameEl) nameEl.textContent = currentChar?.name || 'this character';
+  renderVoiceList();
+  overlay.style.display = 'flex';
+}
+
+function closeVoicePanel() {
+  const overlay = document.getElementById('voicePanelOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function renderVoiceList() {
+  const list = document.getElementById('voiceList');
+  if (!list) return;
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices.length) {
+    // Voices may not be loaded yet — try again shortly
+    setTimeout(renderVoiceList, 400);
+    list.innerHTML = '<div class="voice-empty">Loading voices…</div>';
+    return;
+  }
+  const saved = (() => { try { return localStorage.getItem(getCharVoiceKey()); } catch(_) { return null; } })();
+  const english = voices.filter(v => v.lang.startsWith('en'));
+  const displayVoices = english.length ? english : voices;
+  list.innerHTML = `<button class="voice-item${!saved ? ' active' : ''}" onclick="selectVoice(null,this)">
+    <div class="voice-item-main"><div class="voice-item-name">Default</div><div class="voice-item-lang">System default</div></div>
+  </button>` + displayVoices.map(v => `<button class="voice-item${saved === v.voiceURI ? ' active' : ''}" onclick="selectVoice('${escHtml(v.voiceURI)}',this)">
+    <div class="voice-item-main"><div class="voice-item-name">${escHtml(v.name)}</div><div class="voice-item-lang">${escHtml(v.lang)}</div></div>
+    <button class="voice-preview-btn" onclick="previewVoiceURI('${escHtml(v.voiceURI)}',event)" title="Preview">▶</button>
+  </button>`).join('');
+}
+
+function selectVoice(voiceURI, btn) {
+  const key = getCharVoiceKey();
+  try { voiceURI ? localStorage.setItem(key, voiceURI) : localStorage.removeItem(key); } catch(_) {}
+  document.querySelectorAll('#voiceList .voice-item').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (voiceURI) {
+    selectedVoice = window.speechSynthesis.getVoices().find(v => v.voiceURI === voiceURI) || null;
+  } else { selectedVoice = null; }
+}
+
+function previewVoiceURI(voiceURI, e) {
+  e?.stopPropagation();
+  const voice = window.speechSynthesis.getVoices().find(v => v.voiceURI === voiceURI);
+  if (!voice) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(`Hi, I'm ${currentChar?.name || 'your character'}. How can I help you today?`);
+  u.voice = voice;
+  window.speechSynthesis.speak(u);
+}
+
+// ── History panel ─────────────────────────────────────────────────────────────
+function openHistoryPanel() {
+  const overlay = document.getElementById('historyPanelOverlay');
+  if (!overlay) return;
+  renderHistoryPanel();
+  overlay.style.display = 'flex';
+}
+
+function closeHistoryPanel() {
+  const overlay = document.getElementById('historyPanelOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function renderHistoryPanel() {
+  const list = document.getElementById('historyMsgList');
+  if (!list) return;
+  const msgs = document.querySelectorAll('#messages .msg');
+  if (!msgs.length) { list.innerHTML = '<div class="history-empty">No messages in this conversation yet.</div>'; return; }
+  list.innerHTML = [...msgs].map(msg => {
+    const isAi = msg.classList.contains('ai');
+    const text = (msg.querySelector('.bubble')?.innerText || '').trim();
+    if (!text) return '';
+    const name = isAi ? escHtml(currentChar?.name || 'AI') : 'You';
+    const preview = escHtml(text.length > 180 ? text.substring(0, 180) + '…' : text);
+    return `<div class="history-msg-row ${isAi ? 'ai' : 'user'}"><span class="history-msg-who">${name}</span><span class="history-msg-text">${preview}</span></div>`;
+  }).join('');
+}
+
+function exportHistory() {
+  const msgs = document.querySelectorAll('#messages .msg');
+  if (!msgs.length) return;
+  const lines = [`Chat with ${currentChar?.name || 'Character'}`, '='.repeat(40), ''];
+  [...msgs].forEach(msg => {
+    const isAi = msg.classList.contains('ai');
+    const text = (msg.querySelector('.bubble')?.innerText || '').trim();
+    if (!text) return;
+    lines.push(`${isAi ? (currentChar?.name || 'AI') : 'You'}: ${text}`, '');
+  });
+  const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/plain' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: `chat-${(currentChar?.name || 'character').replace(/\s+/g, '-')}.txt` });
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function clearHistoryFromPanel() {
+  if (!confirm('Clear all messages in this conversation? This cannot be undone.')) return;
+  closeHistoryPanel();
+  startNewChat();
+}
+
 // ── TTS (Text-to-Speech) ─────────────────────────────────────────────────────
 let activeTTSUtterance = null;
 let activeTTSBtn = null;
@@ -2620,6 +2747,7 @@ function toggleTTS(btn) {
   }
 
   const utterance = new SpeechSynthesisUtterance(text);
+  applyVoice(utterance);
   utterance.onend = () => {
     btn.classList.remove('playing');
     activeTTSUtterance = null;
@@ -2644,6 +2772,7 @@ function callModeTTS(bubble) {
   setCallStatus('Speaking...');
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
+  applyVoice(utterance);
   utterance.onend = () => { if (callModeActive) listenForSpeech(); };
   utterance.onerror = () => { if (callModeActive) listenForSpeech(); };
   activeTTSUtterance = utterance;

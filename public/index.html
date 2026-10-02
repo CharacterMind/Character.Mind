@@ -20,7 +20,7 @@
 <link rel="icon" type="image/webp" href="/logo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=28">
+<link rel="stylesheet" href="style.css?v=29">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -539,17 +539,17 @@
       </button>
 
       <!-- Voice -->
-      <button class="ip-row ip-row-soon" onclick="comingSoon('Voice')">
+      <button class="ip-row" onclick="openVoicePanel()">
         <span class="ip-row-ico"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 15c1.66 0 2.99-1.34 2.99-3L15 6c0-1.66-1.34-3-3-3S9 4.34 9 6v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 15 6.7 12H5c0 3.42 2.72 6.23 6 6.72V22h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg></span>
         <span class="ip-row-label">Voice</span>
-        <span class="ip-row-right"><span class="ip-badge-soon">Coming soon</span></span>
+        <span class="ip-row-right"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></span>
       </button>
 
       <!-- History -->
-      <button class="ip-row ip-row-soon" onclick="comingSoon('History')">
+      <button class="ip-row" onclick="openHistoryPanel()">
         <span class="ip-row-ico"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg></span>
         <span class="ip-row-label">History</span>
-        <span class="ip-row-right"><span class="ip-badge-soon">Coming soon</span></span>
+        <span class="ip-row-right"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></span>
       </button>
 
       <!-- Lorebook -->
@@ -863,6 +863,33 @@
   </div>
 </div>
 
-<script src="app.js?v=73"></script>
+<!-- Voice panel overlay -->
+<div id="voicePanelOverlay" class="ip-overlay" style="display:none" onclick="if(event.target===this)closeVoicePanel()">
+  <div class="ip-overlay-panel">
+    <div class="ip-overlay-header">
+      <span>Voice</span>
+      <button class="ip-overlay-close" onclick="closeVoicePanel()"><svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+    </div>
+    <p class="ip-overlay-desc">Choose a voice for <strong id="voicePanelCharName"></strong>. The selected voice is used for TTS playback and call mode.</p>
+    <div class="voice-list" id="voiceList"></div>
+  </div>
+</div>
+
+<!-- History panel overlay -->
+<div id="historyPanelOverlay" class="ip-overlay" style="display:none" onclick="if(event.target===this)closeHistoryPanel()">
+  <div class="ip-overlay-panel">
+    <div class="ip-overlay-header">
+      <span>Chat History</span>
+      <button class="ip-overlay-close" onclick="closeHistoryPanel()"><svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+    </div>
+    <div class="history-actions">
+      <button class="history-action-btn" onclick="exportHistory()"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> Export</button>
+      <button class="history-action-btn history-clear-btn" onclick="clearHistoryFromPanel()"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg> Clear</button>
+    </div>
+    <div class="history-msg-list" id="historyMsgList"></div>
+  </div>
+</div>
+
+<script src="app.js?v=74"></script>
 </body>
 </html>
