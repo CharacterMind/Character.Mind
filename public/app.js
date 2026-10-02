@@ -1800,9 +1800,6 @@ function startCooldown(until, type, showModal) {
   // weekly ≤24h needs per-minute updates; session just needs expiry checks
   cooldownTimer = setInterval(updateCountdown, type === 'weekly' && (until - Date.now()) <= 24 * 60 * 60 * 1000 ? 60000 : 30000);
 
-  // Show the usage-panel cooldown timer immediately when session limit is hit
-  if (type === 'session') updateSessionTimer(until);
-
   if (showModal) {
     const displayStr = type === 'weekly' ? formatWeeklyReset(until) : formatSessionCooldown(until);
     showLimitModal(type, displayStr);
@@ -1843,24 +1840,6 @@ function clearLockout() {
     if (inp) inp.disabled = false;
     if (btn) btn.disabled = false;
   }
-}
-
-let sessionTimerInterval = null;
-function updateSessionTimer(expiresAt) {
-  const el = document.getElementById('sessionResetTimer');
-  const valEl = document.getElementById('sessionResetTimerVal');
-  if (!el || !valEl) return;
-  if (sessionTimerInterval) { clearInterval(sessionTimerInterval); sessionTimerInterval = null; }
-  if (Date.now() >= expiresAt) { el.style.display = 'none'; return; }
-  valEl.textContent = new Date(expiresAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  el.style.display = 'block';
-  // Poll until the cooldown expires, then hide
-  sessionTimerInterval = setInterval(() => {
-    if (Date.now() >= expiresAt) {
-      el.style.display = 'none';
-      clearInterval(sessionTimerInterval); sessionTimerInterval = null;
-    }
-  }, 30000);
 }
 
 function showWarning(msg, autoCloseMs) {
