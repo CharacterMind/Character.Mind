@@ -181,7 +181,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function loadCharacters() {
-  await syncHiddenRecentsFromServer();
+  await Promise.all([syncHiddenRecentsFromServer(), syncRecentChatsFromServer()]);
   try {
     const res = await fetch('/api/characters');
     if (res.status === 401) { characters = []; renderSidebarChats(); return; }
@@ -584,11 +584,11 @@ function updateSettingsUsage(u) {
       const m = Math.floor((rem % 3600000) / 60000);
       sResetEl.textContent = h > 0 ? `Resets in ${h} hr ${m} min` : `Resets in ${m} min`;
     } else {
-      sResetEl.textContent = u.sessionStartedAt ? '' : '';
+      sResetEl.textContent = 'Resets every 2 hrs';
     }
   }
   const wResetEl = document.getElementById('settingsWeeklyReset');
-  if (wResetEl) wResetEl.textContent = u.weeklyResetsAt ? formatWeeklyResetShort(u.weeklyResetsAt) : '';
+  if (wResetEl) wResetEl.textContent = u.weeklyResetsAt ? formatWeeklyResetShort(u.weeklyResetsAt) : 'Resets weekly';
 }
 
 function formatWeeklyResetShort(until) {
@@ -1055,6 +1055,24 @@ async function syncHiddenRecentsFromServer() {
   } catch (_) {}
 }
 
+async function syncRecentChatsFromServer() {
+  if (!currentUser) return;
+  try {
+    const local = getRecentChats();
+    // Push local → server and get back merged result (MAX timestamp per char)
+    const res = await fetch('/api/user/recent-chats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recents: local })
+    });
+    if (!res.ok) return;
+    const { recents: merged } = await res.json();
+    if (merged && Object.keys(merged).length) {
+      try { localStorage.setItem('cm_recents_v2', JSON.stringify(merged)); } catch {}
+    }
+  } catch (_) {}
+}
+
 let _sidebarCtxMenu = null;
 function closeSidebarContextMenu() {
   if (_sidebarCtxMenu) { _sidebarCtxMenu.remove(); _sidebarCtxMenu = null; }
@@ -1099,11 +1117,20 @@ function getRecentChats() {
   try { return JSON.parse(localStorage.getItem('cm_recents_v2') || '{}'); } catch { return {}; }
 }
 function touchRecentChat(charId) {
+  const now = Date.now();
   try {
     const r = getRecentChats();
-    r[charId] = Date.now();
+    r[charId] = now;
     localStorage.setItem('cm_recents_v2', JSON.stringify(r));
   } catch (_) {}
+  // Sync to server so recents persist across devices
+  if (currentUser) {
+    fetch('/api/user/recent-chats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recents: { [charId]: now } })
+    }).catch(() => {});
+  }
 }
 
 function renderSidebarChats() {

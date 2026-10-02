@@ -69,6 +69,9 @@ if (db) {
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS hidden_recents TEXT[] NOT NULL DEFAULT '{}'`)
     .catch(err => console.error('Add hidden_recents column error:', err));
 
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS recent_chats JSONB NOT NULL DEFAULT '{}'`)
+    .catch(err => console.error('Add recent_chats column error:', err));
+
   db.query(`
     CREATE TABLE IF NOT EXISTS user_limits (
       user_id TEXT PRIMARY KEY,
@@ -213,6 +216,37 @@ app.post('/api/user/hidden-recents', requireAuth, async (req, res) => {
   try {
     await db.query('UPDATE users SET hidden_recents = $1 WHERE google_id = $2', [hidden, req.user.googleId]);
     res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Recent chats (cross-device sync) ─────────────────────────────────────────
+app.get('/api/user/recent-chats', requireAuth, async (req, res) => {
+  if (!db) return res.json({ recents: {} });
+  try {
+    const { rows } = await db.query('SELECT recent_chats FROM users WHERE google_id = $1', [req.user.googleId]);
+    res.json({ recents: rows[0]?.recent_chats || {} });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/user/recent-chats', requireAuth, async (req, res) => {
+  if (!db) return res.json({ ok: true });
+  const incoming = (typeof req.body.recents === 'object' && req.body.recents) ? req.body.recents : {};
+  // Sanitize: only string keys, numeric timestamps, reject huge payloads
+  const clean = {};
+  for (const [k, v] of Object.entries(incoming)) {
+    if (typeof k === 'string' && k.length <= 64 && typeof v === 'number') clean[k] = v;
+    if (Object.keys(clean).length >= 200) break;
+  }
+  try {
+    // Merge server + incoming: take MAX timestamp per character
+    const { rows } = await db.query('SELECT recent_chats FROM users WHERE google_id = $1', [req.user.googleId]);
+    const server = rows[0]?.recent_chats || {};
+    const merged = { ...server };
+    for (const [k, v] of Object.entries(clean)) {
+      if (!merged[k] || v > merged[k]) merged[k] = v;
+    }
+    await db.query('UPDATE users SET recent_chats = $1 WHERE google_id = $2', [merged, req.user.googleId]);
+    res.json({ ok: true, recents: merged });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
