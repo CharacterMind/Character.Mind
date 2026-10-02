@@ -1548,6 +1548,8 @@ async function sendMessage(overrideText, skipAppend) {
         bubble.classList.remove('streaming');
         playSound('done');
         if (callModeActive) callModeTTS(bubble);
+      } else if (callModeActive) {
+        setTimeout(() => listenForSpeech(), 1000);
       }
       saveHistoryLocal();
     });
@@ -2076,17 +2078,25 @@ function updateUsageModal(u) {
   const sBar = document.getElementById('usageSessionBar');
   if (sBar) { sBar.style.width = sPct + '%'; sBar.className = 'usage-fill-modal ' + usageFillClass(sPct); }
 
+  const sPctEl = document.getElementById('usageSessionPct');
+  if (sPctEl) sPctEl.textContent = sPct + '%';
+
   const sSubEl = document.getElementById('usageSessionSub');
   if (sSubEl) {
     if (u.cooldownUntil && Date.now() < u.cooldownUntil) {
       sSubEl.textContent = formatResetTime(u.cooldownUntil);
+    } else if (u.sessionTokens > 0 && u.sessionExpiresAt) {
+      sSubEl.textContent = fmtTokens(u.sessionTokens) + ' of ' + fmtTokens(u.sessionLimit) + ' · resets ' + new Date(u.sessionExpiresAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     } else {
-      sSubEl.textContent = 'Starts when you send your first message';
+      sSubEl.textContent = 'Starts fresh when you send your first message';
     }
   }
 
   const wBar = document.getElementById('usageWeeklyBar');
   if (wBar) { wBar.style.width = wPct + '%'; wBar.className = 'usage-fill-modal ' + usageFillClass(wPct); }
+
+  const wPctEl = document.getElementById('usageWeeklyPct');
+  if (wPctEl) wPctEl.textContent = wPct + '%';
 
   const wSubEl = document.getElementById('usageWeeklySub');
   if (wSubEl) wSubEl.textContent = u.weeklyResetsAt ? formatWeeklyReset(u.weeklyResetsAt) : 'Resets weekly';
@@ -2767,15 +2777,18 @@ function toggleTTS(btn) {
 }
 
 function callModeTTS(bubble) {
-  if (!callModeActive || !bubble) return;
+  if (!callModeActive || !bubble) { if (callModeActive) setTimeout(() => listenForSpeech(), 500); return; }
   const text = (bubble.innerText || bubble.textContent).trim();
   if (!text) { listenForSpeech(); return; }
   setCallState('responding');
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   applyVoice(utterance);
-  utterance.onend = () => { if (callModeActive) listenForSpeech(); };
-  utterance.onerror = () => { if (callModeActive) listenForSpeech(); };
+  let done = false;
+  // Chrome has a known bug where onend silently never fires for long utterances
+  const ttsGuard = setTimeout(() => { if (!done && callModeActive) { done = true; listenForSpeech(); } }, Math.max(6000, text.length * 60));
+  utterance.onend = () => { done = true; clearTimeout(ttsGuard); if (callModeActive) listenForSpeech(); };
+  utterance.onerror = () => { done = true; clearTimeout(ttsGuard); if (callModeActive) listenForSpeech(); };
   activeTTSUtterance = utterance;
   window.speechSynthesis.speak(utterance);
 }

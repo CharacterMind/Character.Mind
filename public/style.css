@@ -1232,7 +1232,9 @@ html, body {
   display: flex; justify-content: space-between; align-items: flex-start;
   margin-bottom: 12px;
 }
-.usage-sec-label { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.usage-sec-label-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
+.usage-sec-label { font-size: 16px; font-weight: 700; color: var(--text); }
+.usage-sec-pct   { font-size: 13px; font-weight: 600; color: var(--text2); font-variant-numeric: tabular-nums; }
 .usage-sec-sub   { font-size: 12px; color: var(--text3); margin-top: 2px; }
 .usage-sec-pct   { font-size: 13.5px; color: var(--text3); font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .usage-track-modal {

@@ -20,7 +20,7 @@
 <link rel="icon" type="image/webp" href="/logo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=37">
+<link rel="stylesheet" href="style.css?v=38">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -74,7 +74,10 @@
 
     <!-- Session -->
     <div class="usage-section">
-      <div class="usage-sec-label">Session</div>
+      <div class="usage-sec-label-row">
+        <span class="usage-sec-label">Session</span>
+        <span class="usage-sec-pct" id="usageSessionPct">0%</span>
+      </div>
       <div class="usage-track-modal" style="margin-top:8px"><div class="usage-fill-modal green" id="usageSessionBar"></div></div>
       <div class="usage-sec-sub" id="usageSessionSub" style="margin-top:6px"></div>
     </div>
@@ -83,7 +86,10 @@
 
     <!-- Weekly -->
     <div class="usage-section">
-      <div class="usage-sec-label">Weekly</div>
+      <div class="usage-sec-label-row">
+        <span class="usage-sec-label">Weekly</span>
+        <span class="usage-sec-pct" id="usageWeeklyPct">0%</span>
+      </div>
       <div class="usage-track-modal" style="margin-top:8px"><div class="usage-fill-modal green" id="usageWeeklyBar"></div></div>
       <div class="usage-sec-sub" id="usageWeeklySub" style="margin-top:6px"></div>
     </div>
@@ -905,6 +911,6 @@
   </div>
 </div>
 
-<script src="app.js?v=79"></script>
+<script src="app.js?v=80"></script>
 </body>
 </html>
