@@ -860,14 +860,14 @@ html, body {
 }
 .call-overlay::before {
   content: '';
-  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-  width: 100%; height: 75%;
-  background: radial-gradient(ellipse 80% 65% at 50% 25%, var(--call-glow, rgba(24,92,220,.72)) 0%, transparent 68%);
+  position: absolute; top: -10%; left: 50%; transform: translateX(-50%);
+  width: 100%; height: 65%;
+  background: radial-gradient(ellipse 70% 55% at 50% 38%, var(--call-glow, rgba(24,92,220,.75)) 0%, rgba(0,0,0,0) 65%);
   pointer-events: none; transition: all 0.7s ease;
 }
 .call-overlay[data-state="listening"]::before {
-  top: auto; bottom: -20%; height: 65%;
-  background: radial-gradient(ellipse 90% 65% at 50% 100%, var(--call-glow-strong, rgba(24,92,220,.75)) 0%, transparent 65%);
+  top: auto; bottom: -20%; height: 60%;
+  background: radial-gradient(ellipse 85% 60% at 50% 100%, var(--call-glow-strong, rgba(24,92,220,.75)) 0%, rgba(0,0,0,0) 62%);
 }
 .call-voice-on {
   position: absolute; top: 32px; left: 50%; transform: translateX(-50%);
@@ -903,9 +903,10 @@ html, body {
   width: 110px; height: 110px; font-size: 42px; border-radius: 50%;
   object-fit: cover; display: block;
   box-shadow: 0 0 0 4px rgba(255,255,255,.09);
+  isolation: isolate; position: relative; z-index: 2;
 }
 .call-char-name { font-size: 17px; font-weight: 400; color: rgba(255,255,255,.85); letter-spacing: .01em; }
-.call-app-name { font-size: 52px; font-weight: 700; color: #fff; letter-spacing: -.02em; line-height: 1.1; }
+.call-app-name { font-size: 62px; font-weight: 800; color: #fff; letter-spacing: -.03em; line-height: 1.05; text-shadow: 0 2px 24px rgba(0,0,0,0.6); }
 .call-status { font-size: 16px; color: rgba(255,255,255,.68); margin-top: 6px; letter-spacing: .01em; min-height: 24px; }
 .call-interrupt-btn {
   margin-top: 10px;
