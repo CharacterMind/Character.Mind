@@ -1546,6 +1546,7 @@ async function sendMessage(overrideText, skipAppend) {
       if (bubble) {
         bubble.classList.remove('streaming');
         playSound('done');
+        if (callModeActive) callModeTTS(bubble);
       }
       saveHistoryLocal();
     });
@@ -2390,6 +2391,7 @@ function appendMessage(role, text) {
         ${msgAvatarHtml('msg-avatar')}
         <span class="msg-name">${escHtml(currentChar?.name || 'AI')}</span>
         <span class="msg-badge">C.M</span>
+        <button class="tts-btn" onclick="toggleTTS(this)" title="Play message"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M8 5v14l11-7z"/></svg></button>
         ${msgMenuHtml('ai')}
       </div>
       <div class="bubble">${renderMarkdown(text)}</div>
@@ -2416,6 +2418,7 @@ function createAiMessage() {
       ${msgAvatarHtml('msg-avatar')}
       <span class="msg-name">${escHtml(currentChar?.name || 'AI')}</span>
       <span class="msg-badge">C.M</span>
+      <button class="tts-btn" onclick="toggleTTS(this)" title="Play message"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M8 5v14l11-7z"/></svg></button>
       ${msgMenuHtml('ai')}
     </div>
     <div class="bubble"></div>
@@ -2596,6 +2599,140 @@ function likeBtn() {
 }
 function dislikeBtn() {
   return `<button class="reaction-btn dislike-btn" onclick="toggleMsgDislike(this)" title="Dislike"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L10.83 23l6.59-6.59c.36-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2zm4 0v12h4V3h-4z"/></svg></button>`;
+}
+
+// ── TTS (Text-to-Speech) ─────────────────────────────────────────────────────
+let activeTTSUtterance = null;
+let activeTTSBtn = null;
+
+function toggleTTS(btn) {
+  const bubble = btn.closest('.msg').querySelector('.bubble');
+  const text = (bubble.innerText || bubble.textContent).trim();
+  if (!text) return;
+
+  if (activeTTSUtterance) {
+    window.speechSynthesis.cancel();
+    if (activeTTSBtn) activeTTSBtn.classList.remove('playing');
+    const wasSame = activeTTSBtn === btn;
+    activeTTSUtterance = null;
+    activeTTSBtn = null;
+    if (wasSame) return;
+  }
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.onend = () => {
+    btn.classList.remove('playing');
+    activeTTSUtterance = null;
+    activeTTSBtn = null;
+    if (callModeActive) listenForSpeech();
+  };
+  utterance.onerror = () => {
+    btn.classList.remove('playing');
+    activeTTSUtterance = null;
+    activeTTSBtn = null;
+  };
+  btn.classList.add('playing');
+  activeTTSUtterance = utterance;
+  activeTTSBtn = btn;
+  window.speechSynthesis.speak(utterance);
+}
+
+function callModeTTS(bubble) {
+  if (!callModeActive || !bubble) return;
+  const text = (bubble.innerText || bubble.textContent).trim();
+  if (!text) { listenForSpeech(); return; }
+  setCallStatus('Speaking...');
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.onend = () => { if (callModeActive) listenForSpeech(); };
+  utterance.onerror = () => { if (callModeActive) listenForSpeech(); };
+  activeTTSUtterance = utterance;
+  window.speechSynthesis.speak(utterance);
+}
+
+// ── Call mode ─────────────────────────────────────────────────────────────────
+let callModeActive = false;
+let callRecognition = null;
+
+function toggleCallMode() {
+  if (callModeActive) { endCallMode(); } else { startCallMode(); }
+}
+
+function startCallMode() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { alert('Voice calls need a browser with speech recognition — try Chrome.'); return; }
+  if (!currentChar) return;
+  callModeActive = true;
+  document.getElementById('callBtn')?.classList.add('active');
+  const overlay = document.getElementById('callOverlay');
+  if (overlay) {
+    const nameEl = document.getElementById('callCharName');
+    if (nameEl) nameEl.textContent = currentChar.name || 'Character';
+    const avatarEl = document.getElementById('callAvatarWrap');
+    if (avatarEl) avatarEl.innerHTML = msgAvatarHtml('call-avatar-img');
+    overlay.style.display = 'flex';
+  }
+  listenForSpeech();
+}
+
+function endCallMode() {
+  callModeActive = false;
+  if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
+  if (activeTTSUtterance) { window.speechSynthesis.cancel(); if (activeTTSBtn) activeTTSBtn.classList.remove('playing'); activeTTSUtterance = null; activeTTSBtn = null; }
+  document.getElementById('callBtn')?.classList.remove('active');
+  const overlay = document.getElementById('callOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function setCallStatus(status) {
+  const el = document.getElementById('callStatus');
+  if (el) el.textContent = status;
+  const waves = document.querySelector('.call-waves');
+  if (waves) waves.dataset.state = status === 'Listening...' ? 'listening' : status === 'Speaking...' ? 'speaking' : 'idle';
+}
+
+function listenForSpeech() {
+  if (!callModeActive) return;
+  setCallStatus('Listening...');
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  callRecognition = new SR();
+  callRecognition.continuous = false;
+  callRecognition.interimResults = false;
+  callRecognition.lang = 'en-US';
+  callRecognition.onresult = (e) => {
+    const transcript = e.results[0][0].transcript.trim();
+    if (transcript) sendCallMessage(transcript);
+  };
+  callRecognition.onerror = (e) => {
+    if (!callModeActive) return;
+    if (e.error === 'no-speech') { setTimeout(() => listenForSpeech(), 300); }
+    else if (e.error !== 'aborted') { setTimeout(() => listenForSpeech(), 1500); }
+  };
+  callRecognition.start();
+}
+
+function sendCallMessage(text) {
+  if (!callModeActive) return;
+  setCallStatus('Responding...');
+  if (callRecognition) { try { callRecognition.stop(); } catch(_){} }
+  const input = document.getElementById('messageInput');
+  if (input) { input.value = text; autoResize(input); }
+  sendMessage();
+}
+
+function openImagePicker() {
+  document.getElementById('imageFileInput')?.click();
+}
+
+function handleImageFile(e) {
+  const file = e.target.files?.[0];
+  e.target.value = '';
+  if (!file) return;
+  const toast = document.createElement('div');
+  toast.className = 'toast-msg';
+  toast.textContent = 'Image sending coming soon!';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2500);
 }
 
 // ── Sounds (Web Audio API) ────────────────────────────────────────────────────

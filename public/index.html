@@ -20,7 +20,7 @@
 <link rel="icon" type="image/webp" href="/logo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=27">
+<link rel="stylesheet" href="style.css?v=28">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -371,10 +371,30 @@
               onkeydown="handleKey(event)"
               oninput="autoResize(this)"></textarea>
           </div>
+          <button class="btn-call" id="callBtn" onclick="toggleCallMode()" title="Voice call">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+          </button>
+          <button class="btn-img-pick" id="imgBtn" onclick="openImagePicker()" title="Send image">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+          </button>
           <button class="btn-send" id="sendBtn" onclick="sendMessage()">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
           </button>
         </div>
+        <!-- Call overlay -->
+        <div id="callOverlay" class="call-overlay" style="display:none">
+          <div class="call-overlay-inner">
+            <div class="call-avatar-wrap" id="callAvatarWrap"></div>
+            <div class="call-char-name" id="callCharName"></div>
+            <div class="call-waves"><span></span><span></span><span></span><span></span><span></span></div>
+            <div class="call-status" id="callStatus">Listening...</div>
+            <button class="call-end-btn" onclick="endCallMode()" title="End call">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="26" height="26"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" transform="rotate(135 12 12)"/></svg>
+            </button>
+          </div>
+        </div>
+        <!-- Hidden image file picker -->
+        <input type="file" id="imageFileInput" accept="image/*" style="display:none" onchange="handleImageFile(event)">
         <!-- Model/effort bar -->
         <div class="model-bar-zone">
           <!-- Model picker panel -->
@@ -843,6 +863,6 @@
   </div>
 </div>
 
-<script src="app.js?v=71"></script>
+<script src="app.js?v=72"></script>
 </body>
 </html>
