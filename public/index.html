@@ -20,7 +20,7 @@
 <link rel="icon" type="image/webp" href="/logo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=26">
+<link rel="stylesheet" href="style.css?v=27">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -377,49 +377,84 @@
         </div>
         <!-- Model/effort bar -->
         <div class="model-bar-zone">
+          <!-- Model picker panel -->
           <div class="model-dropdown" id="modelDropdown" style="display:none">
             <button class="md-item" id="optOpas" onclick="setModelTier('opas')">
-              <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" class="md-item-icon"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
               <div class="md-item-body">
                 <div class="md-item-name">Opas</div>
-                <div class="md-item-sub">Fast · Great for most chats</div>
+                <div class="md-item-sub">Fastest for quick chats</div>
               </div>
-              <span class="md-item-key">1</span>
+              <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
             <button class="md-item" id="optOpes" onclick="setModelTier('opes')">
-              <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" class="md-item-icon"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
               <div class="md-item-body">
                 <div class="md-item-name">Opes</div>
-                <div class="md-item-sub">Latest · Richer responses</div>
+                <div class="md-item-sub">Efficient for everyday chats</div>
               </div>
-              <span class="md-item-key">2</span>
+              <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-            <button class="md-item md-item-opus" id="optOpus" onclick="setModelTier('opus')">
-              <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" class="md-item-icon"><path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/></svg>
+            <div class="md-divider"></div>
+            <button class="md-item md-item-locked" id="optOpis" onclick="selectOrUpgrade('opis')">
               <div class="md-item-body">
-                <div class="md-item-name">Opis</div>
-                <div class="md-item-sub">Powerful · Longest replies · Extra effort</div>
+                <div class="md-item-name">Opis <span class="md-tier-badge">Pro</span></div>
+                <div class="md-item-sub">For complex conversations</div>
               </div>
-              <span class="md-item-key">3</span>
+              <span class="md-upgrade-btn">Upgrade</span>
+              <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="md-item md-item-locked" id="optOpos" onclick="selectOrUpgrade('opos')">
+              <div class="md-item-body">
+                <div class="md-item-name">Opos <span class="md-tier-badge">Pro</span></div>
+                <div class="md-item-sub">For immersive roleplay and long stories</div>
+              </div>
+              <span class="md-upgrade-btn">Upgrade</span>
+              <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="md-divider"></div>
+            <button class="md-item md-item-locked md-item-premium" id="optOpus" onclick="selectOrUpgrade('opus')">
+              <div class="md-item-body">
+                <div class="md-item-name">Opus <span class="md-tier-badge md-tier-badge-max">Pro or Max</span></div>
+                <div class="md-item-sub">Most capable for your toughest chats</div>
+              </div>
+              <span class="md-upgrade-btn">Upgrade</span>
+              <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="md-item md-item-locked md-item-premium" id="optOpys" onclick="selectOrUpgrade('opys')">
+              <div class="md-item-body">
+                <div class="md-item-name">Opys <span class="md-tier-badge md-tier-badge-max">Pro or Max</span></div>
+                <div class="md-item-sub">For your toughest challenges</div>
+              </div>
+              <span class="md-upgrade-btn">Upgrade</span>
+              <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </div>
+          <!-- Effort picker panel -->
           <div class="effort-panel-popup" id="effortPanelPopup" style="display:none">
-            <div class="epp-header">
-              <div class="epp-title">Effort&nbsp;<strong id="eppCurrentLabel">Medium</strong></div>
-              <div class="epp-help-wrap">
-                <button class="epp-help">?</button>
-                <div class="epp-tooltip">
-                  <div class="epp-tooltip-title">Effort</div>
-                  <div class="epp-tooltip-body">Higher effort means more thorough responses, but takes longer and uses your limits faster.</div>
-                </div>
-              </div>
+            <div class="epp-desc">Higher effort means more thorough responses, but takes longer and uses your limits faster.</div>
+            <div class="epp-list">
+              <button class="epp-item" id="effortOptLow" onclick="setEffort('low');closeAllPickers()">
+                <span class="epp-item-name">Low</span>
+                <svg class="epp-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button class="epp-item" id="effortOptMedium" onclick="setEffort('medium');closeAllPickers()">
+                <span class="epp-item-name">Medium</span>
+                <span class="epp-recommended-tag">Recommended</span>
+                <svg class="epp-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button class="epp-item" id="effortOptHigh" onclick="setEffort('high');closeAllPickers()">
+                <span class="epp-item-name">High</span>
+                <svg class="epp-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button class="epp-item" id="effortOptExtra" onclick="setEffort('extra');closeAllPickers()">
+                <span class="epp-item-name">Extra</span>
+                <svg class="epp-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button class="epp-item" id="effortOptMax" onclick="setEffort('max');closeAllPickers()">
+                <span class="epp-item-name">Max</span>
+                <span class="epp-max-warn" id="effortMaxWarn">⚠ 5× or more usage</span>
+                <svg class="epp-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
             </div>
-            <div class="epp-slider-area">
-              <span class="epp-side-label">Faster</span>
-              <input type="range" class="effort-range" id="effortRange" min="0" max="3" step="1" value="1" oninput="setEffortIdx(parseInt(this.value))">
-              <span class="epp-side-label">Smarter</span>
-            </div>
-            <div class="epp-recommended">Recommended</div>
           </div>
           <div class="model-bar">
             <button class="mb-model-btn" id="mbModelBtn" onclick="toggleModelDropdown()">
@@ -808,6 +843,6 @@
   </div>
 </div>
 
-<script src="app.js?v=70"></script>
+<script src="app.js?v=71"></script>
 </body>
 </html>

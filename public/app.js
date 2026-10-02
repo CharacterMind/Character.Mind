@@ -8,31 +8,39 @@ let isStreaming = false;
 let currentFilter = 'all';
 let lastUserMessage = '';
 // ── Model & Effort state ───────────────────────────────────────────────────────
-const EFFORT_LEVELS = ['low','medium','high','extra'];
+const EFFORT_LEVELS = ['low','medium','high','extra','max'];
+const ALL_TIERS = ['opas','opes','opis','opos','opus','opys'];
 let selectedModelTier = (() => {
   try {
     const s = localStorage.getItem('cm_model_tier') || 'opas';
-    // Migrate old tier names
     const migrate = { standard:'opas', flash:'opas', pro:'opes', ultra:'opes' };
-    return (s === 'opas' || s === 'opes' || s === 'opus') ? s : (migrate[s] || 'opas');
+    return ALL_TIERS.includes(s) ? s : (migrate[s] || 'opas');
   } catch(_){ return 'opas'; }
 })();
 let selectedEffort = (() => {
   try {
     const s = localStorage.getItem('cm_effort') || 'medium';
-    // Migrate old effort values
-    const migrate = { quick:'low', standard:'medium', deep:'high', max:'extra' };
+    const migrate = { quick:'low', standard:'medium', deep:'high' };
     return EFFORT_LEVELS.includes(s) ? s : (migrate[s] || 'medium');
   } catch(_){ return 'medium'; }
 })();
 
-const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opus:'Opis' };
-const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra' };
+const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys' };
+const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', max:'Max' };
+
+// Token usage multiplier shown on Max effort warning per tier
+const MAX_EFFORT_MULTIPLIERS = { opas:'2×', opes:'2.5×', opis:'3×', opos:'4×', opus:'5×', opys:'5×+' };
+
+// Tiers locked behind subscription (null = free, 'pro' = Pro plan, 'max' = Pro or Max)
+const TIER_SUBSCRIPTION = { opas: null, opes: null, opis: 'pro', opos: 'pro', opus: 'max', opys: 'max' };
 
 const MODEL_ICONS = {
   opas: '<path d="M7 2v11h3v9l7-12h-4l4-8z"/>',
   opes: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>',
+  opis: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
+  opos: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
   opus: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
+  opys: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
 };
 
 function updateModelBarLabel() {
@@ -42,14 +50,20 @@ function updateModelBarLabel() {
   if (effortEl) effortEl.textContent = EFFORT_LABELS[selectedEffort] || selectedEffort;
   const icon = document.getElementById('modelBarIcon');
   if (icon) icon.innerHTML = MODEL_ICONS[selectedModelTier] || MODEL_ICONS.opas;
-  ['optOpas','optOpes','optOpus'].forEach(id => document.getElementById(id)?.classList.remove('active'));
-  const modelId = { opas:'optOpas', opes:'optOpes', opus:'optOpus' }[selectedModelTier];
-  if (modelId) document.getElementById(modelId)?.classList.add('active');
-  const idx = EFFORT_LEVELS.indexOf(selectedEffort);
-  const rangeEl = document.getElementById('effortRange');
-  if (rangeEl) rangeEl.value = idx;
-  const lbl = document.getElementById('eppCurrentLabel');
-  if (lbl) lbl.textContent = EFFORT_LABELS[selectedEffort] || selectedEffort;
+
+  // Update model picker checks
+  ALL_TIERS.forEach(t => {
+    const el = document.getElementById('opt' + t.charAt(0).toUpperCase() + t.slice(1));
+    if (el) el.classList.toggle('active', t === selectedModelTier);
+  });
+
+  // Update effort picker checks and max multiplier label
+  EFFORT_LEVELS.forEach(e => {
+    const el = document.getElementById('effortOpt' + e.charAt(0).toUpperCase() + e.slice(1));
+    if (el) el.classList.toggle('active', e === selectedEffort);
+  });
+  const maxWarn = document.getElementById('effortMaxWarn');
+  if (maxWarn) maxWarn.textContent = '⚠ ' + (MAX_EFFORT_MULTIPLIERS[selectedModelTier] || '5×+') + ' or more usage';
 }
 
 function setModelTier(tier) {
@@ -59,14 +73,23 @@ function setModelTier(tier) {
   closeAllPickers();
 }
 
+function selectOrUpgrade(tier) {
+  if (!TIER_SUBSCRIPTION[tier]) { setModelTier(tier); return; }
+  // TODO: open subscription modal when payment is integrated
+  showUpgradeModal(tier);
+}
+
+function showUpgradeModal(tier) {
+  // Placeholder — will be replaced with Stripe flow
+  const label = MODEL_LABELS[tier] || tier;
+  const plan = TIER_SUBSCRIPTION[tier] === 'max' ? 'Pro or Max' : 'Pro';
+  alert(`${label} requires a character.mind ${plan} subscription.\n\nSubscriptions coming soon!`);
+}
+
 function setEffort(effort) {
   selectedEffort = effort;
   try { localStorage.setItem('cm_effort', effort); } catch(_) {}
   updateModelBarLabel();
-}
-
-function setEffortIdx(idx) {
-  setEffort(EFFORT_LEVELS[idx] || 'medium');
 }
 
 let modelDropdownOpen = false;
@@ -86,6 +109,7 @@ function toggleModelDropdown() {
     modelDropdownOpen = true;
     const md = document.getElementById('modelDropdown');
     if (md) md.style.display = 'block';
+    updateModelBarLabel();
   }
 }
 function toggleEffortPanel() {
@@ -95,6 +119,7 @@ function toggleEffortPanel() {
     effortPanelOpen = true;
     const ep = document.getElementById('effortPanelPopup');
     if (ep) ep.style.display = 'block';
+    updateModelBarLabel();
   }
 }
 
@@ -106,15 +131,6 @@ document.addEventListener('click', (e) => {
     && !e.target.closest('#mbModelBtn')
     && !e.target.closest('#mbEffortBtn')) {
     closeAllPickers();
-  }
-});
-
-// Keyboard shortcuts: 1 = Opas, 2 = Opes, 3 = Opis (when model dropdown open)
-document.addEventListener('keydown', (e) => {
-  if (modelDropdownOpen && !e.target.matches('input,textarea')) {
-    if (e.key === '1') setModelTier('opas');
-    if (e.key === '2') setModelTier('opes');
-    if (e.key === '3') setModelTier('opus');
   }
 });
 

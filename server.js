@@ -767,56 +767,77 @@ async function getCharPrompt(charId) {
 
 // ── Groq API streaming helper ─────────────────────────────────────────────────
 
-const GROQ_MODELS = [
-  'openai/gpt-oss-120b',
-  'openai/gpt-oss-20b',
-];
-const GROQ_PRO_MODELS = [
-  'openai/gpt-oss-120b',
-  'openai/gpt-oss-20b',
-];
-const GROQ_OPUS_MODELS = [
-  'openai/gpt-oss-120b',
-];
-// Per-tier effort configs
+// Fast model for free tiers; big model for paid tiers
+const GROQ_FAST_MODELS  = ['openai/gpt-oss-20b',  'openai/gpt-oss-120b'];
+const GROQ_MODELS       = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
+const GROQ_PRO_MODELS   = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
+const GROQ_OPUS_MODELS  = ['openai/gpt-oss-120b'];
+
+// Per-tier effort configs — max effort uses highest reasoning + tokens
 const EFFORT_CONFIG = {
   opas: {
     low:    { maxOutputTokens: 600,   temperature: 0.75, reasoningEffort: 'low'    },
     medium: { maxOutputTokens: 700,   temperature: 0.95, reasoningEffort: 'low'    },
     high:   { maxOutputTokens: 2500,  temperature: 1.05, reasoningEffort: 'medium' },
     extra:  { maxOutputTokens: 4000,  temperature: 1.1,  reasoningEffort: 'high'   },
+    max:    { maxOutputTokens: 6000,  temperature: 1.1,  reasoningEffort: 'high'   },
   },
   opes: {
     low:    { maxOutputTokens: 700,   temperature: 0.75, reasoningEffort: 'low'    },
     medium: { maxOutputTokens: 1000,  temperature: 0.95, reasoningEffort: 'medium' },
     high:   { maxOutputTokens: 5000,  temperature: 1.1,  reasoningEffort: 'high'   },
     extra:  { maxOutputTokens: 8000,  temperature: 1.1,  reasoningEffort: 'high'   },
+    max:    { maxOutputTokens: 12000, temperature: 1.1,  reasoningEffort: 'high'   },
   },
-  opus: {
+  opis: {
+    low:    { maxOutputTokens: 1000,  temperature: 0.75, reasoningEffort: 'low'    },
+    medium: { maxOutputTokens: 2500,  temperature: 0.95, reasoningEffort: 'medium' },
+    high:   { maxOutputTokens: 6000,  temperature: 1.05, reasoningEffort: 'high'   },
+    extra:  { maxOutputTokens: 10000, temperature: 1.1,  reasoningEffort: 'high'   },
+    max:    { maxOutputTokens: 16000, temperature: 1.1,  reasoningEffort: 'high'   },
+  },
+  opos: {
     low:    { maxOutputTokens: 2000,  temperature: 0.75, reasoningEffort: 'medium' },
     medium: { maxOutputTokens: 5000,  temperature: 0.95, reasoningEffort: 'high'   },
-    high:   { maxOutputTokens: 10000, temperature: 1.0,  reasoningEffort: 'high'   },
-    extra:  { maxOutputTokens: 16000, temperature: 1.05, reasoningEffort: 'high'   },
+    high:   { maxOutputTokens: 12000, temperature: 1.0,  reasoningEffort: 'high'   },
+    extra:  { maxOutputTokens: 20000, temperature: 1.05, reasoningEffort: 'high'   },
+    max:    { maxOutputTokens: 32000, temperature: 1.05, reasoningEffort: 'high'   },
+  },
+  opus: {
+    low:    { maxOutputTokens: 4000,  temperature: 0.75, reasoningEffort: 'medium' },
+    medium: { maxOutputTokens: 10000, temperature: 0.95, reasoningEffort: 'high'   },
+    high:   { maxOutputTokens: 20000, temperature: 1.0,  reasoningEffort: 'high'   },
+    extra:  { maxOutputTokens: 32000, temperature: 1.05, reasoningEffort: 'high'   },
+    max:    { maxOutputTokens: 48000, temperature: 1.05, reasoningEffort: 'high'   },
+  },
+  opys: {
+    low:    { maxOutputTokens: 8000,  temperature: 0.75, reasoningEffort: 'high'   },
+    medium: { maxOutputTokens: 16000, temperature: 0.95, reasoningEffort: 'high'   },
+    high:   { maxOutputTokens: 32000, temperature: 1.0,  reasoningEffort: 'high'   },
+    extra:  { maxOutputTokens: 48000, temperature: 1.05, reasoningEffort: 'high'   },
+    max:    { maxOutputTokens: 64000, temperature: 1.05, reasoningEffort: 'high'   },
   },
 };
 
 function getEffortCfg(effort, tier) {
-  const t = (tier === 'opes' || tier === 'opus') ? tier : 'opas';
-  return (EFFORT_CONFIG[t] || EFFORT_CONFIG.opas)[effort] || EFFORT_CONFIG[t === 'opus' ? 'opus' : 'opas'].medium;
+  const t = EFFORT_CONFIG[tier] ? tier : 'opas';
+  const cfg = EFFORT_CONFIG[t];
+  return cfg[effort] || cfg.medium;
 }
 
 function getModelList(tier) {
-  if (tier === 'opus') return GROQ_OPUS_MODELS;
-  return tier === 'opes' ? GROQ_PRO_MODELS : GROQ_MODELS;
+  if (tier === 'opis' || tier === 'opos' || tier === 'opus' || tier === 'opys') return GROQ_OPUS_MODELS;
+  if (tier === 'opes') return GROQ_PRO_MODELS;
+  return GROQ_FAST_MODELS;
 }
 
-const workingModels = {}; // keyed by tier: 'opas' | 'opes'
+const workingModels = {};
 
 function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex, effortCfg, modelList) {
-  modelList = modelList || GROQ_MODELS;
+  modelList = modelList || GROQ_FAST_MODELS;
   effortCfg = effortCfg || EFFORT_CONFIG.opas.high;
   if (modelIndex === undefined) {
-    const tier = modelList === GROQ_OPUS_MODELS ? 'opus' : modelList === GROQ_PRO_MODELS ? 'opes' : 'opas';
+    const tier = (modelList === GROQ_OPUS_MODELS) ? 'opus' : (modelList === GROQ_PRO_MODELS) ? 'opes' : 'opas';
     const wm = workingModels[tier];
     const wi = wm ? modelList.indexOf(wm) : -1;
     modelIndex = wi >= 0 ? wi : 0;
