@@ -49,7 +49,9 @@ if (db) {
   `).then(() => {
     console.log('DB ready');
     return db.query(`UPDATE characters SET greeting_mode = 'fixed' WHERE greeting IS NOT NULL AND greeting != '' AND greeting_mode = 'auto'`);
-  }).then(r => { if (r && r.rowCount > 0) console.log(`[MIGRATION] Fixed greeting_mode for ${r.rowCount} characters`); })
+  }).then(r => { if (r && r.rowCount > 0) console.log(`[MIGRATION] Fixed greeting_mode auto→fixed for ${r.rowCount} characters`); })
+    .then(() => db.query(`UPDATE characters SET greeting_mode = 'fixed' WHERE greeting_mode NOT IN ('fixed', 'auto')`))
+    .then(r => { if (r && r.rowCount > 0) console.log(`[MIGRATION] Normalized ${r.rowCount} non-standard greeting_mode values to fixed`); })
     .catch(err => console.error('DB init error:', err));
 
   db.query(`
