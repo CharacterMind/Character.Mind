@@ -565,53 +565,6 @@ function showSettingsTab(tab) {
 
 function updateSettingsUsage(u) {
   if (!u) return;
-  const sPct = Math.min(100, Math.round((u.sessionTokens / u.sessionLimit) * 100));
-  const wPct = Math.min(100, Math.round((u.weeklyTokens  / u.weeklyLimit)  * 100));
-  const sBar = document.getElementById('settingsSessionBar');
-  const wBar = document.getElementById('settingsWeeklyBar');
-  if (sBar) { sBar.style.width = sPct + '%'; sBar.className = 'usage-fill-modal ' + usageFillClass(sPct); }
-  if (wBar) { wBar.style.width = wPct + '%'; wBar.className = 'usage-fill-modal ' + usageFillClass(wPct); }
-  const sPctEl = document.getElementById('settingsSessionPct');
-  if (sPctEl) sPctEl.textContent = sPct + '%';
-  const wPctEl = document.getElementById('settingsWeeklyPct');
-  if (wPctEl) wPctEl.textContent = wPct + '%';
-  const sResetEl = document.getElementById('settingsSessionReset');
-  if (sResetEl) {
-    const expiry = u.cooldownUntil || u.sessionExpiresAt;
-    if (expiry && Date.now() < expiry) {
-      const rem = expiry - Date.now();
-      const h = Math.floor(rem / 3600000);
-      const m = Math.floor((rem % 3600000) / 60000);
-      sResetEl.textContent = h > 0 ? `Resets in ${h} hr ${m} min` : `Resets in ${m} min`;
-    } else {
-      sResetEl.textContent = 'Resets every 2 hrs';
-    }
-  }
-  const wResetEl = document.getElementById('settingsWeeklyReset');
-  if (wResetEl) wResetEl.textContent = u.weeklyResetsAt ? formatWeeklyResetShort(u.weeklyResetsAt) : 'Resets weekly';
-
-  const sbSBar = document.getElementById('sidebarSessionBar');
-  const sbWBar = document.getElementById('sidebarWeeklyBar');
-  if (sbSBar) { sbSBar.style.width = sPct + '%'; sbSBar.className = 'sb-usage-fill ' + usageFillClass(sPct); }
-  if (sbWBar) { sbWBar.style.width = wPct + '%'; sbWBar.className = 'sb-usage-fill ' + usageFillClass(wPct); }
-  const sbSPct = document.getElementById('sidebarSessionPct');
-  if (sbSPct) sbSPct.textContent = sPct + '%';
-  const sbWPct = document.getElementById('sidebarWeeklyPct');
-  if (sbWPct) sbWPct.textContent = wPct + '%';
-  const sbSReset = document.getElementById('sidebarSessionReset');
-  if (sbSReset) {
-    const expiry = u.cooldownUntil || u.sessionExpiresAt;
-    if (expiry && Date.now() < expiry) {
-      const rem = expiry - Date.now();
-      const h = Math.floor(rem / 3600000);
-      const m = Math.floor((rem % 3600000) / 60000);
-      sbSReset.textContent = h > 0 ? `${h}h ${m}m` : `${m}m`;
-    } else {
-      sbSReset.textContent = '2 hr reset';
-    }
-  }
-  const sbWReset = document.getElementById('sidebarWeeklyReset');
-  if (sbWReset) sbWReset.textContent = u.weeklyResetsAt ? formatWeeklyResetShort(u.weeklyResetsAt) : 'Weekly';
 }
 
 function formatWeeklyResetShort(until) {
@@ -1772,24 +1725,10 @@ function liveUpdateBars(extraTokens) {
   const wEst = wBase + extraTokens;
   const sPct = Math.min(100, Math.round(sEst / lastKnownUsage.sessionLimit * 100));
   const wPct = Math.min(100, Math.round(wEst / lastKnownUsage.weeklyLimit  * 100));
-  ['usageSessionBar','settingsSessionBar','sidebarSessionBar'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.style.width = sPct + '%';
-      el.className = (id === 'sidebarSessionBar' ? 'sb-usage-fill ' : 'usage-fill-modal ') + usageFillClass(sPct);
-    }
-  });
-  ['usageWeeklyBar','settingsWeeklyBar','sidebarWeeklyBar'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.style.width = wPct + '%';
-      el.className = (id === 'sidebarWeeklyBar' ? 'sb-usage-fill ' : 'usage-fill-modal ') + usageFillClass(wPct);
-    }
-  });
-  const sbSPct = document.getElementById('sidebarSessionPct');
-  if (sbSPct) sbSPct.textContent = sPct + '%';
-  const sbWPct = document.getElementById('sidebarWeeklyPct');
-  if (sbWPct) sbWPct.textContent = wPct + '%';
+  const sBar = document.getElementById('usageSessionBar');
+  if (sBar) { sBar.style.width = sPct + '%'; sBar.className = 'usage-fill-modal ' + usageFillClass(sPct); }
+  const wBar = document.getElementById('usageWeeklyBar');
+  if (wBar) { wBar.style.width = wPct + '%'; wBar.className = 'usage-fill-modal ' + usageFillClass(wPct); }
 }
 
 function updateUsageBars(usage) {
