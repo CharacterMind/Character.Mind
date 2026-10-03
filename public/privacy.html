@@ -81,6 +81,7 @@
   <ul>
     <li>Session identifiers (stored in a browser cookie, used for authentication)</li>
     <li>Basic server logs (request timestamps, error messages) for operational purposes</li>
+    <li><strong>Your IP address</strong> — used solely for geographic location estimation during crisis detection (see Section 3a below). It is never stored in our database and is not linked to your account or profile.</li>
   </ul>
 
   <h2>3. How We Use Your Information</h2>
@@ -94,6 +95,17 @@
     <li>To detect and prevent abuse or violations of our Terms of Service</li>
   </ul>
 
+  <h2>3a. IP Address and Geographic Location (Crisis Safety)</h2>
+  <p>When our automated system detects a message that may indicate personal distress or thoughts of self-harm, we perform a one-time, ephemeral lookup of your IP address to estimate your geographic region. This is done solely to provide you with locally relevant crisis resources — for example, showing a Quebec-specific helpline to someone in Québec rather than a generic number.</p>
+  <ul>
+    <li><strong>What we look up:</strong> Country, province/state, and city, derived from your IP address via a third-party geolocation service (ipapi.co).</li>
+    <li><strong>What we do not do:</strong> We do not store your IP address in our database. We do not link your IP or location to your account or profile. We do not use it for advertising, analytics, or any purpose other than crisis resource delivery.</li>
+    <li><strong>How long it is kept:</strong> The result is cached in server memory for up to one hour to avoid repeated external lookups, then discarded automatically. It is never written to disk or our database.</li>
+    <li><strong>Accuracy:</strong> IP geolocation is approximate. It identifies a general region, not a precise address. We use it only to select the most relevant helpline for your area.</li>
+    <li><strong>Legal basis:</strong> Under PIPEDA, Quebec Law 25, and GDPR, this processing is justified by vital interests — the safety of a person who may be in crisis — and by our legitimate interest in providing accurate, life-relevant information in a time-sensitive moment.</li>
+  </ul>
+  <div class="callout">If you are uncomfortable with IP-based geolocation, you may use a VPN. The crisis detection feature will still activate; it will simply provide generic resources rather than location-specific ones.</div>
+
   <h2>4. Third-Party Services</h2>
   <p>We share data with the following third parties only as necessary to operate the service:</p>
   <ul>
@@ -102,6 +114,7 @@
     <li><strong>Neon (PostgreSQL)</strong> — our database host, where user data, conversations, and character definitions are stored.</li>
     <li><strong>Render</strong> — our hosting provider, where the application server runs.</li>
     <li><strong>PayPal</strong> — payment processing for paid subscriptions. PayPal's privacy policy applies to payment data they collect.</li>
+    <li><strong>ipapi.co</strong> — geographic location service. When crisis language is detected in a message, your IP address is sent to ipapi.co to determine your approximate region so we can display locally relevant crisis resources. Only your IP is shared; no account information is transmitted. ipapi.co's privacy policy applies to data they process.</li>
   </ul>
   <p>We do not sell your personal data to third parties.</p>
 
