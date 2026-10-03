@@ -1,176 +1,152 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Terms of Service — character.mind</title>
-  <style>
-    :root {
-      --bg: #0a0a0a;
-      --surface: #111111;
-      --border: #222222;
-      --text1: #f0f0f0;
-      --text2: #aaaaaa;
-      --text3: #666666;
-      --accent: #7c5cbf;
-    }
-    @media (prefers-color-scheme: light) {
-      :root {
-        --bg: #f5f5f5;
-        --surface: #ffffff;
-        --border: #e0e0e0;
-        --text1: #111111;
-        --text2: #555555;
-        --text3: #999999;
-      }
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: var(--bg);
-      color: var(--text1);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 15px;
-      line-height: 1.7;
-      padding: 0 16px;
-    }
-    .wrap {
-      max-width: 680px;
-      margin: 0 auto;
-      padding: 60px 0 80px;
-    }
-    .back {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: var(--text3);
-      text-decoration: none;
-      font-size: 13px;
-      margin-bottom: 40px;
-    }
-    .back:hover { color: var(--text2); }
-    .site-name {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--accent);
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      margin-bottom: 12px;
-    }
-    h1 {
-      font-size: 28px;
-      font-weight: 700;
-      letter-spacing: -.02em;
-      margin-bottom: 8px;
-    }
-    .updated {
-      font-size: 13px;
-      color: var(--text3);
-      margin-bottom: 48px;
-    }
-    h2 {
-      font-size: 16px;
-      font-weight: 600;
-      margin: 36px 0 10px;
-      color: var(--text1);
-    }
-    p { color: var(--text2); margin-bottom: 14px; }
-    ul { color: var(--text2); padding-left: 20px; margin-bottom: 14px; }
-    li { margin-bottom: 6px; }
-    .rule-box {
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px 20px;
-      margin: 16px 0;
-      background: var(--surface);
-    }
-    .rule-box .rule-label {
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: .06em;
-      text-transform: uppercase;
-      color: var(--text3);
-      margin-bottom: 8px;
-    }
-    .rule-box p { margin-bottom: 0; }
-    hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
-    a { color: var(--accent); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terms of Service — Character.Mind</title>
+<link rel="icon" href="/logo.webp" type="image/webp">
+<style>
+  :root {
+    --bg: #0e0e10; --bg2: #16161a; --bg3: #1e1e24;
+    --text1: #f1f1f3; --text2: #b0b0bc; --text3: #6b6b7a;
+    --accent: #7c3aed; --border: rgba(255,255,255,0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text2); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 15px; line-height: 1.7; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .page-header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .page-header img { width: 30px; height: 30px; border-radius: 8px; }
+  .page-header .brand { font-size: 16px; font-weight: 700; color: var(--text1); }
+  .page-header .back { margin-left: auto; color: var(--text3); font-size: 14px; }
+
+  .container { max-width: 760px; margin: 0 auto; padding: 52px 24px 80px; }
+  .doc-title { font-size: 30px; font-weight: 800; color: var(--text1); margin-bottom: 6px; }
+  .doc-date { font-size: 13px; color: var(--text3); margin-bottom: 44px; }
+
+  h2 { font-size: 17px; font-weight: 700; color: var(--text1); margin: 40px 0 12px; }
+  h2:first-of-type { margin-top: 0; }
+  p { margin-bottom: 14px; color: var(--text2); }
+  ul { padding-left: 20px; margin-bottom: 14px; }
+  li { margin-bottom: 7px; color: var(--text2); }
+
+  .tier-table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 14px; }
+  .tier-table th { text-align: left; padding: 9px 12px; background: var(--bg3); color: var(--text1); font-weight: 600; border-bottom: 1px solid var(--border); }
+  .tier-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); color: var(--text2); }
+  .tier-table tr:last-child td { border-bottom: none; }
+
+  .callout { background: var(--bg3); border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; padding: 14px 18px; margin: 20px 0; font-size: 14px; }
+
+  @media (max-width: 600px) {
+    .page-header { padding: 16px; }
+    .container { padding: 36px 16px 60px; }
+    .doc-title { font-size: 24px; }
+    .tier-table { font-size: 12px; }
+    .tier-table th, .tier-table td { padding: 7px 8px; }
+  }
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <a class="back" href="/">
-      <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
-      Back to character.mind
-    </a>
 
-    <div class="site-name">character.mind</div>
-    <h1>Terms of Service</h1>
-    <p class="updated">Last updated: September 30, 2026</p>
+<header class="page-header">
+  <img src="/logo.webp" alt="Character.Mind">
+  <span class="brand">character.mind</span>
+  <a href="/" class="back">← Back to app</a>
+</header>
 
-    <p>By signing in and using character.mind ("the Service"), you agree to these terms. If you don't agree, please don't use the Service.</p>
+<div class="container">
+  <h1 class="doc-title">Terms of Service</h1>
+  <p class="doc-date">Effective date: October 3, 2026 &nbsp;·&nbsp; Last updated: October 3, 2026</p>
 
-    <h2>1. What the Service Is</h2>
-    <p>character.mind is an AI character chat platform. You can create characters with custom personalities and have conversations with them, powered by Google's Gemini AI. The characters are fictional and AI-generated. Nothing said by an AI character constitutes professional advice of any kind.</p>
+  <h2>1. Who We Are</h2>
+  <p>Character.Mind ("we," "us," or "our") is an AI character chat platform operated by Character Mind Playtime Co. By accessing or using Character.Mind at <a href="https://charactermind.onrender.com">charactermind.onrender.com</a>, you agree to these Terms of Service. If you do not agree, do not use the service.</p>
 
-    <h2>2. Who Can Use It</h2>
-    <p>You must be at least 18 years old to use the Service. By signing in, you confirm you meet this requirement.</p>
+  <h2>2. Eligibility</h2>
+  <p>You must be at least 13 years old to use Character.Mind. If you are under 18, you must have parental or guardian consent. By using the service, you represent that you meet these requirements.</p>
 
-    <h2>3. Your Account</h2>
-    <p>You sign in using your Google account. You're responsible for anything that happens through your account. We reserve the right to suspend access for violations of these terms.</p>
+  <h2>3. Your Account</h2>
+  <p>You sign in using your Google account. You are responsible for all activity that occurs under your account. Do not share your login credentials. We reserve the right to suspend or terminate accounts that violate these terms.</p>
 
-    <h2>4. Content Policy</h2>
+  <h2>4. Subscription Plans and Pricing</h2>
+  <p>Character.Mind offers four subscription tiers:</p>
 
-    <div class="rule-box">
-      <div class="rule-label">Profanity</div>
-      <p>Strong language and profanity are allowed. We don't sanitize natural human speech.</p>
-    </div>
+  <table class="tier-table">
+    <thead>
+      <tr>
+        <th>Plan</th>
+        <th>Voice Calls / Day</th>
+        <th>Read-Alouds / Day</th>
+        <th>Monthly Price</th>
+        <th>Annual Price</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Free</td><td>3</td><td>30</td><td>$0</td><td>$0</td></tr>
+      <tr><td>Advanced</td><td>5</td><td>50</td><td>$4.99/mo</td><td>$44.99/yr</td></tr>
+      <tr><td>X20</td><td>100</td><td>1,000</td><td>$12.99/mo</td><td>$109.99/yr</td></tr>
+      <tr><td>X50</td><td>250</td><td>2,500</td><td>$24.99/mo</td><td>$199.99/yr</td></tr>
+    </tbody>
+  </table>
 
-    <div class="rule-box">
-      <div class="rule-label">Hate speech &amp; slurs</div>
-      <p>Racial slurs, homophobic slurs, and similar hate speech are not permitted. If slurs are detected in your messages, you will receive up to two warnings. On the third instance, the conversation will be automatically ended. You can start a new chat afterward.</p>
-    </div>
+  <p>Annual plans are billed once per year. Monthly plans are billed each month. Prices are in US dollars and may be subject to applicable taxes.</p>
 
-    <div class="rule-box">
-      <div class="rule-label">Crisis &amp; distress</div>
-      <p>If your message suggests you may be personally struggling — real suicidal thoughts, self-harm, or severe emotional distress — the AI character may briefly step out of its role to check in with you as a human being. It may include local crisis resources based on your approximate location. This is a care feature, not a clinical service. If you are in immediate danger, please contact your local emergency services.</p>
-    </div>
+  <h2>5. Payments and Billing</h2>
+  <p>Payments are processed securely through PayPal. By subscribing, you authorize us to charge your selected payment method on a recurring basis at the frequency you chose (monthly or annually). You may cancel at any time through your PayPal subscription settings. Cancellations take effect at the end of your current billing period — you retain access until then.</p>
 
-    <div class="rule-box">
-      <div class="rule-label">Explicit sexual content</div>
-      <p>Sexually explicit content is not permitted. Messages containing explicit sexual language or requests will be deflected automatically and will not be sent to the AI.</p>
-    </div>
+  <div class="callout">Refund policy: We do not offer refunds for partial billing periods. If you believe you were charged in error, contact us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a> within 14 days of the charge.</div>
 
-    <p>You may not use the Service to generate content that sexualizes minors, facilitates real-world harm, or is designed to harass specific individuals.</p>
+  <h2>6. Usage Limits</h2>
+  <p>All plans are subject to the following usage limits in addition to the per-tier daily limits above:</p>
+  <ul>
+    <li><strong>Session limit:</strong> A rolling usage window limits the total tokens generated per session. When reached, a cooldown period applies before the session resets.</li>
+    <li><strong>Weekly limit:</strong> A weekly token ceiling applies across all plans. Limits reset on a 7-day rolling basis.</li>
+    <li><strong>Daily limits</strong> (voice calls and read-alouds) reset at 8:00 AM UTC every day.</li>
+    <li><strong>Voice call inactivity:</strong> Voice calls automatically end after 15 minutes of inactivity.</li>
+  </ul>
+  <p>We reserve the right to adjust limits to maintain service quality for all users.</p>
 
-    <h2>5. Usage Limits</h2>
-    <p>The Service operates on a token-based usage system to ensure fair access:</p>
-    <ul>
-      <li><strong>Session limit:</strong> 20,000 tokens per session, with a ~2-hour cooldown after the limit is reached.</li>
-      <li><strong>Weekly limit:</strong> 200,000 tokens per rolling 7-day period.</li>
-    </ul>
-    <p>These limits may change over time. Attempting to circumvent them is a violation of these terms.</p>
+  <h2>7. AI-Generated Content</h2>
+  <p>Character.Mind uses AI language models to generate character responses. AI-generated content may be inaccurate, unexpected, or incomplete. We do not guarantee the accuracy, reliability, or appropriateness of any AI output. You use the AI features at your own risk.</p>
+  <p>Character responses are generated by AI and do not represent the views of Character.Mind, Character Mind Playtime Co, or any real person.</p>
 
-    <h2>6. AI Limitations</h2>
-    <p>AI characters can and do make things up. They may say inaccurate, inconsistent, or unexpected things. Do not rely on AI-generated content for medical, legal, financial, or any other professional decisions. The characters are for entertainment and creative purposes only.</p>
+  <h2>8. User-Created Characters</h2>
+  <p>You may create custom AI characters on the platform. By creating a character, you grant us a non-exclusive, royalty-free license to host and display that character on the platform. You are responsible for ensuring your character content does not violate these terms or any applicable laws.</p>
 
-    <h2>7. Intellectual Property</h2>
-    <p>Characters you create belong to you. The platform, its design, and its code belong to character.mind. You grant us a license to store your characters and process your conversations to provide the Service. Characters based on third-party intellectual property (such as characters from games, films, or other media) remain subject to the original rights holder's terms; you are responsible for ensuring your use does not infringe on others' rights.</p>
+  <h2>9. Acceptable Use</h2>
+  <p>You agree not to use Character.Mind to:</p>
+  <ul>
+    <li>Harass, threaten, or harm any person</li>
+    <li>Generate, distribute, or solicit illegal content</li>
+    <li>Attempt to circumvent usage limits or access controls</li>
+    <li>Reverse-engineer, scrape, or abuse the platform's API or systems</li>
+    <li>Impersonate any person, organization, or character in a misleading way</li>
+    <li>Use the service for any commercial purpose without prior written consent</li>
+  </ul>
+  <p>We reserve the right to remove content and suspend accounts that violate these rules without notice.</p>
 
-    <h2>8. Availability</h2>
-    <p>We make no guarantees about uptime or availability. The Service is provided as-is. We may change, suspend, or discontinue it at any time.</p>
+  <h2>10. Intellectual Property</h2>
+  <p>The Character.Mind platform, including its design, code, and original characters, is owned by Character Mind Playtime Co. You may not copy, modify, or redistribute any part of the platform without our written permission. User-created characters remain the intellectual property of their creators, subject to the license granted in Section 8.</p>
 
-    <h2>9. Disclaimer of Warranties</h2>
-    <p>The Service is provided "as is" without warranties of any kind, express or implied. We are not liable for any damages arising from your use of the Service.</p>
+  <h2>11. Privacy</h2>
+  <p>Your use of Character.Mind is also governed by our <a href="/privacy.html">Privacy Policy</a>, which is incorporated into these Terms by reference.</p>
 
-    <h2>10. Changes to These Terms</h2>
-    <p>We may update these terms from time to time. Continued use of the Service after changes are posted means you accept the updated terms.</p>
+  <h2>12. Disclaimer of Warranties</h2>
+  <p>Character.Mind is provided "as is" and "as available" without warranties of any kind, express or implied. We do not warrant that the service will be uninterrupted, error-free, or free of harmful components. We are not responsible for any loss or damage resulting from your use of the service.</p>
 
-    <h2>11. Contact</h2>
-    <p>Questions? Reach out at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a>.</p>
+  <h2>13. Limitation of Liability</h2>
+  <p>To the fullest extent permitted by law, Character Mind Playtime Co shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the service, even if we have been advised of the possibility of such damages. Our total liability to you for any claim shall not exceed the amount you paid us in the 30 days preceding the claim.</p>
 
-    <hr>
-    <p style="font-size:13px;color:var(--text3)">See also: <a href="/privacy.html">Privacy Policy</a></p>
-  </div>
+  <h2>14. Changes to These Terms</h2>
+  <p>We may update these Terms from time to time. When we do, we will update the effective date above and notify users via the platform. Continued use of Character.Mind after changes are posted constitutes your acceptance of the updated Terms.</p>
+
+  <h2>15. Contact</h2>
+  <p>Questions about these Terms? Contact us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a>.</p>
+</div>
+
 </body>
 </html>

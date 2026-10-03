@@ -1,221 +1,147 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Privacy Policy — character.mind</title>
-  <style>
-    :root {
-      --bg: #0a0a0a;
-      --surface: #111111;
-      --border: #222222;
-      --text1: #f0f0f0;
-      --text2: #aaaaaa;
-      --text3: #666666;
-      --accent: #7c5cbf;
-    }
-    @media (prefers-color-scheme: light) {
-      :root {
-        --bg: #f5f5f5;
-        --surface: #ffffff;
-        --border: #e0e0e0;
-        --text1: #111111;
-        --text2: #555555;
-        --text3: #999999;
-      }
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: var(--bg);
-      color: var(--text1);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 15px;
-      line-height: 1.7;
-      padding: 0 16px;
-    }
-    .wrap {
-      max-width: 680px;
-      margin: 0 auto;
-      padding: 60px 0 80px;
-    }
-    .back {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: var(--text3);
-      text-decoration: none;
-      font-size: 13px;
-      margin-bottom: 40px;
-    }
-    .back:hover { color: var(--text2); }
-    .site-name {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--accent);
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      margin-bottom: 12px;
-    }
-    h1 {
-      font-size: 28px;
-      font-weight: 700;
-      letter-spacing: -.02em;
-      margin-bottom: 8px;
-    }
-    .updated {
-      font-size: 13px;
-      color: var(--text3);
-      margin-bottom: 48px;
-    }
-    h2 {
-      font-size: 16px;
-      font-weight: 600;
-      margin: 36px 0 10px;
-      color: var(--text1);
-    }
-    p { color: var(--text2); margin-bottom: 14px; }
-    ul { color: var(--text2); padding-left: 20px; margin-bottom: 14px; }
-    li { margin-bottom: 6px; }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 16px 0 24px;
-      font-size: 14px;
-    }
-    th {
-      text-align: left;
-      padding: 10px 14px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      color: var(--text3);
-      font-weight: 600;
-      font-size: 12px;
-      letter-spacing: .05em;
-      text-transform: uppercase;
-    }
-    td {
-      padding: 10px 14px;
-      border: 1px solid var(--border);
-      color: var(--text2);
-      vertical-align: top;
-    }
-    hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
-    a { color: var(--accent); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Character.Mind</title>
+<link rel="icon" href="/logo.webp" type="image/webp">
+<style>
+  :root {
+    --bg: #0e0e10; --bg2: #16161a; --bg3: #1e1e24;
+    --text1: #f1f1f3; --text2: #b0b0bc; --text3: #6b6b7a;
+    --accent: #7c3aed; --border: rgba(255,255,255,0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text2); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 15px; line-height: 1.7; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .page-header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .page-header img { width: 30px; height: 30px; border-radius: 8px; }
+  .page-header .brand { font-size: 16px; font-weight: 700; color: var(--text1); }
+  .page-header .back { margin-left: auto; color: var(--text3); font-size: 14px; }
+
+  .container { max-width: 760px; margin: 0 auto; padding: 52px 24px 80px; }
+  .doc-title { font-size: 30px; font-weight: 800; color: var(--text1); margin-bottom: 6px; }
+  .doc-date { font-size: 13px; color: var(--text3); margin-bottom: 44px; }
+
+  h2 { font-size: 17px; font-weight: 700; color: var(--text1); margin: 40px 0 12px; }
+  h2:first-of-type { margin-top: 0; }
+  p { margin-bottom: 14px; color: var(--text2); }
+  ul { padding-left: 20px; margin-bottom: 14px; }
+  li { margin-bottom: 7px; color: var(--text2); }
+
+  .callout { background: var(--bg3); border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; padding: 14px 18px; margin: 20px 0; font-size: 14px; }
+
+  @media (max-width: 600px) {
+    .page-header { padding: 16px; }
+    .container { padding: 36px 16px 60px; }
+    .doc-title { font-size: 24px; }
+  }
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <a class="back" href="/">
-      <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
-      Back to character.mind
-    </a>
 
-    <div class="site-name">character.mind</div>
-    <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: September 30, 2026</p>
+<header class="page-header">
+  <img src="/logo.webp" alt="Character.Mind">
+  <span class="brand">character.mind</span>
+  <a href="/" class="back">← Back to app</a>
+</header>
 
-    <p>This policy explains what data character.mind collects, why, and how it's handled. We keep this short and plain — no legalese.</p>
+<div class="container">
+  <h1 class="doc-title">Privacy Policy</h1>
+  <p class="doc-date">Effective date: October 3, 2026 &nbsp;·&nbsp; Last updated: October 3, 2026</p>
 
-    <h2>1. What We Collect</h2>
+  <h2>1. Overview</h2>
+  <p>Character Mind Playtime Co ("we," "us," or "our") operates Character.Mind. This Privacy Policy explains what information we collect, how we use it, and the choices you have. By using the service, you agree to the practices described here.</p>
 
-    <table>
-      <tr>
-        <th>Data</th>
-        <th>Why</th>
-        <th>How long</th>
-      </tr>
-      <tr>
-        <td><strong>Google account info</strong><br>Name, email address, profile picture</td>
-        <td>To identify you and personalize your experience</td>
-        <td>Until you delete your account</td>
-      </tr>
-      <tr>
-        <td><strong>Characters you create</strong><br>Name, description, personality, greeting</td>
-        <td>To store and display your characters</td>
-        <td>Until you delete them</td>
-      </tr>
-      <tr>
-        <td><strong>Conversation history</strong><br>Messages sent to AI characters</td>
-        <td>To maintain context within a session and allow you to scroll back</td>
-        <td>Until you start a new chat or clear history</td>
-      </tr>
-      <tr>
-        <td><strong>Token usage</strong><br>How many tokens you've used this session and week</td>
-        <td>To enforce fair usage limits</td>
-        <td>Resets on a rolling basis; not stored permanently</td>
-      </tr>
-      <tr>
-        <td><strong>IP address</strong><br>Your approximate network location</td>
-        <td>See section 3 below</td>
-        <td>Cached for up to 1 hour, never stored permanently</td>
-      </tr>
-    </table>
+  <h2>2. Information We Collect</h2>
 
-    <h2>2. What We Don't Collect</h2>
-    <ul>
-      <li>We don't collect payment information (there is no paid tier).</li>
-      <li>We don't sell your data to anyone.</li>
-      <li>We don't run ads or share data with advertisers.</li>
-      <li>We don't track you across other websites.</li>
-    </ul>
+  <p><strong>From your Google account (at sign-in):</strong></p>
+  <ul>
+    <li>Your name and profile picture</li>
+    <li>Your Google email address</li>
+    <li>A unique Google account identifier</li>
+  </ul>
 
-    <h2>3. IP Address &amp; Geolocation</h2>
-    <p>If your message contains language that suggests you may be in personal distress (such as expressions of suicidal thoughts or self-harm), the Service temporarily uses your IP address to determine your approximate country and region. This is used to provide the AI with locally relevant crisis resources — for example, the correct crisis line for your country.</p>
-    <p>Your IP address is sent to <a href="https://ipapi.co" target="_blank" rel="noopener">ipapi.co</a>, a third-party geolocation service. We receive only your country and region — not a precise location. The result is cached in server memory for up to one hour and is never written to a database. ipapi.co's own privacy policy governs their handling of your IP.</p>
-    <p>This geolocation lookup only happens when crisis-related keywords are detected. It does not happen during normal conversations.</p>
+  <p><strong>From your use of the service:</strong></p>
+  <ul>
+    <li><strong>Conversation history:</strong> Messages exchanged with AI characters are stored server-side to maintain continuity across sessions.</li>
+    <li><strong>Recent chats:</strong> A list of characters you have recently chatted with, stored to populate your sidebar.</li>
+    <li><strong>Usage data:</strong> Token counts, daily call counts, daily read-aloud counts, session start times, and weekly usage totals, used to enforce plan limits and display your usage dashboard.</li>
+    <li><strong>Subscription tier:</strong> Your current plan (Free, Advanced, X20, or X50), stored in our database.</li>
+    <li><strong>User-created characters:</strong> Any characters you create, including their name, description, system prompt, and associated image.</li>
+  </ul>
 
-    <h2>4. Message Analysis &amp; Content Moderation</h2>
-    <p>Before your messages are forwarded to the Gemini AI, the Service analyzes them in server memory to detect prohibited content (such as hate speech, explicit sexual content) and safety-related language (such as expressions of distress). This analysis:</p>
-    <ul>
-      <li>Happens entirely in server memory — it is not logged or stored in a database.</li>
-      <li>May result in the message being deflected with a canned response rather than sent to Gemini.</li>
-      <li>Tracks a per-conversation warning count (for repeated slur use) in server memory only; this counter is not written to any database and is cleared when the conversation ends.</li>
-      <li>Triggers the geolocation lookup described in section 3 if crisis-related language is detected.</li>
-    </ul>
-    <p>Messages that pass this check are sent to Gemini to generate a response. The content of your conversations is not retained by us beyond your active session.</p>
+  <p><strong>Automatically collected:</strong></p>
+  <ul>
+    <li>Session identifiers (stored in a browser cookie, used for authentication)</li>
+    <li>Basic server logs (request timestamps, error messages) for operational purposes</li>
+  </ul>
 
-    <h2>5. Third-Party Services</h2>
+  <h2>3. How We Use Your Information</h2>
+  <ul>
+    <li>To authenticate you and maintain your session</li>
+    <li>To deliver AI character responses tailored to your conversation history</li>
+    <li>To enforce and display your subscription plan limits</li>
+    <li>To populate your recent chats sidebar</li>
+    <li>To process subscription payments via PayPal</li>
+    <li>To send service-related emails (such as policy updates or important account notices) to the email address associated with your Google account</li>
+    <li>To detect and prevent abuse or violations of our Terms of Service</li>
+  </ul>
 
-    <p>The Service relies on the following third parties:</p>
-    <ul>
-      <li><strong>Google OAuth</strong> — for sign-in. Governed by <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's Privacy Policy</a>.</li>
-      <li><strong>Google Gemini API</strong> — your conversation messages are sent to Google's Gemini AI to generate responses. Google's data handling policies apply to these requests.</li>
-      <li><strong>Neon (PostgreSQL)</strong> — your characters are stored in a Neon-hosted database. Conversation history is held in server memory only and is not written to the database.</li>
-      <li><strong>Cloudflare</strong> — the Service is delivered through Cloudflare's network. Cloudflare may process request metadata per their privacy policy.</li>
-      <li><strong>Netlify</strong> — the site is hosted on Netlify's infrastructure.</li>
-      <li><strong>ipapi.co</strong> — used for geolocation in crisis detection only (see section 3).</li>
-    </ul>
+  <h2>4. Third-Party Services</h2>
+  <p>We share data with the following third parties only as necessary to operate the service:</p>
+  <ul>
+    <li><strong>Google OAuth 2.0</strong> — handles sign-in. We receive your basic profile information as described above. Google's privacy policy applies to data processed by Google.</li>
+    <li><strong>Groq</strong> — our AI inference provider. Your conversation messages are sent to Groq's API to generate character responses. Groq's privacy policy applies to data they process.</li>
+    <li><strong>Neon (PostgreSQL)</strong> — our database host, where user data, conversations, and character definitions are stored.</li>
+    <li><strong>Render</strong> — our hosting provider, where the application server runs.</li>
+    <li><strong>PayPal</strong> — payment processing for paid subscriptions. PayPal's privacy policy applies to payment data they collect.</li>
+  </ul>
+  <p>We do not sell your personal data to third parties.</p>
 
-    <h2>6. Cookies &amp; Sessions</h2>
-    <p>We use a single session cookie to keep you signed in. This cookie is essential for the Service to work and is not used for tracking or advertising. It expires after 7 days or when you sign out, whichever comes first.</p>
+  <h2>5. Data Retention</h2>
+  <ul>
+    <li>Conversation history is retained while your account is active and may be cleared at any time from within the app.</li>
+    <li>Usage data (daily/weekly counters) is retained for the current billing and limit window, then reset.</li>
+    <li>Account data (name, email, subscription tier) is retained as long as your account exists.</li>
+    <li>If you request account deletion, we will remove your personal data from our database within 30 days, except where retention is required by law.</li>
+  </ul>
 
-    <h2>7. Age Requirement</h2>
-    <p>The Service is intended for users 18 years of age or older. We do not knowingly collect personal information from anyone under 18. If you believe a person under 18 has created an account, please contact us and we will delete their data.</p>
+  <h2>6. Email Communications</h2>
+  <p>By creating an account, you agree to receive service-related emails such as important policy updates and account notices. These are not marketing emails. We do not send promotional emails without your explicit opt-in.</p>
+  <p>To stop receiving service emails, contact us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a>. Note that opting out of service emails may mean you miss important updates about your account or the platform.</p>
 
-    <h2>8. Your Rights</h2>
-    <p>You can:</p>
-    <ul>
-      <li><strong>Delete your characters</strong> at any time from within the app.</li>
-      <li><strong>Clear your conversation history</strong> by starting a new chat.</li>
-      <li><strong>Sign out</strong> to end your session.</li>
-      <li><strong>Request deletion of your account data</strong> by emailing us (see below). We will delete your characters and associated data within a reasonable timeframe.</li>
-    </ul>
+  <h2>7. Data Security</h2>
+  <p>We take reasonable measures to protect your data, including encrypted connections (HTTPS), secure session management, and access controls on our database. However, no system is perfectly secure. You use the service at your own risk, and we cannot guarantee absolute security.</p>
 
-    <h2>9. Data Transfers</h2>
-    <p>The third-party services we use (Google, Neon, Netlify, Cloudflare, ipapi.co) are based primarily in the United States. By using the Service, you consent to your data being processed there. If you are located in Quebec, please be aware that your information may be transferred to and processed in jurisdictions outside Quebec.</p>
+  <h2>8. Children's Privacy</h2>
+  <p>Character.Mind is not directed at children under 13. We do not knowingly collect personal information from anyone under 13. If we become aware that a child under 13 has provided us with personal data, we will delete it promptly. If you believe this has occurred, contact us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a>.</p>
 
-    <h2>10. Data Security</h2>
-    <p>We use HTTPS for all data in transit. Your data is stored in a managed PostgreSQL database with access controls. No system is perfectly secure, but we take reasonable steps to protect your information.</p>
+  <h2>9. Your Rights and Choices</h2>
+  <ul>
+    <li><strong>Access and correction:</strong> You can view and update your profile picture within the app.</li>
+    <li><strong>Conversation deletion:</strong> You can clear your conversation history with any character at any time from within the app.</li>
+    <li><strong>Account deletion:</strong> To request full deletion of your account and data, email us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a>.</li>
+    <li><strong>Data portability:</strong> Contact us if you would like a copy of the data we hold about you.</li>
+  </ul>
 
-    <h2>11. Changes to This Policy</h2>
-    <p>We may update this policy. If we make significant changes, we'll update the "last updated" date at the top. Continued use of the Service after changes are posted means you accept the updated policy.</p>
+  <div class="callout">If you are in the European Economic Area (EEA), UK, or California, additional rights may apply to you under GDPR or CCPA. Contact us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a> to exercise those rights.</div>
 
-    <h2>12. Contact</h2>
-    <p>Questions or data requests: <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a></p>
+  <h2>10. Cookies</h2>
+  <p>We use a single session cookie to keep you logged in. This cookie is strictly necessary for the service to function and does not track you across other websites. We do not use advertising or analytics cookies.</p>
 
-    <hr>
-    <p style="font-size:13px;color:var(--text3)">See also: <a href="/terms.html">Terms of Service</a></p>
-  </div>
+  <h2>11. Changes to This Policy</h2>
+  <p>We may update this Privacy Policy from time to time. When we do, we will update the effective date above and notify users via the platform. Continued use of Character.Mind after changes are posted constitutes your acceptance of the updated policy.</p>
+
+  <h2>12. Contact</h2>
+  <p>Questions about this Privacy Policy or your data? Contact us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a>.</p>
+</div>
+
 </body>
 </html>
