@@ -3348,13 +3348,42 @@ async function viewPastChat(archiveId, src, localIdx) {
     const text = escHtml((m.content || '').slice(0, 400) + ((m.content?.length || 0) > 400 ? '…' : ''));
     return `<div class="history-msg-row ${isAi ? 'ai' : 'user'}"><span class="history-msg-who">${name}</span><span class="history-msg-text">${text}</span></div>`;
   }).join('');
+  // Store msgs on window so resumePastChat can access them without re-fetch
+  window._viewedPastChatMsgs = msgs;
   el.innerHTML = `
     <div class="past-chat-back">
       <button class="history-action-btn" onclick="loadPastChats()">← Back</button>
       <span style="font-size:12px;color:var(--text3)">${dateStr}</span>
     </div>
+    <div style="padding:8px 12px 4px">
+      <button class="history-action-btn" style="width:100%;justify-content:center;background:var(--accent);color:#fff;border-color:transparent" onclick="resumePastChat(window._viewedPastChatMsgs)">↩ Resume this chat</button>
+    </div>
     ${rows || '<div class="history-empty">No messages in this archive.</div>'}
   `;
+}
+
+function resumePastChat(msgs) {
+  if (!currentChar || !msgs || !msgs.length) return;
+  const current = loadHistoryLocal(currentChar.id);
+  if (current.length > 0) {
+    savePastChatLocal(currentChar.id, current);
+    fetch(`/api/conversations/${currentChar.id}/archive`, { method: 'POST' }).catch(() => {});
+  }
+  const messagesEl = document.getElementById('messages');
+  if (messagesEl) messagesEl.innerHTML = '';
+  const welcome = document.getElementById('chatWelcome');
+  if (welcome) welcome.innerHTML = '';
+  msgs.forEach(m => {
+    const isAi = m.role === 'assistant' || m.role === 'ai';
+    appendMessage(isAi ? 'ai' : 'user', m.content);
+  });
+  const normalized = msgs.map(m => ({
+    role: (m.role === 'assistant' || m.role === 'ai') ? 'ai' : 'user',
+    content: m.content
+  }));
+  try { localStorage.setItem(userKey(`cm_history_${currentChar.id}`), JSON.stringify(normalized)); } catch (_) {}
+  closeHistoryPanel();
+  scrollToBottom();
 }
 
 function exportHistory() {

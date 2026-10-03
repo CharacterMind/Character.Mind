@@ -562,10 +562,20 @@ const CRISIS_NUMBERS = {
         ],
         regions: {
           QC: {
-            crisis: '988', crisisName: 'Suicide Crisis Helpline (call or text, 24/7)', emergency: '911',
+            crisis: '988', crisisName: 'Suicide Crisis Helpline / Ligne de crise (call or text, 24/7, bilingual)', emergency: '911',
             extra: [
-              { crisis: '1-866-APPELLE  ·  1-866-277-3553', crisisName: 'Centre de prévention du suicide Québec — "APPELLE" is French for "call (me)"' },
-              { crisis: '1-800-668-6868', crisisName: 'Kids Help Phone (youth, 24/7)' },
+              { crisis: '1-866-APPELLE  ·  1-866-277-3553', crisisName: 'Centre de prévention du suicide — 24/7, bilingual. "APPELLE" means "call me" in French' },
+              { crisis: '811 → option 2', crisisName: 'Info-Social — free 24/7 line staffed by social workers and mental health professionals (Québec provincial line)' },
+              { crisis: '514-338-4888', crisisName: 'Centre de crise de Montréal — 24/7 crisis intervention (Montréal region)' },
+              { crisis: '418-683-4588', crisisName: 'Centre de prévention du suicide de Québec — 24/7 (Québec City region)' },
+              { crisis: '819-775-3223', crisisName: 'Tel-Aide Outaouais — 24/7 emotional support (Outaouais / Gatineau region)' },
+              { crisis: '514-935-1101', crisisName: 'Tel-Aide Montréal — 24/7 emotional support, confidential' },
+              { crisis: '1-800-668-6868', crisisName: 'Kids Help Phone / Jeunesse, j\'écoute — youth 24/7, call or text' },
+              { crisis: '686868', crisisName: 'Crisis Text Line Canada — text HOME to 686868 (24/7)' },
+              { crisis: '1-888-505-1010', crisisName: 'Interligne — 24/7 support for LGBTQ+ people and those close to them' },
+              { crisis: '1-800-363-9010', crisisName: 'SOS Violence conjugale — domestic violence support line, 24/7' },
+              { crisis: '1-800-265-2626', crisisName: 'Drogue: aide et référence — substance use support and referrals, 24/7' },
+              { crisis: '1-800-461-0140', crisisName: 'Jeu: aide et référence — gambling addiction support, 24/7' },
             ],
           },
           ON: {
