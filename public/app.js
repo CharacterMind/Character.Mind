@@ -2755,7 +2755,7 @@ function clearHistoryFromPanel() {
 let activeTTSUtterance = null;
 let activeTTSBtn = null;
 
-function toggleTTS(btn) {
+async function toggleTTS(btn) {
   const bubble = btn.closest('.msg').querySelector('.bubble');
   const text = (bubble.innerText || bubble.textContent).trim();
   if (!text) return;
@@ -2768,6 +2768,16 @@ function toggleTTS(btn) {
     activeTTSBtn = null;
     if (wasSame) return;
   }
+
+  // Check memo limit before playing
+  try {
+    const r = await fetch('/api/memo/use', { method: 'POST' });
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      showMemoLimitBanner(data.resetsAt);
+      return;
+    }
+  } catch (_) { /* offline — allow */ }
 
   const utterance = new SpeechSynthesisUtterance(text);
   applyVoice(utterance);
@@ -2788,10 +2798,23 @@ function toggleTTS(btn) {
   window.speechSynthesis.speak(utterance);
 }
 
+function showMemoLimitBanner(resetsAt) {
+  const banner = document.getElementById('memoLimitBanner');
+  if (!banner) return;
+  const timeEl = banner.querySelector('.memo-limit-time');
+  if (timeEl && resetsAt) {
+    timeEl.textContent = formatResetTime(resetsAt);
+  }
+  banner.style.display = '';
+  clearTimeout(banner._timer);
+  banner._timer = setTimeout(() => { banner.style.display = 'none'; }, 7000);
+}
+
 function callModeTTS(bubble) {
   if (!callModeActive || !bubble) { if (callModeActive) setTimeout(() => listenForSpeech(), 500); return; }
   const text = (bubble.innerText || bubble.textContent).trim();
   if (!text) { listenForSpeech(); return; }
+  resetCallInactivityTimer();
   setCallState('responding');
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
@@ -2810,6 +2833,30 @@ let callModeActive = false;
 let callMuted = false;
 let callFirstConnect = false;
 let voiceOnTimer = null;
+let callInactivityTimer = null;
+const CALL_INACTIVITY_MS = 15 * 60 * 1000;
+
+function resetCallInactivityTimer() {
+  clearTimeout(callInactivityTimer);
+  if (!callModeActive) return;
+  callInactivityTimer = setTimeout(() => {
+    if (!callModeActive) return;
+    endCallMode();
+    showCallInactivityBanner();
+  }, CALL_INACTIVITY_MS);
+}
+
+function clearCallInactivityTimer() {
+  clearTimeout(callInactivityTimer);
+  callInactivityTimer = null;
+}
+
+function showCallInactivityBanner() {
+  const banner = document.getElementById('callInactivityBanner');
+  if (!banner) return;
+  banner.style.display = '';
+  setTimeout(() => { banner.style.display = 'none'; }, 5000);
+}
 
 function showVoiceOnPill() {
   const pill = document.getElementById('callVoiceOn');
@@ -2848,6 +2895,7 @@ async function startCallMode() {
   callModeActive = true;
   callMuted = false;
   callFirstConnect = true;
+  resetCallInactivityTimer();
   document.getElementById('callBtn')?.classList.add('active');
   const overlay = document.getElementById('callOverlay');
   if (overlay) {
@@ -2896,6 +2944,7 @@ function showCallWarningBanner() {
 function endCallMode() {
   callModeActive = false;
   callMuted = false;
+  clearCallInactivityTimer();
   if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
   if (activeTTSUtterance) { window.speechSynthesis.cancel(); if (activeTTSBtn) activeTTSBtn.classList.remove('playing'); activeTTSUtterance = null; activeTTSBtn = null; }
   document.getElementById('callBtn')?.classList.remove('active');
@@ -2961,7 +3010,7 @@ function listenForSpeech() {
   callRecognition.onresult = (e) => {
     handled = true;
     const transcript = e.results[0][0].transcript.trim();
-    if (transcript) sendCallMessage(transcript);
+    if (transcript) { resetCallInactivityTimer(); sendCallMessage(transcript); }
   };
   callRecognition.onerror = (e) => {
     if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {

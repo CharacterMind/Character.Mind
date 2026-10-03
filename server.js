@@ -73,6 +73,9 @@ if (db) {
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS recent_chats JSONB NOT NULL DEFAULT '{}'`)
     .catch(err => console.error('Add recent_chats column error:', err));
 
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_tier TEXT NOT NULL DEFAULT 'free'`)
+    .catch(err => console.error('Add subscription_tier column error:', err));
+
   db.query(`
     CREATE TABLE IF NOT EXISTS user_limits (
       user_id TEXT PRIMARY KEY,
@@ -184,6 +187,15 @@ if (GOOGLE_AUTH_ENABLED) {
       }).catch(err => console.error('User upsert error:', err.message));
     }
     if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId);
+    // Cache subscription tier in userLimits so limit checks don't need a DB hit
+    if (db) {
+      db.query('SELECT subscription_tier FROM users WHERE google_id = $1', [user.googleId])
+        .then(r => {
+          const tier = r.rows[0]?.subscription_tier || 'free';
+          const u = getLimits(user.googleId);
+          u.subscriptionTier = tier;
+        }).catch(() => {});
+    }
     done(null, user);
   }));
 } else {
@@ -307,7 +319,10 @@ async function loadLimitsFromDB() {
         warned: d.warned || {},
         regenCount: d.regenCount || 0,
         callsToday: d.callsToday || 0,
-        callDayStart: d.callDayStart || null
+        callDayStart: d.callDayStart || null,
+        memosToday: d.memosToday || 0,
+        memoDayStart: d.memoDayStart || null,
+        subscriptionTier: d.subscriptionTier || 'free'
       };
     }
     if (Object.keys(userLimits).length) console.log(`[limits] Loaded ${Object.keys(userLimits).length} user limit records from DB`);
@@ -329,12 +344,26 @@ function saveLimitsToDB(userId) {
 
 const LIMITS = {
   SESSION: 80000,
-  SESSION_COOLDOWN_MS: 2 * 60 * 60 * 1000 + 3 * 60 * 1000, // 2h 3m — full session window
+  SESSION_COOLDOWN_MS: 2 * 60 * 60 * 1000 + 3 * 60 * 1000,
   WEEKLY: 600000,
   WEEKLY_MS: 7 * 24 * 60 * 60 * 1000,
   REGEN_FREE: 2,
   CALL_DAILY: 3
 };
+
+const TIER_CALL_LIMITS = { free: 3, advanced: 5, x20: 100, x50: 250 };
+const TIER_MEMO_LIMITS = { free: 30, advanced: 50, x20: 1000, x50: 2500 };
+
+function getCallLimitForUser(userId) {
+  if (ownerGoogleIds.has(userId)) return Infinity;
+  const tier = userLimits[userId]?.subscriptionTier || 'free';
+  return TIER_CALL_LIMITS[tier] ?? TIER_CALL_LIMITS.free;
+}
+function getMemoLimitForUser(userId) {
+  if (ownerGoogleIds.has(userId)) return Infinity;
+  const tier = userLimits[userId]?.subscriptionTier || 'free';
+  return TIER_MEMO_LIMITS[tier] ?? TIER_MEMO_LIMITS.free;
+}
 
 // Returns timestamp of the most recent 8:00 AM UTC (start of current call window)
 function getCallWindowStart() {
@@ -349,9 +378,11 @@ const userLimits = {};
 function getLimits(sid) {
   const now = Date.now();
   if (!userLimits[sid]) {
-    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null };
+    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null, memosToday: 0, memoDayStart: null, subscriptionTier: 'free' };
   }
   const u = userLimits[sid];
+  if (u.subscriptionTier === undefined) u.subscriptionTier = 'free';
+  if (u.memosToday === undefined) u.memosToday = 0;
   // Session window expired (time-based, like Anthropic) → reset for next message
   if (u.sessionStartedAt && now > u.sessionStartedAt + LIMITS.SESSION_COOLDOWN_MS) {
     u.sessionTokens = 0; u.cooldownUntil = null; u.sessionStartedAt = null; u.warned.session90 = false;
@@ -360,9 +391,10 @@ function getLimits(sid) {
   if (u.weeklyStart && (now - u.weeklyStart) > LIMITS.WEEKLY_MS) {
     u.weeklyTokens = 0; u.weeklyStart = null; u.warned = {};
   }
-  // Call window reset at 8 AM UTC daily
+  // Daily window resets at 8 AM UTC (calls + memos)
   const callWindow = getCallWindowStart();
   if (!u.callDayStart || u.callDayStart < callWindow) { u.callsToday = 0; u.callDayStart = callWindow; }
+  if (!u.memoDayStart || u.memoDayStart < callWindow) { u.memosToday = 0; u.memoDayStart = callWindow; }
   return u;
 }
 
@@ -374,7 +406,11 @@ function checkLimits(sid) {
   return { blocked: false };
 }
 
-function buildUsagePayload(u) {
+function buildUsagePayload(u, userId) {
+  const callLimit = userId ? getCallLimitForUser(userId) : (TIER_CALL_LIMITS[u.subscriptionTier || 'free'] ?? TIER_CALL_LIMITS.free);
+  const memoLimit = userId ? getMemoLimitForUser(userId) : (TIER_MEMO_LIMITS[u.subscriptionTier || 'free'] ?? TIER_MEMO_LIMITS.free);
+  const callsRemaining = callLimit === Infinity ? 9999 : Math.max(0, callLimit - (u.callsToday || 0));
+  const memosRemaining = memoLimit === Infinity ? 9999 : Math.max(0, memoLimit - (u.memosToday || 0));
   return {
     sessionTokens: u.sessionTokens,
     sessionLimit: LIMITS.SESSION,
@@ -388,8 +424,12 @@ function buildUsagePayload(u) {
     regenCount: u.regenCount || 0,
     regenLimit: LIMITS.REGEN_FREE,
     callsToday: u.callsToday || 0,
-    callsLimit: LIMITS.CALL_DAILY,
-    callsRemaining: Math.max(0, LIMITS.CALL_DAILY - (u.callsToday || 0)),
+    callsLimit: callLimit === Infinity ? 9999 : callLimit,
+    callsRemaining,
+    memosToday: u.memosToday || 0,
+    memosLimit: memoLimit === Infinity ? 9999 : memoLimit,
+    memosRemaining,
+    subscriptionTier: u.subscriptionTier || 'free',
     callWindowResetsAt: getCallWindowStart() + 24 * 60 * 60 * 1000
   };
 }
@@ -421,7 +461,7 @@ function addTokens(sid, tokens) {
     u.cooldownUntil = u.sessionStartedAt + LIMITS.SESSION_COOLDOWN_MS;
   }
   saveLimitsToDB(sid); // persist asynchronously — fire-and-forget
-  return { warnings, ...buildUsagePayload(u) };
+  return { warnings, ...buildUsagePayload(u, sid) };
 }
 
 // ── Effort directive ──────────────────────────────────────────────────────────
@@ -968,18 +1008,35 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
 // ── API Routes ─────────────────────────────────────────────────────────────────
 
 app.get('/api/usage', requireAuth, (req, res) => {
-  res.json(buildUsagePayload(getLimits(req.user.googleId)));
+  res.json(buildUsagePayload(getLimits(req.user.googleId), req.user.googleId));
 });
 
 app.post('/api/call/start', requireAuth, (req, res) => {
-  const u = getLimits(req.user.googleId);
+  const userId = req.user.googleId;
+  const u = getLimits(userId);
   const resetsAt = getCallWindowStart() + 24 * 60 * 60 * 1000;
-  if (u.callsToday >= LIMITS.CALL_DAILY) {
-    return res.status(429).json({ allowed: false, callsToday: u.callsToday, callsLimit: LIMITS.CALL_DAILY, callsRemaining: 0, resetsAt });
+  const callLimit = getCallLimitForUser(userId);
+  if (callLimit !== Infinity && u.callsToday >= callLimit) {
+    return res.status(429).json({ allowed: false, callsToday: u.callsToday, callsLimit: callLimit, callsRemaining: 0, resetsAt });
   }
   u.callsToday = (u.callsToday || 0) + 1;
-  saveLimitsToDB(req.user.googleId);
-  res.json({ allowed: true, callsToday: u.callsToday, callsLimit: LIMITS.CALL_DAILY, callsRemaining: LIMITS.CALL_DAILY - u.callsToday, resetsAt });
+  saveLimitsToDB(userId);
+  const remaining = callLimit === Infinity ? 9999 : callLimit - u.callsToday;
+  res.json({ allowed: true, callsToday: u.callsToday, callsLimit: callLimit === Infinity ? 9999 : callLimit, callsRemaining: remaining, resetsAt });
+});
+
+app.post('/api/memo/use', requireAuth, (req, res) => {
+  const userId = req.user.googleId;
+  const u = getLimits(userId);
+  const resetsAt = getCallWindowStart() + 24 * 60 * 60 * 1000;
+  const memoLimit = getMemoLimitForUser(userId);
+  if (memoLimit !== Infinity && u.memosToday >= memoLimit) {
+    return res.status(429).json({ allowed: false, memosToday: u.memosToday, memosLimit: memoLimit, memosRemaining: 0, resetsAt });
+  }
+  u.memosToday = (u.memosToday || 0) + 1;
+  saveLimitsToDB(userId);
+  const remaining = memoLimit === Infinity ? 9999 : memoLimit - u.memosToday;
+  res.json({ allowed: true, memosToday: u.memosToday, memosLimit: memoLimit === Infinity ? 9999 : memoLimit, memosRemaining: remaining, resetsAt });
 });
 
 app.get('/api/chat/lock-status/:charId', requireAuth, async (req, res) => {
@@ -1352,7 +1409,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   // If the last user message was NSFW, deflect the regen too
   const lastUserMsg = hist[hist.length - 1]?.content || '';
   if (NSFW_RE.test(lastUserMsg)) {
-    return nsfwDeflect(res, buildUsagePayload(getLimits(userId)));
+    return nsfwDeflect(res, buildUsagePayload(getLimits(userId), userId));
   }
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -1539,12 +1596,12 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     }
     await setModStatus(userId, charId, newStrikes, false);
     const warning = newStrikes === 1 ? SLUR_WARNING_1 : SLUR_WARNING_2;
-    return slurDeflect(res, warning, buildUsagePayload(getLimits(userId)));
+    return slurDeflect(res, warning, buildUsagePayload(getLimits(userId), userId));
   }
 
   // ── NSFW detection — return a random deflection, no Gemini call needed ───────
   if (!isContinuation && message && NSFW_RE.test(message)) {
-    return nsfwDeflect(res, buildUsagePayload(getLimits(userId)));
+    return nsfwDeflect(res, buildUsagePayload(getLimits(userId), userId));
   }
 
   // ── Crisis keyword detection ───────────────────────────────────────────────

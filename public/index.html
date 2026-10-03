@@ -422,6 +422,16 @@
           <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
           1 voice call left today
         </div>
+        <!-- Call ended due to inactivity banner -->
+        <div id="callInactivityBanner" class="call-warning-banner" style="display:none;background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.3);color:#ef4444">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+          Call ended due to inactivity
+        </div>
+        <!-- Read-aloud daily limit banner -->
+        <div id="memoLimitBanner" class="call-warning-banner" style="display:none">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+          Read-aloud limit reached — resets <span class="memo-limit-time">at 8 AM</span>
+        </div>
         <!-- Model/effort bar -->
         <div class="model-bar-zone">
           <!-- Model picker panel -->
@@ -929,6 +939,6 @@
   </div>
 </div>
 
-<script src="app.js?v=89"></script>
+<script src="app.js?v=90"></script>
 </body>
 </html>
