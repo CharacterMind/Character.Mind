@@ -1197,8 +1197,50 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
 
 // ── API Routes ─────────────────────────────────────────────────────────────────
 
+async function reverseGeocode(lat, lon) {
+  return new Promise((resolve) => {
+    const req = https.request(
+      {
+        hostname: 'nominatim.openstreetmap.org',
+        path: `/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10`,
+        method: 'GET',
+        headers: {
+          'User-Agent': 'character.mind/1.0 (support.charactermind@gmail.com)',
+          'Accept': 'application/json'
+        }
+      },
+      (res) => {
+        let data = '';
+        res.on('data', d => data += d);
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(data);
+            const addr = parsed.address || {};
+            const countryCode = (addr.country_code || '').toUpperCase();
+            const iso = addr['ISO3166-2-lvl4'] || '';
+            const region = iso ? iso.split('-').pop() : (addr.state_code || '').toUpperCase();
+            const city = addr.city || addr.town || addr.village || addr.suburb || '';
+            if (countryCode) {
+              resolve({ country: countryCode, region, regionName: addr.state || region, city, countryName: addr.country || '' });
+            } else resolve(null);
+          } catch { resolve(null); }
+        });
+      }
+    );
+    req.on('error', () => resolve(null));
+    req.setTimeout(5000, () => { req.destroy(); resolve(null); });
+    req.end();
+  });
+}
+
 app.get('/api/crisis-resources', requireAuth, async (req, res) => {
-  const geo = await getGeoForIp(req.ip);
+  let geo;
+  const lat = parseFloat(req.query.lat);
+  const lon = parseFloat(req.query.lon);
+  if (!isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+    geo = await reverseGeocode(lat, lon);
+  }
+  if (!geo) geo = await getGeoForIp(req.ip);
   const info = getCrisisInfo(geo);
   const locationStr = geo ? [geo.city, geo.regionName, geo.countryName].filter(Boolean).join(', ') : null;
   if (!info) return res.json({ location: locationStr, resources: null });

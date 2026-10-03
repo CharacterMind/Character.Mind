@@ -3244,9 +3244,20 @@ function closeResourcesPanel() {
 async function loadResources() {
   const el = document.getElementById('resourcesPanelContent');
   if (!el) return;
-  el.innerHTML = '<div class="history-empty">Detecting your location…</div>';
+  el.innerHTML = '<div class="history-empty">Requesting your location for accurate local resources…</div>';
   try {
-    const res = await fetch('/api/crisis-resources');
+    let url = '/api/crisis-resources';
+    if (navigator.geolocation) {
+      const coords = await new Promise(resolve => {
+        navigator.geolocation.getCurrentPosition(
+          pos => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+          () => resolve(null),
+          { timeout: 7000, maximumAge: 300000 }
+        );
+      });
+      if (coords) url = `/api/crisis-resources?lat=${coords.lat}&lon=${coords.lon}`;
+    }
+    const res = await fetch(url);
     if (!res.ok) throw new Error('Failed');
     const data = await res.json();
     if (!data.resources) {
