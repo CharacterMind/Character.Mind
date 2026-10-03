@@ -5,6 +5,7 @@ const express = require('express');
 const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
 const https = require('https');
+const http = require('http');
 const path = require('path');
 const { Pool } = require('pg');
 const passport = require('passport');
@@ -747,21 +748,21 @@ async function getGeoForIp(ip) {
   const cached = ipGeoCache.get(ip);
   if (cached) return cached;
   return new Promise((resolve) => {
-    const req = https.request(
-      { hostname: 'ipapi.co', path: `/${ip}/json/`, method: 'GET', headers: { 'User-Agent': 'character.mind/1.0' } },
+    const req = http.request(
+      { hostname: 'ip-api.com', path: `/json/${ip}?fields=status,country,countryCode,regionName,region,city`, method: 'GET', headers: { 'User-Agent': 'character.mind/1.0' } },
       (res) => {
         let data = '';
         res.on('data', d => data += d);
         res.on('end', () => {
           try {
             const parsed = JSON.parse(data);
-            if (parsed.country_code) {
+            if (parsed.status === 'success' && parsed.countryCode) {
               const geo = {
-                country: parsed.country_code,
-                region: parsed.region_code || '',
-                regionName: parsed.region || '',
+                country: parsed.countryCode,
+                region: parsed.region || '',
+                regionName: parsed.regionName || '',
                 city: parsed.city || '',
-                countryName: parsed.country_name || ''
+                countryName: parsed.country || ''
               };
               if (ipGeoCache.size >= 5000) ipGeoCache.delete(ipGeoCache.keys().next().value);
               ipGeoCache.set(ip, geo);
@@ -1195,6 +1196,19 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
 }
 
 // ── API Routes ─────────────────────────────────────────────────────────────────
+
+app.get('/api/crisis-resources', requireAuth, async (req, res) => {
+  const geo = await getGeoForIp(req.ip);
+  const info = getCrisisInfo(geo);
+  const locationStr = geo ? [geo.city, geo.regionName, geo.countryName].filter(Boolean).join(', ') : null;
+  if (!info) return res.json({ location: locationStr, resources: null });
+  const allLines = [
+    { crisis: info.crisis, crisisName: info.crisisName },
+    ...(info.extra || []),
+    { crisis: info.emergency, crisisName: 'Emergency services — call for immediate danger' }
+  ];
+  res.json({ location: locationStr, resources: allLines });
+});
 
 app.get('/api/usage', requireAuth, (req, res) => {
   res.json(buildUsagePayload(getLimits(req.user.googleId), req.user.googleId));
@@ -1872,12 +1886,10 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     const geo = await getGeoForIp(clientIp);
     const info = getCrisisInfo(geo);
     if (info) {
-      const allLines = [{ crisis: info.crisis, crisisName: info.crisisName }, ...(info.extra || [])];
-      const resourceList = allLines.map(l => `${l.crisis} (${l.crisisName})`).join('\n• ');
       const locationStr = [geo.city, geo.regionName, geo.countryName].filter(Boolean).join(', ') || geo.country;
-      crisisContext = `\n\n[CRISIS CONTEXT — for this response only: The user's message may indicate personal distress. Their location appears to be ${locationStr}. Step out of character, respond with care, and include ALL of the following local resources clearly in your response so the user can see them:\n• ${resourceList}\n• ${info.emergency} — Emergency services\nList them so the user can read them easily. Be human and warm, not robotic.]`;
+      crisisContext = `\n\n[CRISIS CONTEXT — for this response only: The user's message may indicate personal distress. Their location appears to be ${locationStr}. Step out of character, respond with genuine warmth and care. Let them know they are not alone and that you care. Gently remind them that local crisis and support resources are available in the Resources section of the sidebar (the heart icon at the bottom-left). Do NOT list or mention specific phone numbers — that's what the Resources panel is for. Be human, warm, and present, not robotic or clinical.]`;
     } else {
-      crisisContext = `\n\n[CRISIS CONTEXT — for this response only: The user's message may indicate personal distress. Step out of character, respond with care, and mention they can contact their local emergency services or a crisis helpline if they need immediate support.]`;
+      crisisContext = `\n\n[CRISIS CONTEXT — for this response only: The user's message may indicate personal distress. Step out of character, respond with genuine warmth and care. Let them know they are not alone. Gently mention that crisis resources are available in the Resources section of the sidebar. Be human and warm, not robotic.]`;
     }
   }
 

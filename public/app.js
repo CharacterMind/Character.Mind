@@ -3228,6 +3228,48 @@ function previewVoiceURI(voiceURI, e) {
   window.speechSynthesis.speak(u);
 }
 
+// ── Resources panel ───────────────────────────────────────────────────────────
+function openResourcesPanel() {
+  const overlay = document.getElementById('resourcesPanelOverlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  loadResources();
+}
+
+function closeResourcesPanel() {
+  const overlay = document.getElementById('resourcesPanelOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+async function loadResources() {
+  const el = document.getElementById('resourcesPanelContent');
+  if (!el) return;
+  el.innerHTML = '<div class="history-empty">Detecting your location…</div>';
+  try {
+    const res = await fetch('/api/crisis-resources');
+    if (!res.ok) throw new Error('Failed');
+    const data = await res.json();
+    if (!data.resources) {
+      el.innerHTML = '<div class="history-empty" style="line-height:1.7">Resources could not be loaded for your region.<br>If you are in crisis, please contact your local emergency services.</div>';
+      return;
+    }
+    const locationHtml = data.location
+      ? `<div style="font-size:12px;color:var(--text3);margin-bottom:14px">📍 Resources for <strong style="color:var(--text2)">${data.location}</strong></div>`
+      : '';
+    const rows = data.resources.map(r => `
+      <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:14px;font-weight:600;color:var(--text1);margin-bottom:2px">${r.crisis}</div>
+        <div style="font-size:12px;color:var(--text3);line-height:1.5">${r.crisisName}</div>
+      </div>`).join('');
+    el.innerHTML = `
+      <div style="font-size:13px;color:var(--text3);margin-bottom:14px;line-height:1.7">If you or someone you know is in distress, these local resources are here to help. You are not alone.</div>
+      ${locationHtml}
+      ${rows}`;
+  } catch {
+    el.innerHTML = '<div class="history-empty">Unable to load resources. If you are in immediate danger, call <strong>911</strong>.</div>';
+  }
+}
+
 // ── History panel ─────────────────────────────────────────────────────────────
 let _histTab = 'current';
 
