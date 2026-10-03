@@ -20,7 +20,7 @@
 <link rel="icon" type="image/webp" href="/logo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=60">
+<link rel="stylesheet" href="style.css?v=61">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -1025,108 +1025,236 @@
 
 <!-- PayPal Checkout Modal -->
 <div id="paypalCheckoutModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closePaypalCheckout()">
-  <div class="paypal-checkout-modal">
-    <button class="pricing-close" onclick="closePaypalCheckout()" aria-label="Close">
-      <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-    </button>
-    <h2 class="paypal-checkout-title" id="paypalCheckoutTitle">Subscribe</h2>
-    <p class="paypal-checkout-price" id="paypalCheckoutPrice"></p>
+  <div class="co-modal">
 
-    <div class="payment-tabs">
-      <button class="payment-tab payment-tab-active" id="tab-card" onclick="switchPaymentTab('card')">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
-        Credit Card
+    <!-- ── Left: payment form ── -->
+    <div class="co-left">
+      <button class="co-close" onclick="closePaypalCheckout()" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
-      <button class="payment-tab" id="tab-paypal" onclick="switchPaymentTab('paypal')">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M7 18H5V6h2v12zm12-6c0 3.31-2.69 6-6 6H9V6h4c3.31 0 6 2.69 6 6z"/></svg>
-        PayPal
-      </button>
-    </div>
 
-    <!-- Credit Card Panel -->
-    <div id="payment-panel-card">
-      <div class="card-field-group">
-        <label class="card-field-label">Cardholder name</label>
-        <div id="card-name-field-container" class="card-field-input"></div>
+      <!-- Express checkout (PayPal smart buttons: shows Apple Pay / Google Pay if available) -->
+      <div class="co-express-wrap">
+        <div class="co-express-label">Express Checkout</div>
+        <div id="paypal-button-container" class="co-express-btns"></div>
       </div>
-      <div class="card-field-group">
-        <label class="card-field-label">Card number</label>
-        <div id="card-number-field-container" class="card-field-input"></div>
+
+      <div class="co-or"><span>Or Choose Payment Method</span></div>
+
+      <!-- Payment method selector -->
+      <div class="payment-tabs">
+        <button class="payment-tab payment-tab-active" id="tab-card" onclick="switchPaymentTab('card')">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
+          Credit Card
+        </button>
+        <button class="payment-tab" id="tab-paypal" onclick="switchPaymentTab('paypal')">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M8.32 21.97a.546.546 0 0 1-.26-.32L3.06 4.1A.92.92 0 0 0 2.2 3.5H.9C.4 3.5 0 3.1 0 2.6V2C0 1.45.4 1 .9 1h2.01c1.13 0 2.1.75 2.37 1.85l.74 2.9 13.14-1.04c.54-.05 1.03.37 1.03.92l-.01.27-1.45 8.22a2.27 2.27 0 0 1-2.24 1.89H6.8l.49 1.98h10.43c.5 0 .9.4.9.9v.6c0 .5-.4.9-.9.9H7.44c-.85 0-1.6-.58-1.8-1.42L5 17.97"/></svg>
+          PayPal
+        </button>
       </div>
-      <div class="card-field-row">
+
+      <!-- Credit Card panel -->
+      <div id="payment-panel-card">
         <div class="card-field-group">
-          <label class="card-field-label">Expiry</label>
-          <div id="card-expiry-field-container" class="card-field-input"></div>
+          <label class="card-field-label">Card Number</label>
+          <div id="card-number-field-container" class="card-field-input"></div>
+        </div>
+        <div class="card-field-row">
+          <div class="card-field-group">
+            <label class="card-field-label">Expiration Date</label>
+            <div id="card-expiry-field-container" class="card-field-input"></div>
+          </div>
+          <div class="card-field-group">
+            <label class="card-field-label">CVV</label>
+            <div id="card-cvv-field-container" class="card-field-input"></div>
+          </div>
+        </div>
+        <div class="card-field-row">
+          <div class="card-field-group">
+            <label class="card-field-label">First Name</label>
+            <div id="card-name-field-container" class="card-field-input" style="grid-column:1/-1"></div>
+          </div>
         </div>
         <div class="card-field-group">
-          <label class="card-field-label">CVC</label>
-          <div id="card-cvv-field-container" class="card-field-input"></div>
+          <label class="card-field-label">Country</label>
+          <select class="card-field-input card-country-select" id="card-country-select">
+            <option value="CA">Canada</option>
+            <option value="US">United States</option>
+            <option value="GB">United Kingdom</option>
+            <option value="AU">Australia</option>
+            <option value="DE">Germany</option>
+            <option value="FR">France</option>
+            <option value="JP">Japan</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </div>
+        <button id="card-submit-btn" class="card-submit-btn" onclick="submitCardPayment()">Subscribe Now</button>
+        <div id="card-not-eligible" class="card-not-eligible" style="display:none">
+          Card payments not available in your region — please use PayPal.
         </div>
       </div>
-      <button id="card-submit-btn" class="card-submit-btn" onclick="submitCardPayment()">Subscribe Now</button>
-      <div id="card-not-eligible" class="card-not-eligible" style="display:none">
-        Card payments not available in your region — please use PayPal.
+
+      <!-- PayPal-only fallback panel (hidden by default; express btns above cover it) -->
+      <div id="payment-panel-paypal" style="display:none"></div>
+
+      <div id="paypal-checkout-status" class="paypal-checkout-status"></div>
+      <p class="paypal-checkout-footer">Secured by PayPal &middot; Cancel anytime &middot; No hidden fees</p>
+    </div>
+
+    <!-- ── Right: order summary ── -->
+    <div class="co-right">
+      <div class="co-summary-title">Summary</div>
+      <div class="co-summary-row">
+        <span id="paypalCheckoutTitle" class="co-plan-name">Plan</span>
+        <span id="paypalCheckoutPrice" class="co-plan-price"></span>
       </div>
+      <div class="co-summary-divider"></div>
+      <div class="co-summary-total">
+        <span>Total</span>
+        <span id="co-total-display"></span>
+      </div>
+      <button class="co-pay-btn" id="co-pay-btn" onclick="coPayBtnClick()">Pay</button>
+      <div class="co-ssl">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="flex-shrink:0"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+        SSL secure payment
+      </div>
+      <p class="co-legal">By purchasing, you accept our <a href="/terms" target="_blank">Terms of Service</a> and acknowledge reading the <a href="/privacy" target="_blank">Privacy Policy</a>. Orders are processed in USD.</p>
     </div>
 
-    <!-- PayPal Panel -->
-    <div id="payment-panel-paypal" style="display:none">
-      <div id="paypal-button-container"></div>
-    </div>
-
-    <div id="paypal-checkout-status" class="paypal-checkout-status"></div>
-    <p class="paypal-checkout-footer">Secured by PayPal · Cancel anytime · No hidden fees</p>
   </div>
 </div>
 
 <style>
-.paypal-checkout-modal {
+/* ── Checkout modal layout ── */
+.co-modal {
   background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: 16px;
-  padding: 32px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   width: 100%;
-  max-width: 420px;
-  position: relative;
+  max-width: 800px;
+  max-height: 92vh;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+}
+
+/* Left column */
+.co-left {
+  padding: 32px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  max-height: 90vh;
+  gap: 18px;
   overflow-y: auto;
+  position: relative;
 }
-.paypal-checkout-title { font-size: 20px; font-weight: 700; color: var(--text1); margin: 0; }
-.paypal-checkout-price { font-size: 28px; font-weight: 800; color: var(--accent-l); margin: 0; }
+.co-close {
+  position: absolute; top: 18px; right: 18px;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--bg3); border: 1px solid var(--border2);
+  color: var(--text2); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s;
+}
+.co-close:hover { background: var(--bg4); color: var(--text1); }
+
+/* Express checkout */
+.co-express-wrap { display: flex; flex-direction: column; gap: 10px; }
+.co-express-label {
+  font-size: 11px; font-weight: 600; color: var(--text3);
+  text-transform: uppercase; letter-spacing: .08em; text-align: center;
+  border: 1px solid var(--border2); border-radius: 6px;
+  padding: 4px 10px; position: relative;
+  background: var(--bg2);
+}
+.co-express-btns { min-height: 44px; }
+
+/* Divider */
+.co-or {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12px; color: var(--text3);
+}
+.co-or::before, .co-or::after {
+  content: ''; flex: 1; height: 1px; background: var(--border2);
+}
+
+/* Payment tabs */
 .payment-tabs { display: flex; gap: 8px; }
 .payment-tab {
   flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
   padding: 10px; border-radius: 8px; border: 1px solid var(--border);
   background: var(--bg3); color: var(--text2); font-size: 14px; font-weight: 500;
-  cursor: pointer; transition: all 0.15s;
+  cursor: pointer; transition: all .15s;
 }
 .payment-tab:hover { border-color: var(--accent); color: var(--text1); }
 .payment-tab-active { border-color: var(--accent) !important; background: var(--accent-dim) !important; color: var(--accent-l) !important; }
 
+/* Card form */
 #payment-panel-card { display: flex; flex-direction: column; gap: 12px; }
-.card-field-group { display: flex; flex-direction: column; gap: 6px; }
-.card-field-label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; }
+.card-field-group { display: flex; flex-direction: column; gap: 5px; }
+.card-field-label { font-size: 12px; font-weight: 600; color: var(--text2); letter-spacing: .01em; }
 .card-field-input {
   background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px;
   padding: 11px 14px; min-height: 46px; transition: border-color .15s;
+  color: var(--text1); font-size: 14px;
 }
 .card-field-input:focus-within { border-color: var(--accent); }
+.card-country-select { width: 100%; appearance: none; cursor: pointer; }
+.card-country-select:focus { outline: none; border-color: var(--accent); }
 .card-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .card-submit-btn {
   width: 100%; padding: 13px; background: var(--accent); color: #fff;
   border: none; border-radius: 8px; font-size: 15px; font-weight: 700;
-  cursor: pointer; transition: opacity 0.15s;
+  cursor: pointer; transition: opacity .15s; display: none;
 }
-.card-submit-btn:hover { opacity: 0.9; }
-.card-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.card-submit-btn:hover { opacity: .9; }
+.card-submit-btn:disabled { opacity: .5; cursor: not-allowed; }
 .card-not-eligible { font-size: 13px; color: var(--text2); text-align: center; padding: 12px; }
-.paypal-checkout-status { font-size: 14px; color: var(--accent-l); min-height: 20px; text-align: center; }
-.paypal-checkout-footer { font-size: 12px; color: var(--text3); text-align: center; margin: 0; }
+.paypal-checkout-status { font-size: 14px; color: var(--accent-l); min-height: 16px; text-align: center; }
+.paypal-checkout-footer { font-size: 11px; color: var(--text3); text-align: center; margin: 0; }
+
+/* Right column: summary */
+.co-right {
+  background: var(--bg3);
+  border-left: 1px solid var(--border2);
+  padding: 32px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.co-summary-title { font-size: 18px; font-weight: 700; color: var(--text1); }
+.co-summary-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.co-plan-name { font-size: 14px; color: var(--text2); }
+.co-plan-price { font-size: 14px; font-weight: 600; color: var(--text1); }
+.co-summary-divider { height: 1px; background: var(--border2); }
+.co-summary-total {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 16px; font-weight: 700; color: var(--text1);
+}
+.co-pay-btn {
+  width: 100%; padding: 14px; margin-top: 4px;
+  background: #00c853; color: #fff;
+  border: none; border-radius: 8px; font-size: 16px; font-weight: 700;
+  cursor: pointer; transition: opacity .15s;
+}
+.co-pay-btn:hover { opacity: .9; }
+.co-ssl {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text3); font-weight: 500;
+}
+.co-legal { font-size: 11px; color: var(--text3); line-height: 1.6; margin: 0; }
+.co-legal a { color: var(--accent-l); text-decoration: none; }
+.co-legal a:hover { text-decoration: underline; }
+
+/* Mobile: stack columns */
+@media (max-width: 600px) {
+  .co-modal { grid-template-columns: 1fr; max-height: 95vh; overflow-y: auto; }
+  .co-right { border-left: none; border-top: 1px solid var(--border2); }
+  .co-left { padding: 24px 18px; }
+  .co-right { padding: 20px 18px; }
+}
 </style>
 
-<script src="app.js?v=114"></script>
+<script src="app.js?v=115"></script>
 </body>
 </html>

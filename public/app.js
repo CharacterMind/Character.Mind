@@ -179,8 +179,11 @@ async function openPaypalCheckout(planKey) {
   if (!plan) return;
   currentCheckoutPlan = planKey;
 
-  document.getElementById('paypalCheckoutTitle').textContent = `Subscribe to ${plan.name}`;
-  document.getElementById('paypalCheckoutPrice').textContent = `$${plan.monthly.toFixed(2)} / month`;
+  document.getElementById('paypalCheckoutTitle').textContent = `${plan.name} Plan`;
+  const priceStr = `$${plan.monthly.toFixed(2)} / mo`;
+  document.getElementById('paypalCheckoutPrice').textContent = priceStr;
+  const tot = document.getElementById('co-total-display');
+  if (tot) tot.textContent = `$${plan.monthly.toFixed(2)}`;
   document.getElementById('paypal-checkout-status').textContent = '';
   document.getElementById('paypal-checkout-status').style.color = '';
   document.getElementById('paypalCheckoutModal').style.display = 'flex';
@@ -324,6 +327,13 @@ function switchPaymentTab(tab) {
   document.getElementById('payment-panel-paypal').style.display = tab === 'paypal' ? 'block' : 'none';
   document.getElementById('tab-card').classList.toggle('payment-tab-active', tab === 'card');
   document.getElementById('tab-paypal').classList.toggle('payment-tab-active', tab === 'paypal');
+  // Show Pay button only for card tab (PayPal tab uses express buttons above)
+  const payBtn = document.getElementById('co-pay-btn');
+  if (payBtn) payBtn.style.display = tab === 'card' ? 'block' : 'none';
+}
+
+function coPayBtnClick() {
+  document.getElementById('card-submit-btn').click();
 }
 
 function updateSettingsPlanCard(tier) {
