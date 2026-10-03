@@ -1865,7 +1865,7 @@ async function sendMessage(overrideText, skipAppend) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ charId: currentChar.id, message: text, modelTier: selectedModelTier, effort: selectedEffort, ...(imgB64 ? { image: imgB64 } : {}), ...(callModeActive ? { callMode: true } : {}) }),
+      body: JSON.stringify({ charId: currentChar.id, message: text, modelTier: callModeActive ? 'opas' : selectedModelTier, effort: callModeActive ? 'low' : selectedEffort, ...(imgB64 ? { image: imgB64 } : {}), ...(callModeActive ? { callMode: true } : {}) }),
       signal: streamAbortCtrl.signal
     });
 
