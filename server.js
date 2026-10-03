@@ -1936,6 +1936,51 @@ function getMailTransporter() {
   });
 }
 
+async function sendReceiptEmail(userName, email, planKey, subscriptionId) {
+  const transporter = getMailTransporter();
+  if (!transporter || !email) return;
+  const planNames  = { advanced: 'Advanced Plan', x20: 'X20 Plan', x50: 'X50 Plan' };
+  const planPrices = { advanced: '$4.99/month', x20: '$12.99/month', x50: '$24.99/month' };
+  const planName  = planNames[planKey]  || planKey;
+  const planPrice = planPrices[planKey] || '';
+  const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const firstName = (userName || 'there').split(' ')[0];
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:40px 16px">
+  <tr><td align="center">
+    <table width="100%" style="max-width:520px;background:#111111;border-radius:12px;border:1px solid #222222;padding:40px">
+      <tr><td>
+        <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#7c5cbf">Character.Mind</p>
+        <h1 style="margin:0 0 24px;font-size:22px;font-weight:700;color:#f0f0f0;letter-spacing:-.02em">Your receipt</h1>
+        <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">Hi ${esc(firstName)}, thanks for subscribing! Here's a summary of your purchase.</p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;border:1px solid #222222;border-radius:8px;padding:20px;margin:0 0 24px">
+          <tr><td style="padding:6px 0;font-size:14px;color:#aaaaaa">Plan</td><td align="right" style="padding:6px 0;font-size:14px;font-weight:600;color:#f0f0f0">${esc(planName)}</td></tr>
+          <tr><td style="padding:6px 0;font-size:14px;color:#aaaaaa">Billing</td><td align="right" style="padding:6px 0;font-size:14px;color:#f0f0f0">${esc(planPrice)}</td></tr>
+          <tr><td style="padding:6px 0;font-size:14px;color:#aaaaaa">Date</td><td align="right" style="padding:6px 0;font-size:14px;color:#f0f0f0">${esc(date)}</td></tr>
+          <tr><td style="padding:6px 0;font-size:14px;color:#aaaaaa">Subscription ID</td><td align="right" style="padding:6px 0;font-size:12px;color:#888;font-family:monospace">${esc(subscriptionId)}</td></tr>
+        </table>
+        <p style="margin:0 0 8px;font-size:13px;color:#666666;line-height:1.5">Your new limits are active immediately. You can cancel anytime from PayPal or by contacting us at <a href="mailto:support.charactermind@gmail.com" style="color:#7c5cbf;text-decoration:none">support.charactermind@gmail.com</a>.</p>
+        <p style="margin:24px 0 0;font-size:12px;color:#555555">This is an automated receipt. Please do not reply to this email.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table></body></html>`;
+  const text = `Hi ${firstName},\n\nThanks for subscribing to Character.Mind!\n\nPlan: ${planName}\nBilling: ${planPrice}\nDate: ${date}\nSubscription ID: ${subscriptionId}\n\nYour new limits are active immediately. Cancel anytime via PayPal or email support.charactermind@gmail.com.\n\n— Character.Mind`;
+  try {
+    await transporter.sendMail({
+      from: `"Character.Mind" <${process.env.GMAIL_USER}>`,
+      to: email,
+      subject: `Your ${planName} receipt — Character.Mind`,
+      html,
+      text,
+    });
+    console.log('Receipt email sent to', email);
+  } catch (err) {
+    console.error('Receipt email error:', err.message);
+  }
+}
+
 async function sendWelcomeEmail(userName, email) {
   const transporter = getMailTransporter();
   if (!transporter) return;
@@ -2076,6 +2121,7 @@ app.post('/api/paypal/verify-subscription', async (req, res) => {
           [planKey, subscriptionId, req.user.googleId]
         );
       }
+      sendReceiptEmail(req.user.name, req.user.email, planKey, subscriptionId).catch(() => {});
       res.json({ ok: true, tier: planKey });
     } else {
       res.status(400).json({ error: 'Subscription not active', status: sub.status });

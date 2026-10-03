@@ -334,6 +334,24 @@ function updateSettingsPlanCard(tier) {
   if (badge) badge.textContent = PLAN_LABELS[t] || t;
   if (name)  name.textContent  = (PLAN_LABELS[t] || t) + ' Plan';
   if (sub)   sub.textContent   = PLAN_SUBS[t] || '';
+  renderSettingsTiers(t);
+}
+
+function renderSettingsTiers(currentTier) {
+  const el = document.getElementById('settingsTiersSection');
+  if (!el) return;
+  const t = currentTier || lastKnownUsage?.subscriptionTier || 'free';
+  const paid = PLAN_DATA.filter(p => p.key !== 'free');
+  el.innerHTML = `<div class="settings-tiers-heading">Plans</div><div class="settings-tier-rows">${
+    paid.map(p => {
+      const isCurrent = p.key === t;
+      return `<div class="settings-tier-row${isCurrent ? ' st-current' : ''}">
+        <div class="settings-tier-name">${escHtml(p.name)}</div>
+        <div class="settings-tier-price">$${p.monthly.toFixed(2)}<span>/mo</span></div>
+        <button class="settings-tier-btn" ${isCurrent ? 'disabled' : `onclick="handleUpgradeCta('${p.key}')"`}>${isCurrent ? 'Current' : 'Subscribe'}</button>
+      </div>`;
+    }).join('')
+  }</div>`;
 }
 
 function setEffort(effort) {
@@ -810,6 +828,7 @@ function openSettings(tab) {
   if (emailSave) { emailSave.textContent = 'Save'; emailSave.style.display = 'none'; }
 
   if (lastKnownUsage) updateSettingsUsage(lastKnownUsage);
+  renderSettingsTiers();
   loadUsage(); // refresh usage data every time settings opens
 
   document.getElementById('settingsModal').style.display = 'flex';

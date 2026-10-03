@@ -1609,6 +1609,17 @@ html, body {
 .settings-usage-header .settings-usage-label { font-size: 13px; font-weight: 500; color: var(--text); min-width: unset; }
 .settings-usage-meta { font-size: 12px; color: var(--text3); white-space: nowrap; }
 .settings-usage-section { margin-top: 18px; display: flex; flex-direction: column; gap: 4px; }
+.settings-tiers-section { margin-top: 14px; }
+.settings-tiers-heading { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
+.settings-tier-rows { display: flex; flex-direction: column; gap: 6px; }
+.settings-tier-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; background: var(--bg3); border: 1px solid var(--border2); }
+.settings-tier-row.st-current { border-color: var(--accent-dim); }
+.settings-tier-name { font-size: 13px; font-weight: 600; color: var(--text); min-width: 80px; }
+.settings-tier-price { font-size: 13px; color: var(--text); flex: 1; }
+.settings-tier-price span { font-size: 11px; color: var(--text3); }
+.settings-tier-btn { font-size: 12px; font-weight: 600; padding: 5px 14px; border-radius: 6px; border: none; cursor: pointer; background: var(--accent); color: #fff; transition: opacity .15s; }
+.settings-tier-btn:hover { opacity: .85; }
+.settings-tier-btn:disabled { background: var(--accent-dim); color: var(--accent-l); cursor: default; opacity: 1; }
 .settings-usage-pct { font-size: 12px; color: var(--text3); margin-left: auto; }
 .settings-usage-bar-track { height: 5px; border-radius: 99px; background: var(--border); overflow: hidden; }
 .settings-usage-bar-fill { height: 100%; border-radius: 99px; width: 0%; background: var(--accent); transition: width .4s ease; }
