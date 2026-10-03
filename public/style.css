@@ -853,86 +853,73 @@ html, body {
 .tts-btn.playing svg { animation: tts-pulse 1.2s ease infinite; }
 @keyframes tts-pulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
 
-/* ── Call overlay (Character.AI style) ──────────────────────────────────────── */
+/* ── Call overlay (full-screen photo style) ──────────────────────────────────── */
 .call-overlay {
   position: fixed; inset: 0; z-index: 900;
-  background: #0b1120;
   overflow: hidden;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  display: flex; flex-direction: column; align-items: stretch;
 }
-.call-overlay::before {
-  content: '';
-  position: absolute; inset: 0;
-  /* Glow radiates from below the screen — lights up the background, never touches avatar or text */
-  background: radial-gradient(ellipse 130% 55% at 50% 115%, var(--call-glow, rgba(24,92,220,.75)) 0%, transparent 58%);
-  pointer-events: none; transition: background 0.7s ease;
+.call-bg {
+  position: absolute; inset: 0; z-index: 0;
+  background-size: cover; background-position: center top;
+  background-color: #1a1230;
 }
-.call-overlay[data-state="listening"]::before {
-  background: radial-gradient(ellipse 130% 55% at 50% 115%, var(--call-glow-strong, rgba(24,92,220,.85)) 0%, transparent 58%);
+.call-bg-scrim {
+  position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(to bottom, rgba(0,0,0,0) 40%, rgba(0,0,0,0.55) 72%, rgba(0,0,0,0.78) 100%);
+  pointer-events: none;
 }
-.call-voice-on {
-  position: absolute; top: 32px; left: 50%; transform: translateX(-50%);
-  background: rgba(255,255,255,.93); color: #111;
-  font-size: 15px; font-weight: 600; padding: 9px 22px; border-radius: 30px;
-  white-space: nowrap; z-index: 2; cursor: pointer;
-  transition: opacity 0.2s;
+.call-mic-error {
+  position: absolute; top: 48px; left: 16px; right: 16px; z-index: 3;
+  background: rgba(28,28,32,0.9); backdrop-filter: blur(8px);
+  border-radius: 14px; padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 4px;
+  animation: bannerIn .25s ease;
+  cursor: pointer;
 }
-.call-voice-on:hover { opacity: 0.8; }
-.call-main {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 0; z-index: 1;
+.call-mic-error strong { font-size: 15px; font-weight: 700; color: #fff; }
+.call-mic-error p { font-size: 13px; color: rgba(255,255,255,.68); line-height: 1.45; margin: 0; }
+.call-status-area {
+  position: absolute; z-index: 2;
+  bottom: 150px; left: 0; right: 0;
+  text-align: center; padding: 0 24px;
+  pointer-events: none;
 }
-.call-avatar-glow {
-  position: relative; display: flex; align-items: center; justify-content: center;
-  margin-bottom: 22px;
+.call-status {
+  font-size: 16px; font-weight: 500; color: rgba(255,255,255,.88);
+  letter-spacing: .01em; min-height: 24px;
+  display: inline-block;
 }
-.call-overlay[data-state="responding"] .call-avatar-wrap .msg-avatar,
-.call-overlay[data-state="responding"] .call-avatar-wrap .call-avatar-img {
-  box-shadow: 0 0 0 4px rgba(255,255,255,.16), 0 0 28px 6px var(--call-avatar-glow, rgba(40,120,255,.45));
-  animation: callAvatarPulse 1.8s ease-in-out infinite;
+.call-status.interruptable {
+  color: #fff; font-weight: 600; cursor: pointer;
+  pointer-events: all;
+  background: rgba(255,255,255,.14); border-radius: 30px;
+  padding: 9px 22px;
 }
-@keyframes callAvatarPulse {
-  0%,100% { box-shadow: 0 0 0 4px rgba(255,255,255,.12), 0 0 20px 4px var(--call-avatar-glow, rgba(40,120,255,.35)); }
-  50%      { box-shadow: 0 0 0 4px rgba(255,255,255,.20), 0 0 40px 12px var(--call-avatar-glow, rgba(40,120,255,.55)); }
-}
-.call-avatar-wrap .msg-avatar,
-.call-avatar-wrap .call-avatar-img {
-  width: 140px; height: 140px; font-size: 54px; border-radius: 50%;
-  object-fit: cover; display: block;
-  box-shadow: 0 0 0 4px rgba(255,255,255,.09);
-  isolation: isolate; position: relative; z-index: 2;
-}
-.call-char-name { font-size: 17px; font-weight: 400; color: rgba(255,255,255,.85); letter-spacing: .01em; margin-bottom: 3px; }
-.call-app-name { font-size: 62px; font-weight: 800; color: #fff; letter-spacing: -.03em; line-height: 1.05; text-shadow: 0 2px 24px rgba(0,0,0,0.6); margin-bottom: 56px; }
-.call-status { font-size: 16px; color: rgba(255,255,255,.68); letter-spacing: .01em; min-height: 24px; }
-.call-interrupt-btn {
-  margin-top: 14px;
-  background: rgba(255,255,255,.92); color: #111;
-  font-size: 15px; font-weight: 600; padding: 11px 28px; border-radius: 30px;
-  border: none; cursor: pointer; transition: background .15s, transform .1s;
-}
-.call-interrupt-btn:hover { background: #fff; transform: scale(1.03); }
 .call-bottom-btns {
-  display: flex; justify-content: center; align-items: flex-start; gap: 52px;
-  margin-top: 52px; z-index: 1;
+  position: absolute; bottom: 0; left: 0; right: 0; z-index: 2;
+  display: flex; justify-content: center; align-items: flex-start; gap: 60px;
+  padding-bottom: calc(44px + env(safe-area-inset-bottom, 0px));
 }
-.call-btn-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.call-btn-label { font-size: 12px; color: rgba(255,255,255,.55); letter-spacing: .03em; }
+.call-btn-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.call-btn-label { font-size: 13px; color: rgba(255,255,255,.72); letter-spacing: .02em; font-weight: 400; }
 .call-mute-btn {
-  width: 62px; height: 62px; border-radius: 50%;
-  background: rgba(255,255,255,.13); border: none; cursor: pointer;
+  width: 66px; height: 66px; border-radius: 50%;
+  background: rgba(70,70,80,.85); border: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  color: #fff; transition: background .15s, transform .1s;
+  color: #fff; transition: background .15s;
 }
-.call-mute-btn:hover { background: rgba(255,255,255,.22); transform: scale(1.06); }
+.call-mute-btn:hover { background: rgba(95,95,108,.9); }
 .call-mute-btn.muted { background: rgba(255,255,255,.88); color: #111; }
 .call-end-btn {
-  width: 62px; height: 62px; border-radius: 50%;
+  width: 66px; height: 66px; border-radius: 50%;
   background: #e5485d; border: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  color: #fff; transition: background .15s, transform .1s;
+  color: #fff; transition: background .15s;
 }
-.call-end-btn:hover { background: #d03050; transform: scale(1.06); }
+.call-end-btn:hover { background: #d03050; }
+/* Calling state: hide mute so End button centers */
+.call-overlay[data-state="calling"] #callMuteBtnWrap { display: none; }
 
 /* ── Call limit modal ─────────────────────────────────────────────────────────── */
 .call-limit-modal {

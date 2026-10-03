@@ -3613,18 +3613,15 @@ async function startCallMode() {
   document.getElementById('callBtn')?.classList.add('active');
   const overlay = document.getElementById('callOverlay');
   if (overlay) {
-    const nameEl = document.getElementById('callCharName');
-    if (nameEl) nameEl.textContent = currentChar.name || 'Character';
-    const avatarEl = document.getElementById('callAvatarWrap');
-    if (avatarEl) avatarEl.innerHTML = msgAvatarHtml('call-avatar-img');
-    const rawColor = currentChar.color || '#7c3aed';
-    const hexMatch = /#([0-9a-fA-F]{6})/.exec(rawColor);
-    if (hexMatch) {
-      const h = hexMatch[1];
-      const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
-      overlay.style.setProperty('--call-glow', `rgba(${r},${g},${b},0.72)`);
-      overlay.style.setProperty('--call-glow-strong', `rgba(${r},${g},${b},0.75)`);
-      overlay.style.setProperty('--call-avatar-glow', `rgba(${r},${g},${b},0.5)`);
+    const bgEl = document.getElementById('callBg');
+    if (bgEl) {
+      if (currentChar.image && currentChar.image.startsWith('data:image/')) {
+        bgEl.style.backgroundImage = `url('${currentChar.image}')`;
+        bgEl.style.backgroundColor = '';
+      } else {
+        bgEl.style.backgroundImage = '';
+        bgEl.style.backgroundColor = currentChar.color || '#1a1230';
+      }
     }
     overlay.style.display = 'flex';
     setCallState('calling');
@@ -3655,6 +3652,14 @@ function showCallWarningBanner() {
   setTimeout(() => { if (banner) banner.style.display = 'none'; }, 7000);
 }
 
+function showCallMicError() {
+  const el = document.getElementById('callMicError');
+  if (!el) return;
+  el.style.display = '';
+  el.onclick = () => { el.style.display = 'none'; };
+  setTimeout(() => { if (el) el.style.display = 'none'; }, 8000);
+}
+
 function endCallMode() {
   callModeActive = false;
   callMuted = false;
@@ -3669,25 +3674,22 @@ function endCallMode() {
 function setCallState(state) {
   const overlay = document.getElementById('callOverlay');
   const statusEl = document.getElementById('callStatus');
-  const interruptBtn = document.getElementById('callInterruptBtn');
   if (overlay) overlay.dataset.state = state;
+  if (!statusEl) return;
+  statusEl.classList.remove('interruptable');
+  statusEl.onclick = null;
+  statusEl.style.display = '';
   if (state === 'calling') {
-    hideVoiceOnPill();
-    if (statusEl) { statusEl.style.display = ''; statusEl.textContent = 'Calling...'; }
-    if (interruptBtn) interruptBtn.style.display = 'none';
+    statusEl.textContent = 'Calling...';
   } else if (state === 'listening') {
-    showVoiceOnPill();
     if (callFirstConnect) { callFirstConnect = false; playSound('call-connect'); }
-    if (statusEl) { statusEl.style.display = ''; statusEl.textContent = 'Start speaking'; }
-    if (interruptBtn) interruptBtn.style.display = 'none';
+    statusEl.textContent = 'Listening...';
   } else if (state === 'thinking') {
-    hideVoiceOnPill();
-    if (statusEl) { statusEl.style.display = ''; statusEl.textContent = 'AI thinking'; }
-    if (interruptBtn) interruptBtn.style.display = 'none';
+    statusEl.textContent = 'Thinking...';
   } else if (state === 'responding') {
-    hideVoiceOnPill();
-    if (statusEl) statusEl.style.display = 'none';
-    if (interruptBtn) interruptBtn.style.display = '';
+    statusEl.textContent = 'Tap to interrupt';
+    statusEl.classList.add('interruptable');
+    statusEl.onclick = interruptCall;
   }
 }
 
@@ -3729,9 +3731,8 @@ function listenForSpeech() {
   callRecognition.onerror = (e) => {
     if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
       handled = true;
+      showCallMicError();
       setCallState('listening');
-      const statusEl = document.getElementById('callStatus');
-      if (statusEl) { statusEl.style.display = ''; statusEl.textContent = 'Microphone access denied'; }
     }
   };
   callRecognition.onend = () => {
