@@ -3743,10 +3743,14 @@ function showCallWarningBanner() {
   if (!banner) return;
   banner.style.display = '';
   const vob = document.getElementById('callVoiceOnBadge');
-  if (vob) vob.classList.add('below-banner');
+  if (vob) {
+    // Position badge exactly below the banner with an 8px gap
+    const bannerRect = banner.getBoundingClientRect();
+    vob.style.top = (bannerRect.bottom + 8) + 'px';
+  }
   setTimeout(() => {
     if (banner) banner.style.display = 'none';
-    if (vob) vob.classList.remove('below-banner');
+    if (vob) vob.style.top = '';
   }, 7000);
 }
 
@@ -3770,7 +3774,7 @@ function endCallMode() {
   const imgEl = document.getElementById('callCharImg');
   if (imgEl) imgEl.style.backgroundImage = '';
   const vob = document.getElementById('callVoiceOnBadge');
-  if (vob) { vob.style.display = 'none'; vob.classList.remove('below-banner'); }
+  if (vob) { vob.style.display = 'none'; vob.style.top = ''; }
 }
 
 function setCallState(state) {
