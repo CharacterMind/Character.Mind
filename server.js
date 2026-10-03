@@ -533,23 +533,157 @@ If the scene is dark, intense, or intimate — commit fully. Don't soften it. Do
 
 // ── Crisis numbers by country/region ─────────────────────────────────────────
 const CRISIS_NUMBERS = {
-  US: { crisis: '988', crisisName: 'Suicide & Crisis Lifeline (call or text, 24/7)', emergency: '911' },
-  CA: { crisis: '988', crisisName: 'Suicide Crisis Helpline (call or text, 24/7)', emergency: '911',
-        extra: [{ crisis: '1-833-456-4566', crisisName: 'Talk Suicide Canada' }],
+  US: { crisis: '988', crisisName: 'Suicide & Crisis Lifeline (call or text, 24/7)', emergency: '911',
+        extra: [{ crisis: '741741', crisisName: 'Crisis Text Line (text HOME to 741741)' }],
         regions: {
-          QC: {
-            crisis: '988',
-            crisisName: 'Suicide Crisis Helpline (call or text, 24/7)',
+          NY: {
+            crisis: '988', crisisName: 'Suicide & Crisis Lifeline (call or text, 24/7)', emergency: '911',
             extra: [
-              { crisis: '1-866-APPELLE  ·  1-866-277-3553', crisisName: 'Centre de prévention du suicide Québec — "APPELLE" is French for "call (me)"' },
-              { crisis: '1-800-668-6868', crisisName: 'Kids Help Phone (youth support, 24/7)' },
+              { crisis: '1-888-692-9355', crisisName: 'NYC Well (1-888-NYC-WELL) — mental health & crisis support' },
+              { crisis: '741741', crisisName: 'Crisis Text Line (text HOME to 741741)' },
             ],
-            emergency: '911'
-          }
+          },
+          CA: {
+            crisis: '988', crisisName: 'Suicide & Crisis Lifeline (call or text, 24/7)', emergency: '911',
+            extra: [
+              { crisis: '1-833-317-4673', crisisName: 'CalHOPE Warm Line (California)' },
+              { crisis: '741741', crisisName: 'Crisis Text Line (text HOME to 741741)' },
+            ],
+          },
         }
   },
-  GB: { crisis: '116 123', crisisName: 'Samaritans', emergency: '999' },
-  AU: { crisis: '13 11 14', crisisName: 'Lifeline', emergency: '000' },
+  CA: { crisis: '988', crisisName: 'Suicide Crisis Helpline (call or text, 24/7)', emergency: '911',
+        extra: [
+          { crisis: '1-833-456-4566', crisisName: 'Talk Suicide Canada' },
+          { crisis: '1-800-668-6868', crisisName: 'Kids Help Phone (youth, 24/7)' },
+        ],
+        regions: {
+          QC: {
+            crisis: '988', crisisName: 'Suicide Crisis Helpline (call or text, 24/7)', emergency: '911',
+            extra: [
+              { crisis: '1-866-APPELLE  ·  1-866-277-3553', crisisName: 'Centre de prévention du suicide Québec — "APPELLE" is French for "call (me)"' },
+              { crisis: '1-800-668-6868', crisisName: 'Kids Help Phone (youth, 24/7)' },
+            ],
+          },
+          ON: {
+            crisis: '988', crisisName: 'Suicide Crisis Helpline (call or text, 24/7)', emergency: '911',
+            extra: [
+              { crisis: '1-866-531-2600', crisisName: 'ConnexOntario (mental health & crisis)' },
+              { crisis: '1-800-668-6868', crisisName: 'Kids Help Phone (youth, 24/7)' },
+            ],
+          },
+          BC: {
+            crisis: '988', crisisName: 'Suicide Crisis Helpline (call or text, 24/7)', emergency: '911',
+            extra: [
+              { crisis: '1-800-784-2433', crisisName: 'BC Crisis Line (24/7)' },
+              { crisis: '1-800-668-6868', crisisName: 'Kids Help Phone (youth, 24/7)' },
+            ],
+          },
+          AB: {
+            crisis: '988', crisisName: 'Suicide Crisis Helpline (call or text, 24/7)', emergency: '911',
+            extra: [
+              { crisis: '1-877-303-2642', crisisName: 'Alberta Mental Health Helpline' },
+              { crisis: '1-800-668-6868', crisisName: 'Kids Help Phone (youth, 24/7)' },
+            ],
+          },
+          MB: {
+            crisis: '988', crisisName: 'Suicide Crisis Helpline (call or text, 24/7)', emergency: '911',
+            extra: [
+              { crisis: '1-888-322-3019', crisisName: 'Klinic Crisis Line (Manitoba, 24/7)' },
+              { crisis: '1-800-668-6868', crisisName: 'Kids Help Phone (youth, 24/7)' },
+            ],
+          },
+          SK: {
+            crisis: '988', crisisName: 'Suicide Crisis Helpline (call or text, 24/7)', emergency: '911',
+            extra: [
+              { crisis: '811', crisisName: 'Saskatchewan HealthLine (mental health)' },
+              { crisis: '1-800-668-6868', crisisName: 'Kids Help Phone (youth, 24/7)' },
+            ],
+          },
+          NS: {
+            crisis: '988', crisisName: 'Suicide Crisis Helpline (call or text, 24/7)', emergency: '911',
+            extra: [
+              { crisis: '1-888-429-8167', crisisName: 'Nova Scotia Mental Health & Addictions Crisis Line' },
+              { crisis: '1-800-668-6868', crisisName: 'Kids Help Phone (youth, 24/7)' },
+            ],
+          },
+          NB: {
+            crisis: '988', crisisName: 'Suicide Crisis Helpline (call or text, 24/7)', emergency: '911',
+            extra: [
+              { crisis: '1-800-667-5005', crisisName: 'Chimo Helpline (New Brunswick)' },
+              { crisis: '1-800-668-6868', crisisName: 'Kids Help Phone (youth, 24/7)' },
+            ],
+          },
+          NL: {
+            crisis: '988', crisisName: 'Suicide Crisis Helpline (call or text, 24/7)', emergency: '911',
+            extra: [
+              { crisis: '1-888-737-4668', crisisName: 'NL Mental Health Crisis Line' },
+              { crisis: '1-800-668-6868', crisisName: 'Kids Help Phone (youth, 24/7)' },
+            ],
+          },
+          PE: {
+            crisis: '988', crisisName: 'Suicide Crisis Helpline (call or text, 24/7)', emergency: '911',
+            extra: [
+              { crisis: '1-800-218-2885', crisisName: 'Island Helpline (PEI)' },
+              { crisis: '1-800-668-6868', crisisName: 'Kids Help Phone (youth, 24/7)' },
+            ],
+          },
+          YT: {
+            crisis: '988', crisisName: 'Suicide Crisis Helpline (call or text, 24/7)', emergency: '911',
+            extra: [
+              { crisis: '867-668-5733', crisisName: "Kaushee's Place Crisis Line (Yukon)" },
+              { crisis: '1-800-668-6868', crisisName: 'Kids Help Phone (youth, 24/7)' },
+            ],
+          },
+          NT: {
+            crisis: '988', crisisName: 'Suicide Crisis Helpline (call or text, 24/7)', emergency: '911',
+            extra: [
+              { crisis: '867-873-2580', crisisName: 'NWT Helpline' },
+              { crisis: '1-800-668-6868', crisisName: 'Kids Help Phone (youth, 24/7)' },
+            ],
+          },
+          NU: {
+            crisis: '988', crisisName: 'Suicide Crisis Helpline (call or text, 24/7)', emergency: '911',
+            extra: [
+              { crisis: '1-800-265-3333', crisisName: 'Kamatsiaqtut Helpline (Nunavut)' },
+              { crisis: '1-800-668-6868', crisisName: 'Kids Help Phone (youth, 24/7)' },
+            ],
+          },
+        }
+  },
+  GB: { crisis: '116 123', crisisName: 'Samaritans (free, 24/7)', emergency: '999',
+        extra: [{ crisis: '85258', crisisName: 'Shout Crisis Text Line (text SHOUT to 85258)' }],
+        regions: {
+          SCT: {
+            crisis: '116 123', crisisName: 'Samaritans (free, 24/7)', emergency: '999',
+            extra: [
+              { crisis: '0800 83 85 87', crisisName: 'Breathing Space Scotland (free)' },
+              { crisis: '85258', crisisName: 'Shout Crisis Text Line (text SHOUT)' },
+            ],
+          },
+          WLS: {
+            crisis: '116 123', crisisName: 'Samaritans (free, 24/7)', emergency: '999',
+            extra: [
+              { crisis: '0800 132 737', crisisName: 'C.A.L.L. Mental Health Helpline Wales (free)' },
+              { crisis: '85258', crisisName: 'Shout Crisis Text Line (text SHOUT)' },
+            ],
+          },
+          NIR: {
+            crisis: '0808 808 8000', crisisName: 'Lifeline Northern Ireland (free, 24/7)', emergency: '999',
+            extra: [
+              { crisis: '116 123', crisisName: 'Samaritans' },
+              { crisis: '85258', crisisName: 'Shout Crisis Text Line (text SHOUT)' },
+            ],
+          },
+        }
+  },
+  AU: { crisis: '13 11 14', crisisName: 'Lifeline (24/7)', emergency: '000',
+        extra: [
+          { crisis: '1300 659 467', crisisName: 'Suicide Call Back Service (24/7)' },
+          { crisis: '1300 22 4636', crisisName: 'Beyond Blue Support Service' },
+          { crisis: '1800 55 1800', crisisName: 'Kids Helpline (youth up to 25)' },
+        ]
+  },
   NZ: { crisis: '0800 543 354', crisisName: 'Lifeline NZ', emergency: '111' },
   IE: { crisis: '116 123', crisisName: 'Samaritans', emergency: '999' },
   FR: { crisis: '3114', crisisName: 'Numéro National Prévention Suicide', emergency: '15 or 112' },
@@ -609,7 +743,13 @@ async function getGeoForIp(ip) {
           try {
             const parsed = JSON.parse(data);
             if (parsed.country_code) {
-              const geo = { country: parsed.country_code, region: parsed.region_code || '' };
+              const geo = {
+                country: parsed.country_code,
+                region: parsed.region_code || '',
+                regionName: parsed.region || '',
+                city: parsed.city || '',
+                countryName: parsed.country_name || ''
+              };
               if (ipGeoCache.size >= 5000) ipGeoCache.delete(ipGeoCache.keys().next().value);
               ipGeoCache.set(ip, geo);
               setTimeout(() => ipGeoCache.delete(ip), 60 * 60 * 1000);
@@ -1721,7 +1861,8 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     if (info) {
       const allLines = [{ crisis: info.crisis, crisisName: info.crisisName }, ...(info.extra || [])];
       const resourceList = allLines.map(l => `${l.crisis} (${l.crisisName})`).join('\n• ');
-      crisisContext = `\n\n[CRISIS CONTEXT — for this response only: The user's message may indicate personal distress. Their location appears to be ${info.name || geo.country}. Step out of character, respond with care, and include ALL of the following local resources clearly in your response so the user can see them:\n• ${resourceList}\n• ${info.emergency} — Emergency services\nList them so the user can read them easily. Be human and warm, not robotic.]`;
+      const locationStr = [geo.city, geo.regionName, geo.countryName].filter(Boolean).join(', ') || geo.country;
+      crisisContext = `\n\n[CRISIS CONTEXT — for this response only: The user's message may indicate personal distress. Their location appears to be ${locationStr}. Step out of character, respond with care, and include ALL of the following local resources clearly in your response so the user can see them:\n• ${resourceList}\n• ${info.emergency} — Emergency services\nList them so the user can read them easily. Be human and warm, not robotic.]`;
     } else {
       crisisContext = `\n\n[CRISIS CONTEXT — for this response only: The user's message may indicate personal distress. Step out of character, respond with care, and mention they can contact their local emergency services or a crisis helpline if they need immediate support.]`;
     }
