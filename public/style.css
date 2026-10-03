@@ -969,6 +969,34 @@ html, body {
 /* Calling state: hide mute so End button centers */
 .call-overlay[data-state="calling"] #callMuteBtnWrap { display: none; }
 
+/* ── Desktop call screen: PFP avatar style ───────────────────────────────────
+   On screens ≥ 768px switch from full-screen photo to a centered circle avatar
+   so the animated orb background remains visible and it looks clean on monitor. */
+@media (min-width: 768px) {
+  .call-char-img {
+    position: absolute;
+    inset: auto;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    top: 14vh; left: 50%;
+    transform: translateX(-50%);
+    background-size: cover; background-position: center;
+    border: 3px solid rgba(255,255,255,0.18);
+    box-shadow: 0 8px 48px rgba(0,0,0,0.55);
+    z-index: 1;
+  }
+  .call-bg-scrim { display: none; }
+  .call-status-area {
+    bottom: auto;
+    top: calc(14vh + 224px);
+  }
+  .call-mic-error {
+    top: 20px; left: 50%; right: auto;
+    transform: translateX(-50%);
+    width: 340px; max-width: calc(100vw - 32px);
+  }
+}
+
 /* ── Call limit modal ─────────────────────────────────────────────────────────── */
 .call-limit-modal {
   position: fixed; inset: 0; z-index: 1000;
