@@ -2097,7 +2097,7 @@ function updateUsageModal(u) {
     if (u.cooldownUntil && Date.now() < u.cooldownUntil) {
       sSubEl.textContent = formatResetTime(u.cooldownUntil);
     } else if (u.sessionTokens > 0 && u.sessionExpiresAt) {
-      sSubEl.textContent = fmtTokens(u.sessionTokens) + ' of ' + fmtTokens(u.sessionLimit) + ' · ' + formatResetTime(u.sessionExpiresAt);
+      sSubEl.textContent = '2-hour window · ' + formatResetTime(u.sessionExpiresAt);
     } else {
       sSubEl.textContent = 'Starts fresh when you send your first message';
     }
