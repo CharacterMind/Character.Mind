@@ -20,7 +20,7 @@
 <link rel="icon" type="image/webp" href="/logo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=58">
+<link rel="stylesheet" href="style.css?v=59">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -409,8 +409,9 @@
             <strong>We can't hear you</strong>
             <p>If this problem persists, press here and toggle your microphone permissions off and back on.</p>
           </div>
-          <!-- Status text overlaid on image -->
+          <!-- Character name + status -->
           <div class="call-status-area">
+            <div class="call-char-name" id="callCharName"></div>
             <div class="call-status" id="callStatus">Calling...</div>
           </div>
           <!-- Bottom controls -->
@@ -1116,6 +1117,6 @@
 .paypal-checkout-footer { font-size: 12px; color: var(--text3); text-align: center; margin: 0; }
 </style>
 
-<script src="app.js?v=112"></script>
+<script src="app.js?v=113"></script>
 </body>
 </html>

@@ -3686,6 +3686,8 @@ async function startCallMode() {
         imgEl.style.backgroundImage = '';
       }
     }
+    const nameEl = document.getElementById('callCharName');
+    if (nameEl) nameEl.textContent = currentChar.name || '';
     overlay.style.display = 'flex';
     setCallState('calling');
     setTimeout(() => { if (callModeActive) listenForSpeech(); }, 1500);

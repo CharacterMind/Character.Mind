@@ -933,6 +933,10 @@ html, body {
   text-align: center; padding: 0 24px;
   pointer-events: none;
 }
+.call-char-name {
+  font-size: 15px; font-weight: 600; color: rgba(255,255,255,.75);
+  letter-spacing: .02em; margin-bottom: 6px;
+}
 .call-status {
   font-size: 16px; font-weight: 500; color: rgba(255,255,255,.88);
   letter-spacing: .01em; min-height: 24px;
@@ -973,22 +977,28 @@ html, body {
    On screens ≥ 768px switch from full-screen photo to a centered circle avatar
    so the animated orb background remains visible and it looks clean on monitor. */
 @media (min-width: 768px) {
+  /* Orbs: tighter + more vivid on desktop so the glow is clearly visible */
+  .call-orb { filter: blur(60px); opacity: 0.95; }
+  .call-orb-1 { top: -20%; left: -20%; }
+  .call-orb-2 { bottom: -20%; right: -20%; }
+  .call-orb-3 { top: 10%; left: 15%; width: 70%; padding-top: 70%; }
+
   .call-char-img {
     position: absolute;
     inset: auto;
     width: 200px; height: 200px;
     border-radius: 50%;
-    top: 14vh; left: 50%;
+    top: 12vh; left: 50%;
     transform: translateX(-50%);
     background-size: cover; background-position: center;
-    border: 3px solid rgba(255,255,255,0.18);
-    box-shadow: 0 8px 48px rgba(0,0,0,0.55);
+    border: 3px solid rgba(255,255,255,0.2);
+    box-shadow: 0 0 60px rgba(0,0,0,0.5), 0 0 0 6px rgba(255,255,255,0.06);
     z-index: 1;
   }
   .call-bg-scrim { display: none; }
   .call-status-area {
     bottom: auto;
-    top: calc(14vh + 224px);
+    top: calc(12vh + 220px);
   }
   .call-mic-error {
     top: 20px; left: 50%; right: auto;
