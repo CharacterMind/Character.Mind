@@ -524,8 +524,8 @@ function closeWelcome() {
   document.getElementById('welcomeModal').style.display = 'none';
 }
 
-async function signOut() {
-  try { await fetch('/auth/logout', { method: 'POST' }); } catch (_) {}
+function signOut() {
+  fetch('/auth/logout', { method: 'POST' }).catch(() => {});
   currentUser = null;
   document.getElementById('userDropdown')?.classList.remove('open');
   document.getElementById('userBadge')?.classList.remove('dd-open');

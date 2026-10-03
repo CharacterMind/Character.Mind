@@ -224,7 +224,9 @@ app.get('/auth/me', (req, res) => {
   res.json({ name: req.user.name, email: req.user.email, picture: req.user.picture, googleId: req.user.googleId, showWelcome });
 });
 app.post('/auth/logout', (req, res) => {
-  req.logout(() => res.json({ ok: true }));
+  req.logout(() => {
+    req.session.destroy(() => res.json({ ok: true }));
+  });
 });
 
 app.get('/api/user/hidden-recents', requireAuth, async (req, res) => {
@@ -921,8 +923,6 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     ...(model.startsWith('openai/') && effortCfg.reasoningEffort ? { reasoning_effort: effortCfg.reasoningEffort } : {})
   });
 
-  const promptTokensEstimate = Math.ceil((systemPrompt.length + messages.reduce((s, m) => s + (m.content || '').length, 0)) / 4);
-
   const reqPath = '/openai/v1/chat/completions';
   const headers = {
     'content-type': 'application/json',
@@ -961,6 +961,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     let buffer = '';
     let finished = false;
     let usageTokens = 0;
+    let responseTextLen = 0;
 
     res.on('data', (chunk) => {
       buffer += chunk.toString();
@@ -969,18 +970,18 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
         const raw = line.slice(6).trim();
-        if (raw === '[DONE]') { if (!finished) { finished = true; onDone(usageTokens || promptTokensEstimate); } return; }
+        if (raw === '[DONE]') { if (!finished) { finished = true; onDone(usageTokens || Math.ceil(responseTextLen / 4)); } return; }
         try {
           const parsed = JSON.parse(raw);
-          if (parsed.x_groq?.usage?.total_tokens) {
-            usageTokens = parsed.x_groq.usage.total_tokens;
-          } else if (parsed.usage?.total_tokens) {
-            usageTokens = parsed.usage.total_tokens;
+          if (parsed.x_groq?.usage?.completion_tokens) {
+            usageTokens = parsed.x_groq.usage.completion_tokens;
+          } else if (parsed.usage?.completion_tokens) {
+            usageTokens = parsed.usage.completion_tokens;
           }
           const text = parsed.choices?.[0]?.delta?.content;
-          if (text) onChunk(text);
+          if (text) { responseTextLen += text.length; onChunk(text); }
           const reason = parsed.choices?.[0]?.finish_reason;
-          if ((reason === 'stop' || reason === 'length') && !finished) { finished = true; onDone(usageTokens || promptTokensEstimate); }
+          if ((reason === 'stop' || reason === 'length') && !finished) { finished = true; onDone(usageTokens || Math.ceil(responseTextLen / 4)); }
         } catch (_) {}
       }
     });
@@ -996,7 +997,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
           } catch (_) {}
         }
       }
-      if (!finished) { finished = true; onDone(usageTokens || promptTokensEstimate); }
+      if (!finished) { finished = true; onDone(usageTokens || Math.ceil(responseTextLen / 4)); }
     });
   });
 
@@ -1099,7 +1100,7 @@ app.post('/api/admin/wipe-my-data', requireAuth, async (req, res) => {
   delete userLimits[uid];
   // Clear all conversations for this user's sessions
   for (const key of Object.keys(conversations)) {
-    if (key.startsWith(req.session.id + ':')) delete conversations[key];
+    if (key.startsWith(uid + ':')) delete conversations[key];
   }
   if (db) {
     await Promise.all([
@@ -1353,13 +1354,13 @@ app.delete('/api/characters/:id', requireAuth, async (req, res) => {
 
 app.get('/api/conversations/:charId', requireAuth, (req, res) => {
   if (!VALID_ID.test(req.params.charId)) return res.status(400).json({ error: 'Invalid charId' });
-  const key = `${req.session.id}:${req.params.charId}`;
+  const key = `${req.user.googleId}:${req.params.charId}`;
   res.json(conversations[key] || []);
 });
 
 app.delete('/api/conversations/:charId', requireAuth, (req, res) => {
   if (!VALID_ID.test(req.params.charId)) return res.status(400).json({ error: 'Invalid charId' });
-  const key = `${req.session.id}:${req.params.charId}`;
+  const key = `${req.user.googleId}:${req.params.charId}`;
   conversations[key] = [];
   res.json({ ok: true });
 });
@@ -1369,7 +1370,7 @@ app.post('/api/conversations/:charId/sync', requireAuth, (req, res) => {
   const { history } = req.body;
   if (!Array.isArray(history)) return res.status(400).json({ error: 'Invalid history' });
   if (history.length > 100) return res.status(400).json({ error: 'Too many messages' });
-  const key = `${req.session.id}:${req.params.charId}`;
+  const key = `${req.user.googleId}:${req.params.charId}`;
   conversations[key] = history.map(m => ({
     role: m.role === 'user' ? 'user' : 'assistant',
     content: String(m.content || '').slice(0, 10000)
@@ -1396,7 +1397,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   const dbChar = await getCharPrompt(charId);
   const systemPrompt = dbChar ? dbChar.system_prompt : `You are ${charId}, a unique AI character.`;
 
-  const key = `${req.session.id}:${charId}`;
+  const key = `${req.user.googleId}:${charId}`;
   if (!conversations[key]) conversations[key] = [];
   convLastUsed[key] = Date.now();
 
@@ -1446,7 +1447,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
 
 app.post('/api/rewind/:charId', requireAuth, (req, res) => {
   if (!VALID_ID.test(req.params.charId)) return res.status(400).json({ error: 'Invalid charId' });
-  const key = `${req.session.id}:${req.params.charId}`;
+  const key = `${req.user.googleId}:${req.params.charId}`;
   const hist = conversations[key] || [];
   let removed = 0;
   if (hist.length > 0 && hist[hist.length - 1].role === 'assistant') { hist.pop(); removed++; }
@@ -1508,7 +1509,7 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   const charName = dbChar ? dbChar.name : charId;
   const systemPrompt = dbChar ? dbChar.system_prompt : `You are ${charId}.`;
 
-  const key = `${req.session.id}:${charId}`;
+  const key = `${req.user.googleId}:${charId}`;
   if (!conversations[key]) conversations[key] = [];
   if (conversations[key].length > 0) return res.status(400).json({ error: 'Already started' });
   convLastUsed[key] = Date.now();
@@ -1559,7 +1560,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
   const dbChar = await getCharPrompt(charId);
   const char = { systemPrompt: dbChar ? dbChar.system_prompt : `You are ${charId}, a unique AI character.` };
-  const key = `${req.session.id}:${charId}`;
+  const key = `${req.user.googleId}:${charId}`;
   if (!conversations[key]) conversations[key] = [];
   convLastUsed[key] = Date.now();
 
