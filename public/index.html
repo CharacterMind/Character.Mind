@@ -20,7 +20,7 @@
 <link rel="icon" type="image/webp" href="/logo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=48">
+<link rel="stylesheet" href="style.css?v=50">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -932,11 +932,22 @@
       <span>Chat History</span>
       <button class="ip-overlay-close" onclick="closeHistoryPanel()"><svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
     </div>
-    <div class="history-actions">
-      <button class="history-action-btn" onclick="exportHistory()"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> Export</button>
-      <button class="history-action-btn history-clear-btn" onclick="clearHistoryFromPanel()"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg> Clear</button>
+    <div class="history-tabs">
+      <button id="histTabCurrent" class="hist-tab hist-tab-active" onclick="switchHistoryTab('current')">Current</button>
+      <button id="histTabPast" class="hist-tab" onclick="switchHistoryTab('past')">Past Chats</button>
     </div>
-    <div class="history-msg-list" id="historyMsgList"></div>
+    <!-- Current chat view -->
+    <div id="histViewCurrent">
+      <div class="history-actions">
+        <button class="history-action-btn" onclick="exportHistory()"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> Export</button>
+        <button class="history-action-btn history-clear-btn" onclick="clearHistoryFromPanel()"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg> Clear &amp; Archive</button>
+      </div>
+      <div class="history-msg-list" id="historyMsgList"></div>
+    </div>
+    <!-- Past chats view -->
+    <div id="histViewPast" style="display:none">
+      <div id="pastChatsArchiveList" class="past-chats-list"></div>
+    </div>
   </div>
 </div>
 
@@ -957,6 +968,6 @@
   </div>
 </div>
 
-<script src="app.js?v=94"></script>
+<script src="app.js?v=96"></script>
 </body>
 </html>

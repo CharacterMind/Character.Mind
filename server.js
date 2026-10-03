@@ -96,6 +96,19 @@ if (db) {
       PRIMARY KEY (user_id, char_id)
     )
   `).catch(err => console.error('chat_moderation table init error:', err));
+
+  db.query(`
+    CREATE TABLE IF NOT EXISTS chat_archives (
+      id SERIAL PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      char_id TEXT NOT NULL,
+      messages JSONB NOT NULL DEFAULT '[]',
+      archived_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).catch(err => console.error('chat_archives table init error:', err));
+
+  db.query(`CREATE INDEX IF NOT EXISTS idx_chat_archives_user_char ON chat_archives(user_id, char_id)`)
+    .catch(() => {});
 } else {
   console.warn('No DATABASE_URL — characters will not be persisted');
 }
@@ -1047,6 +1060,66 @@ app.get('/api/chat/lock-status/:charId', requireAuth, async (req, res) => {
   if (!VALID_ID.test(charId)) return res.json({ locked: false });
   const mod = await getModStatus(req.user.googleId, charId);
   res.json({ locked: mod.locked, strikes: mod.strikes });
+});
+
+app.post('/api/chat/reset-mod/:charId', requireAuth, async (req, res) => {
+  const { charId } = req.params;
+  if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
+  const uid = req.user.googleId;
+  const key = `${uid}:${charId}`;
+  // Archive current conversation before resetting if it has messages
+  const msgs = conversations[key] || [];
+  if (msgs.length > 0 && db) {
+    db.query('INSERT INTO chat_archives(user_id, char_id, messages) VALUES($1,$2,$3)',
+      [uid, charId, JSON.stringify(msgs)]).catch(() => {});
+  }
+  await setModStatus(uid, charId, 0, false);
+  conversations[key] = [];
+  res.json({ ok: true });
+});
+
+// Archive current convo and start fresh (without mod reset)
+app.post('/api/conversations/:charId/archive', requireAuth, async (req, res) => {
+  const { charId } = req.params;
+  if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
+  const uid = req.user.googleId;
+  const key = `${uid}:${charId}`;
+  const msgs = conversations[key] || [];
+  if (msgs.length === 0) return res.json({ ok: true, archived: false });
+  if (db) {
+    await db.query('INSERT INTO chat_archives(user_id, char_id, messages) VALUES($1,$2,$3)',
+      [uid, charId, JSON.stringify(msgs)]).catch(() => {});
+  }
+  conversations[key] = [];
+  res.json({ ok: true, archived: true });
+});
+
+// List archived conversations for a character
+app.get('/api/conversations/:charId/history', requireAuth, async (req, res) => {
+  const { charId } = req.params;
+  if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
+  if (!db) return res.json([]);
+  const uid = req.user.googleId;
+  const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+  const result = await db.query(
+    'SELECT id, archived_at, jsonb_array_length(messages) AS message_count, messages->0 AS first_msg FROM chat_archives WHERE user_id=$1 AND char_id=$2 ORDER BY archived_at DESC LIMIT $3',
+    [uid, charId, limit]
+  ).catch(() => ({ rows: [] }));
+  res.json(result.rows);
+});
+
+// Fetch a single archived conversation
+app.get('/api/conversations/:charId/history/:archiveId', requireAuth, async (req, res) => {
+  const { charId, archiveId } = req.params;
+  if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
+  if (!db) return res.status(404).json({ error: 'Not found' });
+  const uid = req.user.googleId;
+  const result = await db.query(
+    'SELECT id, archived_at, messages FROM chat_archives WHERE id=$1 AND user_id=$2 AND char_id=$3',
+    [parseInt(archiveId), uid, charId]
+  ).catch(() => ({ rows: [] }));
+  if (!result.rows[0]) return res.status(404).json({ error: 'Not found' });
+  res.json(result.rows[0]);
 });
 
 const OWNER_EMAILS = new Set(['support.charactermind@gmail.com']);

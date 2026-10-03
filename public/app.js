@@ -1429,9 +1429,19 @@ function showLockedChat() {
   if (btn) btn.disabled = true;
   const lockBar = document.createElement('div');
   lockBar.className = 'chat-locked-bar';
-  lockBar.innerHTML = '<span>🚫</span><span>This chat was permanently ended due to repeated policy violations. You cannot send messages here.</span>';
+  lockBar.innerHTML = `
+    <span>🚫</span>
+    <span>This chat was permanently ended due to repeated policy violations.</span>
+    <button class="new-chat-btn" onclick="resetAndStartNewChat('${currentChar}')">Start new chat</button>
+  `;
   if (messagesDiv) messagesDiv.appendChild(lockBar);
   scrollToBottom();
+}
+
+async function resetAndStartNewChat(charId) {
+  // reset-mod endpoint archives the convo + resets strikes
+  try { await fetch(`/api/chat/reset-mod/${charId}`, { method: 'POST' }); } catch (_) {}
+  openChar(charId);
 }
 
 function updateTypingAvatar() {
@@ -2885,16 +2895,29 @@ function previewVoiceURI(voiceURI, e) {
 }
 
 // ── History panel ─────────────────────────────────────────────────────────────
+let _histTab = 'current';
+
 function openHistoryPanel() {
   const overlay = document.getElementById('historyPanelOverlay');
   if (!overlay) return;
+  _histTab = 'current';
   renderHistoryPanel();
+  switchHistoryTab('current');
   overlay.style.display = 'flex';
 }
 
 function closeHistoryPanel() {
   const overlay = document.getElementById('historyPanelOverlay');
   if (overlay) overlay.style.display = 'none';
+}
+
+function switchHistoryTab(tab) {
+  _histTab = tab;
+  document.getElementById('histViewCurrent').style.display = tab === 'current' ? 'flex' : 'none';
+  document.getElementById('histViewPast').style.display = tab === 'past' ? 'flex' : 'none';
+  document.getElementById('histTabCurrent').classList.toggle('hist-tab-active', tab === 'current');
+  document.getElementById('histTabPast').classList.toggle('hist-tab-active', tab === 'past');
+  if (tab === 'past') loadPastChats();
 }
 
 function renderHistoryPanel() {
@@ -2910,6 +2933,59 @@ function renderHistoryPanel() {
     const preview = escHtml(text.length > 180 ? text.substring(0, 180) + '…' : text);
     return `<div class="history-msg-row ${isAi ? 'ai' : 'user'}"><span class="history-msg-who">${name}</span><span class="history-msg-text">${preview}</span></div>`;
   }).join('');
+}
+
+async function loadPastChats() {
+  if (!currentChar) return;
+  const el = document.getElementById('pastChatsArchiveList');
+  if (!el) return;
+  el.innerHTML = '<div class="history-empty">Loading…</div>';
+  try {
+    const res = await fetch(`/api/conversations/${currentChar.id}/history`);
+    const archives = res.ok ? await res.json() : [];
+    if (!archives.length) { el.innerHTML = '<div class="history-empty">No past chats archived yet. Start a new chat to archive the current one.</div>'; return; }
+    el.innerHTML = archives.map(a => {
+      const date = new Date(a.archived_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const firstMsg = a.first_msg;
+      const preview = firstMsg ? escHtml((firstMsg.content || '').slice(0, 80) + (firstMsg.content?.length > 80 ? '…' : '')) : 'No messages';
+      const role = firstMsg?.role === 'user' ? 'You' : escHtml(currentChar.name || 'AI');
+      return `<div class="past-chat-entry" onclick="viewPastChat(${a.id})">
+        <div class="past-chat-meta"><span class="past-chat-date">${date}</span><span class="past-chat-count">${a.message_count} msg${a.message_count !== 1 ? 's' : ''}</span></div>
+        <div class="past-chat-preview"><span class="past-chat-who">${role}:</span> ${preview}</div>
+      </div>`;
+    }).join('');
+  } catch (_) {
+    el.innerHTML = '<div class="history-empty">Could not load past chats.</div>';
+  }
+}
+
+async function viewPastChat(archiveId) {
+  if (!currentChar) return;
+  const el = document.getElementById('pastChatsArchiveList');
+  if (!el) return;
+  el.innerHTML = '<div class="history-empty">Loading…</div>';
+  try {
+    const res = await fetch(`/api/conversations/${currentChar.id}/history/${archiveId}`);
+    if (!res.ok) throw new Error();
+    const archive = await res.json();
+    const date = new Date(archive.archived_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const msgs = archive.messages || [];
+    const rows = msgs.map(m => {
+      const isAi = m.role === 'assistant';
+      const name = isAi ? escHtml(currentChar.name || 'AI') : 'You';
+      const text = escHtml((m.content || '').slice(0, 400) + (m.content?.length > 400 ? '…' : ''));
+      return `<div class="history-msg-row ${isAi ? 'ai' : 'user'}"><span class="history-msg-who">${name}</span><span class="history-msg-text">${text}</span></div>`;
+    }).join('');
+    el.innerHTML = `
+      <div class="past-chat-back">
+        <button class="history-action-btn" onclick="loadPastChats()">← Back</button>
+        <span style="font-size:12px;color:var(--text3)">${date}</span>
+      </div>
+      ${rows || '<div class="history-empty">No messages in this archive.</div>'}
+    `;
+  } catch (_) {
+    el.innerHTML = '<div class="history-empty">Could not load this chat.</div>';
+  }
 }
 
 function exportHistory() {
@@ -3507,6 +3583,8 @@ function autoResize(el) {
 
 async function newChat() {
   if (!currentChar) return;
+  // Archive current conversation before clearing
+  await fetch(`/api/conversations/${currentChar.id}/archive`, { method: 'POST' }).catch(() => {});
   // Await the DELETE so the server clears history before we try to greet
   await fetch(`/api/conversations/${currentChar.id}`, { method: 'DELETE' }).catch(() => {});
   // Clear stale local history so reload starts fresh
