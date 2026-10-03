@@ -1218,6 +1218,7 @@ function touchRecentChat(charId) {
     r[charId] = now;
     localStorage.setItem(userKey('cm_recents_v2'), JSON.stringify(r));
   } catch (_) {}
+  renderSidebarChats();
   // Sync to server so recents persist across devices
   if (currentUser) {
     fetch('/api/user/recent-chats', {
@@ -1441,6 +1442,11 @@ function showLockedChat() {
 async function resetAndStartNewChat(charId) {
   // reset-mod endpoint archives the convo + resets strikes
   try { await fetch(`/api/chat/reset-mod/${charId}`, { method: 'POST' }); } catch (_) {}
+  try {
+    const all = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}');
+    delete all[charId];
+    localStorage.setItem(userKey('cm_history'), JSON.stringify(all));
+  } catch(_) {}
   openChar(charId);
 }
 
@@ -3589,9 +3595,9 @@ async function newChat() {
   await fetch(`/api/conversations/${currentChar.id}`, { method: 'DELETE' }).catch(() => {});
   // Clear stale local history so reload starts fresh
   try {
-    const all = JSON.parse(localStorage.getItem('cm_history') || '{}');
+    const all = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}');
     delete all[currentChar.id];
-    localStorage.setItem('cm_history', JSON.stringify(all));
+    localStorage.setItem(userKey('cm_history'), JSON.stringify(all));
   } catch(_) {}
   document.getElementById('messages').innerHTML = '';
   document.getElementById('chatWelcome').innerHTML = '';
@@ -3891,9 +3897,9 @@ async function createCharacter(e) {
     if (editingId) {
       await fetch(`/api/conversations/${editingId}`, { method: 'DELETE' }).catch(() => {});
       try {
-        const all = JSON.parse(localStorage.getItem('cm_history') || '{}');
+        const all = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}');
         delete all[editingId];
-        localStorage.setItem('cm_history', JSON.stringify(all));
+        localStorage.setItem(userKey('cm_history'), JSON.stringify(all));
       } catch(_) {}
     }
 
