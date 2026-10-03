@@ -895,17 +895,12 @@ const NSFW_DEFLECT = [
 ];
 
 function nsfwDeflect(res, usage) {
-  const line = NSFW_DEFLECT[Math.floor(Math.random() * NSFW_DEFLECT.length)];
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
-  // Stream it word by word so the typewriter effect still plays
-  const words = line.split(' ');
-  words.forEach((w, i) => {
-    res.write(`data: ${JSON.stringify({ text: (i === 0 ? '' : ' ') + w })}\n\n`);
-  });
+  res.write(`data: ${JSON.stringify({ nsfw: true })}\n\n`);
   res.write(`data: ${JSON.stringify({ done: true, usage: usage || {}, responseTokens: 0, warnings: [] })}\n\n`);
   res.end();
 }

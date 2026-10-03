@@ -1895,6 +1895,7 @@ async function sendMessage(overrideText, skipAppend) {
         if (!line.startsWith('data: ')) continue;
         const data = JSON.parse(line.slice(6));
         if (data.error) throw new Error(data.error);
+        if (data.nsfw) { showTyping(false); appendNsfwCard(); }
         if (data.conversationEnded) {
           convEnded = true;
           showTyping(false);
@@ -2958,6 +2959,18 @@ function msgAvatarHtml(cls) {
   if (!currentChar) return `<div class="${cls}" style="background:#555">A</div>`;
   if (currentChar.image && currentChar.image.startsWith('data:image/')) return `<div class="${cls}" style="background:#111;overflow:hidden"><img src="${currentChar.image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>`;
   return `<div class="${cls}" style="background:${safeColor(currentChar.color)}">${escHtml(currentChar.name[0]||'?')}</div>`;
+}
+
+function appendNsfwCard() {
+  const div = document.createElement('div');
+  div.className = 'nsfw-block-card';
+  div.innerHTML = `
+    <div class="nsfw-card-icon">🤖</div>
+    <div class="nsfw-card-title">This message goes against our Terms of Use.</div>
+    <div class="nsfw-card-body">Sexual and explicit content isn't something we generate on Character.Mind. If you think this was a mistake, you can report it.</div>
+    <button class="nsfw-card-report" onclick="this.textContent='Reported'; this.disabled=true">Report</button>`;
+  document.getElementById('messages').appendChild(div);
+  scrollToBottom();
 }
 
 function appendMessage(role, text, imgB64) {

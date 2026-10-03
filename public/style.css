@@ -1219,6 +1219,24 @@ html, body {
 .lockout-dot { color: rgba(252,165,165,0.4); }
 #lockoutCountdown { font-variant-numeric: tabular-nums; font-weight: 600; }
 
+/* ── NSFW block card ─────────────────────────────────────────────────────── */
+.nsfw-block-card {
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center; margin: 12px auto 16px; padding: 20px 22px 18px;
+  max-width: 380px; width: calc(100% - 32px);
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 16px; gap: 8px;
+}
+.nsfw-card-icon { font-size: 32px; line-height: 1; }
+.nsfw-card-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.nsfw-card-body  { font-size: 13px; color: var(--text3); line-height: 1.5; }
+.nsfw-card-report {
+  margin-top: 6px; padding: 7px 28px; border-radius: 8px;
+  background: var(--bg3,#33353e); border: 1px solid var(--border2);
+  color: var(--text2); font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.nsfw-card-report:disabled { opacity: 0.6; cursor: default; }
+
 /* ── Conversation ended system message ───────────────────────────────────── */
 .conv-ended-msg {
   text-align: center; color: var(--text3); font-size: 13px;
