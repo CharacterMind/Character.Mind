@@ -144,7 +144,7 @@ function renderPricingCards() {
     }
     const badge = plan.badge ? `<div class="pc-badge">${escHtml(plan.badge)}</div>` : '';
     const features = plan.features.map(f => `<li>✓ ${escHtml(f)}</li>`).join('');
-    const ctaText = isCurrent ? 'Current plan' : 'Upgrade via PayPal';
+    const ctaText = isCurrent ? 'Current plan' : 'Upgrade';
     const ctaClass = 'pc-cta' + (isCurrent ? ' pc-cta-current' : '');
     return `<div class="pricing-card${isCurrent ? ' pc-current' : ''}${plan.badge ? ' pc-featured' : ''}">
       ${badge}
@@ -3269,74 +3269,6 @@ function previewVoiceURI(voiceURI, e) {
 }
 
 // ── Plans panel ──────────────────────────────────────────────────────────────
-
-function openPlansPanel() {
-  const overlay = document.getElementById('plansPanelOverlay');
-  if (!overlay) return;
-  overlay.style.display = 'flex';
-  renderPlansPanelCards();
-}
-
-function closePlansPanel() {
-  const overlay = document.getElementById('plansPanelOverlay');
-  if (overlay) overlay.style.display = 'none';
-}
-
-function renderPlansPanelCards() {
-  const container = document.getElementById('plansPanelContent');
-  if (!container) return;
-  const currentTier = lastKnownUsage?.subscriptionTier || 'free';
-  container.innerHTML = `
-    <div class="pp-toggle">
-      <button id="ppBtnMonthly" class="pp-period-btn pp-active" onclick="setPlansPeriod('monthly')">Monthly</button>
-      <button id="ppBtnAnnual" class="pp-period-btn" onclick="setPlansPeriod('annual')">Annual</button>
-    </div>
-    <div class="pp-cards" id="ppCards"></div>
-  `;
-  _renderPpCards(currentTier, 'monthly');
-}
-
-let _ppPeriod = 'monthly';
-
-function setPlansPeriod(period) {
-  _ppPeriod = period;
-  document.getElementById('ppBtnMonthly')?.classList.toggle('pp-active', period === 'monthly');
-  document.getElementById('ppBtnAnnual')?.classList.toggle('pp-active', period === 'annual');
-  const currentTier = lastKnownUsage?.subscriptionTier || 'free';
-  _renderPpCards(currentTier, period);
-}
-
-function _renderPpCards(currentTier, period) {
-  const container = document.getElementById('ppCards');
-  if (!container) return;
-  container.innerHTML = PLAN_DATA.map(plan => {
-    const isCurrent = plan.key === currentTier;
-    const price = period === 'annual' ? plan.annual : plan.monthly;
-    const priceStr = price === 0 ? 'Free' : `$${price.toFixed(2)}`;
-    const periodStr = price === 0 ? 'forever' : period === 'annual' ? '/ year' : '/ month';
-    let saveLine = '';
-    if (plan.annual > 0 && period === 'annual') {
-      const savePct = Math.round((1 - plan.annual / (plan.monthly * 12)) * 100);
-      saveLine = `<div class="pp-save">~$${(plan.annual/12).toFixed(2)}/mo · Save ${savePct}%</div>`;
-    }
-    const badge = plan.badge ? `<div class="pp-badge">${escHtml(plan.badge)}</div>` : '';
-    const features = plan.features.map(f => `<li>${escHtml(f)}</li>`).join('');
-    const cta = isCurrent
-      ? `<button class="pp-cta pp-cta-current" disabled>Current plan</button>`
-      : plan.key === 'free'
-        ? `<button class="pp-cta pp-cta-free" disabled>Free tier</button>`
-        : `<button class="pp-cta" onclick="closePlansPanel();openPricingModal()">Upgrade</button>`;
-    return `
-      <div class="pp-card${isCurrent ? ' pp-card-current' : ''}">
-        ${badge}
-        <div class="pp-plan-name">${escHtml(plan.name)}</div>
-        <div class="pp-price">${priceStr} <span class="pp-period">${periodStr}</span></div>
-        ${saveLine}
-        <ul class="pp-features">${features}</ul>
-        ${cta}
-      </div>`;
-  }).join('');
-}
 
 // ── Resources panel ───────────────────────────────────────────────────────────
 let _cachedGpsCoords = null; // reuse within session — GPS permission only asked once
