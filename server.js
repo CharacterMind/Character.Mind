@@ -183,6 +183,7 @@ if (GOOGLE_AUTH_ENABLED) {
         if (isNew && user.email) sendWelcomeEmail(user.name, user.email);
       }).catch(err => console.error('User upsert error:', err.message));
     }
+    if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId);
     done(null, user);
   }));
 } else {
@@ -304,7 +305,9 @@ async function loadLimitsFromDB() {
         weeklyTokens: d.weeklyTokens || 0,
         weeklyStart: d.weeklyStart || null,
         warned: d.warned || {},
-        regenCount: d.regenCount || 0
+        regenCount: d.regenCount || 0,
+        callsToday: d.callsToday || 0,
+        callDayStart: d.callDayStart || null
       };
     }
     if (Object.keys(userLimits).length) console.log(`[limits] Loaded ${Object.keys(userLimits).length} user limit records from DB`);
@@ -325,20 +328,28 @@ function saveLimitsToDB(userId) {
 }
 
 const LIMITS = {
-  SESSION: 20000,
+  SESSION: 80000,
   SESSION_COOLDOWN_MS: 2 * 60 * 60 * 1000 + 3 * 60 * 1000, // 2h 3m — full session window
-  WEEKLY: 200000,
+  WEEKLY: 600000,
   WEEKLY_MS: 7 * 24 * 60 * 60 * 1000,
-  REGEN_FREE: 2
+  REGEN_FREE: 2,
+  CALL_DAILY: 3
 };
+
+// Returns timestamp of the most recent 8:00 AM UTC (start of current call window)
+function getCallWindowStart() {
+  const now = new Date();
+  const at8 = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 8, 0, 0, 0));
+  if (now.getTime() < at8.getTime()) at8.setUTCDate(at8.getUTCDate() - 1);
+  return at8.getTime();
+}
 
 const userLimits = {};
 
 function getLimits(sid) {
   const now = Date.now();
   if (!userLimits[sid]) {
-    // weeklyStart and sessionStartedAt are null until the first actual message
-    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0 };
+    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null };
   }
   const u = userLimits[sid];
   // Session window expired (time-based, like Anthropic) → reset for next message
@@ -349,6 +360,9 @@ function getLimits(sid) {
   if (u.weeklyStart && (now - u.weeklyStart) > LIMITS.WEEKLY_MS) {
     u.weeklyTokens = 0; u.weeklyStart = null; u.warned = {};
   }
+  // Call window reset at 8 AM UTC daily
+  const callWindow = getCallWindowStart();
+  if (!u.callDayStart || u.callDayStart < callWindow) { u.callsToday = 0; u.callDayStart = callWindow; }
   return u;
 }
 
@@ -372,7 +386,11 @@ function buildUsagePayload(u) {
     weeklyStart: u.weeklyStart,
     weeklyResetsAt: u.weeklyStart ? u.weeklyStart + LIMITS.WEEKLY_MS : null,
     regenCount: u.regenCount || 0,
-    regenLimit: LIMITS.REGEN_FREE
+    regenLimit: LIMITS.REGEN_FREE,
+    callsToday: u.callsToday || 0,
+    callsLimit: LIMITS.CALL_DAILY,
+    callsRemaining: Math.max(0, LIMITS.CALL_DAILY - (u.callsToday || 0)),
+    callWindowResetsAt: getCallWindowStart() + 24 * 60 * 60 * 1000
   };
 }
 
@@ -953,6 +971,17 @@ app.get('/api/usage', requireAuth, (req, res) => {
   res.json(buildUsagePayload(getLimits(req.user.googleId)));
 });
 
+app.post('/api/call/start', requireAuth, (req, res) => {
+  const u = getLimits(req.user.googleId);
+  const resetsAt = getCallWindowStart() + 24 * 60 * 60 * 1000;
+  if (u.callsToday >= LIMITS.CALL_DAILY) {
+    return res.status(429).json({ allowed: false, callsToday: u.callsToday, callsLimit: LIMITS.CALL_DAILY, callsRemaining: 0, resetsAt });
+  }
+  u.callsToday = (u.callsToday || 0) + 1;
+  saveLimitsToDB(req.user.googleId);
+  res.json({ allowed: true, callsToday: u.callsToday, callsLimit: LIMITS.CALL_DAILY, callsRemaining: LIMITS.CALL_DAILY - u.callsToday, resetsAt });
+});
+
 app.get('/api/chat/lock-status/:charId', requireAuth, async (req, res) => {
   const { charId } = req.params;
   if (!VALID_ID.test(charId)) return res.json({ locked: false });
@@ -960,8 +989,10 @@ app.get('/api/chat/lock-status/:charId', requireAuth, async (req, res) => {
   res.json({ locked: mod.locked, strikes: mod.strikes });
 });
 
+const OWNER_EMAILS = new Set(['support.charactermind@gmail.com', 'davey252572727@gmail.com']);
+const ownerGoogleIds = new Set(); // populated at runtime when owners authenticate
 app.post('/api/admin/reset-limits', requireAuth, (req, res) => {
-  if (req.user.email !== 'support.charactermind@gmail.com') return res.status(403).json({ error: 'Forbidden' });
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
   const { secret, targetId } = req.body;
   const adminSecret = process.env.ADMIN_SECRET;
   if (!adminSecret || secret !== adminSecret) return res.status(403).json({ error: 'Forbidden' });
@@ -975,10 +1006,50 @@ app.post('/api/admin/reset-limits', requireAuth, (req, res) => {
 
 // Owner-only reset — no secret needed, just must be the owner's Google account
 app.post('/api/admin/reset-mine', requireAuth, (req, res) => {
-  if (req.user.email !== 'support.charactermind@gmail.com') return res.status(403).json({ error: 'Forbidden' });
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
   const uid = req.user.googleId;
   delete userLimits[uid];
   if (db) db.query('DELETE FROM user_limits WHERE user_id = $1', [uid]).catch(() => {});
+  res.json({ ok: true });
+});
+
+// Owner-only session-only reset (keeps weekly intact)
+app.post('/api/admin/reset-session', requireAuth, (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  const u = getLimits(req.user.googleId);
+  u.sessionTokens = 0; u.sessionStartedAt = null; u.cooldownUntil = null; u.warned.session90 = false;
+  saveLimitsToDB(req.user.googleId);
+  res.json({ ok: true });
+});
+
+// One-time: stamp all characters created by the calling owner as CharacterMind
+app.post('/api/admin/stamp-official', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  if (!db) return res.status(503).json({ error: 'No database' });
+  const uid = req.user.googleId;
+  ownerGoogleIds.add(uid); // ensure runtime set is updated too
+  const result = await db.query(
+    `UPDATE characters SET creator_name = 'Character Mind Playtime Co' WHERE device_id = $1`,
+    [uid]
+  );
+  res.json({ ok: true, updated: result.rowCount });
+});
+
+// Owner-only: wipe all personal data for the calling account (history, recents, limits)
+app.post('/api/admin/wipe-my-data', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  const uid = req.user.googleId;
+  delete userLimits[uid];
+  // Clear all conversations for this user's sessions
+  for (const key of Object.keys(conversations)) {
+    if (key.startsWith(req.session.id + ':')) delete conversations[key];
+  }
+  if (db) {
+    await Promise.all([
+      db.query('DELETE FROM user_limits WHERE user_id = $1', [uid]),
+      db.query('UPDATE users SET recent_chats = $1, hidden_recents = $2 WHERE google_id = $3', ['{}', '{}', uid])
+    ]).catch(() => {});
+  }
   res.json({ ok: true });
 });
 
@@ -996,7 +1067,9 @@ app.get('/api/characters', async (req, res) => {
     res.json(rows.map(r => ({
       id: r.id, name: r.name, tagline: r.tagline, description: r.description,
       systemPrompt: r.system_prompt, greeting: r.greeting, greetingMode: r.greeting_mode,
-      color: r.color, accentColor: r.color, creator: r.creator_name,
+      color: r.color, accentColor: r.color,
+      creator: (r.device_id && ownerGoogleIds.has(r.device_id)) ? 'Character Mind Playtime Co' : r.creator_name,
+      isOfficial: !!(r.device_id && ownerGoogleIds.has(r.device_id)),
       image: r.image, tags: r.tags || [], interactions: r.interactions,
       isMine: !!(userId && r.device_id === userId)
     })));
@@ -1068,8 +1141,9 @@ app.post('/api/characters', requireAuth, async (req, res) => {
   const validErr = validateChar(body);
   if (validErr) return res.status(400).json({ error: validErr });
 
-  const { id, name, tagline, description, systemPrompt, greeting, greetingMode, color, creatorName, image, tags } = body;
+  const { id, name, tagline, description, systemPrompt, greeting, greetingMode, color, image, tags } = body;
   const userId = req.user.googleId;
+  const creatorName = OWNER_EMAILS.has(req.user.email) ? 'Character Mind Playtime Co' : (body.creatorName || 'Anonymous');
 
   try {
     // Enforce per-user character creation cap (free tier)
@@ -1256,6 +1330,11 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
 
   const limit = checkLimits(userId);
   if (limit.blocked) return res.status(429).json({ error: limit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limit });
+
+  const u = getLimits(userId);
+  if ((u.regenCount || 0) >= LIMITS.REGEN_FREE) {
+    return res.status(429).json({ regenLimitReached: true, regenLimit: LIMITS.REGEN_FREE });
+  }
 
   const dbChar = await getCharPrompt(charId);
   const systemPrompt = dbChar ? dbChar.system_prompt : `You are ${charId}, a unique AI character.`;

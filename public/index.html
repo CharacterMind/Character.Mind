@@ -20,7 +20,7 @@
 <link rel="icon" type="image/webp" href="/logo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=38">
+<link rel="stylesheet" href="style.css?v=45">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -56,9 +56,6 @@
     <p class="auth-footer">By continuing, you agree to our <a href="/terms.html" style="color:inherit;text-decoration:underline;opacity:0.7">Terms of Service</a> and <a href="/privacy.html" style="color:inherit;text-decoration:underline;opacity:0.7">Privacy Policy</a>.</p>
   </div>
 </div>
-
-<!-- Toast notifications -->
-<div id="toastContainer" class="toast-container"></div>
 
 <!-- Usage Modal -->
 <div id="usageModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeUsageModal()">
@@ -383,9 +380,6 @@
           <button class="btn-call" id="callBtn" onclick="toggleCallMode()" title="Voice call">
             <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
           </button>
-          <button class="btn-img-pick" id="imgBtn" onclick="openImagePicker()" title="Send image">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
-          </button>
         </div>
         <!-- Call overlay -->
         <div id="callOverlay" class="call-overlay" style="display:none">
@@ -414,8 +408,20 @@
             </div>
           </div>
         </div>
-        <!-- Hidden image file picker -->
-        <input type="file" id="imageFileInput" accept="image/*" style="display:none" onchange="handleImageFile(event)">
+        <!-- Call limit reached modal -->
+        <div id="callLimitModal" class="call-limit-modal" style="display:none">
+          <div class="call-limit-box">
+            <div class="call-limit-icon">📵</div>
+            <div class="call-limit-title">Daily call limit reached</div>
+            <div class="call-limit-body">You've used all 3 voice calls for today.<br>Resets at <strong id="callLimitResetsAt">8:00 AM</strong>.</div>
+            <button class="call-limit-close" onclick="hideCallLimitModal()">Got it</button>
+          </div>
+        </div>
+        <!-- 1 call remaining warning banner -->
+        <div id="callWarningBanner" class="call-warning-banner" style="display:none">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+          1 voice call left today
+        </div>
         <!-- Model/effort bar -->
         <div class="model-bar-zone">
           <!-- Model picker panel -->
@@ -860,6 +866,18 @@
             <div class="settings-plan-sub">Session limit · 2-hour cooldown · Weekly limit</div>
           </div>
         </div>
+        <div class="settings-usage-section">
+          <div class="settings-usage-row">
+            <span class="settings-usage-label">Session</span>
+            <span class="settings-usage-pct" id="settingsSessionPct">—</span>
+          </div>
+          <div class="settings-usage-bar-track"><div class="settings-usage-bar-fill" id="settingsSessionBar"></div></div>
+          <div class="settings-usage-row" style="margin-top:14px">
+            <span class="settings-usage-label">Weekly</span>
+            <span class="settings-usage-pct" id="settingsWeeklyPct">—</span>
+          </div>
+          <div class="settings-usage-bar-track"><div class="settings-usage-bar-fill" id="settingsWeeklyBar"></div></div>
+        </div>
       </div>
     </div>
   </div>
@@ -911,6 +929,6 @@
   </div>
 </div>
 
-<script src="app.js?v=80"></script>
+<script src="app.js?v=87"></script>
 </body>
 </html>

@@ -581,6 +581,19 @@ function showSettingsTab(tab) {
 
 function updateSettingsUsage(u) {
   if (!u) return;
+  const settingsModal = document.getElementById('settingsModal');
+  if (!settingsModal || settingsModal.style.display === 'none') return;
+  const sPct = Math.min(100, Math.round((u.sessionTokens / u.sessionLimit) * 100));
+  const wPct = Math.min(100, Math.round((u.weeklyTokens / u.weeklyLimit) * 100));
+  const fillClass = p => p >= 90 ? 'danger' : p >= 70 ? 'warn' : '';
+  const sBar = document.getElementById('settingsSessionBar');
+  if (sBar) { sBar.style.width = sPct + '%'; sBar.className = 'settings-usage-bar-fill ' + fillClass(sPct); }
+  const sPctEl = document.getElementById('settingsSessionPct');
+  if (sPctEl) sPctEl.textContent = sPct + '%';
+  const wBar = document.getElementById('settingsWeeklyBar');
+  if (wBar) { wBar.style.width = wPct + '%'; wBar.className = 'settings-usage-bar-fill ' + fillClass(wPct); }
+  const wPctEl = document.getElementById('settingsWeeklyPct');
+  if (wPctEl) wPctEl.textContent = wPct + '%';
 }
 
 function formatWeeklyResetShort(until) {
@@ -646,15 +659,17 @@ function homeCard(c) {
     ? `<div class="hc-avatar"><img src="${c.image}" style="width:100%;height:100%;object-fit:cover;border-radius:10px"></div>`
     : `<div class="hc-avatar" style="background:${safeColor(c.color)}">${escHtml((c.name||'?')[0])}</div>`;
   const creator = (c.creator || 'anonymous').replace(/^@/, '');
+  const officialBadge = c.isOfficial ? `<span class="hc-official-badge" title="Official Character Mind Playtime Co character">CM</span>` : '';
   const ownerEdit = c.isMine ? `<button class="hc-edit-btn" onclick="event.stopPropagation();editCharacter('${escHtml(c.id)}')" title="Edit">✏️</button>` : '';
   return `<div class="hc" onclick="openChat('${escHtml(c.id)}')">
     ${av}
     <div class="hc-info">
       <div class="hc-name-row">
         <span class="hc-name">${escHtml(c.name)}</span>
+        ${officialBadge}
         ${ownerEdit}
       </div>
-      <div class="hc-creator">By @${escHtml(creator)}</div>
+      <div class="hc-creator"><span class="hc-creator-official">By Character Mind Playtime Co</span></div>
       <div class="hc-tagline">${escHtml(c.tagline || (c.description||'').slice(0,80) || '')}</div>
       <div class="hc-meta">
         <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
@@ -956,7 +971,7 @@ function charRow(c) {
     <div class="char-row-info">
       <div class="char-row-name">${escHtml(c.name)}</div>
       <div class="char-row-tagline">${escHtml(c.tagline || '')}</div>
-      <div class="char-row-meta">${escHtml(c.creator || 'Anonymous')} · ${formatCount(c.interactions||0)} chats</div>
+      <div class="char-row-meta"><span class="hc-creator-official">By Character Mind Playtime Co</span> · ${formatCount(c.interactions||0)} chats</div>
     </div>
     ${ownerBtns}
   </div>`;
@@ -968,7 +983,7 @@ function charCard(c) {
     <div class="card-name">${escHtml(c.name)}</div>
     <div class="card-tagline">${escHtml(c.tagline || '')}</div>
     <div class="card-meta">
-      <span class="card-creator">${escHtml(c.creator || 'Anonymous')}</span>
+      <span class="card-creator"><span class="hc-creator-official">By Character Mind Playtime Co</span></span>
       <span class="card-interactions">💬 ${formatCount(c.interactions||0)}</span>
     </div>
     <div class="card-tags">${(c.tags||[]).map(t=>`<span class="card-tag">${escHtml(t)}</span>`).join('')}</div>
@@ -1022,11 +1037,14 @@ function renderFeed() {
 }
 
 // ── Render Sidebar ─────────────────────────────────────────────────────────────
+// User-scoped localStorage key — keeps data isolated per Google account on shared browsers
+function userKey(base) { return currentUser ? `${base}_${currentUser.googleId}` : `${base}_guest`; }
+
 function getHiddenRecents() {
-  try { return new Set(JSON.parse(localStorage.getItem('cm_hidden_recents') || '[]')); } catch { return new Set(); }
+  try { return new Set(JSON.parse(localStorage.getItem(userKey('cm_hidden_recents')) || '[]')); } catch { return new Set(); }
 }
 function setHiddenRecents(set) {
-  try { localStorage.setItem('cm_hidden_recents', JSON.stringify([...set])); } catch {}
+  try { localStorage.setItem(userKey('cm_hidden_recents'), JSON.stringify([...set])); } catch {}
   if (currentUser) {
     fetch('/api/user/hidden-recents', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1060,7 +1078,7 @@ async function syncRecentChatsFromServer() {
     if (!res.ok) return;
     const { recents: merged } = await res.json();
     if (merged && Object.keys(merged).length) {
-      try { localStorage.setItem('cm_recents_v2', JSON.stringify(merged)); } catch {}
+      try { localStorage.setItem(userKey('cm_recents_v2'), JSON.stringify(merged)); } catch {}
     }
   } catch (_) {}
 }
@@ -1106,14 +1124,14 @@ function initSidebarContextMenu() {
 }
 
 function getRecentChats() {
-  try { return JSON.parse(localStorage.getItem('cm_recents_v2') || '{}'); } catch { return {}; }
+  try { return JSON.parse(localStorage.getItem(userKey('cm_recents_v2')) || '{}'); } catch { return {}; }
 }
 function touchRecentChat(charId) {
   const now = Date.now();
   try {
     const r = getRecentChats();
     r[charId] = now;
-    localStorage.setItem('cm_recents_v2', JSON.stringify(r));
+    localStorage.setItem(userKey('cm_recents_v2'), JSON.stringify(r));
   } catch (_) {}
   // Sync to server so recents persist across devices
   if (currentUser) {
@@ -1133,7 +1151,7 @@ function renderSidebarChats() {
 
   // Also include characters with saved local history even if no explicit open-timestamp
   let histKeys = {};
-  try { histKeys = JSON.parse(localStorage.getItem('cm_history') || '{}'); } catch {}
+  try { histKeys = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}'); } catch {}
 
   const chatted = characters
     .filter(c => !hidden.has(c.id) && (recents[c.id] || histKeys[c.id]))
@@ -1180,15 +1198,15 @@ function saveHistoryLocal() {
       role: el.classList.contains('user') ? 'user' : 'ai',
       content: el.querySelector('.bubble')?.innerText || ''
     })).filter(m => m.content);
-    const all = JSON.parse(localStorage.getItem('cm_history') || '{}');
+    const all = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}');
     all[currentChar.id] = items.slice(-40);
-    localStorage.setItem('cm_history', JSON.stringify(all));
+    localStorage.setItem(userKey('cm_history'), JSON.stringify(all));
   } catch (_) {}
 }
 
 function loadHistoryLocal(charId) {
   try {
-    const all = JSON.parse(localStorage.getItem('cm_history') || '{}');
+    const all = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}');
     return all[charId] || [];
   } catch (_) { return []; }
 }
@@ -1235,8 +1253,6 @@ async function openChat(charId) {
   if (infoCreator) infoCreator.textContent = currentChar.creator || '@you';
   const infoInteractions = document.getElementById('infoInteractions');
   if (infoInteractions) infoInteractions.textContent = formatCount(currentChar.interactions||0);
-  const voiceEl = document.getElementById('infoVoiceName');
-  if (voiceEl) voiceEl.textContent = currentChar.name;
   const isCustom = !!currentChar.isMine;
   const delBtn = document.getElementById('ipDeleteBtn');
   if (delBtn) delBtn.style.display = isCustom ? 'flex' : 'none';
@@ -1831,23 +1847,15 @@ function startCooldown(until, type, showModal) {
 
   const cd = document.getElementById('lockoutCountdown');
 
-  function formatSessionCooldown(until) {
-    return 'Resets at ' + new Date(until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  }
-
   function updateCountdown() {
     if (Date.now() >= until) { clearLockout(); loadUsage(); return; }
-    if (type === 'weekly') {
-      if (cd) cd.textContent = formatWeeklyReset(until);
-    } else {
-      const str = formatSessionCooldown(until);
-      if (cd) cd.textContent = str;
-      // Keep modal sub in sync
+    const str = formatResetTime(until);
+    if (cd) cd.textContent = str;
+    if (type === 'session') {
       const sub = document.getElementById('limitModalSub');
       if (sub && document.getElementById('limitModal')?.style.display !== 'none') sub.textContent = str;
-      // Keep session bar sub-text counting down
       const sSubEl = document.getElementById('usageSessionSub');
-      if (sSubEl) sSubEl.textContent = formatResetTime(until);
+      if (sSubEl) sSubEl.textContent = str;
     }
   }
 
@@ -1858,7 +1866,7 @@ function startCooldown(until, type, showModal) {
   cooldownTimer = setInterval(updateCountdown, 1000);
 
   if (showModal) {
-    const displayStr = type === 'weekly' ? formatWeeklyReset(until) : formatSessionCooldown(until);
+    const displayStr = formatResetTime(until);
     showLimitModal(type, displayStr);
   }
 }
@@ -1953,7 +1961,10 @@ async function loadUsage() {
 function updateCtxBar() {}
 
 // ── Admin reset (Ctrl+Shift+0 or button in usage modal — owner only) ─────────
-function isOwner() { return currentUser?.email === 'support.charactermind@gmail.com'; }
+function isOwner() {
+  return currentUser?.email === 'support.charactermind@gmail.com' ||
+         currentUser?.email === 'davey252572727@gmail.com';
+}
 
 async function adminResetLimits() {
   if (!isOwner()) return;
@@ -2086,7 +2097,7 @@ function updateUsageModal(u) {
     if (u.cooldownUntil && Date.now() < u.cooldownUntil) {
       sSubEl.textContent = formatResetTime(u.cooldownUntil);
     } else if (u.sessionTokens > 0 && u.sessionExpiresAt) {
-      sSubEl.textContent = fmtTokens(u.sessionTokens) + ' of ' + fmtTokens(u.sessionLimit) + ' · resets ' + new Date(u.sessionExpiresAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      sSubEl.textContent = fmtTokens(u.sessionTokens) + ' of ' + fmtTokens(u.sessionLimit) + ' · ' + formatResetTime(u.sessionExpiresAt);
     } else {
       sSubEl.textContent = 'Starts fresh when you send your first message';
     }
@@ -2099,7 +2110,7 @@ function updateUsageModal(u) {
   if (wPctEl) wPctEl.textContent = wPct + '%';
 
   const wSubEl = document.getElementById('usageWeeklySub');
-  if (wSubEl) wSubEl.textContent = u.weeklyResetsAt ? formatWeeklyReset(u.weeklyResetsAt) : 'Resets weekly';
+  if (wSubEl) wSubEl.textContent = u.weeklyResetsAt ? formatResetTime(u.weeklyResetsAt) : 'Resets weekly';
 }
 
 function startUsageModalTimer() {
@@ -2313,8 +2324,9 @@ function saveAiEdit(btn) {
   const newText = bubble.innerText.trim();
   bubble.contentEditable = 'false';
   bubble.classList.remove('editing');
+  const origHtml = ctrl.dataset.origHtml;
   ctrl.remove();
-  bubble.innerHTML = newText ? renderMarkdown(newText) : ctrl.dataset.origHtml;
+  bubble.innerHTML = newText ? renderMarkdown(newText) : origHtml;
   saveHistoryLocal();
 }
 
@@ -2736,7 +2748,7 @@ function exportHistory() {
 function clearHistoryFromPanel() {
   if (!confirm('Clear all messages in this conversation? This cannot be undone.')) return;
   closeHistoryPanel();
-  startNewChat();
+  newChat();
 }
 
 // ── TTS (Text-to-Speech) ─────────────────────────────────────────────────────
@@ -2818,10 +2830,21 @@ function toggleCallMode() {
   if (callModeActive) { endCallMode(); } else { startCallMode(); }
 }
 
-function startCallMode() {
+async function startCallMode() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { alert('Voice calls need a browser with speech recognition — try Chrome.'); return; }
   if (!currentChar) return;
+  // Check daily call limit
+  try {
+    const r = await fetch('/api/call/start', { method: 'POST' });
+    const data = await r.json();
+    if (!data.allowed) {
+      showCallLimitModal(data.resetsAt);
+      return;
+    }
+    if (data.callsRemaining === 1) showCallWarningBanner();
+  } catch(e) { /* offline — allow call anyway */ }
+
   callModeActive = true;
   callMuted = false;
   callFirstConnect = true;
@@ -2832,7 +2855,6 @@ function startCallMode() {
     if (nameEl) nameEl.textContent = currentChar.name || 'Character';
     const avatarEl = document.getElementById('callAvatarWrap');
     if (avatarEl) avatarEl.innerHTML = msgAvatarHtml('call-avatar-img');
-    // Apply character accent color to glow
     const rawColor = currentChar.color || '#7c3aed';
     const hexMatch = /#([0-9a-fA-F]{6})/.exec(rawColor);
     if (hexMatch) {
@@ -2846,6 +2868,29 @@ function startCallMode() {
     setCallState('calling');
     setTimeout(() => { if (callModeActive) listenForSpeech(); }, 1500);
   }
+}
+
+function showCallLimitModal(resetsAt) {
+  const modal = document.getElementById('callLimitModal');
+  if (!modal) return;
+  const resetEl = document.getElementById('callLimitResetsAt');
+  if (resetEl && resetsAt) {
+    const d = new Date(resetsAt);
+    resetEl.textContent = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + ', ' + d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+  modal.style.display = 'flex';
+}
+
+function hideCallLimitModal() {
+  const modal = document.getElementById('callLimitModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function showCallWarningBanner() {
+  const banner = document.getElementById('callWarningBanner');
+  if (!banner) return;
+  banner.style.display = '';
+  setTimeout(() => { if (banner) banner.style.display = 'none'; }, 7000);
 }
 
 function endCallMode() {
@@ -3414,8 +3459,6 @@ function initCropEvents() {
   c.addEventListener('wheel', e => { e.preventDefault(); adjustZoom(e.deltaY < 0 ? 0.08 : -0.08); }, { passive: false });
 }
 
-function setStyle(v) { /* style modifier — future: adjust system prompt tone */ }
-function showHistory() {}
 
 function checkTemplateName() {
   const name = document.getElementById('newName')?.value.trim() || '';
@@ -3480,7 +3523,6 @@ async function createCharacter(e) {
   const color = (document.getElementById('newColor').value || '#7c3aed').trim();
   const editingId = document.getElementById('newName').dataset.editingId;
   const id = editingId || 'custom_' + Date.now();
-
   if (!name) { alert('Character name is required'); return; }
 
   const submitBtn = document.querySelector('.btn-submit');
@@ -3535,6 +3577,16 @@ async function createCharacter(e) {
     });
     if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Save failed'); }
 
+    // After an edit, always clear conversation history so the new greeting shows immediately
+    if (editingId) {
+      await fetch(`/api/conversations/${editingId}`, { method: 'DELETE' }).catch(() => {});
+      try {
+        const all = JSON.parse(localStorage.getItem('cm_history') || '{}');
+        delete all[editingId];
+        localStorage.setItem('cm_history', JSON.stringify(all));
+      } catch(_) {}
+    }
+
     await loadCharacters();
     e.target.reset();
     pendingAvatarData = null;
@@ -3557,14 +3609,12 @@ async function createCharacter(e) {
 function editCharacter(id) {
   const c = characters.find(x => x.id === id);
   if (!c) return;
-  // Set pendingAvatarData BEFORE showCreate (which clears it), so existing image is preserved
-  pendingAvatarData = c.image || null;
   showCreate();
-  document.getElementById('newName').value = c.name;
-  document.getElementById('newTagline').value = c.tagline || '';
-  document.getElementById('newDesc').value = c.description || '';
-  document.getElementById('newGreeting').value = c.greeting || '';
-  document.getElementById('newPrompt').value = c.systemPrompt || '';
+  document.getElementById('newName').value = c.name; updateCount('newName','nameCount',60);
+  document.getElementById('newTagline').value = c.tagline || ''; updateCount('newTagline','taglineCount',160);
+  document.getElementById('newDesc').value = c.description || ''; updateCount('newDesc','descCount',2000);
+  document.getElementById('newGreeting').value = c.greeting || ''; updateCount('newGreeting','greetingCount',4096);
+  document.getElementById('newPrompt').value = c.systemPrompt || ''; updateCount('newPrompt','promptCount',8000);
   document.getElementById('newName').dataset.editingId = id;
   document.querySelector('.btn-submit').textContent = 'Save Changes';
   setGreetingMode(c.greetingMode || 'fixed');
