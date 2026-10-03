@@ -3680,7 +3680,7 @@ const CHAR_CALL_PALETTES = {
   'custom_1790895746935_elliot':   ['#334477', '#1a2244', '#7799cc'],  // Elliot Ludwig — navy
   'custom_1790895746936_stella':   ['#cc9955', '#886633', '#ffe5aa'],  // Stella — warm brown
   'custom_1790895746937_leith':    ['#557788', '#334455', '#99bbcc'],  // Leith Pierre — teal slate
-  'custom_1790895746938_gracie':   ['#5533ee', '#1a0055', '#9977ff'],  // Lily Lovebraids — cool blue-violet
+  'custom_1790897425575_lily':     ['#7722cc', '#1a0033', '#f0c030'],  // Lily Lovebraids — violet, black overalls, gold star
 };
 
 function hslToHex(h, s, l) {
