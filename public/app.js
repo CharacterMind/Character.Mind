@@ -3650,6 +3650,8 @@ async function startCallMode() {
     const nameEl = document.getElementById('callCharName');
     if (nameEl) nameEl.textContent = currentChar.name || '';
     overlay.style.display = 'flex';
+    const vob = document.getElementById('callVoiceOnBadge');
+    if (vob) vob.style.display = '';
     setCallState('calling');
     setTimeout(() => { if (callModeActive) listenForSpeech(); }, 1500);
   }
@@ -3740,7 +3742,12 @@ function showCallWarningBanner() {
   const banner = document.getElementById('callWarningBanner');
   if (!banner) return;
   banner.style.display = '';
-  setTimeout(() => { if (banner) banner.style.display = 'none'; }, 7000);
+  const vob = document.getElementById('callVoiceOnBadge');
+  if (vob) vob.classList.add('below-banner');
+  setTimeout(() => {
+    if (banner) banner.style.display = 'none';
+    if (vob) vob.classList.remove('below-banner');
+  }, 7000);
 }
 
 function showCallMicError() {
@@ -3762,6 +3769,8 @@ function endCallMode() {
   if (overlay) overlay.style.display = 'none';
   const imgEl = document.getElementById('callCharImg');
   if (imgEl) imgEl.style.backgroundImage = '';
+  const vob = document.getElementById('callVoiceOnBadge');
+  if (vob) { vob.style.display = 'none'; vob.classList.remove('below-banner'); }
 }
 
 function setCallState(state) {

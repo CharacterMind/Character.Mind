@@ -1071,6 +1071,15 @@ html, body {
 @keyframes bannerIn { from { opacity:0; transform: translateX(-50%) translateY(-8px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
 .call-warning-upgrade { text-decoration: underline; cursor: pointer; opacity: .85; }
 .call-warning-upgrade:hover { opacity: 1; }
+.call-voice-on-badge {
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+  z-index: 940; background: rgba(255,255,255,.14); backdrop-filter: blur(10px);
+  color: #fff; font-size: 13px; font-weight: 600; letter-spacing: .02em;
+  padding: 7px 18px; border-radius: 30px; border: 1px solid rgba(255,255,255,.22);
+  pointer-events: none; white-space: nowrap;
+  transition: top .2s ease;
+}
+.call-voice-on-badge.below-banner { top: 60px; }
 
 /* ── Voice & History overlay panels ─────────────────────────────────────────── */
 .ip-overlay {
