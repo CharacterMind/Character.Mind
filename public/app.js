@@ -3269,12 +3269,12 @@ async function loadResources() {
       return;
     }
     const locationHtml = data.location
-      ? `<div style="font-size:12px;color:var(--text3);margin-bottom:14px">📍 Resources for <strong style="color:var(--text2)">${data.location}</strong></div>`
+      ? `<div style="font-size:12px;color:var(--text3);margin-bottom:14px">📍 Resources for <strong style="color:var(--text2)">${escHtml(data.location)}</strong></div>`
       : '';
     const rows = data.resources.map(r => `
       <div style="padding:10px 0;border-bottom:1px solid var(--border)">
-        <div style="font-size:14px;font-weight:600;color:var(--text1);margin-bottom:2px">${r.crisis}</div>
-        <div style="font-size:12px;color:var(--text3);line-height:1.5">${r.crisisName}</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text1);margin-bottom:2px">${escHtml(r.crisis)}</div>
+        <div style="font-size:12px;color:var(--text3);line-height:1.5">${escHtml(r.crisisName)}</div>
       </div>`).join('');
     el.innerHTML = `
       <div style="font-size:13px;color:var(--text3);margin-bottom:14px;line-height:1.7">If you or someone you know is in distress, these local resources are here to help. You are not alone.</div>
@@ -3546,7 +3546,6 @@ function callModeTTS(bubble) {
 let callModeActive = false;
 let callMuted = false;
 let callFirstConnect = false;
-let voiceOnTimer = null;
 let callInactivityTimer = null;
 const CALL_INACTIVITY_MS = 15 * 60 * 1000;
 
@@ -3572,19 +3571,6 @@ function showCallInactivityBanner() {
   setTimeout(() => { banner.style.display = 'none'; }, 5000);
 }
 
-function showVoiceOnPill() {
-  const pill = document.getElementById('callVoiceOn');
-  if (!pill) return;
-  pill.style.display = '';
-  if (voiceOnTimer) clearTimeout(voiceOnTimer);
-  voiceOnTimer = setTimeout(() => hideVoiceOnPill(), 5000);
-}
-
-function hideVoiceOnPill() {
-  const pill = document.getElementById('callVoiceOn');
-  if (pill) pill.style.display = 'none';
-  if (voiceOnTimer) { clearTimeout(voiceOnTimer); voiceOnTimer = null; }
-}
 let callRecognition = null;
 
 function toggleCallMode() {
@@ -3669,6 +3655,8 @@ function endCallMode() {
   document.getElementById('callBtn')?.classList.remove('active');
   const overlay = document.getElementById('callOverlay');
   if (overlay) overlay.style.display = 'none';
+  const bgEl = document.getElementById('callBg');
+  if (bgEl) { bgEl.style.backgroundImage = ''; bgEl.style.backgroundColor = ''; }
 }
 
 function setCallState(state) {

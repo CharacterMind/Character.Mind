@@ -851,7 +851,7 @@ const NSFW_RE = new RegExp(
   'finger\\s+(me|you|her|him)\\b|fist\\s+(me|you|her|him)\\b|' +
   'fuck\\s+(me|you|her|him|us|each\\s+other)\\b|' +
   // body part + preposition (inside me, in me, on me)
-  NSFW_BODY_PARTS.replace(/\\/g,'\\\\') + '\\s*(in|into|inside|on)\\s*(me|you|my|your|his|her)|' +
+  NSFW_BODY_PARTS + '\\s*(in|into|inside|on)\\s*(me|you|my|your|his|her)|' +
   // cum/orgasm
   'cum\\s+(in|on|all\\s+over|inside)\\s*(me|you|my|your)|cum\\s+for\\s+me|' +
   'make\\s+(me|you|her|him)\\s+(cum|orgasm|climax)|' +
@@ -1514,6 +1514,7 @@ app.put('/api/characters/:id', requireAuth, async (req, res) => {
 
 // One-time admin: fetch all character images from the Poppy Playtime wiki and store as base64
 app.post('/api/admin/populate-images', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
   if (!db) return res.status(503).json({ error: 'No database' });
   const userId = req.user.googleId;
 
@@ -1781,6 +1782,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
   const { charId, message, modelTier, effort } = req.body;
+  if (message !== undefined && typeof message !== 'string') return res.status(400).json({ error: 'Invalid request' });
   const modelList = getModelList(modelTier);
   const effortCfg = getEffortCfg(effort, modelTier);
   if (!charId) return res.status(400).json({ error: 'charId required' });
@@ -1958,7 +1960,7 @@ async function sendReceiptEmail(userName, email, planKey, subscriptionId) {
       html,
       text,
     });
-    console.log('Receipt email sent to', email);
+    console.log('Receipt email sent');
   } catch (err) {
     console.error('Receipt email error:', err.message);
   }
@@ -2059,7 +2061,7 @@ async function sendPlanWelcomeEmail(userName, email, planKey) {
       html,
       text,
     });
-    console.log('Plan welcome email sent to', email);
+    console.log('Plan welcome email sent');
   } catch (err) {
     console.error('Plan welcome email error:', err.message);
   }
@@ -2150,7 +2152,7 @@ app.post('/api/admin/notify-policy-update', requireAuth, async (req, res) => {
       sent++;
     } catch (err) {
       errors++;
-      console.error('Email send error to', user.email, ':', err.message);
+      console.error('Email send error:', err.message);
     }
   }
 
@@ -2198,19 +2200,24 @@ app.post('/api/paypal/verify-subscription', async (req, res) => {
     });
     const sub = await resp.json();
 
-    if (sub.status === 'ACTIVE') {
-      if (db) {
-        await db.query(
-          'UPDATE users SET subscription_tier = $1, paypal_subscription_id = $2 WHERE google_id = $3',
-          [planKey, subscriptionId, req.user.googleId]
-        );
-      }
-      sendReceiptEmail(req.user.name, req.user.email, planKey, subscriptionId).catch(() => {});
-      sendPlanWelcomeEmail(req.user.name, req.user.email, planKey).catch(() => {});
-      res.json({ ok: true, tier: planKey });
-    } else {
-      res.status(400).json({ error: 'Subscription not active', status: sub.status });
+    if (sub.status !== 'ACTIVE') {
+      return res.status(400).json({ error: 'Subscription not active', status: sub.status });
     }
+    // Verify the subscription's plan matches what the client claims
+    const expectedPlanId = PAYPAL_PLAN_IDS[planKey];
+    if (expectedPlanId && sub.plan_id !== expectedPlanId) {
+      console.error(`PayPal plan mismatch: expected ${expectedPlanId}, got ${sub.plan_id}`);
+      return res.status(403).json({ error: 'Subscription plan does not match selected tier' });
+    }
+    if (db) {
+      await db.query(
+        'UPDATE users SET subscription_tier = $1, paypal_subscription_id = $2 WHERE google_id = $3',
+        [planKey, subscriptionId, req.user.googleId]
+      );
+    }
+    sendReceiptEmail(req.user.name, req.user.email, planKey, subscriptionId).catch(() => {});
+    sendPlanWelcomeEmail(req.user.name, req.user.email, planKey).catch(() => {});
+    res.json({ ok: true, tier: planKey });
   } catch (err) {
     console.error('PayPal verify error:', err);
     res.status(500).json({ error: 'Verification failed' });
@@ -2220,6 +2227,36 @@ app.post('/api/paypal/verify-subscription', async (req, res) => {
 app.post('/api/webhooks/paypal', express.raw({ type: 'application/json' }), async (req, res) => {
   let event;
   try { event = JSON.parse(req.body); } catch { return res.sendStatus(400); }
+
+  // Verify PayPal webhook signature (requires PAYPAL_WEBHOOK_ID env var)
+  const webhookId = process.env.PAYPAL_WEBHOOK_ID;
+  if (webhookId) {
+    try {
+      const token = await getPayPalToken();
+      const verifyResp = await fetch(`${PAYPAL_BASE}/v1/notifications/verify-webhook-signature`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          auth_algo:        req.headers['paypal-auth-algo'],
+          cert_url:         req.headers['paypal-cert-url'],
+          transmission_id:  req.headers['paypal-transmission-id'],
+          transmission_sig: req.headers['paypal-transmission-sig'],
+          transmission_time:req.headers['paypal-transmission-time'],
+          webhook_id:       webhookId,
+          webhook_event:    event
+        })
+      });
+      const verify = await verifyResp.json();
+      if (verify.verification_status !== 'SUCCESS') {
+        console.error('PayPal webhook signature invalid:', verify.verification_status);
+        return res.sendStatus(400);
+      }
+    } catch (err) {
+      console.error('PayPal webhook verify error:', err.message);
+      return res.sendStatus(400);
+    }
+  }
+
   const eventType = event.event_type;
   const subId = event.resource?.id;
   const cancelEvents = ['BILLING.SUBSCRIPTION.CANCELLED', 'BILLING.SUBSCRIPTION.EXPIRED', 'BILLING.SUBSCRIPTION.SUSPENDED'];
