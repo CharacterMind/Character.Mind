@@ -1809,7 +1809,7 @@ async function sendMessage(overrideText, skipAppend) {
   }
 
   if (text) lastUserMessage = text;
-  if (!text && !skipAppend && !document.getElementById('messages').children.length) return;
+  if (!text && !skipAppend) return;
 
   if (!skipAppend) {
     if (text) {
@@ -3229,6 +3229,8 @@ function previewVoiceURI(voiceURI, e) {
 }
 
 // ── Resources panel ───────────────────────────────────────────────────────────
+let _cachedGpsCoords = null; // reuse within session — GPS permission only asked once
+
 function openResourcesPanel() {
   const overlay = document.getElementById('resourcesPanelOverlay');
   if (!overlay) return;
@@ -3247,7 +3249,9 @@ async function loadResources() {
   el.innerHTML = '<div class="history-empty">Requesting your location for accurate local resources…</div>';
   try {
     let url = '/api/crisis-resources';
-    if (navigator.geolocation) {
+    if (_cachedGpsCoords) {
+      url = `/api/crisis-resources?lat=${_cachedGpsCoords.lat}&lon=${_cachedGpsCoords.lon}`;
+    } else if (navigator.geolocation) {
       const coords = await new Promise(resolve => {
         navigator.geolocation.getCurrentPosition(
           pos => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
@@ -3255,7 +3259,7 @@ async function loadResources() {
           { timeout: 7000, maximumAge: 300000 }
         );
       });
-      if (coords) url = `/api/crisis-resources?lat=${coords.lat}&lon=${coords.lon}`;
+      if (coords) { _cachedGpsCoords = coords; url = `/api/crisis-resources?lat=${coords.lat}&lon=${coords.lon}`; }
     }
     const res = await fetch(url);
     if (!res.ok) throw new Error('Failed');

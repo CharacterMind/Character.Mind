@@ -2061,6 +2061,8 @@ html, body {
   .welcome-modal { padding: 24px 18px 20px; width: calc(100vw - 24px); }
   .welcome-greeting { font-size: 22px; }
   .welcome-cols { grid-template-columns: 1fr; }
+  /* Plan cards — single column on mobile */
+  .st2-cards-wrap { grid-template-columns: 1fr; }
 }
 
 /* Very small screens (≤400px) */

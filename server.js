@@ -1436,9 +1436,10 @@ app.get('/api/characters', async (req, res) => {
     const { rows } = await db.query(
       'SELECT id, name, tagline, description, system_prompt, greeting, greeting_mode, color, creator_name, device_id, image, tags, interactions, created_at FROM characters ORDER BY created_at DESC'
     );
+    const authed = !!req.user;
     res.json(rows.map(r => ({
       id: r.id, name: r.name, tagline: r.tagline, description: r.description,
-      systemPrompt: r.system_prompt, greeting: r.greeting, greetingMode: r.greeting_mode,
+      ...(authed ? { systemPrompt: r.system_prompt, greeting: r.greeting, greetingMode: r.greeting_mode } : {}),
       color: r.color, accentColor: r.color,
       creator: (r.device_id && ownerGoogleIds.has(r.device_id)) ? 'Character Mind Playtime Co' : r.creator_name,
       isOfficial: !!(r.device_id && ownerGoogleIds.has(r.device_id)),
@@ -1454,7 +1455,11 @@ app.get('/api/characters/:id', async (req, res) => {
     const { rows } = await db.query('SELECT * FROM characters WHERE id = $1', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Character not found' });
     const r = rows[0];
-    res.json({ id: r.id, name: r.name, tagline: r.tagline, systemPrompt: r.system_prompt, greeting: r.greeting, greetingMode: r.greeting_mode, color: r.color });
+    const authed = !!req.user;
+    res.json({
+      id: r.id, name: r.name, tagline: r.tagline, color: r.color,
+      ...(authed ? { systemPrompt: r.system_prompt, greeting: r.greeting, greetingMode: r.greeting_mode } : {})
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
