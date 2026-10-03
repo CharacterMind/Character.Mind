@@ -345,6 +345,8 @@ async function loadLimitsFromDB() {
         callDayStart: d.callDayStart || null,
         memosToday: d.memosToday || 0,
         memoDayStart: d.memoDayStart || null,
+        imagesDay: d.imagesDay || 0,
+        imageDayStart: d.imageDayStart || null,
         subscriptionTier: d.subscriptionTier || 'free'
       };
     }
@@ -374,8 +376,9 @@ const LIMITS = {
   CALL_DAILY: 3
 };
 
-const TIER_CALL_LIMITS = { free: 3, advanced: 5, x20: 100, x50: 250 };
-const TIER_MEMO_LIMITS = { free: 30, advanced: 50, x20: 1000, x50: 2500 };
+const TIER_CALL_LIMITS  = { free: 3,   advanced: 5,   x20: 100,  x50: 250  };
+const TIER_MEMO_LIMITS  = { free: 30,  advanced: 50,  x20: 1000, x50: 2500 };
+const TIER_IMAGE_LIMITS = { free: 5,   advanced: 10,  x20: 200,  x50: 500  };
 
 function getCallLimitForUser(userId) {
   if (ownerGoogleIds.has(userId)) return Infinity;
@@ -386,6 +389,11 @@ function getMemoLimitForUser(userId) {
   if (ownerGoogleIds.has(userId)) return Infinity;
   const tier = userLimits[userId]?.subscriptionTier || 'free';
   return TIER_MEMO_LIMITS[tier] ?? TIER_MEMO_LIMITS.free;
+}
+function getImageLimitForUser(userId) {
+  if (ownerGoogleIds.has(userId)) return Infinity;
+  const tier = userLimits[userId]?.subscriptionTier || 'free';
+  return TIER_IMAGE_LIMITS[tier] ?? TIER_IMAGE_LIMITS.free;
 }
 
 // Returns timestamp of the most recent 8:00 AM UTC (start of current call window)
@@ -401,7 +409,7 @@ const userLimits = {};
 function getLimits(sid) {
   const now = Date.now();
   if (!userLimits[sid]) {
-    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null, memosToday: 0, memoDayStart: null, subscriptionTier: 'free' };
+    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null, memosToday: 0, memoDayStart: null, imagesDay: 0, imageDayStart: null, subscriptionTier: 'free' };
   }
   const u = userLimits[sid];
   if (u.subscriptionTier === undefined) u.subscriptionTier = 'free';
@@ -416,8 +424,9 @@ function getLimits(sid) {
   }
   // Daily window resets at 8 AM UTC (calls + memos)
   const callWindow = getCallWindowStart();
-  if (!u.callDayStart || u.callDayStart < callWindow) { u.callsToday = 0; u.callDayStart = callWindow; }
-  if (!u.memoDayStart || u.memoDayStart < callWindow) { u.memosToday = 0; u.memoDayStart = callWindow; }
+  if (!u.callDayStart  || u.callDayStart  < callWindow) { u.callsToday  = 0; u.callDayStart  = callWindow; }
+  if (!u.memoDayStart  || u.memoDayStart  < callWindow) { u.memosToday  = 0; u.memoDayStart  = callWindow; }
+  if (!u.imageDayStart || u.imageDayStart < callWindow) { u.imagesDay   = 0; u.imageDayStart = callWindow; }
   return u;
 }
 
@@ -1275,7 +1284,7 @@ app.get('/api/conversations/:charId/history/:archiveId', requireAuth, async (req
   res.json(result.rows[0]);
 });
 
-const OWNER_EMAILS = new Set(['support.charactermind@gmail.com']);
+const OWNER_EMAILS = new Set(['support.charactermind@gmail.com', 'davey252572727@gmail.com']);
 const ownerGoogleIds = new Set(); // populated at runtime when owners authenticate
 app.post('/api/admin/reset-limits', requireAuth, (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
@@ -1788,6 +1797,15 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     const ALLOWED_IMG = ['data:image/jpeg;base64,','data:image/jpg;base64,','data:image/png;base64,','data:image/webp;base64,','data:image/gif;base64,'];
     if (!ALLOWED_IMG.some(t => image.startsWith(t))) return res.status(400).json({ error: 'Invalid image format' });
     if (image.length > 1400000) return res.status(400).json({ error: 'Image too large (max ~1MB)' });
+    const imgUid = req.user?.googleId;
+    if (imgUid) {
+      const imgU = getLimits(imgUid);
+      const imgLimit = getImageLimitForUser(imgUid);
+      if (imgLimit !== Infinity && (imgU.imagesDay || 0) >= imgLimit) {
+        return res.status(429).json({ error: `Daily image limit reached (${imgLimit}/day). Resets at 8 AM UTC.` });
+      }
+      imgU.imagesDay = (imgU.imagesDay || 0) + 1;
+    }
   }
   const modelList = getModelList(modelTier);
   const effortCfg = getEffortCfg(effort, modelTier);

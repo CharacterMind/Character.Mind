@@ -1,14 +1,5 @@
 @echo off
-echo Starting CharacterMind AI Chat Site...
-cd /d D:\AICharacterSite
-if not exist node_modules (
-    echo Installing packages...
-    npm install
-)
-echo.
-echo Site is running at: http://localhost:8080
-echo Open that URL in your browser to use the site.
-echo Press Ctrl+C to stop the server.
-echo.
+echo Starting Character.Mind...
+start "" "C:\Program Files (x86)\cloudflared\cloudflared.exe" tunnel --url http://localhost:8080
+timeout /t 3 /nobreak >nul
 node server.js
-pause

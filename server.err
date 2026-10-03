@@ -1,26 +1,13 @@
-node:events:487
-      throw er; // Unhandled 'error' event
-      ^
+◇ injected env (8) from .env
+Warning: connect.session() MemoryStore is not
+designed for a production environment, as it will leak
+memory, and will not scale past a single process.
+(node:19220) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
 
-Error: listen EADDRINUSE: address already in use :::3000
-    at Server.setupListenHandle [as _listen2] (node:net:2167:16)
-    at listenInCluster (node:net:2224:12)
-    at Server.listen (node:net:2344:7)
-    at app.listen (D:\AICharacterSite\node_modules\express\lib\application.js:635:24)
-    at Object.<anonymous> (D:\AICharacterSite\server.js:219:5)
-    at Module._compile (node:internal/modules/cjs/loader:1872:14)
-    at Object..js (node:internal/modules/cjs/loader:2003:10)
-    at Module.load (node:internal/modules/cjs/loader:1594:32)
-    at Module._load (node:internal/modules/cjs/loader:1396:12)
-    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
-Emitted 'error' event on Server instance at:
-    at emitErrorNT (node:net:2203:8)
-    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
-  code: 'EADDRINUSE',
-  errno: -4091,
-  syscall: 'listen',
-  address: '::',
-  port: 3000
-}
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
 
-Node.js v24.19.0
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
