@@ -1781,8 +1781,14 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
 app.post('/api/chat', requireAuth, async (req, res) => {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
-  const { charId, message, modelTier, effort } = req.body;
+  const { charId, message, modelTier, effort, image } = req.body;
   if (message !== undefined && typeof message !== 'string') return res.status(400).json({ error: 'Invalid request' });
+  if (image !== undefined) {
+    if (typeof image !== 'string') return res.status(400).json({ error: 'Invalid image' });
+    const ALLOWED_IMG = ['data:image/jpeg;base64,','data:image/jpg;base64,','data:image/png;base64,','data:image/webp;base64,','data:image/gif;base64,'];
+    if (!ALLOWED_IMG.some(t => image.startsWith(t))) return res.status(400).json({ error: 'Invalid image format' });
+    if (image.length > 1400000) return res.status(400).json({ error: 'Image too large (max ~1MB)' });
+  }
   const modelList = getModelList(modelTier);
   const effortCfg = getEffortCfg(effort, modelTier);
   if (!charId) return res.status(400).json({ error: 'charId required' });
@@ -1857,15 +1863,29 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   }
 
   if (!isContinuation) {
-    conversations[key].push({ role: 'user', content: message });
+    // History stores text only — images are not persisted (too large, one-shot vision)
+    conversations[key].push({ role: 'user', content: message || '[image]' });
   }
 
   // Chat APIs require the last turn to be a user turn — inject a hidden continuation trigger if needed
   const history = conversations[key].slice(-12);
   const lastRole = history[history.length - 1]?.role;
-  const messagesForGroq = (isContinuation && lastRole !== 'user')
+  let messagesForGroq = (isContinuation && lastRole !== 'user')
     ? [...history, { role: 'user', content: '...' }]
     : history;
+
+  // If an image was attached, replace the last user message with a vision content block
+  if (image && !isContinuation) {
+    const lastIdx = messagesForGroq.length - 1;
+    if (messagesForGroq[lastIdx]?.role === 'user') {
+      const visionContent = [{ type: 'image_url', image_url: { url: image } }];
+      if (message && message.trim()) visionContent.push({ type: 'text', text: message });
+      messagesForGroq = [
+        ...messagesForGroq.slice(0, lastIdx),
+        { role: 'user', content: visionContent }
+      ];
+    }
+  }
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');

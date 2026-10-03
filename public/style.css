@@ -823,7 +823,37 @@ html, body {
 .btn-send:disabled { opacity: .28; cursor: not-allowed; transform: none; }
 .disclaimer { font-size: 11px; color: var(--text3); text-align: center; margin-top: 7px; }
 
+/* ── Image preview strip (above input) ──────────────────────────────────────── */
+.img-preview-strip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; background: var(--bg3);
+  border-radius: 10px; margin-bottom: 6px;
+}
+.img-preview-thumb {
+  width: 60px; height: 60px; object-fit: cover; border-radius: 8px;
+  border: 1px solid var(--border2);
+}
+.img-preview-remove {
+  width: 24px; height: 24px; border-radius: 50%; border: none;
+  background: var(--bg4, var(--bg3)); color: var(--text3); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.img-preview-remove:hover { background: rgba(239,68,68,.15); color: #ef4444; }
+
+/* Message image (attached photo in user bubble) */
+.msg-img {
+  display: block; max-width: 280px; max-height: 260px;
+  border-radius: 10px; margin-bottom: 6px; object-fit: cover;
+}
+
 /* ── Call & image buttons in input row ──────────────────────────────────────── */
+.btn-attach {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: none; border: 1px solid var(--border2);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; color: var(--text3); transition: background .15s, color .15s;
+}
+.btn-attach:hover { background: var(--bg3); color: var(--text2); }
 .btn-call, .btn-img-pick {
   width: 40px; height: 40px; border-radius: 50%;
   background: var(--bg3); border: 1px solid var(--border2);

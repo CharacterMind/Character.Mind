@@ -1787,6 +1787,33 @@ async function generateGreeting() {
   }
 }
 
+// ── Image attachment ──────────────────────────────────────────────────────────
+let pendingImageB64 = null;
+
+function onImageSelected(event) {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  if (file.size > 4 * 1024 * 1024) { showWarning('Image must be under 4 MB.'); return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    pendingImageB64 = e.target.result;
+    const thumb = document.getElementById('imgPreviewThumb');
+    const strip = document.getElementById('imgPreviewStrip');
+    if (thumb) thumb.src = pendingImageB64;
+    if (strip) strip.style.display = 'flex';
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearPendingImage() {
+  pendingImageB64 = null;
+  const strip = document.getElementById('imgPreviewStrip');
+  const thumb = document.getElementById('imgPreviewThumb');
+  if (strip) strip.style.display = 'none';
+  if (thumb) thumb.src = '';
+}
+
 // ── Send Message ──────────────────────────────────────────────────────────────
 async function sendMessage(overrideText, skipAppend) {
   if (!currentChar) return;
@@ -1803,17 +1830,19 @@ async function sendMessage(overrideText, skipAppend) {
   const input = document.getElementById('messageInput');
   const text = overrideText !== undefined ? overrideText : input.value.trim();
 
+  const imgB64 = pendingImageB64;
   if (!overrideText) {
     input.value = '';
     autoResize(input);
+    clearPendingImage();
   }
 
   if (text) lastUserMessage = text;
-  if (!text && !skipAppend) return;
+  if (!text && !imgB64 && !skipAppend) return;
 
   if (!skipAppend) {
-    if (text) {
-      appendMessage('user', text);
+    if (text || imgB64) {
+      appendMessage('user', text, imgB64);
       touchRecentChat(currentChar.id);
       document.getElementById('chatWelcome').innerHTML = '';
       playSound('send');
@@ -1835,7 +1864,7 @@ async function sendMessage(overrideText, skipAppend) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ charId: currentChar.id, message: text, modelTier: selectedModelTier, effort: selectedEffort }),
+      body: JSON.stringify({ charId: currentChar.id, message: text, modelTier: selectedModelTier, effort: selectedEffort, ...(imgB64 ? { image: imgB64 } : {}) }),
       signal: streamAbortCtrl.signal
     });
 
@@ -2932,7 +2961,7 @@ function msgAvatarHtml(cls) {
   return `<div class="${cls}" style="background:${safeColor(currentChar.color)}">${escHtml(currentChar.name[0]||'?')}</div>`;
 }
 
-function appendMessage(role, text) {
+function appendMessage(role, text, imgB64) {
   const div = document.createElement('div');
   div.className = `msg ${role}`;
 
@@ -2955,7 +2984,8 @@ function appendMessage(role, text) {
         <span class="msg-name" style="color:var(--text3)">You</span>
         ${msgMenuHtml('user')}
       </div>
-      <div class="bubble">${escHtml(text)}</div>`;
+      ${imgB64 ? `<img class="msg-img" src="${imgB64}" alt="attachment">` : ''}
+      ${text ? `<div class="bubble">${escHtml(text)}</div>` : ''}`;
   }
   document.getElementById('messages').appendChild(div);
   return div;
