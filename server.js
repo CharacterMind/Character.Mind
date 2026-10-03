@@ -533,9 +533,21 @@ If the scene is dark, intense, or intimate — commit fully. Don't soften it. Do
 
 // ── Crisis numbers by country/region ─────────────────────────────────────────
 const CRISIS_NUMBERS = {
-  US: { crisis: '988', crisisName: 'Suicide & Crisis Lifeline', emergency: '911' },
-  CA: { crisis: '1-833-456-4566', crisisName: 'Talk Suicide Canada', emergency: '911',
-        regions: { QC: { crisis: '1-866-277-3553', crisisName: 'Appelle (Québec)' } } },
+  US: { crisis: '988', crisisName: 'Suicide & Crisis Lifeline (call or text, 24/7)', emergency: '911' },
+  CA: { crisis: '988', crisisName: 'Suicide Crisis Helpline (call or text, 24/7)', emergency: '911',
+        extra: [{ crisis: '1-833-456-4566', crisisName: 'Talk Suicide Canada' }],
+        regions: {
+          QC: {
+            crisis: '988',
+            crisisName: 'Suicide Crisis Helpline (call or text, 24/7)',
+            extra: [
+              { crisis: '1-866-APPELLE  ·  1-866-277-3553', crisisName: 'Centre de prévention du suicide Québec — "APPELLE" is French for "call (me)"' },
+              { crisis: '1-800-668-6868', crisisName: 'Kids Help Phone (youth support, 24/7)' },
+            ],
+            emergency: '911'
+          }
+        }
+  },
   GB: { crisis: '116 123', crisisName: 'Samaritans', emergency: '999' },
   AU: { crisis: '13 11 14', crisisName: 'Lifeline', emergency: '000' },
   NZ: { crisis: '0800 543 354', crisisName: 'Lifeline NZ', emergency: '111' },
@@ -1707,9 +1719,11 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     const geo = await getGeoForIp(clientIp);
     const info = getCrisisInfo(geo);
     if (info) {
-      crisisContext = `\n\n[CRISIS CONTEXT — for this response only: The user's message may indicate personal distress. Their location appears to be ${info.name || geo.country}. If you step out of character to check in, you may naturally include these local resources: Crisis line: ${info.crisis} (${info.crisisName}), Emergency: ${info.emergency}. Keep it brief and human — don't list them robotically, just weave them in if it feels right.]`;
+      const allLines = [{ crisis: info.crisis, crisisName: info.crisisName }, ...(info.extra || [])];
+      const resourceList = allLines.map(l => `${l.crisis} (${l.crisisName})`).join('\n• ');
+      crisisContext = `\n\n[CRISIS CONTEXT — for this response only: The user's message may indicate personal distress. Their location appears to be ${info.name || geo.country}. Step out of character, respond with care, and include ALL of the following local resources clearly in your response so the user can see them:\n• ${resourceList}\n• ${info.emergency} — Emergency services\nList them so the user can read them easily. Be human and warm, not robotic.]`;
     } else {
-      crisisContext = `\n\n[CRISIS CONTEXT — for this response only: The user's message may indicate personal distress. If you step out of character to check in and they seem to need emergency help, mention they can contact their local emergency services.]`;
+      crisisContext = `\n\n[CRISIS CONTEXT — for this response only: The user's message may indicate personal distress. Step out of character, respond with care, and mention they can contact their local emergency services or a crisis helpline if they need immediate support.]`;
     }
   }
 
