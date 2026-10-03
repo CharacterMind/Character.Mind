@@ -3699,7 +3699,7 @@ const CHAR_CALL_PALETTES = {
   'custom_1790766558393':          ['#446688', '#223344', '#99ccee'],  // The Doctor — cool slate
   'custom_1790894243871_huggy':    ['#1155dd', '#001133', '#00aacc'],  // Huggy Wuggy — deep blue
   'custom_1790894243872_mll':      ['#ff1493', '#cc0099', '#ffaad4'],  // Mommy Long Legs — hot pink
-  'custom_1790894243873_catnap':   ['#8822ee', '#2d006b', '#cc66ff'],  // CatNap — vivid purple
+  'custom_1790894243873_catnap':   ['#bb22aa', '#4d0040', '#ee77dd'],  // CatNap — warm magenta-purple
   'custom_1790894243874_dogday':   ['#ffcc00', '#ff8800', '#fffff0'],  // DogDay — yellow/orange
   'custom_1790894243875_prototype':['#888899', '#1a1a22', '#0044cc'],  // The Prototype — steel/electric
   'custom_1790894243876_kissy':    ['#ffaac8', '#ff77aa', '#aaccff'],  // Kissy Missy — baby pink
@@ -3717,7 +3717,7 @@ const CHAR_CALL_PALETTES = {
   'custom_1790895746935_elliot':   ['#334477', '#1a2244', '#7799cc'],  // Elliot Ludwig — navy
   'custom_1790895746936_stella':   ['#cc9955', '#886633', '#ffe5aa'],  // Stella — warm brown
   'custom_1790895746937_leith':    ['#557788', '#334455', '#99bbcc'],  // Leith Pierre — teal slate
-  'custom_1790895746938_gracie':   ['#9933ee', '#1a1a2e', '#ffcc00'],  // Lily Lovebraids — purple, black, gold
+  'custom_1790895746938_gracie':   ['#5533ee', '#1a0055', '#9977ff'],  // Lily Lovebraids — cool blue-violet
 };
 
 function hslToHex(h, s, l) {
