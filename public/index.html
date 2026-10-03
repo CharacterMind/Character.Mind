@@ -20,7 +20,7 @@
 <link rel="icon" type="image/webp" href="/logo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=55">
+<link rel="stylesheet" href="style.css?v=56">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -391,8 +391,13 @@
         </div>
         <!-- Call overlay (full-screen photo style) -->
         <div id="callOverlay" class="call-overlay" style="display:none">
-          <!-- Full-screen character background -->
-          <div class="call-bg" id="callBg"></div>
+          <!-- Full-screen background: animated color orbs + character image layer -->
+          <div class="call-bg" id="callBg">
+            <div class="call-orb call-orb-1"></div>
+            <div class="call-orb call-orb-2"></div>
+            <div class="call-orb call-orb-3"></div>
+            <div class="call-char-img" id="callCharImg"></div>
+          </div>
           <!-- Bottom gradient scrim for readability -->
           <div class="call-bg-scrim"></div>
           <!-- Top: mic error banner -->
@@ -1096,6 +1101,6 @@
 .paypal-checkout-footer { font-size: 12px; color: var(--text3); text-align: center; margin: 0; }
 </style>
 
-<script src="app.js?v=108"></script>
+<script src="app.js?v=109"></script>
 </body>
 </html>

@@ -861,8 +861,56 @@ html, body {
 }
 .call-bg {
   position: absolute; inset: 0; z-index: 0;
+  overflow: hidden;
+  background: #06060f;
+}
+/* Animated color orbs — swirl behind the character image */
+.call-orb {
+  position: absolute; border-radius: 50%;
+  width: 120%; padding-top: 120%;
+  filter: blur(90px);
+  opacity: 0.85;
+  will-change: transform;
+  pointer-events: none;
+}
+.call-orb-1 {
+  background: var(--co1, #7c3aed);
+  top: -40%; left: -40%;
+  animation: callOrb1 14s ease-in-out infinite;
+}
+.call-orb-2 {
+  background: var(--co2, #3a8ced);
+  bottom: -40%; right: -40%;
+  animation: callOrb2 11s ease-in-out infinite;
+}
+.call-orb-3 {
+  background: var(--co3, #ed3a7c);
+  top: 15%; left: 10%;
+  width: 80%; padding-top: 80%;
+  animation: callOrb3 9s ease-in-out infinite;
+}
+@keyframes callOrb1 {
+  0%,100% { transform: translate(0,0) scale(1); }
+  25%  { transform: translate(55%,-35%) scale(1.2); }
+  50%  { transform: translate(20%, 55%) scale(0.85); }
+  75%  { transform: translate(-35%, 25%) scale(1.1); }
+}
+@keyframes callOrb2 {
+  0%,100% { transform: translate(0,0) scale(1); }
+  25%  { transform: translate(-45%, 35%) scale(0.9); }
+  50%  { transform: translate(25%,-50%) scale(1.15); }
+  75%  { transform: translate(40%, 15%) scale(0.95); }
+}
+@keyframes callOrb3 {
+  0%,100% { transform: translate(0,0) scale(1) rotate(0deg); }
+  33%  { transform: translate(-25%, 30%) scale(1.15) rotate(120deg); }
+  66%  { transform: translate(30%,-25%) scale(0.9) rotate(240deg); }
+}
+/* Character image layer sits above the orbs */
+.call-char-img {
+  position: absolute; inset: 0;
   background-size: cover; background-position: center top;
-  background-color: #1a1230;
+  z-index: 1;
 }
 .call-bg-scrim {
   position: absolute; inset: 0; z-index: 1;

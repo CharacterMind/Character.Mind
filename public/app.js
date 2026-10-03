@@ -3599,20 +3599,92 @@ async function startCallMode() {
   document.getElementById('callBtn')?.classList.add('active');
   const overlay = document.getElementById('callOverlay');
   if (overlay) {
+    // Animated color orbs
+    const [co1, co2, co3] = getCharCallColors(currentChar);
     const bgEl = document.getElementById('callBg');
     if (bgEl) {
+      bgEl.style.setProperty('--co1', co1);
+      bgEl.style.setProperty('--co2', co2);
+      bgEl.style.setProperty('--co3', co3);
+    }
+    // Character image on top of orbs
+    const imgEl = document.getElementById('callCharImg');
+    if (imgEl) {
       if (currentChar.image && currentChar.image.startsWith('data:image/')) {
-        bgEl.style.backgroundImage = `url('${currentChar.image}')`;
-        bgEl.style.backgroundColor = '';
+        imgEl.style.backgroundImage = `url('${currentChar.image}')`;
       } else {
-        bgEl.style.backgroundImage = '';
-        bgEl.style.backgroundColor = currentChar.color || '#1a1230';
+        imgEl.style.backgroundImage = '';
       }
     }
     overlay.style.display = 'flex';
     setCallState('calling');
     setTimeout(() => { if (callModeActive) listenForSpeech(); }, 1500);
   }
+}
+
+// Per-character color palettes for the call screen swirl animation
+const CHAR_CALL_PALETTES = {
+  'custom_1790776698867':          ['#2255cc', '#cc1122', '#f0eaff'],  // Poppy — blue dress, red hair
+  'custom_1790774765927':          ['#e8c87a', '#c4763a', '#f5e0b0'],  // Doey — warm dough
+  'custom_1790766558393':          ['#446688', '#223344', '#99ccee'],  // The Doctor — cool slate
+  'custom_1790894243871_huggy':    ['#1155dd', '#001133', '#00aacc'],  // Huggy Wuggy — deep blue
+  'custom_1790894243872_mll':      ['#ff1493', '#cc0099', '#ffaad4'],  // Mommy Long Legs — hot pink
+  'custom_1790894243873_catnap':   ['#9988cc', '#1a1520', '#667799'],  // CatNap — dusty lilac
+  'custom_1790894243874_dogday':   ['#ffcc00', '#ff8800', '#fffff0'],  // DogDay — yellow/orange
+  'custom_1790894243875_prototype':['#888899', '#1a1a22', '#0044cc'],  // The Prototype — steel/electric
+  'custom_1790894243876_kissy':    ['#ffaac8', '#ff77aa', '#aaccff'],  // Kissy Missy — baby pink
+  'custom_1790895433252_bunzo':    ['#ff2200', '#ffdd00', '#fff5cc'],  // Bunzo — red/yellow
+  'custom_1790895433253_pj':       ['#44aa44', '#005500', '#aaffaa'],  // PJ Pug-a-Pillar — green
+  'custom_1790895433254_boxy':     ['#cc44cc', '#660066', '#ffaaff'],  // Boxy Boo — purple-pink
+  'custom_1790895433255_delight':  ['#ff6688', '#cc2244', '#ffccdd'],  // Miss Delight — deep rose
+  'custom_1790895433256_bubba':    ['#4488dd', '#0033aa', '#99ccff'],  // Bubba Bubbaphant — blue
+  'custom_1790895671421_yarnaby':  ['#cc3333', '#882222', '#ffaaaa'],  // Yarnaby — red
+  'custom_1790895671422_craftycorn':['#cc88ff','#8833cc', '#ffeeff'],  // CraftyCorn — unicorn purple
+  'custom_1790895671423_pickypiggy':['#ff99bb','#ee5588', '#ffddee'],  // PickyPiggy — pink
+  'custom_1790895671424_kickin':   ['#ffee44', '#dd9900', '#fffbcc'],  // KickinChicken — yellow
+  'custom_1790895671425_bobby':    ['#dd3333', '#880000', '#ffbbbb'],  // BobbyBearhug — red
+  'custom_1790895671426_hoppy':    ['#44cc44', '#227722', '#ccffcc'],  // HoppyHopscotch — green
+  'custom_1790895746935_elliot':   ['#334477', '#1a2244', '#7799cc'],  // Elliot Ludwig — navy
+  'custom_1790895746936_stella':   ['#cc9955', '#886633', '#ffe5aa'],  // Stella — warm brown
+  'custom_1790895746937_leith':    ['#557788', '#334455', '#99bbcc'],  // Leith Pierre — teal slate
+  'custom_1790895746938_gracie':   ['#9933ee', '#1a1a2e', '#ffcc00'],  // Lily Lovebraids — purple, black, gold
+};
+
+function hslToHex(h, s, l) {
+  h /= 360; s /= 100; l /= 100;
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const hue = (t) => {
+    if (t < 0) t += 1; if (t > 1) t -= 1;
+    if (t < 1/6) return p + (q-p)*6*t;
+    if (t < 1/2) return q;
+    if (t < 2/3) return p + (q-p)*(2/3-t)*6;
+    return p;
+  };
+  return '#' + [hue(h+1/3), hue(h), hue(h-1/3)]
+    .map(v => Math.round(v*255).toString(16).padStart(2,'0')).join('');
+}
+
+function getCharCallColors(char) {
+  if (char && CHAR_CALL_PALETTES[char.id]) return CHAR_CALL_PALETTES[char.id];
+  const hex = (char?.color || '#7c3aed').match(/#[0-9a-fA-F]{6}/)?.[0] || '#7c3aed';
+  const r = parseInt(hex.slice(1,3),16)/255, g = parseInt(hex.slice(3,5),16)/255, b = parseInt(hex.slice(5,7),16)/255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b), l = (max+min)/2;
+  const d = max - min;
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2*l - 1));
+  let h = 0;
+  if (d !== 0) {
+    switch(max) {
+      case r: h = ((g-b)/d % 6); break;
+      case g: h = (b-r)/d + 2; break;
+      case b: h = (r-g)/d + 4; break;
+    }
+    h = h * 60; if (h < 0) h += 360;
+  }
+  const c1 = hex;
+  const c2 = hslToHex((h+130)%360, Math.min(s*100+10,100), Math.max(l*100-10,15));
+  const c3 = hslToHex((h+250)%360, Math.min(s*100+5,100), Math.max(l*100+5,20));
+  return [c1, c2, c3];
 }
 
 function showCallLimitModal(resetsAt) {
@@ -3655,8 +3727,8 @@ function endCallMode() {
   document.getElementById('callBtn')?.classList.remove('active');
   const overlay = document.getElementById('callOverlay');
   if (overlay) overlay.style.display = 'none';
-  const bgEl = document.getElementById('callBg');
-  if (bgEl) { bgEl.style.backgroundImage = ''; bgEl.style.backgroundColor = ''; }
+  const imgEl = document.getElementById('callCharImg');
+  if (imgEl) imgEl.style.backgroundImage = '';
 }
 
 function setCallState(state) {
