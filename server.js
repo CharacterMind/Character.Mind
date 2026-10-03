@@ -1981,6 +1981,107 @@ async function sendReceiptEmail(userName, email, planKey, subscriptionId) {
   }
 }
 
+async function sendPlanWelcomeEmail(userName, email, planKey) {
+  const transporter = getMailTransporter();
+  if (!transporter || !email) return;
+  const firstName = (userName || 'there').split(' ')[0];
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const siteUrl = process.env.SITE_URL || 'https://charactermind.onrender.com';
+
+  const plans = {
+    advanced: {
+      name: 'Advanced',
+      tagline: 'More time with the characters you love.',
+      color: '#7c5cbf',
+      perks: [
+        { icon: '🎙️', label: '5 voice calls per day', sub: 'Up from 3 on Free' },
+        { icon: '🔊', label: '50 read-alouds per day', sub: 'Up from 30 on Free' },
+        { icon: '💬', label: 'Higher weekly message limit', sub: 'More room to explore longer conversations' },
+        { icon: '✨', label: 'Access to every AI character', sub: 'All current and future characters included' },
+      ]
+    },
+    x20: {
+      name: 'X20',
+      tagline: 'For the ones who never want to stop.',
+      color: '#9b59b6',
+      perks: [
+        { icon: '🎙️', label: '100 voice calls per day', sub: 'Over 30× more than Free' },
+        { icon: '🔊', label: '1,000 read-alouds per day', sub: 'Basically unlimited for everyday use' },
+        { icon: '💬', label: 'Massively expanded weekly limit', sub: 'Built for power users and long sessions' },
+        { icon: '✨', label: 'Access to every AI character', sub: 'All current and future characters included' },
+        { icon: '⚡', label: 'Priority support', sub: 'Reach us at support.charactermind@gmail.com' },
+      ]
+    },
+    x50: {
+      name: 'X50',
+      tagline: 'The full experience. No limits on what\'s possible.',
+      color: '#8e44ad',
+      perks: [
+        { icon: '🎙️', label: '250 voice calls per day', sub: 'The highest tier available' },
+        { icon: '🔊', label: '2,500 read-alouds per day', sub: 'Effectively no ceiling for any use case' },
+        { icon: '💬', label: 'Maximum weekly message limit', sub: 'Everything Character.Mind has to offer' },
+        { icon: '✨', label: 'Access to every AI character', sub: 'All current and future characters included' },
+        { icon: '⚡', label: 'Priority support', sub: 'Reach us at support.charactermind@gmail.com' },
+      ]
+    }
+  };
+
+  const plan = plans[planKey];
+  if (!plan) return;
+
+  const perksHtml = plan.perks.map(p => `
+    <tr>
+      <td style="padding:10px 0;vertical-align:top;width:32px;font-size:20px">${p.icon}</td>
+      <td style="padding:10px 0 10px 12px;vertical-align:top">
+        <p style="margin:0;font-size:14px;font-weight:600;color:#f0f0f0">${esc(p.label)}</p>
+        <p style="margin:2px 0 0;font-size:13px;color:#888888">${esc(p.sub)}</p>
+      </td>
+    </tr>`).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:40px 16px">
+  <tr><td align="center">
+    <table width="100%" style="max-width:520px;background:#111111;border-radius:12px;border:1px solid #222222;padding:40px">
+      <tr><td>
+        <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:${plan.color}">Character.Mind</p>
+        <h1 style="margin:0 0 8px;font-size:24px;font-weight:800;color:#f0f0f0;letter-spacing:-.02em">Welcome to ${esc(plan.name)}, ${esc(firstName)}.</h1>
+        <p style="margin:0 0 28px;font-size:15px;color:#888888;line-height:1.6">${esc(plan.tagline)}</p>
+
+        <p style="margin:0 0 12px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#555555">What's unlocked</p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;border:1px solid #1e1e1e;border-radius:10px;padding:8px 16px;margin:0 0 28px">
+          ${perksHtml}
+        </table>
+
+        <table cellpadding="0" cellspacing="0" style="margin:0 0 28px">
+          <tr>
+            <td><a href="${siteUrl}" style="display:inline-block;padding:12px 28px;background:${plan.color};color:#ffffff;text-decoration:none;border-radius:8px;font-size:15px;font-weight:600;letter-spacing:-.01em">Start chatting →</a></td>
+          </tr>
+        </table>
+
+        <p style="margin:0 0 8px;font-size:13px;color:#555555;line-height:1.6">Your limits are active right now — no restart needed. Cancel anytime through PayPal or by contacting us at <a href="mailto:support.charactermind@gmail.com" style="color:${plan.color};text-decoration:none">support.charactermind@gmail.com</a>.</p>
+        <p style="margin:20px 0 0;font-size:12px;color:#3a3a3a">This is an automated message. Please do not reply directly to this email.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table></body></html>`;
+
+  const perksText = plan.perks.map(p => `  • ${p.label} — ${p.sub}`).join('\n');
+  const text = `Welcome to ${plan.name}, ${firstName}.\n\n${plan.tagline}\n\nWhat's unlocked:\n${perksText}\n\nYour limits are active right now. Start chatting: ${siteUrl}\n\nCancel anytime via PayPal or email support.charactermind@gmail.com.\n\n— Character.Mind\n\n(This is an automated message. Please do not reply directly to this email.)`;
+
+  try {
+    await transporter.sendMail({
+      from: `"Character.Mind" <${process.env.GMAIL_USER}>`,
+      to: email,
+      subject: `Welcome to ${plan.name} — here's what you unlocked`,
+      html,
+      text,
+    });
+    console.log('Plan welcome email sent to', email);
+  } catch (err) {
+    console.error('Plan welcome email error:', err.message);
+  }
+}
+
 async function sendWelcomeEmail(userName, email) {
   const transporter = getMailTransporter();
   if (!transporter) return;
@@ -2122,6 +2223,7 @@ app.post('/api/paypal/verify-subscription', async (req, res) => {
         );
       }
       sendReceiptEmail(req.user.name, req.user.email, planKey, subscriptionId).catch(() => {});
+      sendPlanWelcomeEmail(req.user.name, req.user.email, planKey).catch(() => {});
       res.json({ ok: true, tier: planKey });
     } else {
       res.status(400).json({ error: 'Subscription not active', status: sub.status });
