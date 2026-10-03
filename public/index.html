@@ -972,6 +972,107 @@
   </div>
 </div>
 
-<script src="app.js?v=98"></script>
+<!-- PayPal Checkout Modal -->
+<div id="paypalCheckoutModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closePaypalCheckout()">
+  <div class="paypal-checkout-modal">
+    <button class="pricing-close" onclick="closePaypalCheckout()" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+    </button>
+    <h2 class="paypal-checkout-title" id="paypalCheckoutTitle">Subscribe</h2>
+    <p class="paypal-checkout-price" id="paypalCheckoutPrice"></p>
+
+    <div class="payment-tabs">
+      <button class="payment-tab payment-tab-active" id="tab-card" onclick="switchPaymentTab('card')">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
+        Credit Card
+      </button>
+      <button class="payment-tab" id="tab-paypal" onclick="switchPaymentTab('paypal')">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M7 18H5V6h2v12zm12-6c0 3.31-2.69 6-6 6H9V6h4c3.31 0 6 2.69 6 6z"/></svg>
+        PayPal
+      </button>
+    </div>
+
+    <!-- Credit Card Panel -->
+    <div id="payment-panel-card">
+      <div class="card-field-group">
+        <label class="card-field-label">Cardholder name</label>
+        <div id="card-name-field-container" class="card-field-input"></div>
+      </div>
+      <div class="card-field-group">
+        <label class="card-field-label">Card number</label>
+        <div id="card-number-field-container" class="card-field-input"></div>
+      </div>
+      <div class="card-field-row">
+        <div class="card-field-group">
+          <label class="card-field-label">Expiry</label>
+          <div id="card-expiry-field-container" class="card-field-input"></div>
+        </div>
+        <div class="card-field-group">
+          <label class="card-field-label">CVC</label>
+          <div id="card-cvv-field-container" class="card-field-input"></div>
+        </div>
+      </div>
+      <button id="card-submit-btn" class="card-submit-btn" onclick="submitCardPayment()">Subscribe Now</button>
+      <div id="card-not-eligible" class="card-not-eligible" style="display:none">
+        Card payments not available in your region — please use PayPal.
+      </div>
+    </div>
+
+    <!-- PayPal Panel -->
+    <div id="payment-panel-paypal" style="display:none">
+      <div id="paypal-button-container"></div>
+    </div>
+
+    <div id="paypal-checkout-status" class="paypal-checkout-status"></div>
+    <p class="paypal-checkout-footer">Secured by PayPal · Cancel anytime · No hidden fees</p>
+  </div>
+</div>
+
+<style>
+.paypal-checkout-modal {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 32px;
+  width: 100%;
+  max-width: 420px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.paypal-checkout-title { font-size: 20px; font-weight: 700; color: var(--text1); margin: 0; }
+.paypal-checkout-price { font-size: 28px; font-weight: 800; color: var(--accent-l); margin: 0; }
+.payment-tabs { display: flex; gap: 8px; }
+.payment-tab {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg3); color: var(--text2); font-size: 14px; font-weight: 500;
+  cursor: pointer; transition: all 0.15s;
+}
+.payment-tab:hover { border-color: var(--accent); color: var(--text1); }
+.payment-tab-active { border-color: var(--accent) !important; background: var(--accent-dim) !important; color: var(--accent-l) !important; }
+.card-field-group { display: flex; flex-direction: column; gap: 6px; }
+.card-field-label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; }
+.card-field-input {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; min-height: 44px;
+}
+.card-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.card-submit-btn {
+  width: 100%; padding: 13px; background: var(--accent); color: #fff;
+  border: none; border-radius: 8px; font-size: 15px; font-weight: 700;
+  cursor: pointer; transition: opacity 0.15s;
+}
+.card-submit-btn:hover { opacity: 0.9; }
+.card-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.card-not-eligible { font-size: 13px; color: var(--text2); text-align: center; padding: 12px; }
+.paypal-checkout-status { font-size: 14px; color: var(--accent-l); min-height: 20px; text-align: center; }
+.paypal-checkout-footer { font-size: 12px; color: var(--text3); text-align: center; margin: 0; }
+</style>
+
+<script src="app.js?v=99"></script>
 </body>
 </html>

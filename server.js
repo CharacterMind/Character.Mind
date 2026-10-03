@@ -76,6 +76,9 @@ if (db) {
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_tier TEXT NOT NULL DEFAULT 'free'`)
     .catch(err => console.error('Add subscription_tier column error:', err));
 
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS paypal_subscription_id TEXT`)
+    .catch(err => console.error('Add paypal_subscription_id column error:', err));
+
   db.query(`
     CREATE TABLE IF NOT EXISTS user_limits (
       user_id TEXT PRIMARY KEY,
@@ -120,7 +123,7 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://accounts.google.com; frame-ancestors 'none'");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.paypal.com https://www.paypalobjects.com; style-src 'self' 'unsafe-inline' https://www.paypalobjects.com; img-src 'self' data: https:; connect-src 'self' https://accounts.google.com https://www.paypal.com https://www.sandbox.paypal.com https://api-m.sandbox.paypal.com https://api-m.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com https://www.sandbox.paypal.com; frame-ancestors 'none'");
   if (process.env.NODE_ENV === 'production' && req.protocol !== 'https') {
     return res.redirect(301, 'https://' + req.headers.host + req.url);
   }
@@ -2024,6 +2027,76 @@ app.post('/api/admin/notify-policy-update', requireAuth, async (req, res) => {
 
   console.log(`Policy notification sent: ${sent}/${users.length} (${errors} errors)`);
   res.json({ ok: true, sent, errors, total: users.length });
+});
+
+// ── PayPal ─────────────────────────────────────────────────────────────────────
+const PAYPAL_BASE = process.env.PAYPAL_ENV === 'sandbox'
+  ? 'https://api-m.sandbox.paypal.com'
+  : 'https://api-m.paypal.com';
+
+const PAYPAL_PLAN_IDS = {
+  advanced: process.env.PAYPAL_PLAN_ADVANCED,
+  x20:      process.env.PAYPAL_PLAN_X20,
+  x50:      process.env.PAYPAL_PLAN_X50,
+};
+
+async function getPayPalToken() {
+  const creds = Buffer.from(`${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_SECRET}`).toString('base64');
+  const resp = await fetch(`${PAYPAL_BASE}/v1/oauth2/token`, {
+    method: 'POST',
+    headers: { 'Authorization': `Basic ${creds}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'grant_type=client_credentials'
+  });
+  const data = await resp.json();
+  if (!data.access_token) throw new Error('PayPal auth failed: ' + JSON.stringify(data));
+  return data.access_token;
+}
+
+app.get('/api/paypal/config', (req, res) => {
+  res.json({ clientId: process.env.PAYPAL_CLIENT_ID || '', env: process.env.PAYPAL_ENV || 'sandbox' });
+});
+
+app.post('/api/paypal/verify-subscription', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  const { subscriptionId, planKey } = req.body;
+  const validPlans = { advanced: true, x20: true, x50: true };
+  if (!validPlans[planKey] || !subscriptionId) return res.status(400).json({ error: 'Invalid request' });
+
+  try {
+    const token = await getPayPalToken();
+    const resp = await fetch(`${PAYPAL_BASE}/v1/billing/subscriptions/${subscriptionId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const sub = await resp.json();
+
+    if (sub.status === 'ACTIVE') {
+      if (db) {
+        await db.query(
+          'UPDATE users SET subscription_tier = $1, paypal_subscription_id = $2 WHERE google_id = $3',
+          [planKey, subscriptionId, req.user.googleId]
+        );
+      }
+      res.json({ ok: true, tier: planKey });
+    } else {
+      res.status(400).json({ error: 'Subscription not active', status: sub.status });
+    }
+  } catch (err) {
+    console.error('PayPal verify error:', err);
+    res.status(500).json({ error: 'Verification failed' });
+  }
+});
+
+app.post('/api/webhooks/paypal', express.raw({ type: 'application/json' }), async (req, res) => {
+  let event;
+  try { event = JSON.parse(req.body); } catch { return res.sendStatus(400); }
+  const eventType = event.event_type;
+  const subId = event.resource?.id;
+  const cancelEvents = ['BILLING.SUBSCRIPTION.CANCELLED', 'BILLING.SUBSCRIPTION.EXPIRED', 'BILLING.SUBSCRIPTION.SUSPENDED'];
+  if (cancelEvents.includes(eventType) && subId && db) {
+    await db.query("UPDATE users SET subscription_tier = 'free', paypal_subscription_id = NULL WHERE paypal_subscription_id = $1", [subId])
+      .catch(err => console.error('Webhook DB error:', err));
+  }
+  res.sendStatus(200);
 });
 
 app.get('*', (req, res) => {

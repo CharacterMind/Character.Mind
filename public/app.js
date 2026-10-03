@@ -157,8 +157,173 @@ function renderPricingCards() {
   }).join('');
 }
 
+// PayPal plan IDs (sandbox)
+const PAYPAL_PLAN_IDS = {
+  advanced: 'P-6P172894F6454780GNLAKWSI',
+  x20:      'P-11314897S4591244MNLAKWSQ',
+  x50:      'P-2S0314407M902330FNLAKWSQ',
+};
+
+let paypalSdkLoaded = false;
+let paypalSdkLoading = false;
+let currentCheckoutPlan = null;
+let paypalCardFields = null;
+
 function handleUpgradeCta(planKey) {
-  showWarning('PayPal payments coming soon — check back shortly!', 5000);
+  if (planKey === 'free') return;
+  openPaypalCheckout(planKey);
+}
+
+async function openPaypalCheckout(planKey) {
+  const plan = PLAN_DATA.find(p => p.key === planKey);
+  if (!plan) return;
+  currentCheckoutPlan = planKey;
+
+  document.getElementById('paypalCheckoutTitle').textContent = `Subscribe to ${plan.name}`;
+  document.getElementById('paypalCheckoutPrice').textContent = `$${plan.monthly.toFixed(2)} / month`;
+  document.getElementById('paypal-checkout-status').textContent = '';
+  document.getElementById('paypal-checkout-status').style.color = '';
+  document.getElementById('paypalCheckoutModal').style.display = 'flex';
+
+  switchPaymentTab('card');
+
+  if (!paypalSdkLoaded && !paypalSdkLoading) {
+    paypalSdkLoading = true;
+    document.getElementById('paypal-checkout-status').textContent = 'Loading payment system…';
+    try {
+      const cfg = await fetch('/api/paypal/config').then(r => r.json());
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(cfg.clientId)}&vault=true&intent=subscription&components=buttons,card-fields`;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+      paypalSdkLoaded = true;
+      document.getElementById('paypal-checkout-status').textContent = '';
+    } catch (err) {
+      document.getElementById('paypal-checkout-status').textContent = 'Failed to load payment system. Please refresh and try again.';
+      paypalSdkLoading = false;
+      return;
+    }
+  }
+
+  if (paypalSdkLoaded) initPayPalWidgets(planKey);
+}
+
+function initPayPalWidgets(planKey) {
+  const planId = PAYPAL_PLAN_IDS[planKey];
+  if (!planId || typeof paypal === 'undefined') return;
+
+  // PayPal wallet button
+  try {
+    const ppContainer = document.getElementById('paypal-button-container');
+    if (ppContainer) ppContainer.innerHTML = '';
+    paypal.Buttons({
+      style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'subscribe' },
+      createSubscription(data, actions) {
+        return actions.subscription.create({ plan_id: planId });
+      },
+      onApprove(data) { return verifyAndActivateSubscription(data.subscriptionID, planKey); },
+      onError(err) {
+        document.getElementById('paypal-checkout-status').textContent = 'Payment failed. Please try again.';
+        console.error('PayPal error:', err);
+      }
+    }).render('#paypal-button-container');
+  } catch (err) { console.error('PayPal button render error:', err); }
+
+  // Credit card fields
+  try {
+    paypalCardFields = null;
+    const eligible = paypal.CardFields && paypal.CardFields({
+      createSubscription(data, actions) {
+        return actions.subscription.create({ plan_id: planId });
+      },
+      onApprove(data) { return verifyAndActivateSubscription(data.subscriptionID, planKey); },
+      onError(err) {
+        document.getElementById('paypal-checkout-status').textContent = 'Card payment failed. Please try again.';
+        document.getElementById('card-submit-btn').disabled = false;
+        document.getElementById('card-submit-btn').textContent = 'Subscribe Now';
+        console.error('Card error:', err);
+      }
+    });
+
+    if (eligible && eligible.isEligible()) {
+      paypalCardFields = eligible;
+      ['card-name-field-container', 'card-number-field-container', 'card-expiry-field-container', 'card-cvv-field-container'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '';
+      });
+      paypalCardFields.NameField().render('#card-name-field-container');
+      paypalCardFields.NumberField().render('#card-number-field-container');
+      paypalCardFields.ExpiryField().render('#card-expiry-field-container');
+      paypalCardFields.CVVField().render('#card-cvv-field-container');
+      document.getElementById('card-submit-btn').style.display = 'block';
+      document.getElementById('card-not-eligible').style.display = 'none';
+    } else {
+      document.getElementById('card-submit-btn').style.display = 'none';
+      document.getElementById('card-not-eligible').style.display = 'block';
+    }
+  } catch (err) {
+    console.error('CardFields init error:', err);
+    document.getElementById('card-submit-btn').style.display = 'none';
+    document.getElementById('card-not-eligible').style.display = 'block';
+  }
+}
+
+async function submitCardPayment() {
+  if (!paypalCardFields) return;
+  const btn = document.getElementById('card-submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Processing…';
+  try {
+    await paypalCardFields.submit();
+  } catch (err) {
+    document.getElementById('paypal-checkout-status').textContent = 'Card payment failed. Please check your details and try again.';
+    btn.disabled = false;
+    btn.textContent = 'Subscribe Now';
+  }
+}
+
+async function verifyAndActivateSubscription(subscriptionId, planKey) {
+  const status = document.getElementById('paypal-checkout-status');
+  status.textContent = 'Activating subscription…';
+  try {
+    const resp = await fetch('/api/paypal/verify-subscription', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscriptionId, planKey })
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      status.style.color = '#22c55e';
+      status.textContent = '✓ Subscription activated!';
+      if (lastKnownUsage) lastKnownUsage.subscriptionTier = planKey;
+      setTimeout(() => {
+        closePaypalCheckout();
+        closePricingModal();
+        fetchUsageAndUpdateUI();
+        showWarning(`Welcome to ${PLAN_LABELS[planKey]}! Your new limits are now active.`, 5000);
+      }, 1800);
+    } else {
+      status.textContent = 'Activation failed: ' + (data.error || 'Unknown error');
+    }
+  } catch (err) {
+    status.textContent = 'Network error. Please contact support.';
+    console.error('Verify subscription error:', err);
+  }
+}
+
+function closePaypalCheckout() {
+  document.getElementById('paypalCheckoutModal').style.display = 'none';
+  currentCheckoutPlan = null;
+}
+
+function switchPaymentTab(tab) {
+  document.getElementById('payment-panel-card').style.display = tab === 'card' ? 'flex' : 'none';
+  document.getElementById('payment-panel-paypal').style.display = tab === 'paypal' ? 'block' : 'none';
+  document.getElementById('tab-card').classList.toggle('payment-tab-active', tab === 'card');
+  document.getElementById('tab-paypal').classList.toggle('payment-tab-active', tab === 'paypal');
 }
 
 function updateSettingsPlanCard(tier) {
