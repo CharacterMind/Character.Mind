@@ -31,8 +31,8 @@ const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', 
 // Token usage multiplier shown on Max effort warning per tier
 const MAX_EFFORT_MULTIPLIERS = { opas:'2×', opes:'2.5×', opis:'3×', opos:'4×', opus:'5×', opys:'5×+' };
 
-// Tiers locked behind subscription (null = free, 'pro' = Pro plan, 'max' = Pro or Max)
-const TIER_SUBSCRIPTION = { opas: null, opes: null, opis: 'pro', opos: 'pro', opus: 'max', opys: 'max' };
+// Tiers locked behind subscription (null = free, 'adv' = Advanced plan, 'max' = Advanced or Max)
+const TIER_SUBSCRIPTION = { opas: null, opes: null, opis: 'adv', opos: 'adv', opus: 'max', opys: 'max' };
 
 const MODEL_ICONS = {
   opas: '<path d="M7 2v11h3v9l7-12h-4l4-8z"/>',
