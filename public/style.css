@@ -2270,7 +2270,8 @@ html, body {
 .pc-name { font-size: 17px; font-weight: 700; color: var(--text1); }
 .pc-price { font-size: 26px; font-weight: 800; color: var(--text1); line-height: 1.1; }
 .pc-period { font-size: 13px; font-weight: 500; color: var(--text3); }
-.pc-per-month { font-size: 11px; color: var(--text3); min-height: 16px; }
+.pc-per-month { font-size: 11px; color: var(--text3); min-height: 16px; display: flex; align-items: center; gap: 4px; }
+.pc-save-pct { background: rgba(34,197,94,.18); color: #4ade80; padding: 1px 6px; border-radius: 8px; font-weight: 700; font-size: 10px; }
 .pc-features {
   list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-direction: column; gap: 7px; flex: 1;
 }

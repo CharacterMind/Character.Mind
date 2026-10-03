@@ -137,8 +137,11 @@ function renderPricingCards() {
     const price = pricingPeriod === 'annual' ? plan.annual : plan.monthly;
     const priceStr = price === 0 ? 'Free' : `$${price.toFixed(2)}`;
     const periodStr = price === 0 ? 'forever' : pricingPeriod === 'annual' ? '/ year' : '/ month';
-    const perMonth = plan.annual > 0 && pricingPeriod === 'annual'
-      ? `<div class="pc-per-month">~$${(plan.annual / 12).toFixed(2)}/month</div>` : '<div class="pc-per-month"></div>';
+    let perMonth = '<div class="pc-per-month"></div>';
+    if (plan.annual > 0 && pricingPeriod === 'annual') {
+      const savePct = Math.round((1 - plan.annual / (plan.monthly * 12)) * 100);
+      perMonth = `<div class="pc-per-month">~$${(plan.annual / 12).toFixed(2)}/mo &nbsp;<span class="pc-save-pct">Save ${savePct}%</span></div>`;
+    }
     const badge = plan.badge ? `<div class="pc-badge">${escHtml(plan.badge)}</div>` : '';
     const features = plan.features.map(f => `<li>✓ ${escHtml(f)}</li>`).join('');
     const ctaText = isCurrent ? 'Current plan' : 'Upgrade via PayPal';
