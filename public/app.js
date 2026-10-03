@@ -75,15 +75,97 @@ function setModelTier(tier) {
 
 function selectOrUpgrade(tier) {
   if (!TIER_SUBSCRIPTION[tier]) { setModelTier(tier); return; }
-  // TODO: open subscription modal when payment is integrated
-  showUpgradeModal(tier);
+  openPricingModal();
 }
 
-function showUpgradeModal(tier) {
-  // Placeholder — will be replaced with Stripe flow
-  const label = MODEL_LABELS[tier] || tier;
-  const plan = TIER_SUBSCRIPTION[tier] === 'max' ? 'Pro or Max' : 'Pro';
-  alert(`${label} requires a character.mind ${plan} subscription.\n\nSubscriptions coming soon!`);
+function showUpgradeModal() { openPricingModal(); }
+
+// ── Subscription tier data ────────────────────────────────────────────────────
+const PLAN_DATA = [
+  {
+    key: 'free', name: 'Free', monthly: 0, annual: 0,
+    callsPerDay: 3, memosPerDay: 30,
+    features: ['3 voice calls per day', '30 read-alouds per day', 'Opas & Opes AI models', 'All characters'],
+  },
+  {
+    key: 'advanced', name: 'Advanced', monthly: 4.99, annual: 44.99,
+    callsPerDay: 5, memosPerDay: 50,
+    features: ['5 voice calls per day', '50 read-alouds per day', 'Opas & Opes AI models', 'Everything in Free'],
+  },
+  {
+    key: 'x20', name: 'X20', badge: 'Most Popular', monthly: 12.99, annual: 109.99,
+    callsPerDay: 100, memosPerDay: 1000,
+    features: ['100 voice calls per day', '1,000 read-alouds per day', 'Opis & Opos models unlocked', 'Everything in Advanced'],
+  },
+  {
+    key: 'x50', name: 'X50', badge: 'Best Value', monthly: 24.99, annual: 199.99,
+    callsPerDay: 250, memosPerDay: 2500,
+    features: ['250 voice calls per day', '2,500 read-alouds per day', 'Opus & Opys models unlocked', 'Everything in X20'],
+  },
+];
+
+const PLAN_LABELS = { free: 'Free', advanced: 'Advanced', x20: 'X20', x50: 'X50' };
+const PLAN_SUBS = {
+  free:     '3 calls/day · 30 read-alouds/day',
+  advanced: '5 calls/day · 50 read-alouds/day',
+  x20:      '100 calls/day · 1,000 read-alouds/day',
+  x50:      '250 calls/day · 2,500 read-alouds/day',
+};
+
+let pricingPeriod = 'monthly';
+
+function openPricingModal() {
+  renderPricingCards();
+  document.getElementById('pricingModal').style.display = 'flex';
+}
+function closePricingModal() {
+  document.getElementById('pricingModal').style.display = 'none';
+}
+function setPricingPeriod(period) {
+  pricingPeriod = period;
+  document.getElementById('pricingBtnMonthly').classList.toggle('pt-active', period === 'monthly');
+  document.getElementById('pricingBtnAnnual').classList.toggle('pt-active', period === 'annual');
+  renderPricingCards();
+}
+
+function renderPricingCards() {
+  const container = document.getElementById('pricingCards');
+  if (!container) return;
+  const currentTier = lastKnownUsage?.subscriptionTier || 'free';
+  container.innerHTML = PLAN_DATA.map(plan => {
+    const isCurrent = plan.key === currentTier;
+    const price = pricingPeriod === 'annual' ? plan.annual : plan.monthly;
+    const priceStr = price === 0 ? 'Free' : `$${price.toFixed(2)}`;
+    const periodStr = price === 0 ? 'forever' : pricingPeriod === 'annual' ? '/ year' : '/ month';
+    const perMonth = plan.annual > 0 && pricingPeriod === 'annual'
+      ? `<div class="pc-per-month">~$${(plan.annual / 12).toFixed(2)}/month</div>` : '<div class="pc-per-month"></div>';
+    const badge = plan.badge ? `<div class="pc-badge">${escHtml(plan.badge)}</div>` : '';
+    const features = plan.features.map(f => `<li>✓ ${escHtml(f)}</li>`).join('');
+    const ctaText = isCurrent ? 'Current plan' : 'Upgrade via PayPal';
+    const ctaClass = 'pc-cta' + (isCurrent ? ' pc-cta-current' : '');
+    return `<div class="pricing-card${isCurrent ? ' pc-current' : ''}${plan.badge ? ' pc-featured' : ''}">
+      ${badge}
+      <div class="pc-name">${escHtml(plan.name)}</div>
+      <div class="pc-price">${priceStr}<span class="pc-period"> ${periodStr}</span></div>
+      ${perMonth}
+      <ul class="pc-features">${features}</ul>
+      <button class="${ctaClass}" ${isCurrent ? 'disabled' : `onclick="handleUpgradeCta('${plan.key}')"`}>${ctaText}</button>
+    </div>`;
+  }).join('');
+}
+
+function handleUpgradeCta(planKey) {
+  showWarning('PayPal payments coming soon — check back shortly!', 5000);
+}
+
+function updateSettingsPlanCard(tier) {
+  const t = tier || lastKnownUsage?.subscriptionTier || 'free';
+  const badge = document.getElementById('settingsPlanBadge');
+  const name  = document.getElementById('settingsPlanName');
+  const sub   = document.getElementById('settingsPlanSub');
+  if (badge) badge.textContent = PLAN_LABELS[t] || t;
+  if (name)  name.textContent  = (PLAN_LABELS[t] || t) + ' Plan';
+  if (sub)   sub.textContent   = PLAN_SUBS[t] || '';
 }
 
 function setEffort(effort) {
@@ -426,7 +508,7 @@ function renderUserBadge() {
     ${avatarHtml(currentUser, 32)}
     <span class="ub-text-wrap">
       <span class="ub-name">${escHtml(getDisplayName())}</span>
-      <span class="ub-plan">Free</span>
+      <span class="ub-plan">${PLAN_LABELS[lastKnownUsage?.subscriptionTier || 'free'] || 'Free'}</span>
     </span>
     <svg class="ub-chevron" viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
   `;
@@ -1908,6 +1990,34 @@ function clearLockout() {
   }
 }
 
+function showWarningWithUpgrade(msg, autoCloseMs, persistent) {
+  const container = document.getElementById('warningBanners');
+  if (!container) return;
+  for (const b of container.children) {
+    if (b.dataset.warnMsg === msg) { b.style.animation = 'none'; requestAnimationFrame(() => { b.style.animation = ''; }); return; }
+  }
+  const banner = document.createElement('div');
+  banner.className = 'warning-banner' + (persistent ? ' warning-banner-critical' : '');
+  banner.dataset.warnMsg = msg;
+  const text = document.createElement('span');
+  text.textContent = msg + ' ';
+  const link = document.createElement('button');
+  link.className = 'warning-upgrade-link';
+  link.textContent = 'Upgrade →';
+  link.onclick = () => openPricingModal();
+  const close = document.createElement('button');
+  close.className = 'warning-banner-close';
+  close.setAttribute('aria-label', 'Dismiss');
+  close.textContent = '✕';
+  if (!persistent) close.onclick = () => banner.remove();
+  else close.style.display = 'none';
+  banner.appendChild(text);
+  banner.appendChild(link);
+  banner.appendChild(close);
+  container.appendChild(banner);
+  if (autoCloseMs && !persistent) setTimeout(() => banner.remove(), autoCloseMs);
+}
+
 function showWarning(msg, autoCloseMs, persistent) {
   const container = document.getElementById('warningBanners');
   if (!container) return;
@@ -1955,18 +2065,24 @@ function processWarnings(warnings, weeklyResetsAt) {
     const isWeekly90  = w.type === 'weekly'  && w.pct === 90;
     const isSession90 = w.type === 'session' && w.pct === 90;
 
+    const showMsg = (w.pct >= 50 && w.type === 'weekly')
+      ? w.msg + ' — '  // upgrade link appended via showWarningWithUpgrade
+      : w.msg;
     if (isWeekly90) {
-      // Persistent until weekly resets — store timestamp once, show until reset
       if (!triggerTs) { try { localStorage.setItem(tsKey, String(now)); } catch (_) {} triggerTs = now; }
-      if (!weeklyResetsAt || now < weeklyResetsAt) showWarning(w.msg, 0, true);
+      if (!weeklyResetsAt || now < weeklyResetsAt) showWarningWithUpgrade(w.msg, 0, true);
       else try { localStorage.removeItem(tsKey); } catch (_) {}
     } else if (isSession90) {
-      // Auto-hides 3 hours after trigger
       if (!triggerTs) { try { localStorage.setItem(tsKey, String(now)); } catch (_) {} triggerTs = now; }
       const hideAt = triggerTs + H3;
       if (now < hideAt) showWarning(w.msg, hideAt - now);
+    } else if (w.pct >= 50 && w.type === 'weekly') {
+      // 50 / 75% weekly — show with upgrade CTA, auto-hides 24h after trigger
+      if (!triggerTs) { try { localStorage.setItem(tsKey, String(now)); } catch (_) {} triggerTs = now; }
+      const hideAt = triggerTs + H24;
+      if (now < hideAt) showWarningWithUpgrade(w.msg, hideAt - now, false);
     } else {
-      // 25 / 50 / 75% weekly — auto-hides 24 hours after first trigger
+      // 25% weekly — plain banner, auto-hides 24h after trigger
       if (!triggerTs) { try { localStorage.setItem(tsKey, String(now)); } catch (_) {} triggerTs = now; }
       const hideAt = triggerTs + H24;
       if (now < hideAt) showWarning(w.msg, hideAt - now);
@@ -1983,11 +2099,11 @@ function restoreWarningBanners(usage) {
   const weeklyResetsAt = usage?.weeklyResetsAt || 0;
 
   const checks = [
-    { key: 'weekly25', msg: 'Approaching weekly usage limit.',      ttl: H24, persistent: false },
-    { key: 'weekly50', msg: 'Approaching weekly usage limit.',      ttl: H24, persistent: false },
-    { key: 'weekly75', msg: "You've used 75% of your weekly limit.", ttl: H24, persistent: false },
-    { key: 'weekly90', msg: "You've used 90% of your weekly limit.", ttl: 0,   persistent: true  },
-    { key: 'session90',msg: 'Approaching session limit. 90% of session limit used.', ttl: H3, persistent: false },
+    { key: 'weekly25', msg: 'Approaching weekly usage limit.',       ttl: H24, persistent: false, upgrade: false },
+    { key: 'weekly50', msg: 'Approaching weekly usage limit.',       ttl: H24, persistent: false, upgrade: true  },
+    { key: 'weekly75', msg: "You've used 75% of your weekly limit.", ttl: H24, persistent: false, upgrade: true  },
+    { key: 'weekly90', msg: "You've used 90% of your weekly limit.", ttl: 0,   persistent: true,  upgrade: true  },
+    { key: 'session90',msg: 'Approaching session limit. 90% of session limit used.', ttl: H3, persistent: false, upgrade: false },
   ];
   for (const c of checks) {
     const tsKey = warnTsKey(uid, c.key);
@@ -1995,12 +2111,14 @@ function restoreWarningBanners(usage) {
     try { ts = parseInt(localStorage.getItem(tsKey) || '0', 10) || null; } catch (_) {}
     if (!ts) continue;
     if (c.persistent) {
-      if (!weeklyResetsAt || now < weeklyResetsAt) showWarning(c.msg, 0, true);
+      if (!weeklyResetsAt || now < weeklyResetsAt) showWarningWithUpgrade(c.msg, 0, true);
       else try { localStorage.removeItem(tsKey); } catch (_) {}
     } else {
       const hideAt = ts + c.ttl;
-      if (now < hideAt) showWarning(c.msg, hideAt - now);
-      else try { localStorage.removeItem(tsKey); } catch (_) {}
+      if (now < hideAt) {
+        if (c.upgrade) showWarningWithUpgrade(c.msg, hideAt - now, false);
+        else showWarning(c.msg, hideAt - now);
+      } else try { localStorage.removeItem(tsKey); } catch (_) {}
     }
   }
 }
@@ -2015,6 +2133,8 @@ async function loadUsage() {
     updateUsageBars(usage);
     updateUsageTimestamp();
     restoreWarningBanners(usage);
+    updateSettingsPlanCard(usage.subscriptionTier);
+    renderUserBadge();
   } catch (_) {}
 }
 
