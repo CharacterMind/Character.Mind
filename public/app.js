@@ -1432,7 +1432,7 @@ function showLockedChat() {
   lockBar.innerHTML = `
     <span>🚫</span>
     <span>This chat was permanently ended due to repeated policy violations.</span>
-    <button class="new-chat-btn" onclick="resetAndStartNewChat('${currentChar}')">Start new chat</button>
+    <button class="new-chat-btn" onclick="resetAndStartNewChat('${escHtml(currentChar.id)}')">Start new chat</button>
   `;
   if (messagesDiv) messagesDiv.appendChild(lockBar);
   scrollToBottom();

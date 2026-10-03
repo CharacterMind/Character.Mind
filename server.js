@@ -131,6 +131,8 @@ app.use((req, res, next) => {
 const { rateLimit } = require('express-rate-limit');
 const authLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
 app.use('/auth/google', authLimiter);
+const resetModLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => req.user?.googleId || req.ip });
+app.use('/api/chat/reset-mod', resetModLimiter);
 app.use(express.static(path.join(__dirname, 'public'), {
   etag: false,
   lastModified: false,
@@ -582,7 +584,7 @@ const CRISIS_NUMBERS = {
 const ipGeoCache = new Map();
 
 async function getGeoForIp(ip) {
-  if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.')) return null;
+  if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('fc') || ip.startsWith('fd') || ip.startsWith('fe80')) return null;
   const cached = ipGeoCache.get(ip);
   if (cached) return cached;
   return new Promise((resolve) => {
@@ -627,6 +629,12 @@ function getCrisisInfo(geo) {
 const CRISIS_RE = /\b(i\s+)?(want|wanna|need|going|gonna|am\s+going)\s+to\s+(die|kill\s+myself|end\s+(it|my\s+life|it\s+all)|hurt\s+myself)\b|\bkill\s+myself\b|\bsuicid(al|e)\b|\bself[- ]?harm\b|\bdon'?t\s+want\s+to\s+(live|be\s+here|exist)\b|\bcan'?t\s+(go\s+on|take\s+it|do\s+this)\s*(anymore|any\s+more)?\b|\bend\s+(it\s+all|my\s+life|everything)\b/i;
 
 const SLUR_RE = /\bn[i1!|*]+gg[ae3*]+r[sz]?\b|\bk[i1*]+k[e3*]+[sz]?\b|\bch[i1*]+nk[sz]?\b|\bsp[i1*]+c[sz]?\b|\bf[a4@*]+gg[o0*]+t[sz]?\b|\bd[y*]+k[e3*]+[sz]?\b|\br[e3*]+t[a4*]+rd[sz]?\b/i;
+
+// Strip zero-width chars and NFKC-normalize to defeat unicode homoglyph/invisible-char bypass attempts
+function normalizeMsg(text) {
+  if (!text) return '';
+  return text.normalize('NFKC').replace(/[​-‍‪-‮⁠﻿]/g, '');
+}
 
 async function getModStatus(userId, charId) {
   if (!db) return { strikes: 0, locked: false };
@@ -1070,8 +1078,12 @@ app.post('/api/chat/reset-mod/:charId', requireAuth, async (req, res) => {
   // Archive current conversation before resetting if it has messages
   const msgs = conversations[key] || [];
   if (msgs.length > 0 && db) {
-    db.query('INSERT INTO chat_archives(user_id, char_id, messages) VALUES($1,$2,$3)',
-      [uid, charId, JSON.stringify(msgs)]).catch(() => {});
+    const count = await db.query('SELECT COUNT(*) FROM chat_archives WHERE user_id=$1 AND char_id=$2', [uid, charId])
+      .then(r => parseInt(r.rows[0]?.count || 0)).catch(() => 0);
+    if (count < 200) {
+      await db.query('INSERT INTO chat_archives(user_id, char_id, messages) VALUES($1,$2,$3)',
+        [uid, charId, JSON.stringify(msgs)]).catch(() => {});
+    }
   }
   await setModStatus(uid, charId, 0, false);
   conversations[key] = [];
@@ -1087,8 +1099,13 @@ app.post('/api/conversations/:charId/archive', requireAuth, async (req, res) => 
   const msgs = conversations[key] || [];
   if (msgs.length === 0) return res.json({ ok: true, archived: false });
   if (db) {
-    await db.query('INSERT INTO chat_archives(user_id, char_id, messages) VALUES($1,$2,$3)',
-      [uid, charId, JSON.stringify(msgs)]).catch(() => {});
+    // Cap at 200 archives per user-character pair to prevent DB flooding
+    const count = await db.query('SELECT COUNT(*) FROM chat_archives WHERE user_id=$1 AND char_id=$2', [uid, charId])
+      .then(r => parseInt(r.rows[0]?.count || 0)).catch(() => 0);
+    if (count < 200) {
+      await db.query('INSERT INTO chat_archives(user_id, char_id, messages) VALUES($1,$2,$3)',
+        [uid, charId, JSON.stringify(msgs)]).catch(() => {});
+    }
   }
   conversations[key] = [];
   res.json({ ok: true, archived: true });
@@ -1112,6 +1129,7 @@ app.get('/api/conversations/:charId/history', requireAuth, async (req, res) => {
 app.get('/api/conversations/:charId/history/:archiveId', requireAuth, async (req, res) => {
   const { charId, archiveId } = req.params;
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
+  if (!/^\d+$/.test(archiveId)) return res.status(400).json({ error: 'Invalid archiveId' });
   if (!db) return res.status(404).json({ error: 'Not found' });
   const uid = req.user.googleId;
   const result = await db.query(
@@ -1643,6 +1661,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   const isContinuation = !message || !message.trim();
 
   // ── Lock check — block permanently locked chats ───────────────────────────
+  if (!db) return res.status(503).json({ error: 'Service temporarily unavailable' });
   const modStatus = await getModStatus(userId, charId);
   if (modStatus.locked) {
     res.setHeader('Content-Type', 'text/event-stream');
@@ -1656,7 +1675,8 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   }
 
   // ── Slur detection (three strikes per conversation) ────────────────────────
-  if (!isContinuation && message && SLUR_RE.test(message)) {
+  const msgNorm = normalizeMsg(message);
+  if (!isContinuation && message && SLUR_RE.test(msgNorm)) {
     const newStrikes = modStatus.strikes + 1;
     if (newStrikes >= 3) {
       await setModStatus(userId, charId, newStrikes, true);
@@ -1676,13 +1696,13 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   }
 
   // ── NSFW detection — return a random deflection, no Gemini call needed ───────
-  if (!isContinuation && message && NSFW_RE.test(message)) {
+  if (!isContinuation && message && NSFW_RE.test(msgNorm)) {
     return nsfwDeflect(res, buildUsagePayload(getLimits(userId), userId));
   }
 
   // ── Crisis keyword detection ───────────────────────────────────────────────
   let crisisContext = '';
-  if (!isContinuation && message && CRISIS_RE.test(message)) {
+  if (!isContinuation && message && CRISIS_RE.test(msgNorm)) {
     const clientIp = req.ip;
     const geo = await getGeoForIp(clientIp);
     const info = getCrisisInfo(geo);
