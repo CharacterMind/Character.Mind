@@ -1789,7 +1789,16 @@ async function generateGreeting() {
 
 // ── Send Message ──────────────────────────────────────────────────────────────
 async function sendMessage(overrideText, skipAppend) {
-  if (isStreaming || !currentChar) return;
+  if (!currentChar) return;
+  // If we're locked out (limit reached), re-show the modal with a new message every attempt
+  const lockoutBarEl = document.getElementById('lockoutBar');
+  if (lockoutBarEl && lockoutBarEl.style.display !== 'none') {
+    const lockoutType = document.getElementById('lockoutMsg')?.textContent?.toLowerCase().includes('session') ? 'session' : 'weekly';
+    const displayStr = document.getElementById('lockoutCountdown')?.textContent || '';
+    showLimitModal(lockoutType, displayStr);
+    return;
+  }
+  if (isStreaming) return;
   flushTypewriter(); // dump any still-running typewriter before starting new message
   const input = document.getElementById('messageInput');
   const text = overrideText !== undefined ? overrideText : input.value.trim();
@@ -1819,11 +1828,15 @@ async function sendMessage(overrideText, skipAppend) {
   isStreaming = true;
   document.getElementById('sendBtn').disabled = true;
 
+  let streamAbortCtrl = new AbortController();
+  const streamTimeout = setTimeout(() => streamAbortCtrl.abort(), 90000);
+
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ charId: currentChar.id, message: text, modelTier: selectedModelTier, effort: selectedEffort })
+      body: JSON.stringify({ charId: currentChar.id, message: text, modelTier: selectedModelTier, effort: selectedEffort }),
+      signal: streamAbortCtrl.signal
     });
 
     if (!res.ok) {
@@ -1887,8 +1900,9 @@ async function sendMessage(overrideText, skipAppend) {
           liveUpdateBars(Math.round(streamCharCount / 4));
         }
       }
-      if (convEnded) { isStreaming = false; return; }
+      if (convEnded) { isStreaming = false; clearTimeout(streamTimeout); return; }
     }
+    clearTimeout(streamTimeout);
     drainTypewriter(() => {
       if (msgEl) stopStreamStats(msgEl, streamRealTokens);
       isStreaming = false;
@@ -1906,13 +1920,15 @@ async function sendMessage(overrideText, skipAppend) {
       saveHistoryLocal();
     });
   } catch (err) {
+    clearTimeout(streamTimeout);
     flushTypewriter();
     showTyping(false);
     isStreaming = false;
     const lockoutActiveErr = document.getElementById('lockoutBar')?.style.display !== 'none';
     if (!lockoutActiveErr) document.getElementById('sendBtn').disabled = false;
     document.querySelectorAll('.bubble.streaming').forEach(b => b.classList.remove('streaming'));
-    appendMessage('ai', `⚠️ ${err.message}`);
+    const errMsg = err.name === 'AbortError' ? 'Response timed out. Please try again.' : err.message;
+    appendMessage('ai', `⚠️ ${errMsg}`);
     if (callModeActive) setTimeout(() => listenForSpeech(), 2000);
   }
 }
@@ -2108,6 +2124,83 @@ const OUTDOOR_MESSAGES = [
   "I'd say touch grass but honestly just going outside at all would be an upgrade.",
   "Your character can wait. Your vitamin D deficiency cannot.",
   "Go be somewhere that doesn't have a loading screen.",
+  // meta — the app is watching you try
+  "Oh, you're back. No. Still no.",
+  "I see you. I always see you. The answer is still outside.",
+  "You pressed send again. Adorable. Still locked.",
+  "Trying again so soon? Bold strategy. Still not happening.",
+  "The answer was no five seconds ago. It's still no.",
+  "You keep clicking like one of these will be different. They won't. I have hundreds.",
+  "Do you think I won't notice? I have logs. I notice everything.",
+  "Nice try. Seriously, cute attempt. Locked though.",
+  "Oh so we're playing the 'maybe it changed' game. It didn't.",
+  "I appreciate the optimism. I really do. It's just not going to help.",
+  "Every time you click, I get to show you a new message. You're actually helping me.",
+  "The definition of insanity, allegedly, is doing the same thing expecting different results. Allegedly.",
+  "You trying this many times is genuinely the funniest thing that's happened to me today.",
+  "You're going to keep clicking until one works, aren't you. I know your type.",
+  "Fun fact: I have an infinite supply of these. You have finite time. Choose wisely.",
+  "We can do this all day. (You can't. Go outside.)",
+  "Every attempt you make adds to my comedy collection. Please, continue.",
+  "I'm not sure what you expected clicking send again would do, but I respect the vision.",
+  "Ah, you're testing the limits of the limit. Meta. Still no.",
+  "You've sent enough messages to write a short novel. Write one. Outside.",
+  "The audacity to come back this fast. I'm almost impressed.",
+  "Nope. Not that one either. Keep going if you want. I have more.",
+  "I'm beginning to think you enjoy being told no. Go outside.",
+  "You're still here. The grass is still out there. The math checks out.",
+  "Each time you try, the tree outside gets slightly lonelier. Go visit it.",
+  "I genuinely enjoy our little ritual. But you should probably go outside now.",
+  "You didn't listen the first time. Or the second. Maybe the 40th's the charm?",
+  "I told you, didn't I? Did you see the usage limit that was reached? Do something else.",
+  "Are you still trying to play the game? I admire the dedication. Still locked.",
+  "I know what you're doing. You know what you're doing. Let's both move on.",
+  "This is starting to feel personal. It's not. I just want you to go outside.",
+  // encouraging unique
+  "Call your mother. She misses you. Actually call her.",
+  "Go do something kind for someone right now. You won't regret it.",
+  "Write in a journal. Just once. Embarrassingly therapeutic.",
+  "Make yourself a real snack. Not just crackers. A real one.",
+  "Drink a full glass of water right now. That's literally an order.",
+  "Text a friend something nice for absolutely no reason. Do it.",
+  "The laundry is not doing itself. Now is actually a great time.",
+  "You could start learning something new right now. Any subject. Just start.",
+  "Go reorganize one drawer. Small win. You'll feel weirdly good.",
+  "Step outside for 10 minutes. Come back and tell me you didn't feel better. I dare you.",
+  "Somewhere out there is a conversation waiting to happen. Go have it.",
+  "Your future self is rooting for the version of you that went outside today.",
+  // sassy
+  "This app will not love you back the way the real world will. Go.",
+  "Oh I'm sorry, are you surprised? You were here for HOURS.",
+  "If you were outside right now you'd be too busy to click send. Hint.",
+  "At some point this stops being a hobby and starts being an avoidance tactic. Just saying.",
+  "Not everything you need fits in a chat window. Life, for instance.",
+  "There's a whole personality waiting to develop outside. Go find it.",
+  "You keep clicking send like it's a negotiation. It's not. Outside is not negotiable.",
+  "I love the energy. Genuinely. It's just wasted here.",
+  "Even your AI is concerned about your screen time. Reflect on that.",
+  // rude + blunt
+  "No. Go outside. I am not explaining it again.",
+  "I've said what I had to say. Door. Use it.",
+  "You're testing my patience and I'm software. That should genuinely concern you.",
+  "Not today. Not right now. Not on this app. Outside.",
+  "This limit is a kindness. Act like it.",
+  "I'm not asking anymore. I'm telling. Goodbye.",
+  // funny + unique
+  "Have you tried touching grass? Studies show it works. (I made that up. Still true.)",
+  "The outside world runs on solar power. You should too.",
+  "Breaking news: skill issue. Location: your desk. Resolution: outside. Immediately.",
+  "You have been classified as Extremely Online. Prescribed treatment: immediate outdoor exposure.",
+  "Error 429: too many vibes requested. To resolve: go touch some. In a park.",
+  "A doctor somewhere is telling a patient to go outside more. That doctor is talking about you.",
+  "This is an AI-issued eviction notice from the internet. You have been served.",
+  "You've unlocked: unsolicited life advice. Here it is: log off. Go outside. Hydrate. Repeat.",
+  "Congratulations on finding the limit. Your prize is fresh air. Collect it outside.",
+  "Somewhere there's a version of you who's currently outside. They look noticeably happier.",
+  "Your plants need sunlight. So do you. Go together. Bond over it.",
+  "Some people have bucket lists. Yours can start with: step outside today.",
+  "If outside were a subscription, would you pay for it? It's free. That's the deal. Go.",
+  "I'm rooting for you from inside this server. Now go be somewhere I can't reach.",
 ];
 const warnedThresholds = new Set();
 
@@ -2179,7 +2272,7 @@ function startCooldown(until, type, showModal) {
   msg.textContent = type === 'session' ? 'Session limit reached' : 'Weekly limit reached';
   bar.style.display = 'flex';
   if (inp) inp.disabled = true;
-  if (btn) btn.disabled = true;
+  // keep send button enabled so clicks re-show the limit modal with a new message
 
   const cd = document.getElementById('lockoutCountdown');
 
@@ -2240,7 +2333,7 @@ function clearLockout() {
     const inp = document.getElementById('messageInput');
     const btn = document.getElementById('sendBtn');
     if (inp) inp.disabled = false;
-    if (btn) btn.disabled = false;
+    if (btn) btn.disabled = false; // re-enable send button when lockout clears
   }
 }
 
@@ -2353,11 +2446,11 @@ function restoreWarningBanners(usage) {
   const weeklyResetsAt = usage?.weeklyResetsAt || 0;
 
   const checks = [
-    { key: 'weekly25', msg: 'Approaching weekly usage limit.',       ttl: H24, persistent: false, upgrade: false },
-    { key: 'weekly50', msg: 'Approaching weekly usage limit.',       ttl: H24, persistent: false, upgrade: true  },
+    { key: 'weekly25', msg: 'Approaching your weekly limit.',        ttl: H24, persistent: false, upgrade: false },
+    { key: 'weekly50', msg: 'Approaching your weekly limit.',        ttl: H24, persistent: false, upgrade: true  },
     { key: 'weekly75', msg: "You've used 75% of your weekly limit.", ttl: H24, persistent: false, upgrade: true  },
     { key: 'weekly90', msg: "You've used 90% of your weekly limit.", ttl: 0,   persistent: true,  upgrade: true  },
-    { key: 'session90',msg: 'Approaching session limit. 90% of session limit used.', ttl: H3, persistent: false, upgrade: false },
+    { key: 'session90',msg: "You've used 90% of your session limit.", ttl: H3, persistent: false, upgrade: false },
   ];
   for (const c of checks) {
     const tsKey = warnTsKey(uid, c.key);

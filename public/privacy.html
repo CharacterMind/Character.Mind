@@ -37,6 +37,10 @@
 
   .callout { background: var(--bg3); border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; padding: 14px 18px; margin: 20px 0; font-size: 14px; }
 
+  h2 a.anchor-link { color: inherit; text-decoration: none; opacity: 0; margin-left: 6px; font-weight: 400; font-size: 14px; transition: opacity .15s; }
+  h2:hover a.anchor-link { opacity: 0.5; }
+  h2:hover a.anchor-link:hover { opacity: 1; color: var(--accent); }
+
   @media (max-width: 600px) {
     .page-header { padding: 16px; }
     .container { padding: 36px 16px 60px; }
@@ -56,10 +60,10 @@
   <h1 class="doc-title">Privacy Policy</h1>
   <p class="doc-date">Effective date: October 3, 2026 &nbsp;·&nbsp; Last updated: October 3, 2026</p>
 
-  <h2>1. Overview</h2>
+  <h2 id="section-1">1. Overview</h2>
   <p>Character Mind Playtime Co ("we," "us," or "our") operates Character.Mind. This Privacy Policy explains what information we collect, how we use it, and the choices you have. By using the service, you agree to the practices described here.</p>
 
-  <h2>2. Information We Collect</h2>
+  <h2 id="section-2">2. Information We Collect</h2>
 
   <p><strong>From your Google account (at sign-in):</strong></p>
   <ul>
@@ -83,10 +87,10 @@
   <ul>
     <li>Session identifiers (stored in a browser cookie, used for authentication)</li>
     <li>Basic server logs (request timestamps, error messages) for operational purposes</li>
-    <li><strong>Your IP address</strong> — used solely for geographic location estimation during crisis detection (see Section 3a below). It is never stored in our database and is not linked to your account or profile.</li>
+    <li><strong>Your IP address</strong> — used solely for geographic location estimation during crisis detection (see <a href="#section-3a">Section 3a</a> below). It is never stored in our database and is not linked to your account or profile.</li>
   </ul>
 
-  <h2>3. How We Use Your Information</h2>
+  <h2 id="section-3">3. How We Use Your Information</h2>
   <ul>
     <li>To authenticate you and maintain your session</li>
     <li>To deliver AI character responses tailored to your conversation history</li>
@@ -100,7 +104,7 @@
     <li>To detect and prevent abuse or violations of our Terms of Service</li>
   </ul>
 
-  <h2>3a. IP Address and Geographic Location (Crisis Safety)</h2>
+  <h2 id="section-3a">3a. IP Address and Geographic Location (Crisis Safety)</h2>
   <p>When our automated system detects a message that may indicate personal distress or thoughts of self-harm, we perform a one-time, ephemeral lookup of your IP address to estimate your geographic region. This is done solely to provide you with locally relevant crisis resources — for example, showing a Quebec-specific helpline to someone in Québec rather than a generic number.</p>
   <ul>
     <li><strong>What we look up:</strong> Country, province/state, and city, derived from your IP address via a third-party geolocation service (ipapi.co).</li>
@@ -111,7 +115,7 @@
   </ul>
   <div class="callout">If you are uncomfortable with IP-based geolocation, you may use a VPN. The crisis detection feature will still activate; it will simply provide generic resources rather than location-specific ones.</div>
 
-  <h2>4. Third-Party Services</h2>
+  <h2 id="section-4">4. Third-Party Services</h2>
   <p>We share data with the following third parties only as necessary to operate the service:</p>
   <ul>
     <li><strong>Google OAuth 2.0</strong> — handles sign-in. We receive your basic profile information as described above. Google's privacy policy applies to data processed by Google.</li>
@@ -123,28 +127,28 @@
   </ul>
   <p>We do not sell your personal data to third parties.</p>
 
-  <h2>5. Data Retention</h2>
+  <h2 id="section-5">5. Data Retention</h2>
   <ul>
     <li><strong>Active conversation history</strong> is retained while your account is active and may be cleared at any time from within the app.</li>
     <li><strong>Archived past conversations</strong> are retained while your account is active and are browsable from the History panel. They are included in account deletion requests.</li>
     <li><strong>Content moderation records</strong> (strike counts per user-character pair) are retained while your account is active to enforce our policies. Starting a new chat with a character resets the count for that character.</li>
     <li><strong>Usage data</strong> (daily/weekly counters) is retained for the current billing and limit window, then reset.</li>
     <li><strong>Account data</strong> (name, email, subscription tier, PayPal subscription ID) is retained as long as your account exists. The PayPal subscription ID is removed when a subscription is cancelled, expired, or suspended.</li>
-    <li><strong>IP geolocation results</strong> are cached in server memory for up to one hour and are never stored in our database. See Section 3a.</li>
+    <li><strong>IP geolocation results</strong> are cached in server memory for up to one hour and are never stored in our database. See <a href="#section-3a">Section 3a</a>.</li>
     <li>If you request account deletion, we will remove your personal data from our database within 30 days, except where retention is required by law.</li>
   </ul>
 
-  <h2>6. Email Communications</h2>
+  <h2 id="section-6">6. Email Communications</h2>
   <p>By creating an account, you agree to receive service-related emails such as important policy updates and account notices. These are not marketing emails. We do not send promotional emails without your explicit opt-in.</p>
   <p>To stop receiving service emails, contact us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a>. Note that opting out of service emails may mean you miss important updates about your account or the platform.</p>
 
-  <h2>7. Data Security</h2>
+  <h2 id="section-7">7. Data Security</h2>
   <p>We take reasonable measures to protect your data, including encrypted connections (HTTPS), secure session management, and access controls on our database. However, no system is perfectly secure. You use the service at your own risk, and we cannot guarantee absolute security.</p>
 
-  <h2>8. Children's Privacy</h2>
+  <h2 id="section-8">8. Children's Privacy</h2>
   <p>Character.Mind is not directed at children under 13. We do not knowingly collect personal information from anyone under 13. If we become aware that a child under 13 has provided us with personal data, we will delete it promptly. If you believe this has occurred, contact us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a>.</p>
 
-  <h2>9. Your Rights and Choices</h2>
+  <h2 id="section-9">9. Your Rights and Choices</h2>
   <ul>
     <li><strong>Access and correction:</strong> You can view and update your profile picture within the app.</li>
     <li><strong>Conversation deletion:</strong> You can clear your active conversation history with any character at any time from within the app. Archived past conversations are viewable in the History panel; full deletion of all archived data can be requested by contacting us.</li>
@@ -154,13 +158,13 @@
 
   <div class="callout">If you are in the European Economic Area (EEA), UK, or California, additional rights may apply to you under GDPR or CCPA. Contact us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a> to exercise those rights.</div>
 
-  <h2>10. Cookies</h2>
+  <h2 id="section-10">10. Cookies</h2>
   <p>We use a single session cookie to keep you logged in. This cookie is strictly necessary for the service to function and does not track you across other websites. We do not use advertising or analytics cookies.</p>
 
-  <h2>11. Changes to This Policy</h2>
+  <h2 id="section-11">11. Changes to This Policy</h2>
   <p>We may update this Privacy Policy from time to time. When we do, we will update the effective date above and notify users via the platform. Continued use of Character.Mind after changes are posted constitutes your acceptance of the updated policy.</p>
 
-  <h2>12. Contact</h2>
+  <h2 id="section-12">12. Contact</h2>
   <p>Questions about this Privacy Policy or your data? Contact us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a>.</p>
 </div>
 
