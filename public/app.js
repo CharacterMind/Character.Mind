@@ -1946,7 +1946,7 @@ async function sendMessage(overrideText, skipAppend) {
         playSound('done');
         if (callModeActive) callModeTTS(bubble);
       } else if (callModeActive) {
-        setTimeout(() => listenForSpeech(), 1000);
+        setTimeout(() => listenForSpeech(), 500);
       }
       saveHistoryLocal();
     });
