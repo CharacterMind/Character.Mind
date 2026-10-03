@@ -1865,7 +1865,7 @@ async function sendMessage(overrideText, skipAppend) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ charId: currentChar.id, message: text, modelTier: selectedModelTier, effort: selectedEffort, ...(imgB64 ? { image: imgB64 } : {}) }),
+      body: JSON.stringify({ charId: currentChar.id, message: text, modelTier: selectedModelTier, effort: selectedEffort, ...(imgB64 ? { image: imgB64 } : {}), ...(callModeActive ? { callMode: true } : {}) }),
       signal: streamAbortCtrl.signal
     });
 
@@ -3589,7 +3589,7 @@ function callModeTTS(bubble) {
   applyVoice(utterance);
   let done = false;
   // Chrome has a known bug where onend silently never fires for long utterances
-  const ttsGuard = setTimeout(() => { if (!done && callModeActive) { done = true; listenForSpeech(); } }, Math.max(6000, text.length * 60));
+  const ttsGuard = setTimeout(() => { if (!done && callModeActive) { done = true; listenForSpeech(); } }, Math.max(3000, text.length * 35));
   utterance.onend = () => { done = true; clearTimeout(ttsGuard); if (callModeActive) listenForSpeech(); };
   utterance.onerror = () => { done = true; clearTimeout(ttsGuard); if (callModeActive) listenForSpeech(); };
   activeTTSUtterance = utterance;
@@ -3674,9 +3674,9 @@ async function startCallMode() {
     if (nameEl) nameEl.textContent = currentChar.name || '';
     overlay.style.display = 'flex';
     const vob = document.getElementById('callVoiceOnBadge');
-    if (vob) vob.style.display = '';
+    if (vob) { vob.style.display = ''; setTimeout(() => { if (callModeActive) vob.style.display = 'none'; }, 5000); }
     setCallState('calling');
-    setTimeout(() => { if (callModeActive) listenForSpeech(); }, 1500);
+    setTimeout(() => { if (callModeActive) listenForSpeech(); }, 500);
   }
 }
 
@@ -3784,7 +3784,7 @@ function showCallWarningBanner() {
   setTimeout(() => {
     if (banner) banner.style.display = 'none';
     if (vob) vob.style.top = '';
-  }, 7000);
+  }, 5000);
 }
 
 function showCallMicError() {

@@ -1773,7 +1773,7 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
 app.post('/api/chat', requireAuth, async (req, res) => {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
-  const { charId, message, modelTier, effort, image } = req.body;
+  const { charId, message, modelTier, effort, image, callMode } = req.body;
   if (message !== undefined && typeof message !== 'string') return res.status(400).json({ error: 'Invalid request' });
   if (image !== undefined) {
     if (typeof image !== 'string') return res.status(400).json({ error: 'Invalid image' });
@@ -1897,9 +1897,13 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   let fullResponse = '';
   let done = false;
 
+  const callModeDirective = callMode
+    ? '\n\n[CALL MODE — You are on a live voice call. Keep your reply SHORT: 1-2 sentences, under 25 words. Speak naturally — no asterisks, no markdown, no action text in parentheses. Plain conversational words only.]'
+    : '';
+
   callGroqStream(
     apiKey,
-    applyEffortDirective(wrapPrompt(char.systemPrompt) + crisisContext, effort),
+    applyEffortDirective(wrapPrompt(char.systemPrompt) + crisisContext + callModeDirective, effort),
     messagesForGroq,
     (text) => {
       fullResponse += text;
