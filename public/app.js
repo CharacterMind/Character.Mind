@@ -742,15 +742,17 @@ function toggleUserDropdown(e) {
   const opening = !dd.classList.contains('open');
   dd.classList.toggle('open', opening);
   badge && badge.classList.toggle('dd-open', opening);
-  if (opening) setTimeout(() => document.addEventListener('click', closeDropdownOutside, { once: true }), 0);
+  document.removeEventListener('click', closeDropdownOutside);
+  if (opening) setTimeout(() => document.addEventListener('click', closeDropdownOutside), 0);
 }
 
 function closeDropdownOutside(e) {
   const dd    = document.getElementById('userDropdown');
   const badge = document.getElementById('userBadge');
-  if (dd && !dd.contains(e.target) && e.target !== badge) {
+  if (dd && !dd.contains(e.target) && !badge?.contains(e.target)) {
     dd.classList.remove('open');
     badge && badge.classList.remove('dd-open');
+    document.removeEventListener('click', closeDropdownOutside);
   }
 }
 
