@@ -3228,6 +3228,76 @@ function previewVoiceURI(voiceURI, e) {
   window.speechSynthesis.speak(u);
 }
 
+// ── Plans panel ──────────────────────────────────────────────────────────────
+
+function openPlansPanel() {
+  const overlay = document.getElementById('plansPanelOverlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  renderPlansPanelCards();
+}
+
+function closePlansPanel() {
+  const overlay = document.getElementById('plansPanelOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function renderPlansPanelCards() {
+  const container = document.getElementById('plansPanelContent');
+  if (!container) return;
+  const currentTier = lastKnownUsage?.subscriptionTier || 'free';
+  container.innerHTML = `
+    <div class="pp-toggle">
+      <button id="ppBtnMonthly" class="pp-period-btn pp-active" onclick="setPlansPeriod('monthly')">Monthly</button>
+      <button id="ppBtnAnnual" class="pp-period-btn" onclick="setPlansPeriod('annual')">Annual</button>
+    </div>
+    <div class="pp-cards" id="ppCards"></div>
+  `;
+  _renderPpCards(currentTier, 'monthly');
+}
+
+let _ppPeriod = 'monthly';
+
+function setPlansPeriod(period) {
+  _ppPeriod = period;
+  document.getElementById('ppBtnMonthly')?.classList.toggle('pp-active', period === 'monthly');
+  document.getElementById('ppBtnAnnual')?.classList.toggle('pp-active', period === 'annual');
+  const currentTier = lastKnownUsage?.subscriptionTier || 'free';
+  _renderPpCards(currentTier, period);
+}
+
+function _renderPpCards(currentTier, period) {
+  const container = document.getElementById('ppCards');
+  if (!container) return;
+  container.innerHTML = PLAN_DATA.map(plan => {
+    const isCurrent = plan.key === currentTier;
+    const price = period === 'annual' ? plan.annual : plan.monthly;
+    const priceStr = price === 0 ? 'Free' : `$${price.toFixed(2)}`;
+    const periodStr = price === 0 ? 'forever' : period === 'annual' ? '/ year' : '/ month';
+    let saveLine = '';
+    if (plan.annual > 0 && period === 'annual') {
+      const savePct = Math.round((1 - plan.annual / (plan.monthly * 12)) * 100);
+      saveLine = `<div class="pp-save">~$${(plan.annual/12).toFixed(2)}/mo · Save ${savePct}%</div>`;
+    }
+    const badge = plan.badge ? `<div class="pp-badge">${escHtml(plan.badge)}</div>` : '';
+    const features = plan.features.map(f => `<li>${escHtml(f)}</li>`).join('');
+    const cta = isCurrent
+      ? `<button class="pp-cta pp-cta-current" disabled>Current plan</button>`
+      : plan.key === 'free'
+        ? `<button class="pp-cta pp-cta-free" disabled>Free tier</button>`
+        : `<button class="pp-cta" onclick="closePlansPanel();openPricingModal()">Upgrade</button>`;
+    return `
+      <div class="pp-card${isCurrent ? ' pp-card-current' : ''}">
+        ${badge}
+        <div class="pp-plan-name">${escHtml(plan.name)}</div>
+        <div class="pp-price">${priceStr} <span class="pp-period">${periodStr}</span></div>
+        ${saveLine}
+        <ul class="pp-features">${features}</ul>
+        ${cta}
+      </div>`;
+  }).join('');
+}
+
 // ── Resources panel ───────────────────────────────────────────────────────────
 let _cachedGpsCoords = null; // reuse within session — GPS permission only asked once
 
@@ -3629,7 +3699,7 @@ const CHAR_CALL_PALETTES = {
   'custom_1790766558393':          ['#446688', '#223344', '#99ccee'],  // The Doctor — cool slate
   'custom_1790894243871_huggy':    ['#1155dd', '#001133', '#00aacc'],  // Huggy Wuggy — deep blue
   'custom_1790894243872_mll':      ['#ff1493', '#cc0099', '#ffaad4'],  // Mommy Long Legs — hot pink
-  'custom_1790894243873_catnap':   ['#9988cc', '#1a1520', '#667799'],  // CatNap — dusty lilac
+  'custom_1790894243873_catnap':   ['#8822ee', '#2d006b', '#cc66ff'],  // CatNap — vivid purple
   'custom_1790894243874_dogday':   ['#ffcc00', '#ff8800', '#fffff0'],  // DogDay — yellow/orange
   'custom_1790894243875_prototype':['#888899', '#1a1a22', '#0044cc'],  // The Prototype — steel/electric
   'custom_1790894243876_kissy':    ['#ffaac8', '#ff77aa', '#aaccff'],  // Kissy Missy — baby pink

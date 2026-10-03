@@ -2371,6 +2371,43 @@ html, body {
 }
 .pricing-footer { font-size: 12px; color: var(--text3); text-align: center; margin: 0; }
 
+/* ── Plans sidebar panel ─────────────────────────────────────────────────── */
+.pp-toggle {
+  display: flex; gap: 6px; margin-bottom: 14px;
+}
+.pp-period-btn {
+  flex: 1; padding: 7px; border-radius: 8px; border: 1px solid var(--border2);
+  background: none; color: var(--text3); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: background .15s, color .15s;
+}
+.pp-period-btn.pp-active { background: var(--accent); color: #fff; border-color: transparent; }
+.pp-cards { display: flex; flex-direction: column; gap: 12px; }
+.pp-card {
+  border: 1px solid var(--border2); border-radius: 12px; padding: 16px;
+  background: var(--bg3); position: relative;
+}
+.pp-card-current { border-color: rgba(139,92,246,.5); }
+.pp-badge {
+  position: absolute; top: -10px; left: 16px;
+  background: var(--accent); color: #fff; font-size: 10px; font-weight: 700;
+  padding: 2px 9px; border-radius: 20px; letter-spacing: .04em; text-transform: uppercase;
+}
+.pp-plan-name { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.pp-price { font-size: 22px; font-weight: 800; color: var(--text); }
+.pp-period { font-size: 13px; font-weight: 500; color: var(--text3); }
+.pp-save { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.pp-features {
+  list-style: none; padding: 0; margin: 10px 0 12px; display: flex; flex-direction: column; gap: 6px;
+}
+.pp-features li { font-size: 13px; color: var(--text2); }
+.pp-features li::before { content: '✓ '; color: var(--accent-l); font-weight: 700; }
+.pp-cta {
+  width: 100%; padding: 9px; border-radius: 9px; border: none; cursor: pointer;
+  font-size: 13px; font-weight: 600; background: var(--accent); color: #fff; transition: opacity .15s;
+}
+.pp-cta:hover:not(:disabled) { opacity: .85; }
+.pp-cta.pp-cta-current, .pp-cta.pp-cta-free { background: var(--bg4); color: var(--text3); cursor: default; }
+
 /* ── Session reset timer (under session usage bar in modal) ──────────────── */
 .session-reset-timer {
   font-size: 12px; color: var(--text3); margin-top: 6px;
