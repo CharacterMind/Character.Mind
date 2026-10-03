@@ -1055,12 +1055,15 @@
 }
 .payment-tab:hover { border-color: var(--accent); color: var(--text1); }
 .payment-tab-active { border-color: var(--accent) !important; background: var(--accent-dim) !important; color: var(--accent-l) !important; }
+
+#payment-panel-card { display: flex; flex-direction: column; gap: 12px; }
 .card-field-group { display: flex; flex-direction: column; gap: 6px; }
 .card-field-label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; }
 .card-field-input {
-  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
-  padding: 12px 14px; min-height: 44px;
+  background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px;
+  padding: 11px 14px; min-height: 46px; transition: border-color .15s;
 }
+.card-field-input:focus-within { border-color: var(--accent); }
 .card-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .card-submit-btn {
   width: 100%; padding: 13px; background: var(--accent); color: #fff;
@@ -1074,6 +1077,6 @@
 .paypal-checkout-footer { font-size: 12px; color: var(--text3); text-align: center; margin: 0; }
 </style>
 
-<script src="app.js?v=99"></script>
+<script src="app.js?v=100"></script>
 </body>
 </html>

@@ -341,17 +341,44 @@ function renderSettingsTiers(currentTier) {
   const el = document.getElementById('settingsTiersSection');
   if (!el) return;
   const t = currentTier || lastKnownUsage?.subscriptionTier || 'free';
-  const paid = PLAN_DATA.filter(p => p.key !== 'free');
-  el.innerHTML = `<div class="settings-tiers-heading">Plans</div><div class="settings-tier-rows">${
-    paid.map(p => {
-      const isCurrent = p.key === t;
-      return `<div class="settings-tier-row${isCurrent ? ' st-current' : ''}">
-        <div class="settings-tier-name">${escHtml(p.name)}</div>
-        <div class="settings-tier-price">$${p.monthly.toFixed(2)}<span>/mo</span></div>
-        <button class="settings-tier-btn" ${isCurrent ? 'disabled' : `onclick="handleUpgradeCta('${p.key}')"`}>${isCurrent ? 'Current' : 'Subscribe'}</button>
-      </div>`;
-    }).join('')
-  }</div>`;
+  const period = pricingPeriod;
+  const icons = {
+    advanced: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M13 2.05v2.02c3.95.49 7 3.85 7 7.93 0 3.21-1.81 6-4.72 7.72L13 18v4l-1.73-1-1.27.73V18l-2.28 1.65C4.78 18 3 15.21 3 12c0-4.08 3.05-7.44 7-7.93V2.05h3zm-1 2.96C9.03 5.44 7 8.5 7 12c0 2.42 1.17 4.65 3 6.07V14h4v4.07c1.83-1.42 3-3.65 3-6.07 0-3.5-2.03-6.56-5-7z"/></svg>`,
+    x20: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`,
+    x50: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/></svg>`,
+  };
+  const plans = PLAN_DATA.filter(p => p.key !== 'free');
+  el.innerHTML = `
+    <div class="st2-header">
+      <span class="st2-title">Plans</span>
+      <div class="st2-toggle">
+        <button class="st2-toggle-btn${period === 'monthly' ? ' st2-toggle-active' : ''}" onclick="setSettingsPeriod('monthly')">Monthly</button>
+        <button class="st2-toggle-btn${period === 'annual' ? ' st2-toggle-active' : ''}" onclick="setSettingsPeriod('annual')">Yearly</button>
+      </div>
+    </div>
+    <div class="st2-cards-wrap">
+      ${plans.map(p => {
+        const isCurrent = p.key === t;
+        const price = period === 'annual' ? p.annual : p.monthly;
+        const badge = p.badge ? `<div class="st2-badge">${escHtml(p.badge)}</div>` : '';
+        const feats = p.features.slice(0, 3).map(f =>
+          `<li class="st2-feat"><svg viewBox="0 0 12 12" width="10" height="10" fill="none" style="flex-shrink:0;margin-top:2px"><path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>${escHtml(f)}</li>`
+        ).join('');
+        return `<div class="st2-card${isCurrent ? ' st2-current' : ''}${p.badge ? ' st2-featured' : ''}">
+          ${badge}
+          <div class="st2-icon-wrap">${icons[p.key] || ''}</div>
+          <div class="st2-plan-name">${escHtml(p.name)}</div>
+          <div class="st2-price-row"><span class="st2-price">$${price.toFixed(2)}</span><span class="st2-period">${period === 'annual' ? '/yr' : '/mo'}</span></div>
+          <ul class="st2-feats">${feats}</ul>
+          <button class="st2-btn${isCurrent ? ' st2-btn-current' : ''}" ${isCurrent ? 'disabled' : `onclick="handleUpgradeCta('${p.key}')"`}>${isCurrent ? 'Current' : 'Subscribe'}</button>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function setSettingsPeriod(period) {
+  pricingPeriod = period;
+  renderSettingsTiers();
 }
 
 function setEffort(effort) {
@@ -1481,6 +1508,28 @@ function loadHistoryLocal(charId) {
   } catch (_) { return []; }
 }
 
+function savePastChatLocal(charId, messages) {
+  if (!messages || messages.length === 0) return;
+  if (!messages.some(m => m.role === 'user')) return;
+  try {
+    const key = userKey(`cm_pastchats_${charId}`);
+    const existing = JSON.parse(localStorage.getItem(key) || '[]');
+    const lastMsg = messages[messages.length - 1];
+    const token = `${messages.length}_${(lastMsg.content || '').slice(0, 30)}`;
+    if (existing[0]?._token === token) return;
+    existing.unshift({ _token: token, archived_at: new Date().toISOString(), messages: messages.slice(-50), source: 'local' });
+    if (existing.length > 8) existing.length = 8;
+    localStorage.setItem(key, JSON.stringify(existing));
+  } catch (_) {}
+}
+
+function loadPastChatsLocal(charId) {
+  try {
+    const key = userKey(`cm_pastchats_${charId}`);
+    return JSON.parse(localStorage.getItem(key) || '[]');
+  } catch (_) { return []; }
+}
+
 // ── Open Chat ─────────────────────────────────────────────────────────────────
 async function openChat(charId) {
   currentChar = characters.find(c => c.id === charId);
@@ -1570,6 +1619,8 @@ async function openChat(charId) {
   if (history.length === 0) {
     const localHistory = loadHistoryLocal(charId);
     if (localHistory.length > 0) {
+      // Auto-save prior session to local past chats before restoring
+      savePastChatLocal(charId, localHistory);
       localHistory.forEach(m => appendMessage(m.role === 'user' ? 'user' : 'ai', m.content));
       document.getElementById('chatWelcome').innerHTML = '';
       updateCtxBar();
@@ -3132,15 +3183,38 @@ async function loadPastChats() {
   el.innerHTML = '<div class="history-empty">Loading…</div>';
   try {
     const res = await fetch(`/api/conversations/${currentChar.id}/history`);
-    const archives = res.ok ? await res.json() : [];
-    if (!archives.length) { el.innerHTML = '<div class="history-empty">No past chats archived yet. Start a new chat to archive the current one.</div>'; return; }
-    el.innerHTML = archives.map(a => {
+    const serverArchives = res.ok ? await res.json() : [];
+    const localArchives = loadPastChatsLocal(currentChar.id);
+
+    // Merge server and local archives, dedup by approximate token
+    const serverTokens = new Set(serverArchives.map(a => {
+      const fm = a.first_msg;
+      return `${a.message_count}_${(fm?.content || '').slice(0, 30)}`;
+    }));
+    const uniqueLocal = localArchives.filter(a => {
+      const fm = a.messages?.[0];
+      const token = `${a.messages?.length}_${(fm?.content || '').slice(0, 30)}`;
+      return !serverTokens.has(token);
+    });
+
+    const allArchives = [
+      ...serverArchives.map(a => ({ ...a, _src: 'server' })),
+      ...uniqueLocal.map((a, i) => ({ ...a, _localIdx: i, _src: 'local' }))
+    ].sort((a, b) => new Date(b.archived_at) - new Date(a.archived_at));
+
+    if (!allArchives.length) {
+      el.innerHTML = '<div class="history-empty">No past chats yet. Use "New Chat" to archive the current conversation.</div>';
+      return;
+    }
+    el.innerHTML = allArchives.map(a => {
       const date = new Date(a.archived_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-      const firstMsg = a.first_msg;
-      const preview = firstMsg ? escHtml((firstMsg.content || '').slice(0, 80) + (firstMsg.content?.length > 80 ? '…' : '')) : 'No messages';
+      const firstMsg = a._src === 'local' ? a.messages?.[0] : a.first_msg;
+      const msgCount = a._src === 'local' ? (a.messages?.length || 0) : (a.message_count || 0);
+      const preview = firstMsg ? escHtml((firstMsg.content || '').slice(0, 80) + ((firstMsg.content?.length || 0) > 80 ? '…' : '')) : 'No messages';
       const role = firstMsg?.role === 'user' ? 'You' : escHtml(currentChar.name || 'AI');
-      return `<div class="past-chat-entry" onclick="viewPastChat(${a.id})">
-        <div class="past-chat-meta"><span class="past-chat-date">${date}</span><span class="past-chat-count">${a.message_count} msg${a.message_count !== 1 ? 's' : ''}</span></div>
+      const clickArg = a._src === 'local' ? `null,'local',${a._localIdx}` : `${a.id},'server'`;
+      return `<div class="past-chat-entry" onclick="viewPastChat(${clickArg})">
+        <div class="past-chat-meta"><span class="past-chat-date">${date}</span><span class="past-chat-count">${msgCount} msg${msgCount !== 1 ? 's' : ''}</span></div>
         <div class="past-chat-preview"><span class="past-chat-who">${role}:</span> ${preview}</div>
       </div>`;
     }).join('');
@@ -3149,33 +3223,45 @@ async function loadPastChats() {
   }
 }
 
-async function viewPastChat(archiveId) {
+async function viewPastChat(archiveId, src, localIdx) {
   if (!currentChar) return;
   const el = document.getElementById('pastChatsArchiveList');
   if (!el) return;
-  el.innerHTML = '<div class="history-empty">Loading…</div>';
-  try {
-    const res = await fetch(`/api/conversations/${currentChar.id}/history/${archiveId}`);
-    if (!res.ok) throw new Error();
-    const archive = await res.json();
-    const date = new Date(archive.archived_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const msgs = archive.messages || [];
-    const rows = msgs.map(m => {
-      const isAi = m.role === 'assistant';
-      const name = isAi ? escHtml(currentChar.name || 'AI') : 'You';
-      const text = escHtml((m.content || '').slice(0, 400) + (m.content?.length > 400 ? '…' : ''));
-      return `<div class="history-msg-row ${isAi ? 'ai' : 'user'}"><span class="history-msg-who">${name}</span><span class="history-msg-text">${text}</span></div>`;
-    }).join('');
-    el.innerHTML = `
-      <div class="past-chat-back">
-        <button class="history-action-btn" onclick="loadPastChats()">← Back</button>
-        <span style="font-size:12px;color:var(--text3)">${date}</span>
-      </div>
-      ${rows || '<div class="history-empty">No messages in this archive.</div>'}
-    `;
-  } catch (_) {
-    el.innerHTML = '<div class="history-empty">Could not load this chat.</div>';
+
+  let msgs = [], dateStr = '';
+  if (src === 'local') {
+    const locals = loadPastChatsLocal(currentChar.id);
+    const entry = locals[localIdx];
+    if (!entry) { el.innerHTML = '<div class="history-empty">Could not load this chat.</div>'; return; }
+    msgs = entry.messages || [];
+    dateStr = new Date(entry.archived_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } else {
+    el.innerHTML = '<div class="history-empty">Loading…</div>';
+    try {
+      const res = await fetch(`/api/conversations/${currentChar.id}/history/${archiveId}`);
+      if (!res.ok) throw new Error();
+      const archive = await res.json();
+      msgs = archive.messages || [];
+      dateStr = new Date(archive.archived_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    } catch (_) {
+      el.innerHTML = '<div class="history-empty">Could not load this chat.</div>';
+      return;
+    }
   }
+
+  const rows = msgs.map(m => {
+    const isAi = m.role === 'assistant' || m.role === 'ai';
+    const name = isAi ? escHtml(currentChar.name || 'AI') : 'You';
+    const text = escHtml((m.content || '').slice(0, 400) + ((m.content?.length || 0) > 400 ? '…' : ''));
+    return `<div class="history-msg-row ${isAi ? 'ai' : 'user'}"><span class="history-msg-who">${name}</span><span class="history-msg-text">${text}</span></div>`;
+  }).join('');
+  el.innerHTML = `
+    <div class="past-chat-back">
+      <button class="history-action-btn" onclick="loadPastChats()">← Back</button>
+      <span style="font-size:12px;color:var(--text3)">${dateStr}</span>
+    </div>
+    ${rows || '<div class="history-empty">No messages in this archive.</div>'}
+  `;
 }
 
 function exportHistory() {
@@ -3773,7 +3859,8 @@ function autoResize(el) {
 
 async function newChat() {
   if (!currentChar) return;
-  // Archive current conversation before clearing
+  // Save to local past chats + archive to server
+  savePastChatLocal(currentChar.id, loadHistoryLocal(currentChar.id));
   await fetch(`/api/conversations/${currentChar.id}/archive`, { method: 'POST' }).catch(() => {});
   // Await the DELETE so the server clears history before we try to greet
   await fetch(`/api/conversations/${currentChar.id}`, { method: 'DELETE' }).catch(() => {});
