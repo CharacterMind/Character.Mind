@@ -20,7 +20,7 @@
 <link rel="icon" type="image/webp" href="/logo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=62">
+<link rel="stylesheet" href="style.css?v=63">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -1030,16 +1030,9 @@
 
       <div class="co-or"><span>Or Choose Payment Method</span></div>
 
-      <!-- Payment method selector -->
-      <div class="payment-tabs">
-        <button class="payment-tab payment-tab-active" id="tab-card" onclick="switchPaymentTab('card')">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
-          Credit Card
-        </button>
-        <button class="payment-tab" id="tab-paypal" onclick="switchPaymentTab('paypal')">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M8.32 21.97a.546.546 0 0 1-.26-.32L3.06 4.1A.92.92 0 0 0 2.2 3.5H.9C.4 3.5 0 3.1 0 2.6V2C0 1.45.4 1 .9 1h2.01c1.13 0 2.1.75 2.37 1.85l.74 2.9 13.14-1.04c.54-.05 1.03.37 1.03.92l-.01.27-1.45 8.22a2.27 2.27 0 0 1-2.24 1.89H6.8l.49 1.98h10.43c.5 0 .9.4.9.9v.6c0 .5-.4.9-.9.9H7.44c-.85 0-1.6-.58-1.8-1.42L5 17.97"/></svg>
-          PayPal
-        </button>
+      <div class="co-card-label">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
+        Credit Card
       </div>
 
       <!-- Credit Card panel -->
@@ -1058,11 +1051,9 @@
             <div id="card-cvv-field-container" class="card-field-input"></div>
           </div>
         </div>
-        <div class="card-field-row">
-          <div class="card-field-group">
-            <label class="card-field-label">First Name</label>
-            <div id="card-name-field-container" class="card-field-input" style="grid-column:1/-1"></div>
-          </div>
+        <div class="card-field-group">
+          <label class="card-field-label">Cardholder Name</label>
+          <div id="card-name-field-container" class="card-field-input"></div>
         </div>
         <div class="card-field-group">
           <label class="card-field-label">Country</label>
@@ -1083,8 +1074,6 @@
         </div>
       </div>
 
-      <!-- PayPal-only fallback panel (hidden by default; express btns above cover it) -->
-      <div id="payment-panel-paypal" style="display:none"></div>
 
       <div id="paypal-checkout-status" class="paypal-checkout-status"></div>
       <p class="paypal-checkout-footer">Secured by PayPal &middot; Cancel anytime &middot; No hidden fees</p>
@@ -1167,16 +1156,12 @@
   content: ''; flex: 1; height: 1px; background: var(--border2);
 }
 
-/* Payment tabs */
-.payment-tabs { display: flex; gap: 8px; }
-.payment-tab {
-  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 10px; border-radius: 8px; border: 1px solid var(--border);
-  background: var(--bg3); color: var(--text2); font-size: 14px; font-weight: 500;
-  cursor: pointer; transition: all .15s;
+/* Credit card section label */
+.co-card-label {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 600; color: var(--text2);
+  padding-bottom: 4px; border-bottom: 1px solid var(--border2);
 }
-.payment-tab:hover { border-color: var(--accent); color: var(--text1); }
-.payment-tab-active { border-color: var(--accent) !important; background: var(--accent-dim) !important; color: var(--accent-l) !important; }
 
 /* Card form */
 #payment-panel-card { display: flex; flex-direction: column; gap: 12px; }
@@ -1244,6 +1229,6 @@
 }
 </style>
 
-<script src="app.js?v=116"></script>
+<script src="app.js?v=117"></script>
 </body>
 </html>

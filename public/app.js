@@ -188,7 +188,6 @@ async function openPaypalCheckout(planKey) {
   document.getElementById('paypal-checkout-status').style.color = '';
   document.getElementById('paypalCheckoutModal').style.display = 'flex';
 
-  switchPaymentTab('card');
 
   if (!paypalSdkLoaded && !paypalSdkLoading) {
     paypalSdkLoading = true;
@@ -320,16 +319,6 @@ async function verifyAndActivateSubscription(subscriptionId, planKey) {
 function closePaypalCheckout() {
   document.getElementById('paypalCheckoutModal').style.display = 'none';
   currentCheckoutPlan = null;
-}
-
-function switchPaymentTab(tab) {
-  document.getElementById('payment-panel-card').style.display = tab === 'card' ? 'flex' : 'none';
-  document.getElementById('payment-panel-paypal').style.display = tab === 'paypal' ? 'block' : 'none';
-  document.getElementById('tab-card').classList.toggle('payment-tab-active', tab === 'card');
-  document.getElementById('tab-paypal').classList.toggle('payment-tab-active', tab === 'paypal');
-  // Show Pay button only for card tab (PayPal tab uses express buttons above)
-  const payBtn = document.getElementById('co-pay-btn');
-  if (payBtn) payBtn.style.display = tab === 'card' ? 'block' : 'none';
 }
 
 function coPayBtnClick() {
