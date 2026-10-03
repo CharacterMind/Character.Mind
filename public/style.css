@@ -1022,24 +1022,47 @@ html, body {
 /* ── Call limit modal ─────────────────────────────────────────────────────────── */
 .call-limit-modal {
   position: fixed; inset: 0; z-index: 1000;
-  background: rgba(0,0,0,.65); backdrop-filter: blur(6px);
+  background: linear-gradient(160deg, #090d1f 0%, #0e1530 50%, #060b18 100%);
   display: flex; align-items: center; justify-content: center; padding: 24px;
+  flex-direction: column;
 }
-.call-limit-box {
-  background: #1a1f2e; border: 1px solid rgba(255,255,255,.1); border-radius: 20px;
-  padding: 36px 32px; max-width: 340px; width: 100%;
-  display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center;
+.call-limit-x {
+  position: absolute; top: 20px; left: 20px;
+  background: rgba(255,255,255,.1); border: none; color: #fff;
+  width: 36px; height: 36px; border-radius: 50%; font-size: 14px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background .15s;
 }
-.call-limit-icon { font-size: 42px; line-height: 1; }
-.call-limit-title { font-size: 20px; font-weight: 700; color: #fff; }
-.call-limit-body { font-size: 15px; color: rgba(255,255,255,.65); line-height: 1.5; }
-.call-limit-body strong { color: rgba(255,255,255,.9); }
-.call-limit-close {
-  margin-top: 8px; padding: 11px 32px; border-radius: 30px;
-  background: rgba(255,255,255,.9); color: #111; font-size: 15px; font-weight: 600;
-  border: none; cursor: pointer; transition: background .15s;
+.call-limit-x:hover { background: rgba(255,255,255,.2); }
+.call-limit-inner {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 16px; text-align: center; max-width: 400px; width: 100%;
 }
-.call-limit-close:hover { background: #fff; }
+.call-limit-headline {
+  font-size: clamp(24px, 6vw, 36px); font-weight: 800; color: #fff;
+  line-height: 1.2; letter-spacing: -.01em;
+}
+.call-limit-sub { font-size: 16px; color: rgba(255,255,255,.55); }
+.call-limit-countdown {
+  font-variant-numeric: tabular-nums; font-weight: 700;
+  color: rgba(255,255,255,.85); letter-spacing: .05em;
+}
+.call-limit-divider { width: 48px; height: 2px; background: rgba(255,255,255,.12); border-radius: 2px; }
+.call-limit-upgrade-label { font-size: 14px; color: rgba(255,255,255,.45); }
+.call-limit-upgrade-btn {
+  padding: 14px 40px; border-radius: 30px;
+  background: linear-gradient(135deg, #7c3aed, #5b21b6);
+  color: #fff; font-size: 16px; font-weight: 700;
+  border: none; cursor: pointer; transition: opacity .15s;
+  box-shadow: 0 4px 24px rgba(124,58,237,.4);
+}
+.call-limit-upgrade-btn:hover { opacity: .88; }
+.call-limit-got-it {
+  background: none; border: none; color: rgba(255,255,255,.35);
+  font-size: 13px; cursor: pointer; padding: 4px 8px;
+  transition: color .15s;
+}
+.call-limit-got-it:hover { color: rgba(255,255,255,.6); }
 /* ── Call warning banner ─────────────────────────────────────────────────────── */
 .call-warning-banner {
   position: fixed; top: 16px; left: 50%; transform: translateX(-50%);

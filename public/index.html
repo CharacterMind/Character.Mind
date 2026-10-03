@@ -20,7 +20,7 @@
 <link rel="icon" type="image/webp" href="/logo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=68">
+<link rel="stylesheet" href="style.css?v=69">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -444,11 +444,14 @@
         </div>
         <!-- Call limit reached modal -->
         <div id="callLimitModal" class="call-limit-modal" style="display:none">
-          <div class="call-limit-box">
-            <div class="call-limit-icon">📵</div>
-            <div class="call-limit-title">Daily call limit reached</div>
-            <div class="call-limit-body">You've used all 3 voice calls for today.<br>Resets at <strong id="callLimitResetsAt">8:00 AM</strong>.</div>
-            <button class="call-limit-close" onclick="hideCallLimitModal()">Got it</button>
+          <button class="call-limit-x" onclick="hideCallLimitModal()">✕</button>
+          <div class="call-limit-inner">
+            <div class="call-limit-headline">You've used all your voice calls today.</div>
+            <div class="call-limit-sub">Resets in <span id="callLimitCountdown" class="call-limit-countdown">--:--:--</span></div>
+            <div class="call-limit-divider"></div>
+            <div class="call-limit-upgrade-label">Want unlimited calls?</div>
+            <button class="call-limit-upgrade-btn" onclick="hideCallLimitModal(); openPricingModal()">See plans →</button>
+            <button class="call-limit-got-it" onclick="hideCallLimitModal()">Got it</button>
           </div>
         </div>
         <!-- 1 call remaining warning banner -->
@@ -1231,6 +1234,6 @@
 }
 </style>
 
-<script src="app.js?v=120"></script>
+<script src="app.js?v=121"></script>
 </body>
 </html>

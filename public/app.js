@@ -3722,20 +3722,30 @@ function getCharCallColors(char) {
   return [c1, c2, c3];
 }
 
+let _callLimitTimer = null;
 function showCallLimitModal(resetsAt) {
   const modal = document.getElementById('callLimitModal');
   if (!modal) return;
-  const resetEl = document.getElementById('callLimitResetsAt');
-  if (resetEl && resetsAt) {
-    const d = new Date(resetsAt);
-    resetEl.textContent = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + ', ' + d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
-  }
   modal.style.display = 'flex';
+  const cdEl = document.getElementById('callLimitCountdown');
+  if (!cdEl || !resetsAt) return;
+  function tick() {
+    const diff = resetsAt - Date.now();
+    if (diff <= 0) { cdEl.textContent = 'now'; return; }
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    cdEl.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+  tick();
+  if (_callLimitTimer) clearInterval(_callLimitTimer);
+  _callLimitTimer = setInterval(tick, 1000);
 }
 
 function hideCallLimitModal() {
   const modal = document.getElementById('callLimitModal');
   if (modal) modal.style.display = 'none';
+  if (_callLimitTimer) { clearInterval(_callLimitTimer); _callLimitTimer = null; }
 }
 
 function showCallWarningBanner() {
