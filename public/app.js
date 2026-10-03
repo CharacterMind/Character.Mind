@@ -1962,8 +1962,7 @@ function updateCtxBar() {}
 
 // ── Admin reset (Ctrl+Shift+0 or button in usage modal — owner only) ─────────
 function isOwner() {
-  return currentUser?.email === 'support.charactermind@gmail.com' ||
-         currentUser?.email === 'davey252572727@gmail.com';
+  return currentUser?.email === 'support.charactermind@gmail.com';
 }
 
 async function adminResetLimits() {

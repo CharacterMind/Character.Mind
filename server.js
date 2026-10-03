@@ -188,12 +188,14 @@ if (GOOGLE_AUTH_ENABLED) {
     }
     if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId);
     // Cache subscription tier in userLimits so limit checks don't need a DB hit
-    if (db) {
+    if (OWNER_EMAILS.has(user.email)) {
+      // Owner always gets x50 tier at runtime regardless of DB value
+      getLimits(user.googleId).subscriptionTier = 'x50';
+    } else if (db) {
       db.query('SELECT subscription_tier FROM users WHERE google_id = $1', [user.googleId])
         .then(r => {
           const tier = r.rows[0]?.subscription_tier || 'free';
-          const u = getLimits(user.googleId);
-          u.subscriptionTier = tier;
+          getLimits(user.googleId).subscriptionTier = tier;
         }).catch(() => {});
     }
     done(null, user);
@@ -1047,7 +1049,7 @@ app.get('/api/chat/lock-status/:charId', requireAuth, async (req, res) => {
   res.json({ locked: mod.locked, strikes: mod.strikes });
 });
 
-const OWNER_EMAILS = new Set(['support.charactermind@gmail.com', 'davey252572727@gmail.com']);
+const OWNER_EMAILS = new Set(['support.charactermind@gmail.com']);
 const ownerGoogleIds = new Set(); // populated at runtime when owners authenticate
 app.post('/api/admin/reset-limits', requireAuth, (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
