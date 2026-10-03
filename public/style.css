@@ -2202,6 +2202,10 @@ html, body {
   transition: color .15s;
 }
 .warning-banner-close:hover { color: #fde68a; }
+.warning-banner-critical {
+  background: rgba(239,68,68,0.14); border-top-color: rgba(239,68,68,0.35);
+  color: #fca5a5;
+}
 
 /* ── Session reset timer (under session usage bar in modal) ──────────────── */
 .session-reset-timer {

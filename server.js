@@ -450,12 +450,12 @@ function addTokens(sid, tokens) {
   const sPct = (u.sessionTokens / LIMITS.SESSION) * 100;
   const wPct = (u.weeklyTokens / LIMITS.WEEKLY) * 100;
   const warnings = [];
-  if (sPct >= 90 && !u.warned.session90) { u.warned.session90 = true; warnings.push({ type: 'session', pct: 90, msg: "You've reached 90% of your session limit" }); }
+  if (sPct >= 90 && !u.warned.session90) { u.warned.session90 = true; warnings.push({ type: 'session', pct: 90, msg: 'Approaching session limit. 90% of session limit used.' }); }
   const wt = [
-    { pct: 25, key: 'weekly25', msg: 'Approaching your weekly limit' },
-    { pct: 50, key: 'weekly50', msg: 'Approaching your weekly limit' },
-    { pct: 75, key: 'weekly75', msg: "You've reached 75% of your weekly limit" },
-    { pct: 90, key: 'weekly90', msg: "You've reached 90% of your weekly limit" },
+    { pct: 25, key: 'weekly25', msg: 'Approaching weekly usage limit.' },
+    { pct: 50, key: 'weekly50', msg: 'Approaching weekly usage limit.' },
+    { pct: 75, key: 'weekly75', msg: "You've used 75% of your weekly limit." },
+    { pct: 90, key: 'weekly90', msg: "You've used 90% of your weekly limit." },
   ];
   for (const t of wt) {
     if (wPct >= t.pct && !u.warned[t.key]) { u.warned[t.key] = true; warnings.push({ type: 'weekly', pct: t.pct, msg: t.msg }); }

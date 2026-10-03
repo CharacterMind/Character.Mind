@@ -1431,7 +1431,7 @@ async function generateGreeting() {
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
       if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
       scrollToBottom();
-      if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings); }
+      if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings, pendingUsage.weeklyResetsAt); }
       if (bubble) bubble.classList.remove('streaming');
       if (streamText) saveHistoryLocal();
     });
@@ -1559,7 +1559,7 @@ async function sendMessage(overrideText, skipAppend) {
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
       if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
       scrollToBottom();
-      if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings); }
+      if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings, pendingUsage.weeklyResetsAt); }
       if (bubble) {
         bubble.classList.remove('streaming');
         playSound('done');
@@ -1908,7 +1908,7 @@ function clearLockout() {
   }
 }
 
-function showWarning(msg, autoCloseMs) {
+function showWarning(msg, autoCloseMs, persistent) {
   const container = document.getElementById('warningBanners');
   if (!container) return;
   // Don't stack the same message — just flash the existing one
@@ -1920,27 +1920,87 @@ function showWarning(msg, autoCloseMs) {
     }
   }
   const banner = document.createElement('div');
-  banner.className = 'warning-banner';
+  banner.className = 'warning-banner' + (persistent ? ' warning-banner-critical' : '');
   const text = document.createElement('span');
   text.textContent = msg;
   const close = document.createElement('button');
   close.className = 'warning-banner-close';
   close.setAttribute('aria-label', 'Dismiss');
   close.textContent = '✕';
-  close.onclick = () => banner.remove();
+  // Persistent banners (90% weekly) cannot be manually dismissed
+  if (!persistent) close.onclick = () => banner.remove();
+  else close.style.display = 'none';
   banner.appendChild(text);
   banner.appendChild(close);
   container.appendChild(banner);
-  if (autoCloseMs) setTimeout(() => banner.remove(), autoCloseMs);
+  if (autoCloseMs && !persistent) setTimeout(() => banner.remove(), autoCloseMs);
 }
 
-function processWarnings(warnings) {
+// localStorage key for warning timestamps per user
+function warnTsKey(userId, key) { return `cm_warn_ts_${userId}_${key}`; }
+
+const H24 = 24 * 60 * 60 * 1000;
+const H3  =  3 * 60 * 60 * 1000;
+
+function processWarnings(warnings, weeklyResetsAt) {
   if (!warnings || !warnings.length) return;
+  const uid = currentUser?.googleId || 'anon';
+  const now = Date.now();
   for (const w of warnings) {
     const key = w.type + w.pct;
-    if (!warnedThresholds.has(key)) {
-      warnedThresholds.add(key);
-      showWarning(w.msg);
+    const tsKey = warnTsKey(uid, key);
+    let triggerTs = null;
+    try { triggerTs = parseInt(localStorage.getItem(tsKey) || '0', 10) || null; } catch (_) {}
+
+    const isWeekly90  = w.type === 'weekly'  && w.pct === 90;
+    const isSession90 = w.type === 'session' && w.pct === 90;
+
+    if (isWeekly90) {
+      // Persistent until weekly resets — store timestamp once, show until reset
+      if (!triggerTs) { try { localStorage.setItem(tsKey, String(now)); } catch (_) {} triggerTs = now; }
+      if (!weeklyResetsAt || now < weeklyResetsAt) showWarning(w.msg, 0, true);
+      else try { localStorage.removeItem(tsKey); } catch (_) {}
+    } else if (isSession90) {
+      // Auto-hides 3 hours after trigger
+      if (!triggerTs) { try { localStorage.setItem(tsKey, String(now)); } catch (_) {} triggerTs = now; }
+      const hideAt = triggerTs + H3;
+      if (now < hideAt) showWarning(w.msg, hideAt - now);
+    } else {
+      // 25 / 50 / 75% weekly — auto-hides 24 hours after first trigger
+      if (!triggerTs) { try { localStorage.setItem(tsKey, String(now)); } catch (_) {} triggerTs = now; }
+      const hideAt = triggerTs + H24;
+      if (now < hideAt) showWarning(w.msg, hideAt - now);
+    }
+    warnedThresholds.add(key);
+  }
+}
+
+// On page load, restore any banners that are still within their window
+function restoreWarningBanners(usage) {
+  if (!currentUser) return;
+  const uid = currentUser.googleId;
+  const now = Date.now();
+  const weeklyResetsAt = usage?.weeklyResetsAt || 0;
+
+  const checks = [
+    { key: 'weekly25', msg: 'Approaching weekly usage limit.',      ttl: H24, persistent: false },
+    { key: 'weekly50', msg: 'Approaching weekly usage limit.',      ttl: H24, persistent: false },
+    { key: 'weekly75', msg: "You've used 75% of your weekly limit.", ttl: H24, persistent: false },
+    { key: 'weekly90', msg: "You've used 90% of your weekly limit.", ttl: 0,   persistent: true  },
+    { key: 'session90',msg: 'Approaching session limit. 90% of session limit used.', ttl: H3, persistent: false },
+  ];
+  for (const c of checks) {
+    const tsKey = warnTsKey(uid, c.key);
+    let ts = null;
+    try { ts = parseInt(localStorage.getItem(tsKey) || '0', 10) || null; } catch (_) {}
+    if (!ts) continue;
+    if (c.persistent) {
+      if (!weeklyResetsAt || now < weeklyResetsAt) showWarning(c.msg, 0, true);
+      else try { localStorage.removeItem(tsKey); } catch (_) {}
+    } else {
+      const hideAt = ts + c.ttl;
+      if (now < hideAt) showWarning(c.msg, hideAt - now);
+      else try { localStorage.removeItem(tsKey); } catch (_) {}
     }
   }
 }
@@ -1954,6 +2014,7 @@ async function loadUsage() {
     lastUsageFetch = Date.now();
     updateUsageBars(usage);
     updateUsageTimestamp();
+    restoreWarningBanners(usage);
   } catch (_) {}
 }
 
@@ -3249,7 +3310,7 @@ async function regenerate() {
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
       if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
       scrollToBottom();
-      if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings); }
+      if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings, pendingUsage.weeklyResetsAt); }
       if (bubble) bubble.classList.remove('streaming');
       if (streamText) {
         const store = regenStore.get(id);
