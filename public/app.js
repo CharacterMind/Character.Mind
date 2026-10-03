@@ -2965,12 +2965,20 @@ function msgAvatarHtml(cls) {
 
 function appendNsfwCard() {
   const div = document.createElement('div');
-  div.className = 'nsfw-block-card';
+  div.className = 'msg ai';
   div.innerHTML = `
-    <div class="nsfw-card-icon">🤖</div>
-    <div class="nsfw-card-title">This message goes against our Terms of Use.</div>
-    <div class="nsfw-card-body">Sexual and explicit content isn't something we generate on Character.Mind. If you think this was a mistake, you can report it.</div>
-    <button class="nsfw-card-report" onclick="this.textContent='Reported'; this.disabled=true">Report</button>`;
+    <div class="msg-header">
+      ${msgAvatarHtml('msg-avatar')}
+      <span class="msg-name">${escHtml(currentChar?.name || 'AI')}</span>
+      <span class="msg-badge">C.M</span>
+    </div>
+    <div class="nsfw-block-card">
+      <div class="nsfw-card-icon">🤖</div>
+      <p class="nsfw-card-title">Sometimes the AI generates a reply that doesn't meet our guidelines.</p>
+      <p class="nsfw-card-body">Please click Report if you believe this could be a false positive. We'll anonymously keep track of Reports to improve the AI.</p>
+      <button class="nsfw-card-report" onclick="this.textContent='Reported ✓'; this.disabled=true">Report</button>
+      <div class="nsfw-card-dots"><span></span><span></span><span></span></div>
+    </div>`;
   document.getElementById('messages').appendChild(div);
   scrollToBottom();
 }

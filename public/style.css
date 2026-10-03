@@ -1221,21 +1221,29 @@ html, body {
 
 /* ── NSFW block card ─────────────────────────────────────────────────────── */
 .nsfw-block-card {
-  display: flex; flex-direction: column; align-items: center;
-  text-align: center; margin: 12px auto 16px; padding: 20px 22px 18px;
-  max-width: 380px; width: calc(100% - 32px);
+  display: flex; flex-direction: column;
+  padding: 18px 18px 14px; gap: 10px;
   background: var(--bg2); border: 1px solid var(--border2);
-  border-radius: 16px; gap: 8px;
+  border-radius: 14px; max-width: 340px;
 }
-.nsfw-card-icon { font-size: 32px; line-height: 1; }
-.nsfw-card-title { font-size: 14px; font-weight: 700; color: var(--text); }
-.nsfw-card-body  { font-size: 13px; color: var(--text3); line-height: 1.5; }
+.nsfw-card-icon { text-align: center; font-size: 34px; line-height: 1; }
+.nsfw-card-title { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.5; margin: 0; }
+.nsfw-card-body  { font-size: 13px; color: var(--text3); line-height: 1.5; margin: 0; }
 .nsfw-card-report {
-  margin-top: 6px; padding: 7px 28px; border-radius: 8px;
-  background: var(--bg3,#33353e); border: 1px solid var(--border2);
+  width: 100%; padding: 9px; border-radius: 8px;
+  background: var(--bg3,#2e3040); border: 1px solid var(--border2);
   color: var(--text2); font-size: 13px; font-weight: 600; cursor: pointer;
 }
 .nsfw-card-report:disabled { opacity: 0.6; cursor: default; }
+.nsfw-card-dots {
+  display: flex; justify-content: center; align-items: center; gap: 6px;
+  padding-top: 2px;
+}
+.nsfw-card-dots span {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--text3); opacity: 0.45;
+}
+.nsfw-card-dots span:nth-child(2) { opacity: 0.75; width: 9px; height: 9px; }
 
 /* ── Conversation ended system message ───────────────────────────────────── */
 .conv-ended-msg {
