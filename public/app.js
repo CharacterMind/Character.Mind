@@ -1216,7 +1216,6 @@ async function openChat(charId) {
   currentChar = characters.find(c => c.id === charId);
   if (!currentChar) return;
   const snapChar = currentChar;
-  touchRecentChat(charId);
   loadCharVoice();
 
   showView('chatView');
@@ -1470,6 +1469,7 @@ async function sendMessage(overrideText, skipAppend) {
   if (!skipAppend) {
     if (text) {
       appendMessage('user', text);
+      touchRecentChat(currentChar.id);
       document.getElementById('chatWelcome').innerHTML = '';
       playSound('send');
       scrollToBottom();

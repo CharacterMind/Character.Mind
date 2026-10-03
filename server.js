@@ -1372,9 +1372,11 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
     (tokensUsed) => {
       if (done) return; done = true;
       hist.push({ role: 'assistant', content: fullResponse });
-      const tokens = tokensUsed || Math.round(fullResponse.length / 3.5);
+      const rawTokens = tokensUsed || Math.round(fullResponse.length / 3.5);
+      const regenMult = modelTier === 'opas' ? 0.25 : modelTier === 'opes' ? 0.5 : 1.0;
+      const tokens = Math.round(rawTokens * regenMult);
       const usage = addTokens(userId, tokens);
-      res.write(`data: ${JSON.stringify({ done: true, usage, responseTokens: tokens, warnings: usage.warnings })}\n\n`); res.end();
+      res.write(`data: ${JSON.stringify({ done: true, usage, responseTokens: rawTokens, warnings: usage.warnings })}\n\n`); res.end();
     },
     (err) => {
       if (done) return; done = true;
@@ -1469,9 +1471,11 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
     (tokensUsed) => {
       if (done) return; done = true;
       conversations[key].push({ role: 'assistant', content: fullResponse });
-      const tokens = tokensUsed || Math.round(fullResponse.length / 3.5);
+      const rawTokens = tokensUsed || Math.round(fullResponse.length / 3.5);
+      const greetMult = modelTier === 'opas' ? 0.25 : modelTier === 'opes' ? 0.5 : 1.0;
+      const tokens = Math.round(rawTokens * greetMult);
       const usage = addTokens(userId, tokens);
-      res.write(`data: ${JSON.stringify({ done: true, usage, responseTokens: tokens, warnings: usage.warnings })}\n\n`); res.end();
+      res.write(`data: ${JSON.stringify({ done: true, usage, responseTokens: rawTokens, warnings: usage.warnings })}\n\n`); res.end();
     },
     (err) => {
       if (done) return; done = true;
@@ -1588,9 +1592,11 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       if (done) return;
       done = true;
       conversations[key].push({ role: 'assistant', content: fullResponse });
-      const tokens = tokensUsed || Math.round(fullResponse.length / 3.5);
+      const rawTokens = tokensUsed || Math.round(fullResponse.length / 3.5);
+      const tierMult = modelTier === 'opas' ? 0.25 : modelTier === 'opes' ? 0.5 : 1.0;
+      const tokens = Math.round(rawTokens * tierMult);
       const usage = addTokens(userId, tokens);
-      res.write(`data: ${JSON.stringify({ done: true, usage, responseTokens: tokens, warnings: usage.warnings })}\n\n`);
+      res.write(`data: ${JSON.stringify({ done: true, usage, responseTokens: rawTokens, warnings: usage.warnings })}\n\n`);
       res.end();
     },
     (err) => {
