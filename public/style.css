@@ -205,6 +205,8 @@ html, body {
 .nav-item svg { width: 17px; height: 17px; flex-shrink: 0; }
 .nav-item:hover { background: var(--bg3); color: var(--text2); }
 .nav-item.active { background: var(--accent-dim); color: var(--accent-l); }
+.nav-item-upgrade { color: var(--accent-l) !important; }
+.nav-item-upgrade:hover { background: var(--accent-dim); color: var(--accent-l); }
 
 .sidebar-usage-mini {
   margin: 0 6px 2px; padding: 8px 10px; border-radius: 8px;
