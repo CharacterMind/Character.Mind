@@ -3049,13 +3049,13 @@ let twQueue = '';
 let twInterval = null;
 let twOnDrain = null;
 
-// Typewriter speed by effort level — lower effort = slower (fewer tokens, more visible)
+// Typewriter speed by effort level — lower effort = slower (more visible), higher = faster
 const TW_SPEED = {
-  low:    { word: true, ms: 220 },
-  medium: { chars: 2, ms: 50 },
-  high:   { chars: 5, ms: 20 },
-  extra:  { chars: 10, ms: 10 },
-  max:    { chars: 12, ms: 8 },
+  low:    { chars: 1, ms: 22 },
+  medium: { chars: 2, ms: 18 },
+  high:   { chars: 4, ms: 14 },
+  extra:  { chars: 7, ms: 10 },
+  max:    { chars: 12, ms: 7 },
 };
 
 function startTypewriter(bubble, msgEl) {
@@ -3071,13 +3071,7 @@ function startTypewriter(bubble, msgEl) {
       if (twOnDrain) { const cb = twOnDrain; twOnDrain = null; cb(); }
       return;
     }
-    let chunk;
-    if (spd.word) {
-      const wsIdx = twQueue.search(/\s/);
-      chunk = wsIdx === -1 ? twQueue : twQueue.slice(0, wsIdx + 1);
-    } else {
-      chunk = twQueue.slice(0, spd.chars);
-    }
+    const chunk = twQueue.slice(0, spd.chars);
     twQueue = twQueue.slice(chunk.length);
     twRevealed += chunk;
     if (twBubble) {
