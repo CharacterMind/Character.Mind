@@ -1069,6 +1069,8 @@ html, body {
   animation: bannerIn .25s ease;
 }
 @keyframes bannerIn { from { opacity:0; transform: translateX(-50%) translateY(-8px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
+.call-warning-upgrade { text-decoration: underline; cursor: pointer; opacity: .85; }
+.call-warning-upgrade:hover { opacity: 1; }
 
 /* ── Voice & History overlay panels ─────────────────────────────────────────── */
 .ip-overlay {

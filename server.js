@@ -884,26 +884,14 @@ const NSFW_RE = new RegExp(
 );
 
 const NSFW_DEFLECT = [
-  "I'm not going to respond to that.",
-  "That's not something I'll respond to.",
-  "I won't be responding to that one.",
-  "Not something I'm going to engage with.",
-  "That's not a message I'll reply to.",
-  "I don't respond to that kind of thing.",
-  "That one I'm going to pass on.",
-  "Not going to go there.",
-  "That's where I stop. I won't respond to that.",
-  "I'm going to skip that one.",
-  "That's not something I'll engage with.",
-  "Won't be responding to that.",
-  "I'm not able to respond to that.",
-  "That's not something I can engage with.",
-  "I'll sit that one out.",
-  "That message isn't something I'll reply to.",
-  "Not going to respond to that one.",
-  "That's a no from me — I won't respond to that.",
-  "I don't have a response for that.",
-  "That's not a direction I'll go in.",
+  "[ Character.Mind ] That message goes against our Terms of Use. Sexual and explicit content isn't something we generate on this platform.",
+  "[ Character.Mind ] This content violates our Terms of Use. We don't engage with explicit or sexual messages here.",
+  "[ Character.Mind ] That's not something we allow on Character.Mind. Sexual content goes against our Terms of Use.",
+  "[ Character.Mind ] Message blocked. Explicit sexual content isn't permitted under our Terms of Use.",
+  "[ Character.Mind ] That falls outside what's allowed on this platform. Our Terms of Use prohibit explicit sexual content.",
+  "[ Character.Mind ] We can't respond to that. This type of content violates Character.Mind's Terms of Use.",
+  "[ Character.Mind ] Explicit content isn't something Character.Mind generates. That message goes against our Terms of Use.",
+  "[ Character.Mind ] This message has been blocked. Sexual content is not permitted per our Terms of Use.",
 ];
 
 function nsfwDeflect(res, usage) {
