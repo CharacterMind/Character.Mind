@@ -897,27 +897,28 @@ html, body {
 /* Animated color orbs — swirl behind the character image */
 .call-orb {
   position: absolute; border-radius: 50%;
-  width: 120%; padding-top: 120%;
-  filter: blur(90px);
-  opacity: 0.85;
+  width: 130%; padding-top: 130%;
+  filter: blur(70px);
+  opacity: 0.92;
   will-change: transform;
   pointer-events: none;
+  mix-blend-mode: screen;
 }
 .call-orb-1 {
   background: var(--co1, #7c3aed);
   top: -40%; left: -40%;
-  animation: callOrb1 14s ease-in-out infinite;
+  animation: callOrb1 10s ease-in-out infinite;
 }
 .call-orb-2 {
   background: var(--co2, #3a8ced);
   bottom: -40%; right: -40%;
-  animation: callOrb2 11s ease-in-out infinite;
+  animation: callOrb2 8s ease-in-out infinite;
 }
 .call-orb-3 {
   background: var(--co3, #ed3a7c);
   top: 15%; left: 10%;
   width: 80%; padding-top: 80%;
-  animation: callOrb3 9s ease-in-out infinite;
+  animation: callOrb3 12s ease-in-out infinite;
 }
 @keyframes callOrb1 {
   0%,100% { transform: translate(0,0) scale(1); }
@@ -1008,7 +1009,7 @@ html, body {
    so the animated orb background remains visible and it looks clean on monitor. */
 @media (min-width: 768px) {
   /* Orbs: tighter + more vivid on desktop so the glow is clearly visible */
-  .call-orb { filter: blur(60px); opacity: 0.95; }
+  .call-orb { filter: blur(45px); opacity: 1; }
   .call-orb-1 { top: -20%; left: -20%; }
   .call-orb-2 { bottom: -20%; right: -20%; }
   .call-orb-3 { top: 10%; left: 15%; width: 70%; padding-top: 70%; }
