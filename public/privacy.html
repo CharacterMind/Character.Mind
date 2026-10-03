@@ -74,7 +74,7 @@
     <li><strong>Archived past conversations:</strong> When you start a new chat with a character, the previous conversation is automatically saved to your archive so you can browse it later through the History panel. Archived conversations are stored in our database and are included in account deletion requests.</li>
     <li><strong>Recent chats:</strong> A list of characters you have recently chatted with, stored to populate your sidebar.</li>
     <li><strong>Usage data:</strong> Token counts, daily call counts, daily read-aloud counts, session start times, and weekly usage totals, used to enforce plan limits and display your usage dashboard.</li>
-    <li><strong>Subscription tier:</strong> Your current plan (Free, Advanced, X20, or X50), stored in our database.</li>
+    <li><strong>Subscription tier and PayPal subscription ID:</strong> Your current plan (Free, Advanced, X20, or X50) and, for paid subscribers, the PayPal subscription identifier linked to your account, stored in our database.</li>
     <li><strong>Content moderation records:</strong> Per-conversation violation strike counts (for our hate speech and slur policy) are stored to enforce our 3-strike moderation system. These records are tied to your account and character pair, not to your individual messages. Starting a new chat with a character resets the strike count for that character.</li>
     <li><strong>User-created characters:</strong> Any characters you create, including their name, description, system prompt, and associated image.</li>
   </ul>
@@ -95,8 +95,8 @@
     <li>To enforce content moderation policies, including tracking per-conversation violation strikes under our 3-strike hate speech policy</li>
     <li>To detect crisis or self-harm language and respond with appropriate, locally relevant safety resources (see Section 3a for IP address use)</li>
     <li>To populate your recent chats sidebar</li>
-    <li>To process subscription payments via PayPal (when payment processing is enabled)</li>
-    <li>To send service-related emails (such as policy updates or important account notices) to the email address associated with your Google account</li>
+    <li>To process subscription payments via PayPal and send email receipts after successful charges</li>
+    <li>To send service-related emails (such as subscription receipts, policy updates, and important account notices) to the email address associated with your Google account</li>
     <li>To detect and prevent abuse or violations of our Terms of Service</li>
   </ul>
 
@@ -129,7 +129,7 @@
     <li><strong>Archived past conversations</strong> are retained while your account is active and are browsable from the History panel. They are included in account deletion requests.</li>
     <li><strong>Content moderation records</strong> (strike counts per user-character pair) are retained while your account is active to enforce our policies. Starting a new chat with a character resets the count for that character.</li>
     <li><strong>Usage data</strong> (daily/weekly counters) is retained for the current billing and limit window, then reset.</li>
-    <li><strong>Account data</strong> (name, email, subscription tier) is retained as long as your account exists.</li>
+    <li><strong>Account data</strong> (name, email, subscription tier, PayPal subscription ID) is retained as long as your account exists. The PayPal subscription ID is removed when a subscription is cancelled, expired, or suspended.</li>
     <li><strong>IP geolocation results</strong> are cached in server memory for up to one hour and are never stored in our database. See Section 3a.</li>
     <li>If you request account deletion, we will remove your personal data from our database within 30 days, except where retention is required by law.</li>
   </ul>
