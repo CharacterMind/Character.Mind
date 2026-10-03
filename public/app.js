@@ -3595,6 +3595,7 @@ let callModeActive = false;
 let callMuted = false;
 let callFirstConnect = false;
 let callInactivityTimer = null;
+let callStarting = false; // mutex: prevents double-start race condition
 const CALL_INACTIVITY_MS = 15 * 60 * 1000;
 
 function resetCallInactivityTimer() {
@@ -3626,20 +3627,24 @@ function toggleCallMode() {
 }
 
 async function startCallMode() {
+  if (callStarting || callModeActive) return;  // block concurrent/double starts
+  callStarting = true;
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { alert('Voice calls need a browser with speech recognition — try Chrome.'); return; }
-  if (!currentChar) return;
+  if (!SR) { callStarting = false; alert('Voice calls need a browser with speech recognition — try Chrome.'); return; }
+  if (!currentChar) { callStarting = false; return; }
   // Check daily call limit
   try {
     const r = await fetch('/api/call/start', { method: 'POST' });
     const data = await r.json();
     if (!data.allowed) {
+      callStarting = false;
       showCallLimitModal(data.resetsAt);
       return;
     }
-    if (data.callsRemaining === 1) showCallWarningBanner();
+    if (data.callsRemaining <= 1) showCallWarningBanner();
   } catch(e) { /* offline — allow call anyway */ }
 
+  callStarting = false;
   callModeActive = true;
   callMuted = false;
   callFirstConnect = true;
@@ -3791,6 +3796,7 @@ function showCallMicError() {
 
 function endCallMode() {
   callModeActive = false;
+  callStarting = false;
   callMuted = false;
   clearCallInactivityTimer();
   if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
