@@ -87,7 +87,8 @@
   <ul>
     <li>Session identifiers (stored in a browser cookie, used for authentication)</li>
     <li>Basic server logs (request timestamps, error messages) for operational purposes</li>
-    <li><strong>Your IP address</strong> — used solely for geographic location estimation during crisis detection (see <a href="#section-3a">Section 3a</a> below). It is never stored in our database and is not linked to your account or profile.</li>
+    <li><strong>Your IP address</strong> — used solely for geographic location estimation during in-chat crisis detection (see <a href="#section-3a">Section 3a</a> below). It is never stored in our database and is not linked to your account or profile.</li>
+    <li><strong>Browser GPS location (optional)</strong> — if you grant permission when opening the Resources panel, your device's GPS coordinates are used for a one-time reverse-geocode lookup to display locally relevant support resources. Coordinates are never stored. See <a href="#section-3a">Section 3a</a> for full details.</li>
   </ul>
 
   <h2 id="section-3">3. How We Use Your Information</h2>
@@ -104,16 +105,31 @@
     <li>To detect and prevent abuse or violations of our Terms of Service</li>
   </ul>
 
-  <h2 id="section-3a">3a. IP Address and Geographic Location (Crisis Safety)</h2>
-  <p>When our automated system detects a message that may indicate personal distress or thoughts of self-harm, we perform a one-time, ephemeral lookup of your IP address to estimate your geographic region. This is done solely to provide you with locally relevant crisis resources — for example, showing a Quebec-specific helpline to someone in Québec rather than a generic number.</p>
+  <h2 id="section-3a">3a. Location Data and Geographic Resources (Safety Features)</h2>
+  <p>Character.Mind uses location information in two ways to provide locally relevant crisis and support resources. Both methods are used solely for safety purposes and neither stores your location data in our database.</p>
+
+  <p><strong>Method 1 — Browser GPS (Resources panel)</strong></p>
+  <p>When you open the Resources panel (the heart icon in the sidebar), your browser asks for permission to share your device's GPS or network-based location. This permission request is initiated by your browser and is entirely optional.</p>
   <ul>
-    <li><strong>What we look up:</strong> Country, province/state, and city, derived from your IP address via a third-party geolocation service (ipapi.co).</li>
-    <li><strong>What we do not do:</strong> We do not store your IP address in our database. We do not link your IP or location to your account or profile. We do not use it for advertising, analytics, or any purpose other than crisis resource delivery.</li>
-    <li><strong>How long it is kept:</strong> The result is cached in server memory for up to one hour to avoid repeated external lookups, then discarded automatically. It is never written to disk or our database.</li>
-    <li><strong>Accuracy:</strong> IP geolocation is approximate. It identifies a general region, not a precise address. We use it only to select the most relevant helpline for your area.</li>
-    <li><strong>Legal basis:</strong> Under PIPEDA, Quebec Law 25, and GDPR, this processing is justified by vital interests — the safety of a person who may be in crisis — and by our legitimate interest in providing accurate, life-relevant information in a time-sensitive moment.</li>
+    <li><strong>What we collect:</strong> If you grant permission, your device's latitude and longitude coordinates are sent to our server over HTTPS. We pass these coordinates to OpenStreetMap's Nominatim reverse-geocoding service to determine your city, province/state, and country.</li>
+    <li><strong>What we do not do:</strong> We do not store your GPS coordinates or the resulting location in our database. We do not link your location to your account or profile. We do not use it for advertising, tracking, or any purpose other than displaying locally relevant support resources.</li>
+    <li><strong>How long it is kept:</strong> Coordinates are used for a single reverse-geocode lookup and immediately discarded. They are never written to disk or our database.</li>
+    <li><strong>If you deny permission:</strong> Your browser location is not accessed. We fall back to IP-based geolocation (described below) to estimate your region.</li>
+    <li><strong>Third party:</strong> Your coordinates are sent to Nominatim (openstreetmap.org) to determine your location. Only the coordinates are shared; no account information is transmitted. OpenStreetMap's privacy policy applies to data they process.</li>
   </ul>
-  <div class="callout">If you are uncomfortable with IP-based geolocation, you may use a VPN. The crisis detection feature will still activate; it will simply provide generic resources rather than location-specific ones.</div>
+
+  <p><strong>Method 2 — IP Address (in-chat crisis detection)</strong></p>
+  <p>When our automated system detects a message that may indicate personal distress or thoughts of self-harm, we perform a one-time, ephemeral lookup of your IP address to estimate your geographic region. This is done solely to direct you to the Resources panel with locally relevant support lines.</p>
+  <ul>
+    <li><strong>What we look up:</strong> Country, province/state, and city, derived from your IP address via a third-party geolocation service (ip-api.com).</li>
+    <li><strong>What we do not do:</strong> We do not store your IP address in our database. We do not link your IP or location to your account or profile. We do not use it for advertising, analytics, or any purpose other than safety resource delivery.</li>
+    <li><strong>How long it is kept:</strong> The result is cached in server memory for up to one hour to avoid repeated external lookups, then discarded automatically. It is never written to disk or our database.</li>
+    <li><strong>Accuracy:</strong> IP geolocation is approximate. It identifies a general region, not a precise address. If you have already granted GPS permission via the Resources panel, that more accurate location is used instead.</li>
+    <li><strong>Third party:</strong> Your IP address is sent to ip-api.com to determine your approximate region. Only your IP is shared; no account information is transmitted. ip-api.com's privacy policy applies to data they process.</li>
+  </ul>
+
+  <p><strong>Legal basis for both methods:</strong> Under PIPEDA, Quebec Law 25, and GDPR, this processing is justified by vital interests — the safety of a person who may be in crisis — and by our legitimate interest in providing accurate, life-relevant information.</p>
+  <div class="callout">If you are uncomfortable with location detection, you may deny the GPS permission prompt and use a VPN. Safety resources will still be displayed; they may be less region-specific.</div>
 
   <h2 id="section-4">4. Third-Party Services</h2>
   <p>We share data with the following third parties only as necessary to operate the service:</p>
@@ -123,7 +139,8 @@
     <li><strong>Neon (PostgreSQL)</strong> — our database host, where user data, conversations, and character definitions are stored.</li>
     <li><strong>Render</strong> — our hosting provider, where the application server runs.</li>
     <li><strong>PayPal</strong> — payment processing for paid subscriptions. PayPal's privacy policy applies to payment data they collect.</li>
-    <li><strong>ipapi.co</strong> — geographic location service. When crisis language is detected in a message, your IP address is sent to ipapi.co to determine your approximate region so we can display locally relevant crisis resources. Only your IP is shared; no account information is transmitted. ipapi.co's privacy policy applies to data they process.</li>
+    <li><strong>ip-api.com</strong> — geographic location service. When crisis language is detected in a message, your IP address is sent to ip-api.com to determine your approximate region so we can display locally relevant crisis resources. Only your IP is shared; no account information is transmitted. ip-api.com's privacy policy applies to data they process.</li>
+    <li><strong>Nominatim / OpenStreetMap</strong> — reverse-geocoding service. When you open the Resources panel and grant GPS permission, your device's coordinates are sent to Nominatim to determine your city, province, and country. Only your coordinates are shared; no account information is transmitted. OpenStreetMap's privacy policy applies to data they process.</li>
   </ul>
   <p>We do not sell your personal data to third parties.</p>
 
