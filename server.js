@@ -488,7 +488,8 @@ function effortMultFor(effort) { return Object.hasOwn(EFFORT_TOKEN_MULT, effort)
 // Opes costs about 3x Opas at every effort. Higher models are multiples of Opes.
 const OPAS_COST = { low: 220, medium: 350, high: 650, extra: 1300, max: 2600 };
 const OPES_COST = { low: 700, medium: 1200, high: 2000, extra: 4000, max: 8000 };
-const COST_FACTOR_VS_OPES = { opes: 1, opis: 4 / 3, opos: 5 / 3, opus: 2, opys: 8 / 3 };
+// Low tier: Opas, Opes. Mid tier: Opis (1.5x), Opos (2.5x). High tier: Opus (6x), Opys (15x) - these drain even an X50 allowance fast.
+const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.5, opos: 2.5, opus: 6, opys: 15 };
 function messageCost(modelTier, effort) {
   const e = (typeof effort === 'string' && Object.hasOwn(OPES_COST, effort)) ? effort : 'medium';
   if (modelTier === 'opas' || !Object.hasOwn(COST_FACTOR_VS_OPES, modelTier)) return OPAS_COST[e];
@@ -1393,6 +1394,8 @@ const EFFORT_CONFIG = {
 // is upgraded, cap each reply and avoid "high" reasoning (which can burn the whole budget thinking).
 // After upgrading Groq, set GROQ_OUTPUT_CAP (e.g. 16000) and GROQ_ALLOW_HIGH_REASONING=1 on Render.
 const GROQ_OUTPUT_CAP = Number(process.env.GROQ_OUTPUT_CAP) || 2200;
+// The model's hidden thinking counts against max_tokens, so a small cap cuts the visible reply off mid-sentence.
+const GROQ_OUTPUT_MIN = Math.min(1400, GROQ_OUTPUT_CAP);
 // Keeps what we send as chat history small, newest messages first, so one request doesn't eat the whole minute's allowance.
 const HISTORY_CHAR_BUDGET = Number(process.env.HISTORY_CHAR_BUDGET) || 7000;
 function fitHistory(msgs) {
@@ -1413,7 +1416,7 @@ function getEffortCfg(effort, tier) {
   const t = EFFORT_CONFIG[tier] ? tier : 'opas';
   const cfg = EFFORT_CONFIG[t];
   const base = (typeof effort === 'string' && Object.hasOwn(cfg, effort)) ? cfg[effort] : cfg.medium;
-  const out = { ...base, maxOutputTokens: Math.min(base.maxOutputTokens, GROQ_OUTPUT_CAP) };
+  const out = { ...base, maxOutputTokens: Math.min(Math.max(base.maxOutputTokens, GROQ_OUTPUT_MIN), GROQ_OUTPUT_CAP) };
   if (!GROQ_ALLOW_HIGH_REASONING && out.reasoningEffort === 'high') out.reasoningEffort = 'medium';
   return out;
 }
@@ -1596,6 +1599,26 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     let finished = false;
     let usageTokens = 0;
     let responseTextLen = 0;
+    let collected = '';
+    // The model hit its length limit. Carry on from where it stopped (or retry with more room if it wrote nothing).
+    const handleLength = () => {
+      if (ctx.aborted) return onDone(usageTokens || Math.ceil(responseTextLen / 4));
+      if (!collected.trim()) {
+        if (!ctx.boosted) {
+          ctx.boosted = true;
+          const more = { ...effortCfg, maxOutputTokens: Math.min(Math.round(effortCfg.maxOutputTokens * 1.5), 3500), reasoningEffort: 'low' };
+          return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex, more, modelList, ctx);
+        }
+        return onDone(0);
+      }
+      if ((ctx.continuations || 0) < 2) {
+        ctx.continuations = (ctx.continuations || 0) + 1;
+        const next = [...messages, { role: 'assistant', content: collected },
+          { role: 'user', content: '[Continue your previous reply from exactly where it was cut off. Do not repeat anything already written and do not add any introduction or comment about continuing.]' }];
+        return callGroqStream(apiKey, systemPrompt, next, onChunk, onDone, onError, modelIndex, effortCfg, modelList, ctx);
+      }
+      onDone(usageTokens || Math.ceil(responseTextLen / 4));
+    };
 
     res.on('data', (chunk) => {
       buffer += chunk.toString();
@@ -1613,9 +1636,10 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
             usageTokens = parsed.usage.completion_tokens;
           }
           const text = parsed.choices?.[0]?.delta?.content;
-          if (text) { responseTextLen += text.length; onChunk(text); }
+          if (text) { responseTextLen += text.length; collected += text; onChunk(text); }
           const reason = parsed.choices?.[0]?.finish_reason;
-          if ((reason === 'stop' || reason === 'length') && !finished) { finished = true; onDone(usageTokens || Math.ceil(responseTextLen / 4)); }
+          if (reason === 'length' && !finished) { finished = true; handleLength(); }
+          else if (reason === 'stop' && !finished) { finished = true; onDone(usageTokens || Math.ceil(responseTextLen / 4)); }
         } catch (_) {}
       }
     });
