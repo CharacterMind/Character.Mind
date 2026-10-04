@@ -509,6 +509,34 @@ async function confirmNewChat() {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+// ── Update check: if the site is updated while this tab is open, offer a reload ────────────
+let bootVersion = null, updateBannerShown = false;
+async function checkForUpdate() {
+  if (updateBannerShown) return;
+  try {
+    const r = await fetch('/api/version', { cache: 'no-store' });
+    if (!r.ok) return;
+    const { v } = await r.json();
+    if (!v) return;
+    if (bootVersion === null) { bootVersion = v; return; }
+    if (v !== bootVersion) {
+      updateBannerShown = true;
+      const bar = document.createElement('div');
+      bar.style.cssText = 'position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:100000;background:#1f1633;color:#fff;border:1px solid #7c3aed;border-radius:12px;padding:10px 14px;display:flex;gap:12px;align-items:center;font:14px system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.5);max-width:calc(100vw - 24px)';
+      bar.innerHTML = '<span>A new version of Character Mind is available.</span>';
+      const btn = document.createElement('button');
+      btn.textContent = 'Reload';
+      btn.style.cssText = 'background:#7c3aed;color:#fff;border:0;border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer';
+      btn.onclick = () => location.reload();
+      bar.appendChild(btn);
+      document.body.appendChild(bar);
+    }
+  } catch (_) {}
+}
+checkForUpdate();
+setInterval(checkForUpdate, 90000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
+
 window.addEventListener('DOMContentLoaded', async () => {
   loadColorblindMode();
   initSidebarContextMenu();

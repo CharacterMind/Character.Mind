@@ -2019,6 +2019,14 @@ app.post('/api/admin/wipe-my-data', requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// Which build is running. The page checks this now and then and offers a reload when the site has been updated,
+// so nobody keeps chatting on a stale copy of the app.
+const BUILD_ID = (process.env.RENDER_GIT_COMMIT || String(Date.now())).slice(0, 12);
+app.get('/api/version', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ v: BUILD_ID });
+});
+
 app.get('/api/templates', (req, res) => {
   res.json(TEMPLATES.map(t => ({ name: t.name, aliases: t.aliases })));
 });
