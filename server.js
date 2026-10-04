@@ -368,7 +368,7 @@ function saveLimitsToDB(userId) {
 }
 
 const LIMITS = {
-  SESSION_COOLDOWN_MS: Number(process.env.SESSION_COOLDOWN_MS) || 3000,
+  SESSION_COOLDOWN_MS: Number(process.env.SESSION_COOLDOWN_MS) || (2 * 60 * 60 * 1000 + 3000),
   WEEKLY_MS: 7 * 24 * 60 * 60 * 1000,
   REGEN_FREE: 2,
   CALL_DAILY: 3

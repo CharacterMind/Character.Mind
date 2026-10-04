@@ -884,6 +884,7 @@ function showSettingsTab(tab) {
 
 function updateSettingsUsage(u) {
   if (!u) return;
+  applyUsageResets(u);
   const settingsModal = document.getElementById('settingsModal');
   if (!settingsModal || settingsModal.style.display === 'none') return;
   const sPct = Math.min(100, Math.round((u.sessionTokens / u.sessionLimit) * 100));
@@ -2254,6 +2255,7 @@ function usageFillClass(pct) {
 
 function liveUpdateBars(extraTokens) {
   if (!lastKnownUsage || !lastKnownUsage.sessionLimit) return;
+  applyUsageResets(lastKnownUsage);
   const sBase = lastKnownUsage.sessionTokens || 0;
   const wBase = lastKnownUsage.weeklyTokens  || 0;
   const sEst = sBase + extraTokens;
@@ -2597,12 +2599,12 @@ function formatResetTime(timestamp) {
   if (remaining <= 0) return 'Resetting now…';
   const DAY = 24 * 60 * 60 * 1000;
   if (remaining < DAY) {
-    // Round to nearest minute so display matches "end time minus clock time" mental math
-    const totalMins = Math.round(remaining / 60000);
+    // Floor to whole minutes (no seconds): 2h 0m 3s shows "2 hrs", then "1 hr 59 min" as it counts down
+    const totalMins = Math.floor(remaining / 60000);
     const h = Math.floor(totalMins / 60);
     const m = totalMins % 60;
     const hStr = h === 1 ? 'hr' : 'hrs';
-    const mStr = m === 1 ? 'min' : 'mins';
+    const mStr = 'min';
     if (h > 0 && m > 0) return `Resets in ${h} ${hStr} ${m} ${mStr}`;
     if (h > 0) return `Resets in ${h} ${hStr}`;
     if (m > 0) return `Resets in ${m} ${mStr}`;
@@ -2638,8 +2640,22 @@ function generateUsageHeadline(u) {
   return 'On track — you\'re well within your limits.';
 }
 
+// Mirror the server's time-based resets locally so the bars drop to 0 the moment each countdown ends.
+function applyUsageResets(u) {
+  if (!u) return u;
+  const now = Date.now();
+  if (u.sessionExpiresAt && now >= u.sessionExpiresAt) {
+    u.sessionTokens = 0; u.sessionStartedAt = null; u.sessionExpiresAt = null; u.cooldownUntil = null;
+  }
+  if (u.weeklyResetsAt && now >= u.weeklyResetsAt) {
+    u.weeklyTokens = 0; u.weeklyStart = null; u.weeklyResetsAt = null;
+  }
+  return u;
+}
+
 function updateUsageModal(u) {
   if (!u) return;
+  applyUsageResets(u);
   lastKnownUsage = u;
   const modal = document.getElementById('usageModal');
   if (!modal || modal.style.display === 'none') return;
@@ -2661,7 +2677,7 @@ function updateUsageModal(u) {
     if (u.cooldownUntil && Date.now() < u.cooldownUntil) {
       sSubEl.textContent = formatResetTime(u.cooldownUntil);
     } else if (u.sessionTokens > 0 && u.sessionExpiresAt) {
-      sSubEl.textContent = '3-second window · ' + formatResetTime(u.sessionExpiresAt);
+      sSubEl.textContent = formatResetTime(u.sessionExpiresAt);
     } else {
       sSubEl.textContent = 'Starts fresh when you send your first message';
     }
