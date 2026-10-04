@@ -409,16 +409,22 @@ const AVG_MESSAGE_TOKENS = 1600;
 const MESSAGES_PER_SESSION = { free: 30, advanced: 60 };
 const X20_MULT = 20;  // X20 = 20x Advanced
 const X50_MULT = 50;  // X50 = 50x Advanced
-const WEEKLY_SESSIONS = 5; // weekly limit = this many sessions' worth
-function limitsForMessages(n) {
-  const session = n * AVG_MESSAGE_TOKENS;
-  return { session, weekly: session * WEEKLY_SESSIONS };
+// Weekly limit in average messages: Free and Advanced are 5 sessions' worth; X20 is its session
+// limit x20 (24,000) and X50 is its session limit x50 (150,000).
+const MESSAGES_PER_WEEK = {
+  free:     MESSAGES_PER_SESSION.free * 5,
+  advanced: MESSAGES_PER_SESSION.advanced * 5,
+  x20:      MESSAGES_PER_SESSION.advanced * X20_MULT * X20_MULT,
+  x50:      MESSAGES_PER_SESSION.advanced * X50_MULT * X50_MULT,
+};
+function limitsForMessages(sessionMsgs, weeklyMsgs) {
+  return { session: sessionMsgs * AVG_MESSAGE_TOKENS, weekly: weeklyMsgs * AVG_MESSAGE_TOKENS };
 }
 const TIER_TOKEN_LIMITS = {
-  free:     limitsForMessages(MESSAGES_PER_SESSION.free),
-  advanced: limitsForMessages(MESSAGES_PER_SESSION.advanced),
-  x20:      limitsForMessages(MESSAGES_PER_SESSION.advanced * X20_MULT),
-  x50:      limitsForMessages(MESSAGES_PER_SESSION.advanced * X50_MULT),
+  free:     limitsForMessages(MESSAGES_PER_SESSION.free, MESSAGES_PER_WEEK.free),
+  advanced: limitsForMessages(MESSAGES_PER_SESSION.advanced, MESSAGES_PER_WEEK.advanced),
+  x20:      limitsForMessages(MESSAGES_PER_SESSION.advanced * X20_MULT, MESSAGES_PER_WEEK.x20),
+  x50:      limitsForMessages(MESSAGES_PER_SESSION.advanced * X50_MULT, MESSAGES_PER_WEEK.x50),
 };
 function tokenLimitsFor(u) {
   return TIER_TOKEN_LIMITS[u.subscriptionTier || 'free'] || TIER_TOKEN_LIMITS.free;
