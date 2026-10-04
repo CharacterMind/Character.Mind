@@ -388,7 +388,7 @@
               onkeydown="handleKey(event)"
               oninput="autoResize(this)"></textarea>
           </div>
-          <button class="btn-send" id="sendBtn" onclick="sendMessage()">
+          <button class="btn-send" id="sendBtn" onclick="sendMessage(undefined, undefined, true)" title="Send (empty = let the AI keep talking)">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
           </button>
           <button class="btn-call" id="callBtn" onclick="toggleCallMode()" title="Voice call">
@@ -1219,6 +1219,6 @@
 }
 </style>
 
-<script src="app.js?v=142"></script>
+<script src="app.js?v=143"></script>
 </body>
 </html>

@@ -1832,7 +1832,7 @@ function clearPendingImage() {
 }
 
 // ── Send Message ──────────────────────────────────────────────────────────────
-async function sendMessage(overrideText, skipAppend) {
+async function sendMessage(overrideText, skipAppend, allowEmpty) {
   if (!currentChar) return;
   // If we're locked out (limit reached), re-show the modal with a new message every attempt
   const lockoutBarEl = document.getElementById('lockoutBar');
@@ -1855,7 +1855,11 @@ async function sendMessage(overrideText, skipAppend) {
   }
 
   if (text) lastUserMessage = text;
-  if (!text && !imgB64 && !skipAppend) return;
+  if (!text && !imgB64 && !skipAppend) {
+    // Empty send from the button = let the AI keep talking. It costs tokens like any other reply.
+    if (!allowEmpty || !document.getElementById('messages').children.length) return;
+    skipAppend = true;
+  }
 
   if (!skipAppend) {
     if (text || imgB64) {
