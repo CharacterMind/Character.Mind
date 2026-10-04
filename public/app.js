@@ -78,6 +78,12 @@ function liveCostSoFar(chars) {
   const { cost, effort } = liveReplyCost();
   return Math.round(cost * Math.min(1, chars / (EXPECTED_REPLY_CHARS[effort] || 1200)));
 }
+// The live counter under a reply: it ramps up to the price of the reply and then KEEPS counting at the same pace for as long
+// as the reply keeps writing (long replies run far past the "expected" length). The usage bars still stop at the real price.
+function liveTokensShown(chars) {
+  const { cost, effort } = liveReplyCost();
+  return Math.round(cost * chars / (EXPECTED_REPLY_CHARS[effort] || 1200));
+}
 const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', max:'Max' };
 
 // Token usage multiplier shown on Max effort warning per tier
@@ -3379,11 +3385,11 @@ let twStreamDone = false;
 let twSpd = null;
 let twLastRender = 0;
 
-// Called when the full reply has arrived. The counter stays up while the text keeps typing out,
-// and is hidden once there is about a second of typing left.
+// Called when the full reply has arrived. The counter stays up and keeps counting until the last letter has typed out
+// (the end-of-reply code then hides it). Only if there is nothing left to type does it go away at once.
 function markStreamDone() {
   twStreamDone = true;
-  if (!twSpd || !twQueue.length || remainingTypeMs() <= 1000) hideStreamStatsNow();
+  if (!twSpd || !twQueue.length) hideStreamStatsNow();
 }
 function remainingTypeMs() {
   return twSpd ? Math.ceil(twQueue.length / twSpd.chars) * twSpd.ms : 0;
@@ -3434,7 +3440,6 @@ function startTypewriter(bubble, msgEl) {
       scrollToBottom();
     }
     updateStreamTokens(twMsgEl, twRevealed.length);
-    if (twStreamDone && remainingTypeMs() <= 1000) hideStreamStatsNow();
   }, spd.ms);
 }
 
@@ -3492,7 +3497,7 @@ function startStreamStats(msgEl) {
 function updateStreamTokens(msgEl, charCount) {
   const stats = msgEl?.querySelector('.stream-stats');
   if (!stats || !stats.classList.contains('active')) return;
-  const est = liveCostSoFar(charCount);
+  const est = liveTokensShown(charCount);
   const tokEl = stats.querySelector('.stream-tok');
   if (tokEl) tokEl.textContent = fmtLiveTokens(est) + ' tokens';
 }
