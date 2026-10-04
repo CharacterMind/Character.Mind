@@ -9,7 +9,9 @@ let currentFilter = 'all';
 let lastUserMessage = '';
 // ── Model & Effort state ───────────────────────────────────────────────────────
 const EFFORT_LEVELS = ['low','medium','high','extra','max'];
-const ALL_TIERS = ['opas','opes','opis','opos','opus','opys'];
+const ALL_TIERS = ['opas','opes','opis','opos','opus','opys','opys2'];
+// Models tucked into the "More models" submenu of the picker
+const MORE_MODEL_TIERS = ['opus','opys','opys2'];
 // The chosen model and effort are remembered per account (see loadAccountPrefs), never shared between accounts
 let selectedModelTier = 'opas';
 let selectedEffort = 'medium';
@@ -28,11 +30,11 @@ function loadAccountPrefs() {
   updateModelBarLabel();
 }
 
-const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys' };
+const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys', opys2:'Opys 2' };
 // Must match OPAS_COST / OPES_COST / COST_FACTOR_VS_OPES in server.js — what one reply costs from the allowance.
 const OPAS_COST = { low: 220, medium: 350, high: 650, extra: 1300, max: 2600 };
 const OPES_COST = { low: 700, medium: 1200, high: 2000, extra: 4000, max: 8000 };
-const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.5, opos: 2.5, opus: 6, opys: 15 };
+const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.5, opos: 2.5, opus: 6, opys: 15, opys2: 30 };
 // Roughly how many visible characters a full reply has at each effort (used to ramp the live counter up to the cost)
 const EXPECTED_REPLY_CHARS = { low: 250, medium: 500, high: 1200, extra: 2500, max: 4000 };
 // Model tiers each plan may use — must match PLAN_MODEL_TIERS in server.js.
@@ -40,7 +42,7 @@ const PLAN_MODEL_TIERS = {
   free:     ['opas', 'opes'],
   advanced: ['opas', 'opes', 'opis', 'opos'],
   x20:      ['opas', 'opes', 'opis', 'opos', 'opus'],
-  x50:      ['opas', 'opes', 'opis', 'opos', 'opus', 'opys'],
+  x50:      ['opas', 'opes', 'opis', 'opos', 'opus', 'opys', 'opys2'],
 };
 // The total cost of the reply being written, and how much of it to show so far (ramps up as the text types)
 function liveReplyCost() {
@@ -58,7 +60,7 @@ function liveCostSoFar(chars) {
 const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', max:'Max' };
 
 // Token usage multiplier shown on Max effort warning per tier
-const MAX_EFFORT_MULTIPLIERS = { opas:'4×', opes:'4×', opis:'4×', opos:'4×', opus:'4×', opys:'4×' };
+const MAX_EFFORT_MULTIPLIERS = { opas:'4×', opes:'4×', opis:'4×', opos:'4×', opus:'4×', opys:'4×', opys2:'4×' };
 
 function currentPlanKey() {
   return (typeof lastKnownUsage !== 'undefined' && lastKnownUsage && lastKnownUsage.subscriptionTier) || 'free';
@@ -92,6 +94,7 @@ const MODEL_ICONS = {
   opos: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
   opus: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
   opys: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
+  opys2: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
 };
 
 function updateModelBarLabel() {
@@ -107,6 +110,11 @@ function updateModelBarLabel() {
     const el = document.getElementById('opt' + t.charAt(0).toUpperCase() + t.slice(1));
     if (el) el.classList.toggle('active', t === selectedModelTier);
   });
+
+  const moreBtn = document.getElementById('mdMoreBtn');
+  if (moreBtn) moreBtn.classList.toggle('has-active', MORE_MODEL_TIERS.includes(selectedModelTier));
+  const moreEl = document.getElementById('mdMore');
+  if (moreEl && MORE_MODEL_TIERS.includes(selectedModelTier) && modelDropdownOpen) moreEl.classList.add('open');
 
   // Update effort picker checks and max multiplier label
   EFFORT_LEVELS.forEach(e => {
@@ -446,6 +454,13 @@ function closeAllPickers() {
   const ep = document.getElementById('effortPanelPopup');
   if (md) md.style.display = 'none';
   if (ep) ep.style.display = 'none';
+  const more = document.getElementById('mdMore');
+  if (more) more.classList.remove('open');
+}
+function toggleMoreModels(e) {
+  if (e) e.stopPropagation();
+  const more = document.getElementById('mdMore');
+  if (more) more.classList.toggle('open');
 }
 function toggleModelDropdown() {
   const wasOpen = modelDropdownOpen;

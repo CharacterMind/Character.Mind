@@ -2722,3 +2722,23 @@ body:not(.voice-on) .btn-call { display: none !important; }
 @media (max-width: 768px) {
   input, textarea, select { font-size: 16px; }
 }
+
+/* "More models" flyout in the model picker */
+.md-more { position: relative; }
+.md-more-btn .md-chev { width: 14px; height: 14px; color: var(--text3); flex-shrink: 0; }
+.md-more-btn.has-active .md-item-name::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent, #8b5cf6); display: inline-block; }
+.md-submenu {
+  display: none;
+  position: absolute; left: calc(100% + 8px); bottom: -5px;
+  min-width: 270px; padding: 5px;
+  background: var(--bg2); border: 1px solid var(--border2); border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.04);
+}
+.md-submenu::before { content: ''; position: absolute; left: -12px; top: 0; bottom: 0; width: 12px; } /* keeps hover alive while the mouse crosses the gap */
+.md-more.open .md-submenu { display: block; }
+@media (hover: hover) and (min-width: 769px) { .md-more:hover .md-submenu { display: block; } }
+@media (max-width: 768px) {
+  /* no room beside the picker on a phone: the extra models open underneath instead */
+  .md-submenu { position: static; min-width: 0; margin: 2px 0 0 10px; box-shadow: none; border-color: transparent; background: transparent; padding: 0; }
+  .md-more-btn .md-chev { transform: rotate(90deg); }
+}

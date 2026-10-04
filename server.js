@@ -478,7 +478,7 @@ function tokenLimitsFor(u) {
   return TIER_TOKEN_LIMITS[u.subscriptionTier || 'free'] || TIER_TOKEN_LIMITS.free;
 }
 // How fast each model tier burns your token allowance (top tiers cost far more).
-const MODEL_TOKEN_MULT = { opas: 1, opes: 3, opis: 4, opos: 5, opus: 6, opys: 8 };
+const MODEL_TOKEN_MULT = { opas: 1, opes: 3, opis: 4, opos: 5, opus: 6, opys: 8, opys2: 10 };
 // Extra cost for the higher effort levels, on top of the model multiplier (they also write longer replies).
 const EFFORT_TOKEN_MULT = { low: 1, medium: 1, high: 1, extra: 1.5, max: 2 };
 function effortMultFor(effort) { return Object.hasOwn(EFFORT_TOKEN_MULT, effort) ? EFFORT_TOKEN_MULT[effort] : 1; }
@@ -488,8 +488,8 @@ function effortMultFor(effort) { return Object.hasOwn(EFFORT_TOKEN_MULT, effort)
 // Opes costs about 3x Opas at every effort. Higher models are multiples of Opes.
 const OPAS_COST = { low: 220, medium: 350, high: 650, extra: 1300, max: 2600 };
 const OPES_COST = { low: 700, medium: 1200, high: 2000, extra: 4000, max: 8000 };
-// Low tier: Opas, Opes. Mid tier: Opis (1.5x), Opos (2.5x). High tier: Opus (6x), Opys (15x) - these drain even an X50 allowance fast.
-const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.5, opos: 2.5, opus: 6, opys: 15 };
+// Low tier: Opas, Opes. Mid tier: Opis (1.5x), Opos (2.5x). High tier: Opus (6x), Opys (15x), Opys 2 (30x, the most advanced) - these drain even an X50 allowance fast.
+const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.5, opos: 2.5, opus: 6, opys: 15, opys2: 30 };
 function messageCost(modelTier, effort) {
   const e = (typeof effort === 'string' && Object.hasOwn(OPES_COST, effort)) ? effort : 'medium';
   if (modelTier === 'opas' || !Object.hasOwn(COST_FACTOR_VS_OPES, modelTier)) return OPAS_COST[e];
@@ -498,12 +498,12 @@ function messageCost(modelTier, effort) {
 function tokenMultFor(tier) { return Object.hasOwn(MODEL_TOKEN_MULT, tier) ? MODEL_TOKEN_MULT[tier] : MODEL_TOKEN_MULT.opas; }
 
 // Which model tiers each plan may use (matches the plan cards and the model picker):
-// Free = Opas, Opes; Advanced adds Opis, Opos; X20 adds Opus; X50 adds Opys.
+// Free = Opas, Opes; Advanced adds Opis, Opos; X20 adds Opus; X50 adds Opys and Opys 2.
 const PLAN_MODEL_TIERS = {
   free:     ['opas', 'opes'],
   advanced: ['opas', 'opes', 'opis', 'opos'],
   x20:      ['opas', 'opes', 'opis', 'opos', 'opus'],
-  x50:      ['opas', 'opes', 'opis', 'opos', 'opus', 'opys'],
+  x50:      ['opas', 'opes', 'opis', 'opos', 'opus', 'opys', 'opys2'],
 };
 function resolveModelTier(userId, requested) {
   if (typeof requested !== 'string' || !Object.hasOwn(MODEL_TOKEN_MULT, requested)) return 'opas';
@@ -1389,6 +1389,8 @@ const EFFORT_CONFIG = {
   },
 };
 
+EFFORT_CONFIG.opys2 = EFFORT_CONFIG.opys; // the most advanced model: same top settings, charged 2x Opys
+
 // Groq's free plan allows only 8,000 tokens per minute per model, and a request counts its input PLUS its
 // max_tokens against that. The big caps above could never fit, so Extra/Max always failed. Until the Groq plan
 // is upgraded, cap each reply and avoid "high" reasoning (which can burn the whole budget thinking).
@@ -1495,7 +1497,7 @@ function aiErrorMessage(err) {
 }
 
 function getModelList(tier) {
-  if (tier === 'opis' || tier === 'opos' || tier === 'opus' || tier === 'opys') return GROQ_OPUS_MODELS;
+  if (tier === 'opis' || tier === 'opos' || tier === 'opus' || tier === 'opys' || tier === 'opys2') return GROQ_OPUS_MODELS;
   if (tier === 'opes') return GROQ_PRO_MODELS;
   return GROQ_FAST_MODELS;
 }

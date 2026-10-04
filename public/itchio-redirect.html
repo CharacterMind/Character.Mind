@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>character.mind</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d0d0d;
+      color: #ccc;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      gap: 20px;
+      padding: 24px;
+      text-align: center;
+    }
+    .logo {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #a78bfa;
+      letter-spacing: -0.5px;
+    }
+    .logo span { color: #fff; }
+    p { font-size: 0.9rem; color: #888; max-width: 280px; line-height: 1.5; }
+    .btn {
+      display: inline-block;
+      background: #7c3aed;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 13px 30px;
+      border-radius: 8px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: #6d28d9; }
+  </style>
+</head>
+<body>
+  <div class="logo"><span>character</span>.mind</div>
+  <p>Sign-in requires a full browser tab.<br>Click below to open the app.</p>
+  <a id="btn" class="btn" href="https://charactermind-production.up.railway.app" target="_blank">
+    Open character.mind →
+  </a>
+  <script>
+    const APP = 'https://charactermind-production.up.railway.app';
+    // Try to navigate the top frame out of itch.io's embed.
+    // If cross-origin policy blocks it, the button above handles it.
+    try {
+      window.top.location.replace(APP);
+    } catch (e) {
+      // Blocked — user sees the button instead
+    }
+    // Wire the button: prefer top-frame nav, fall back to new tab
+    document.getElementById('btn').addEventListener('click', function(e) {
+      try {
+        window.top.location.href = APP;
+        e.preventDefault();
+      } catch (err) {
+        // Let _blank take over
+      }
+    });
+  </script>
+</body>
+</html>
