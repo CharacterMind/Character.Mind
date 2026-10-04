@@ -368,18 +368,26 @@ function saveLimitsToDB(userId) {
 }
 
 const LIMITS = {
-  SESSION: 80000,
   SESSION_COOLDOWN_MS: Number(process.env.SESSION_COOLDOWN_MS) || 3000,
-  WEEKLY: 600000,
   WEEKLY_MS: 7 * 24 * 60 * 60 * 1000,
   REGEN_FREE: 2,
   CALL_DAILY: 3
 };
 
-const TIER_SESSION_LIMITS = { free: 20000, advanced: 80000, x20: 80000, x50: 80000 };
-function sessionLimitFor(u) {
-  return TIER_SESSION_LIMITS[u.subscriptionTier || 'free'] ?? TIER_SESSION_LIMITS.free;
+// Token limits per plan. Free and Advanced are set by hand; X20 and X50 are multiples of Advanced.
+const X20_MULT = 3;
+const X50_MULT = 6;
+const TIER_TOKEN_LIMITS = {
+  free:     { session: 20000, weekly: 100000 },
+  advanced: { session: 40000, weekly: 250000 },
+};
+TIER_TOKEN_LIMITS.x20 = { session: TIER_TOKEN_LIMITS.advanced.session * X20_MULT, weekly: TIER_TOKEN_LIMITS.advanced.weekly * X20_MULT };
+TIER_TOKEN_LIMITS.x50 = { session: TIER_TOKEN_LIMITS.advanced.session * X50_MULT, weekly: TIER_TOKEN_LIMITS.advanced.weekly * X50_MULT };
+function tokenLimitsFor(u) {
+  return TIER_TOKEN_LIMITS[u.subscriptionTier || 'free'] || TIER_TOKEN_LIMITS.free;
 }
+function sessionLimitFor(u) { return tokenLimitsFor(u).session; }
+function weeklyLimitFor(u) { return tokenLimitsFor(u).weekly; }
 const NSFW_BLOCK_TOKENS = 200;
 
 const TIER_CALL_LIMITS  = { free: 3,   advanced: 5,   x20: 100,  x50: 250  };
@@ -440,7 +448,7 @@ function checkLimits(sid) {
   const u = getLimits(sid);
   const now = Date.now();
   if (u.cooldownUntil && now < u.cooldownUntil) return { blocked: true, type: 'session', cooldownUntil: u.cooldownUntil };
-  if (u.weeklyStart && u.weeklyTokens >= LIMITS.WEEKLY) return { blocked: true, type: 'weekly', resetsAt: u.weeklyStart + LIMITS.WEEKLY_MS };
+  if (u.weeklyStart && u.weeklyTokens >= weeklyLimitFor(u)) return { blocked: true, type: 'weekly', resetsAt: u.weeklyStart + LIMITS.WEEKLY_MS };
   return { blocked: false };
 }
 
@@ -456,7 +464,7 @@ function buildUsagePayload(u, userId) {
     sessionExpiresAt: u.sessionStartedAt ? u.sessionStartedAt + LIMITS.SESSION_COOLDOWN_MS : null,
     cooldownUntil: u.cooldownUntil,
     weeklyTokens: u.weeklyTokens,
-    weeklyLimit: LIMITS.WEEKLY,
+    weeklyLimit: weeklyLimitFor(u),
     weeklyStart: u.weeklyStart,
     weeklyResetsAt: u.weeklyStart ? u.weeklyStart + LIMITS.WEEKLY_MS : null,
     regenCount: u.regenCount || 0,
@@ -482,7 +490,7 @@ function addTokens(sid, tokens) {
   u.sessionTokens += tokens;
   u.weeklyTokens += tokens;
   const sPct = (u.sessionTokens / sessionLimitFor(u)) * 100;
-  const wPct = (u.weeklyTokens / LIMITS.WEEKLY) * 100;
+  const wPct = (u.weeklyTokens / weeklyLimitFor(u)) * 100;
   const warnings = [];
   if (sPct >= 90 && !u.warned.session90) { u.warned.session90 = true; warnings.push({ type: 'session', pct: 90, msg: "You've used 90% of your session limit." }); }
   const wt = [
