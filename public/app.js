@@ -565,7 +565,15 @@ async function checkForUpdate() {
   if (updateBannerShown) return;
   try {
     const r = await fetch('/api/version', { cache: 'no-store' });
-    if (!r.ok) return;
+    if (!r.ok) {
+      // the site was switched to maintenance mode while this tab was open: show the maintenance page (never in the middle of a reply)
+      if (r.status === 503) {
+        const j = await r.json().catch(() => null);
+        let busy = false; try { busy = isStreaming; } catch (_) {}
+        if (j && j.maintenance && !busy) location.replace('/maintenance.html');
+      }
+      return;
+    }
     const { v } = await r.json();
     if (!v) return;
     if (bootVersion === null) { bootVersion = v; return; }

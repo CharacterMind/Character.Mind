@@ -187,6 +187,24 @@ const resetModLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 10, standardH
 const personaLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, keyGenerator: perUserKey, message: { error: 'Too many requests. Please try again later.' } });
 const geoLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, keyGenerator: perUserKey, message: { error: 'Too many requests. Please try again in a minute.' } });
 const chatBurstLimiter = rateLimit({ windowMs: 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false, keyGenerator: perUserKey, message: { error: 'You are sending messages too fast. Please slow down a little.' } });
+// ── Maintenance mode ─────────────────────────────────────────────────────────
+// Set MAINTENANCE=1 (or "true") in the Render environment and everyone sees the maintenance page until it is removed.
+// The page checks /api/maintenance-status every few seconds and sends people back to the site by itself once it is off.
+const maintenanceOn = () => /^(1|true|on)$/i.test(String(process.env.MAINTENANCE || '').trim());
+app.get('/api/maintenance-status', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ maintenance: maintenanceOn() });
+});
+app.use((req, res, next) => {
+  if (!maintenanceOn()) return next();
+  const p = req.path;
+  // the maintenance page itself and its pictures, payment webhooks (PayPal retries later if we are down), and the host's health checks
+  if (p === '/maintenance.html' || p.startsWith('/maintenance/') || p.startsWith('/api/webhooks/') || p === '/robots.txt' || p === '/favicon.ico') return next();
+  res.setHeader('Retry-After', '120');
+  res.setHeader('Cache-Control', 'no-store');
+  if (p.startsWith('/api/') || p.startsWith('/auth/')) return res.status(503).json({ error: 'character.mind is under maintenance. Please try again in a few minutes.', maintenance: true });
+  return res.status(503).sendFile(path.join(__dirname, 'public', 'maintenance.html'));
+});
 app.use(express.static(path.join(__dirname, 'public'), {
   etag: false,
   lastModified: false,
