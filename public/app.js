@@ -3157,8 +3157,14 @@ function stopStreamStats(msgEl, finalTokens) {
   streamStartTime = null;
   const stats = msgEl?.querySelector('.stream-stats');
   if (!stats) return;
-  // Hide immediately without revealing final token count
-  stats.style.display = 'none';
+  // Show the exact amount deducted from the allowance (server-reported tokens x tier multiplier)
+  stats.style.display = '';
+  stats.classList.remove('active');
+  stats.classList.add('done');
+  if (finalTokens) {
+    const tokEl = stats.querySelector('.stream-tok');
+    if (tokEl) tokEl.textContent = fmtLiveTokens(finalTokens) + ' tokens';
+  }
 }
 
 // ── Regeneration history ──────────────────────────────────────────────────────

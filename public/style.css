@@ -2709,3 +2709,4 @@ body:not(.voice-on) .ip-row[onclick="openVoicePanel()"] { display: none !importa
 .past-chat-count { display: inline-flex; align-items: center; gap: 8px; }
 .past-chat-del { background: none; border: none; color: var(--text3); cursor: pointer; padding: 2px; border-radius: 4px; display: inline-flex; }
 .past-chat-del:hover { color: #ef4444; background: rgba(239,68,68,.12); }
+.stream-stats.done { animation: none; opacity: 0.6; }
