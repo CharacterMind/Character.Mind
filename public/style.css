@@ -2718,3 +2718,6 @@ body:not(.voice-on) .btn-call { display: none !important; }
 .resource-link { display: block; color: inherit; text-decoration: none; border-radius: 8px; }
 .resource-link:hover .resource-row { background: var(--bg3); }
 .resource-link .resource-ext { color: var(--accent-l, #a78bfa); font-size: 12px; margin-left: 4px; }
+
+/* The live token counter / spinner under replies is never shown (usage is tracked in the Usage bars instead) */
+.stream-stats, .stream-stats.active, .stream-stats.done { display: none !important; }
