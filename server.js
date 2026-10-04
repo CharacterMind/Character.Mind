@@ -1905,7 +1905,7 @@ app.delete('/api/conversations/:charId/history', requireAuth, async (req, res) =
   }
 });
 
-const OWNER_EMAILS = new Set(['support.charactermind@gmail.com', 'davey252572727@gmail.com']);
+const OWNER_EMAILS = new Set(['support.charactermind@gmail.com']); // the only account with admin tools or a free plan
 // Only the Character.Mind business account gets the top plan without paying. Every other account (including the
 // other admin login) gets exactly what its own subscription pays for.
 const FREE_TOP_PLAN_EMAILS = new Set(['support.charactermind@gmail.com']);
