@@ -439,10 +439,10 @@ const LIMITS = {
 
 // Plan limits are defined in AVERAGE MESSAGES per session, then converted to tokens (what a reply is charged:
 // model tokens x model multiplier x effort multiplier).
-// An average message = Opes at Medium effort = ~350 reply tokens x 3 (Opes) = ~1,050 charged tokens.
+// An average message = Opes at Medium effort = 1,200 tokens (see MESSAGE_COST below).
 // Lighter models/efforts give more messages than this; heavier ones give fewer.
 // Free 30, Advanced 60 (2x), X20 = 20x Advanced (1,200), X50 = 50x Advanced (3,000). Weekly = 5 sessions' worth.
-const AVG_MESSAGE_TOKENS = 1050;
+const AVG_MESSAGE_TOKENS = 1200;
 const X20_MULT = 20;
 const X50_MULT = 50;
 const MESSAGES_PER_SESSION = { free: 30, advanced: 60 };
@@ -465,6 +465,18 @@ const MODEL_TOKEN_MULT = { opas: 1, opes: 3, opis: 4, opos: 5, opus: 6, opys: 8 
 // Extra cost for the higher effort levels, on top of the model multiplier (they also write longer replies).
 const EFFORT_TOKEN_MULT = { low: 1, medium: 1, high: 1, extra: 1.5, max: 2 };
 function effortMultFor(effort) { return Object.hasOwn(EFFORT_TOKEN_MULT, effort) ? EFFORT_TOKEN_MULT[effort] : 1; }
+
+// What ONE reply costs from the allowance, by model and effort. Fixed per message (not the AI's raw token
+// count, which swings a lot because of hidden thinking), so message counts are predictable.
+// Opes costs about 3x Opas at every effort. Higher models are multiples of Opes.
+const OPAS_COST = { low: 220, medium: 350, high: 650, extra: 1300, max: 2600 };
+const OPES_COST = { low: 700, medium: 1200, high: 2000, extra: 4000, max: 8000 };
+const COST_FACTOR_VS_OPES = { opes: 1, opis: 4 / 3, opos: 5 / 3, opus: 2, opys: 8 / 3 };
+function messageCost(modelTier, effort) {
+  const e = (typeof effort === 'string' && Object.hasOwn(OPES_COST, effort)) ? effort : 'medium';
+  if (modelTier === 'opas' || !Object.hasOwn(COST_FACTOR_VS_OPES, modelTier)) return OPAS_COST[e];
+  return Math.round(OPES_COST[e] * COST_FACTOR_VS_OPES[modelTier]);
+}
 function tokenMultFor(tier) { return Object.hasOwn(MODEL_TOKEN_MULT, tier) ? MODEL_TOKEN_MULT[tier] : MODEL_TOKEN_MULT.opas; }
 
 // Which model tiers each plan may use (matches the plan cards: X20 unlocks Opis/Opos, X50 unlocks Opus/Opys).
@@ -2199,9 +2211,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
       }
       hist.push({ role: 'assistant', content: fullResponse });
       persistConv(key);
-      const rawTokens = tokensUsed || Math.round(fullResponse.length / 3.5);
-      const regenMult = tokenMultFor(modelTier) * effortMultFor(effort);
-      const tokens = Math.round(rawTokens * regenMult);
+      const tokens = messageCost(modelTier, effort);
       const usage = addTokens(userId, tokens);
       res.write(`data: ${JSON.stringify({ done: true, usage, responseTokens: tokens, warnings: usage.warnings })}\n\n`); res.end();
     },
@@ -2309,9 +2319,7 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
       if (done) return; done = true;
       conversations[key].push({ role: 'assistant', content: fullResponse });
       persistConv(key);
-      const rawTokens = tokensUsed || Math.round(fullResponse.length / 3.5);
-      const greetMult = tokenMultFor(modelTier) * effortMultFor(effort);
-      const tokens = Math.round(rawTokens * greetMult);
+      const tokens = messageCost(modelTier, effort);
       const usage = addTokens(userId, tokens);
       res.write(`data: ${JSON.stringify({ done: true, usage, responseTokens: tokens, warnings: usage.warnings })}\n\n`); res.end();
     },
@@ -2550,9 +2558,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       }
       conversations[key].push({ role: 'assistant', content: fullResponse });
       persistConv(key);
-      const rawTokens = tokensUsed || Math.round(fullResponse.length / 3.5);
-      const tierMult = tokenMultFor(modelTier) * effortMultFor(effort);
-      const tokens = Math.round(rawTokens * tierMult);
+      const tokens = messageCost(modelTier, effort);
       const usage = addTokens(userId, tokens);
       res.write(`data: ${JSON.stringify({ done: true, usage, responseTokens: tokens, warnings: usage.warnings })}\n\n`);
       res.end();

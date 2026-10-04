@@ -26,9 +26,12 @@ let selectedEffort = (() => {
 })();
 
 const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys' };
-// Must match MODEL_TOKEN_MULT in server.js — how fast each tier uses up the token allowance.
-const MODEL_TOKEN_MULT = { opas: 1, opes: 3, opis: 4, opos: 5, opus: 6, opys: 8 };
-const EFFORT_TOKEN_MULT = { low: 1, medium: 1, high: 1, extra: 1.5, max: 2 }; // matches server.js
+// Must match OPAS_COST / OPES_COST / COST_FACTOR_VS_OPES in server.js — what one reply costs from the allowance.
+const OPAS_COST = { low: 220, medium: 350, high: 650, extra: 1300, max: 2600 };
+const OPES_COST = { low: 700, medium: 1200, high: 2000, extra: 4000, max: 8000 };
+const COST_FACTOR_VS_OPES = { opes: 1, opis: 4 / 3, opos: 5 / 3, opus: 2, opys: 8 / 3 };
+// Roughly how many visible characters a full reply has at each effort (used to ramp the live counter up to the cost)
+const EXPECTED_REPLY_CHARS = { low: 250, medium: 500, high: 1200, extra: 2500, max: 4000 };
 // Model tiers each plan may use — must match PLAN_MODEL_TIERS in server.js.
 const PLAN_MODEL_TIERS = {
   free:     ['opas', 'opes'],
@@ -36,17 +39,23 @@ const PLAN_MODEL_TIERS = {
   x20:      ['opas', 'opes', 'opis', 'opos'],
   x50:      ['opas', 'opes', 'opis', 'opos', 'opus', 'opys'],
 };
-function liveTokenMult() {
+// The total cost of the reply being written, and how much of it to show so far (ramps up as the text types)
+function liveReplyCost() {
   let tier = callModeActive ? 'opas' : selectedModelTier;
   const plan = (typeof lastKnownUsage !== 'undefined' && lastKnownUsage && lastKnownUsage.subscriptionTier) || 'free';
   if (!(PLAN_MODEL_TIERS[plan] || PLAN_MODEL_TIERS.free).includes(tier)) tier = 'opes';
-  const effort = callModeActive ? 'low' : selectedEffort;
-  return (MODEL_TOKEN_MULT[tier] ?? MODEL_TOKEN_MULT.opas) * (EFFORT_TOKEN_MULT[effort] ?? 1);
+  const effort = callModeActive ? 'low' : (OPES_COST[selectedEffort] ? selectedEffort : 'medium');
+  if (tier === 'opas' || !(tier in COST_FACTOR_VS_OPES)) return { cost: OPAS_COST[effort], effort };
+  return { cost: Math.round(OPES_COST[effort] * COST_FACTOR_VS_OPES[tier]), effort };
+}
+function liveCostSoFar(chars) {
+  const { cost, effort } = liveReplyCost();
+  return Math.round(cost * Math.min(1, chars / (EXPECTED_REPLY_CHARS[effort] || 1200)));
 }
 const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', max:'Max' };
 
 // Token usage multiplier shown on Max effort warning per tier
-const MAX_EFFORT_MULTIPLIERS = { opas:'2×', opes:'2×', opis:'2×', opos:'2×', opus:'2×', opys:'2×' };
+const MAX_EFFORT_MULTIPLIERS = { opas:'4×', opes:'4×', opis:'4×', opos:'4×', opus:'4×', opys:'4×' };
 
 // Tiers locked behind subscription (null = free, 'adv' = Advanced plan, 'max' = Advanced or Max)
 const TIER_SUBSCRIPTION = { opas: null, opes: null, opis: 'adv', opos: 'adv', opus: 'max', opys: 'max' };
@@ -80,7 +89,7 @@ function updateModelBarLabel() {
     if (el) el.classList.toggle('active', e === selectedEffort);
   });
   const maxWarn = document.getElementById('effortMaxWarn');
-  if (maxWarn) maxWarn.textContent = '⚠ ' + (MAX_EFFORT_MULTIPLIERS[selectedModelTier] || '2×') + ' or more usage';
+  if (maxWarn) maxWarn.textContent = '⚠ ' + (MAX_EFFORT_MULTIPLIERS[selectedModelTier] || '4×') + ' or more usage';
 }
 
 function setModelTier(tier) {
@@ -1781,7 +1790,7 @@ async function generateGreeting() {
           streamText += data.text;
           feedTypewriter(data.text);
           streamCharCount += data.text.length;
-          liveUpdateBars(Math.round(streamCharCount / 4 * liveTokenMult()));
+          liveUpdateBars(liveCostSoFar(streamCharCount));
         }
       }
     }
@@ -1955,7 +1964,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
           streamText += data.text;
           feedTypewriter(data.text);
           streamCharCount += data.text.length;
-          liveUpdateBars(Math.round(streamCharCount / 4 * liveTokenMult()));
+          liveUpdateBars(liveCostSoFar(streamCharCount));
         }
       }
       if (convEnded) { isStreaming = false; clearTimeout(streamTimeout); return; }
@@ -3208,7 +3217,7 @@ function startStreamStats(msgEl) {
 function updateStreamTokens(msgEl, charCount) {
   const stats = msgEl?.querySelector('.stream-stats');
   if (!stats || !stats.classList.contains('active')) return;
-  const est = Math.round(charCount / 3.5 * liveTokenMult());
+  const est = liveCostSoFar(charCount);
   const tokEl = stats.querySelector('.stream-tok');
   if (tokEl) tokEl.textContent = fmtLiveTokens(est) + ' tokens';
 }
@@ -4269,7 +4278,7 @@ async function regenerate() {
           streamText += data.text;
           feedTypewriter(data.text);
           streamCharCount += data.text.length;
-          liveUpdateBars(Math.round(streamCharCount / 4 * liveTokenMult()));
+          liveUpdateBars(liveCostSoFar(streamCharCount));
         }
       }
     }
