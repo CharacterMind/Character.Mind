@@ -26,6 +26,12 @@ let selectedEffort = (() => {
 })();
 
 const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys' };
+// Must match MODEL_TOKEN_MULT in server.js — how fast each tier uses up the token allowance.
+const MODEL_TOKEN_MULT = { opas: 0.25, opes: 0.5, opis: 1, opos: 2, opus: 4, opys: 8 };
+function liveTokenMult() {
+  const tier = callModeActive ? 'opas' : selectedModelTier;
+  return MODEL_TOKEN_MULT[tier] ?? MODEL_TOKEN_MULT.opas;
+}
 const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', max:'Max' };
 
 // Token usage multiplier shown on Max effort warning per tier
@@ -1758,7 +1764,7 @@ async function generateGreeting() {
           streamText += data.text;
           feedTypewriter(data.text);
           streamCharCount += data.text.length;
-          liveUpdateBars(Math.round(streamCharCount / 4));
+          liveUpdateBars(Math.round(streamCharCount / 4 * liveTokenMult()));
         }
       }
     }
@@ -1928,7 +1934,7 @@ async function sendMessage(overrideText, skipAppend) {
           streamText += data.text;
           feedTypewriter(data.text);
           streamCharCount += data.text.length;
-          liveUpdateBars(Math.round(streamCharCount / 4));
+          liveUpdateBars(Math.round(streamCharCount / 4 * liveTokenMult()));
         }
       }
       if (convEnded) { isStreaming = false; clearTimeout(streamTimeout); return; }
@@ -3141,7 +3147,7 @@ function startStreamStats(msgEl) {
 function updateStreamTokens(msgEl, charCount) {
   const stats = msgEl?.querySelector('.stream-stats');
   if (!stats || !stats.classList.contains('active')) return;
-  const est = Math.round(charCount / 3.5);
+  const est = Math.round(charCount / 3.5 * liveTokenMult());
   const tokEl = stats.querySelector('.stream-tok');
   if (tokEl) tokEl.textContent = fmtLiveTokens(est) + ' tokens';
 }
@@ -4193,7 +4199,7 @@ async function regenerate() {
           streamText += data.text;
           feedTypewriter(data.text);
           streamCharCount += data.text.length;
-          liveUpdateBars(Math.round(streamCharCount / 4));
+          liveUpdateBars(Math.round(streamCharCount / 4 * liveTokenMult()));
         }
       }
     }
