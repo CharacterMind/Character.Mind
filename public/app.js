@@ -1767,7 +1767,7 @@ async function generateGreeting() {
         if (!line.startsWith('data: ')) continue;
         const data = JSON.parse(line.slice(6));
         if (data.error) throw new Error(data.error);
-        if (data.done && data.usage) { hideStreamStatsNow(); streamRealTokens = data.responseTokens || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
+        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
         if (data.text) {
           if (!gotFirst) {
             gotFirst = true;
@@ -1941,7 +1941,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
           }
           break;
         }
-        if (data.done && data.usage) { hideStreamStatsNow(); streamRealTokens = data.responseTokens || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
+        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
         if (data.text) {
           if (!gotFirst) {
             gotFirst = true;
@@ -3108,6 +3108,18 @@ let twRevealed = '';
 let twQueue = '';
 let twInterval = null;
 let twOnDrain = null;
+let twStreamDone = false;
+let twSpd = null;
+
+// Called when the full reply has arrived. The counter stays up while the text keeps typing out,
+// and is hidden once there is about a second of typing left.
+function markStreamDone() {
+  twStreamDone = true;
+  if (!twSpd || !twQueue.length || remainingTypeMs() <= 1000) hideStreamStatsNow();
+}
+function remainingTypeMs() {
+  return twSpd ? Math.ceil(twQueue.length / twSpd.chars) * twSpd.ms : 0;
+}
 
 // Typewriter speed by effort level — lower effort = slower (more visible), higher = faster
 const TW_SPEED = {
@@ -3120,12 +3132,14 @@ const TW_SPEED = {
 
 function startTypewriter(bubble, msgEl) {
   twBubble = bubble; twMsgEl = msgEl; twRevealed = ''; twQueue = '';
+  twStreamDone = false;
   if (twInterval) clearInterval(twInterval);
   // Opis (opus) model uses faster streaming — bump speed one level up
   const effortKey = selectedModelTier === 'opus'
     ? (selectedEffort === 'extra' ? 'max' : selectedEffort === 'high' ? 'extra' : selectedEffort === 'medium' ? 'high' : 'medium')
     : selectedEffort;
   const spd = TW_SPEED[effortKey] || TW_SPEED.high;
+  twSpd = spd;
   twInterval = setInterval(() => {
     if (!twQueue.length) {
       if (twOnDrain) { const cb = twOnDrain; twOnDrain = null; cb(); }
@@ -3139,6 +3153,7 @@ function startTypewriter(bubble, msgEl) {
       scrollToBottom();
     }
     updateStreamTokens(twMsgEl, twRevealed.length);
+    if (twStreamDone && remainingTypeMs() <= 1000) hideStreamStatsNow();
   }, spd.ms);
 }
 
@@ -4249,7 +4264,7 @@ async function regenerate() {
         if (!line.startsWith('data: ')) continue;
         const data = JSON.parse(line.slice(6));
         if (data.error) throw new Error(data.error);
-        if (data.done && data.usage) { hideStreamStatsNow(); streamRealTokens = data.responseTokens || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
+        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
         if (data.text) {
           streamText += data.text;
           feedTypewriter(data.text);
