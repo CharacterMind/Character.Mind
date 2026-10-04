@@ -984,7 +984,7 @@ function homeCard(c) {
         ${officialBadge}
         ${ownerEdit}
       </div>
-      <div class="hc-creator"><span class="hc-creator-official">By Character Mind Playtime Co</span></div>
+      <div class="hc-creator">${c.isOfficial ? '<span class="hc-creator-official">By Character Mind Playtime Co</span>' : escHtml('By ' + (c.creator || 'a community creator'))}</div>
       <div class="hc-tagline">${escHtml(c.tagline || (c.description||'').slice(0,80) || '')}</div>
       <div class="hc-meta">
         <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
@@ -1286,7 +1286,7 @@ function charRow(c) {
     <div class="char-row-info">
       <div class="char-row-name">${escHtml(c.name)}</div>
       <div class="char-row-tagline">${escHtml(c.tagline || '')}</div>
-      <div class="char-row-meta"><span class="hc-creator-official">By Character Mind Playtime Co</span> · ${formatCount(c.interactions||0)} chats</div>
+      <div class="char-row-meta">${c.isOfficial ? '<span class="hc-creator-official">By Character Mind Playtime Co</span>' : escHtml('By ' + (c.creator || 'a community creator'))} · ${formatCount(c.interactions||0)} chats</div>
     </div>
     ${ownerBtns}
   </div>`;
@@ -1298,7 +1298,7 @@ function charCard(c) {
     <div class="card-name">${escHtml(c.name)}</div>
     <div class="card-tagline">${escHtml(c.tagline || '')}</div>
     <div class="card-meta">
-      <span class="card-creator"><span class="hc-creator-official">By Character Mind Playtime Co</span></span>
+      <span class="card-creator">${c.isOfficial ? '<span class="hc-creator-official">By Character Mind Playtime Co</span>' : escHtml('By ' + (c.creator || 'a community creator'))}</span>
       <span class="card-interactions">💬 ${formatCount(c.interactions||0)}</span>
     </div>
     <div class="card-tags">${(c.tags||[]).map(t=>`<span class="card-tag">${escHtml(t)}</span>`).join('')}</div>

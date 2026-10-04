@@ -128,7 +128,11 @@ if (db) {
   console.warn('No DATABASE_URL — characters will not be persisted');
 }
 
-app.use(express.json({ limit: '600kb' })); // 600KB max — enough for image data URIs but rejects abuse
+// 600KB max — enough for image data URIs but rejects abuse. The raw body is kept for the PayPal webhook.
+app.use(express.json({
+  limit: '600kb',
+  verify: (req, res, buf) => { if (req.originalUrl && req.originalUrl.startsWith('/api/webhooks/paypal')) req.rawBody = buf; }
+}));
 // Basic security headers
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -1712,16 +1716,23 @@ app.get('/api/characters', async (req, res) => {
       'SELECT id, name, tagline, description, system_prompt, greeting, greeting_mode, color, creator_name, device_id, image, tags, interactions, created_at FROM characters ORDER BY created_at DESC'
     );
     const authed = !!req.user;
-    res.json(rows.map(r => ({
-      id: r.id, name: r.name, tagline: r.tagline, description: r.description,
-      ...(authed ? { systemPrompt: r.system_prompt, greeting: r.greeting, greetingMode: r.greeting_mode } : {}),
-      color: r.color, accentColor: r.color,
-      creator: (r.device_id && ownerGoogleIds.has(r.device_id)) ? 'Character Mind Playtime Co' : r.creator_name,
-      isOfficial: !!(r.device_id && ownerGoogleIds.has(r.device_id)),
-      image: r.image, tags: r.tags || [], interactions: r.interactions,
-      isMine: !!(userId && r.device_id === userId)
-    })));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const isOwnerUser = !!(userId && ownerGoogleIds.has(userId));
+    res.json(rows.map(r => {
+      const official = !!(r.device_id && ownerGoogleIds.has(r.device_id));
+      const mine = !!(userId && r.device_id === userId);
+      return {
+        id: r.id, name: r.name, tagline: r.tagline, description: r.description,
+        // The personality prompt is private: only its creator (or the site owner) receives it
+        ...(authed ? { greeting: r.greeting, greetingMode: r.greeting_mode } : {}),
+        ...((mine || isOwnerUser) ? { systemPrompt: r.system_prompt } : {}),
+        color: r.color, accentColor: r.color,
+        creator: official ? 'Character Mind Playtime Co' : (/character\s*\.?\s*mind/i.test(r.creator_name || '') ? 'Community creator' : r.creator_name),
+        isOfficial: official,
+        image: safeImage(r.image), tags: r.tags || [], interactions: r.interactions,
+        isMine: mine
+      };
+    }));
+  } catch (err) { console.error('list characters error:', err.message); res.status(500).json({ error: 'Could not load characters' }); }
 });
 
 app.get('/api/characters/:id', async (req, res) => {
@@ -1731,11 +1742,13 @@ app.get('/api/characters/:id', async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Character not found' });
     const r = rows[0];
     const authed = !!req.user;
+    const uid = req.user?.googleId || '';
     res.json({
       id: r.id, name: r.name, tagline: r.tagline, color: r.color,
-      ...(authed ? { systemPrompt: r.system_prompt, greeting: r.greeting, greetingMode: r.greeting_mode } : {})
+      ...(authed ? { greeting: r.greeting, greetingMode: r.greeting_mode } : {}),
+      ...((uid && (r.device_id === uid || ownerGoogleIds.has(uid))) ? { systemPrompt: r.system_prompt } : {})
     });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error('get character error:', err.message); res.status(500).json({ error: 'Could not load character' }); }
 });
 
 const VALID_ID = /^[a-zA-Z0-9_-]{1,64}$/;
@@ -1749,6 +1762,9 @@ function isValidColorStr(color) {
   return false;
 }
 
+const SAFE_IMAGE_RE = /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/]+={0,2}$/;
+function safeImage(img) { return (typeof img === 'string' && img.length <= 512000 && SAFE_IMAGE_RE.test(img)) ? img : null; }
+
 function validateChar(body) {
   const { id, name, tagline, description, systemPrompt, greeting, greetingMode, color, creatorName, image, tags } = body;
   if (!id || !VALID_ID.test(id)) return 'Invalid character id (alphanumeric, _ -, max 64)';
@@ -1761,9 +1777,8 @@ function validateChar(body) {
   if (color && !isValidColorStr(color)) { console.warn('[validateChar] rejected color:', JSON.stringify(color)); return 'Invalid color format'; }
   if (creatorName && creatorName.length > 40) return 'Creator name must be ≤40 characters';
   if (image && typeof image === 'string') {
-    const allowedTypes = ['data:image/jpeg;base64,', 'data:image/jpg;base64,', 'data:image/png;base64,', 'data:image/webp;base64,', 'data:image/gif;base64,'];
-    if (!allowedTypes.some(t => image.startsWith(t))) return 'Image must be a base64-encoded JPEG, PNG, WebP, or GIF';
     if (image.length > 512000) return 'Image too large (max ~384KB)';
+    if (!SAFE_IMAGE_RE.test(image)) return 'Image must be a valid base64-encoded JPEG, PNG, WebP, or GIF';
   }
   if (tags) {
     if (!Array.isArray(tags) || tags.length > 10) return 'Tags must be an array of ≤10 items';
@@ -2664,7 +2679,8 @@ app.post('/api/paypal/verify-subscription', async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not logged in' });
   const { subscriptionId, planKey } = req.body;
   const validPlans = { advanced: true, x20: true, x50: true };
-  if (!validPlans[planKey] || !subscriptionId) return res.status(400).json({ error: 'Invalid request' });
+  if (typeof planKey !== 'string' || !Object.hasOwn(validPlans, planKey)) return res.status(400).json({ error: 'Invalid request' });
+  if (typeof subscriptionId !== 'string' || !/^I-[A-Z0-9]{6,40}$/.test(subscriptionId)) return res.status(400).json({ error: 'Invalid request' });
 
   try {
     const token = await getPayPalToken();
@@ -2678,16 +2694,23 @@ app.post('/api/paypal/verify-subscription', async (req, res) => {
     }
     // Verify the subscription's plan matches what the client claims
     const expectedPlanId = PAYPAL_PLAN_IDS[planKey];
-    if (expectedPlanId && sub.plan_id !== expectedPlanId) {
+    if (!expectedPlanId) {
+      console.error(`PayPal plan ID for "${planKey}" is not configured — refusing to activate`);
+      return res.status(503).json({ error: 'This plan is not available right now' });
+    }
+    if (sub.plan_id !== expectedPlanId) {
       console.error(`PayPal plan mismatch: expected ${expectedPlanId}, got ${sub.plan_id}`);
       return res.status(403).json({ error: 'Subscription plan does not match selected tier' });
     }
-    if (db) {
-      await db.query(
-        'UPDATE users SET subscription_tier = $1, paypal_subscription_id = $2 WHERE google_id = $3',
-        [planKey, subscriptionId, req.user.googleId]
-      );
-    }
+    if (!db) return res.status(503).json({ error: 'Service temporarily unavailable' });
+    // One subscription can only upgrade one account
+    const taken = await db.query('SELECT 1 FROM users WHERE paypal_subscription_id = $1 AND google_id <> $2 LIMIT 1', [subscriptionId, req.user.googleId]);
+    if (taken.rows.length) return res.status(409).json({ error: 'This subscription is already linked to another account' });
+    const upd = await db.query(
+      'UPDATE users SET subscription_tier = $1, paypal_subscription_id = $2 WHERE google_id = $3',
+      [planKey, subscriptionId, req.user.googleId]
+    );
+    if (!upd.rowCount) return res.status(500).json({ error: 'Could not activate subscription' });
     const paidLimits = getLimits(req.user.googleId);
     paidLimits.subscriptionTier = planKey;
     paidLimits.tierLoaded = true;
@@ -2701,13 +2724,17 @@ app.post('/api/paypal/verify-subscription', async (req, res) => {
   }
 });
 
-app.post('/api/webhooks/paypal', express.raw({ type: 'application/json' }), async (req, res) => {
+app.post('/api/webhooks/paypal', async (req, res) => {
   let event;
-  try { event = JSON.parse(req.body); } catch { return res.sendStatus(400); }
+  try { event = JSON.parse((req.rawBody || Buffer.from('')).toString('utf8')); } catch { return res.sendStatus(400); }
 
-  // Verify PayPal webhook signature (requires PAYPAL_WEBHOOK_ID env var)
+  // Verify PayPal webhook signature (requires PAYPAL_WEBHOOK_ID env var). Fail closed if it is not configured.
   const webhookId = process.env.PAYPAL_WEBHOOK_ID;
-  if (webhookId) {
+  if (!webhookId) {
+    console.error('PayPal webhook rejected: PAYPAL_WEBHOOK_ID is not set');
+    return res.sendStatus(503);
+  }
+  {
     try {
       const token = await getPayPalToken();
       const verifyResp = await fetch(`${PAYPAL_BASE}/v1/notifications/verify-webhook-signature`, {
