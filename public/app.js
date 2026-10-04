@@ -28,8 +28,17 @@ let selectedEffort = (() => {
 const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys' };
 // Must match MODEL_TOKEN_MULT in server.js — how fast each tier uses up the token allowance.
 const MODEL_TOKEN_MULT = { opas: 0.25, opes: 0.5, opis: 1, opos: 2, opus: 4, opys: 8 };
+// Model tiers each plan may use — must match PLAN_MODEL_TIERS in server.js.
+const PLAN_MODEL_TIERS = {
+  free:     ['opas', 'opes'],
+  advanced: ['opas', 'opes'],
+  x20:      ['opas', 'opes', 'opis', 'opos'],
+  x50:      ['opas', 'opes', 'opis', 'opos', 'opus', 'opys'],
+};
 function liveTokenMult() {
-  const tier = callModeActive ? 'opas' : selectedModelTier;
+  let tier = callModeActive ? 'opas' : selectedModelTier;
+  const plan = (typeof lastKnownUsage !== 'undefined' && lastKnownUsage && lastKnownUsage.subscriptionTier) || 'free';
+  if (!(PLAN_MODEL_TIERS[plan] || PLAN_MODEL_TIERS.free).includes(tier)) tier = 'opes';
   return MODEL_TOKEN_MULT[tier] ?? MODEL_TOKEN_MULT.opas;
 }
 const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', max:'Max' };
@@ -1879,9 +1888,9 @@ async function sendMessage(overrideText, skipAppend) {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       if (res.status === 401) { window.location.href = '/'; return; }
-      if (res.status === 429) {
+      if (res.status === 429 && (err.type === 'session' || err.type === 'weekly')) {
         if (err.type === 'session') startCooldown(err.cooldownUntil, 'session', true);
-        else if (err.type === 'weekly') startCooldown(err.resetsAt, 'weekly', true);
+        else startCooldown(err.resetsAt, 'weekly', true);
         showTyping(false); isStreaming = false;
         return;
       }
@@ -3689,6 +3698,7 @@ async function playCallBlob(blob) {
 }
 
 async function callModeElevenTTS(text) {
+  const gen = callGen;
   try {
     const r = await fetch('/api/tts', {
       method: 'POST',
@@ -3699,7 +3709,9 @@ async function callModeElevenTTS(text) {
       if (r.status === 501) elevenTTSOk = false;
       throw new Error('tts ' + r.status);
     }
-    await playCallBlob(await r.blob());
+    const blob = await r.blob();
+    if (gen !== callGen) return; // call ended or interrupted while the voice was loading
+    await playCallBlob(blob);
   } catch (_) {
     if (callModeActive) listenForSpeech();
   }
@@ -3707,6 +3719,7 @@ async function callModeElevenTTS(text) {
 
 // ── Call mode ─────────────────────────────────────────────────────────────────
 let callModeActive = false;
+let callGen = 0; // bumped when a call ends or is interrupted so late async results are dropped
 let callMuted = false;
 let callFirstConnect = false;
 let callInactivityTimer = null;
@@ -3744,6 +3757,7 @@ function toggleCallMode() {
 async function startCallMode() {
   if (callStarting || callModeActive) return;  // block concurrent/double starts
   callStarting = true;
+  const startGen = callGen;
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { callStarting = false; alert('Voice calls need a browser with speech recognition — try Chrome.'); return; }
   if (!currentChar) { callStarting = false; return; }
@@ -3759,6 +3773,7 @@ async function startCallMode() {
     if (data.callsRemaining <= 1) showCallWarningBanner();
   } catch(e) { /* offline — allow call anyway */ }
 
+  if (startGen !== callGen) { callStarting = false; return; } // call was cancelled while starting
   callStarting = false;
   callModeActive = true;
   callMuted = false;
@@ -3910,6 +3925,7 @@ function showCallMicError() {
 }
 
 function endCallMode() {
+  callGen++;
   callModeActive = false;
   callStarting = false;
   callMuted = false;
@@ -3962,6 +3978,7 @@ function toggleCallMute() {
 }
 
 function interruptCall() {
+  callGen++;
   window.speechSynthesis.cancel();
   if (callAudio) { const a = callAudio; stopCallAudio(); a.onended && a.onended(); return; }
   activeTTSUtterance = null;

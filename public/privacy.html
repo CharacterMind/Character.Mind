@@ -135,7 +135,8 @@
   <p>We share data with the following third parties only as necessary to operate the service:</p>
   <ul>
     <li><strong>Google OAuth 2.0</strong> — handles sign-in. We receive your basic profile information as described above. Google's privacy policy applies to data processed by Google.</li>
-    <li><strong>Groq</strong> — our AI inference provider. Your conversation messages are sent to Groq's API to generate character responses. Groq's privacy policy applies to data they process.</li>
+    <li><strong>Groq</strong> — our AI inference provider. Your conversation messages are sent to Groq's API to generate character responses. If you attach an image, it is also sent to Groq so we can check it against our content rules and, if it passes, so the character can respond to it. Groq's privacy policy applies to data they process.</li>
+    <li><strong>ElevenLabs</strong> — text-to-speech provider, used only when voice calls are available. The text of a character's reply is sent to ElevenLabs to generate the spoken audio. No account information is transmitted. ElevenLabs' privacy policy applies to data they process.</li>
     <li><strong>Neon (PostgreSQL)</strong> — our database host, where user data, conversations, and character definitions are stored.</li>
     <li><strong>Render</strong> — our hosting provider, where the application server runs.</li>
     <li><strong>PayPal</strong> — payment processing for paid subscriptions. PayPal's privacy policy applies to payment data they collect.</li>

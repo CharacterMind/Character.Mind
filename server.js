@@ -298,8 +298,25 @@ app.post('/api/user/recent-chats', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-function requireAuth(req, res, next) {
+// Make sure this user's plan is loaded in memory (it is lost on restart or when idle state is purged).
+async function ensureTierLoaded(user) {
+  const u = getLimits(user.googleId);
+  if (u.tierLoaded) return;
+  if (OWNER_EMAILS.has(user.email)) {
+    ownerGoogleIds.add(user.googleId);
+    u.subscriptionTier = 'x50';
+    u.tierLoaded = true;
+    return;
+  }
+  if (!db) return;
+  const r = await db.query('SELECT subscription_tier FROM users WHERE google_id = $1', [user.googleId]);
+  u.subscriptionTier = r.rows[0]?.subscription_tier || 'free';
+  u.tierLoaded = true;
+}
+
+async function requireAuth(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  try { await ensureTierLoaded(req.user); } catch (e) { console.warn('ensureTierLoaded failed:', e.message); }
   next();
 }
 
@@ -388,7 +405,7 @@ function tokenLimitsFor(u) {
 }
 // How fast each model tier burns your token allowance (top tiers cost far more).
 const MODEL_TOKEN_MULT = { opas: 0.25, opes: 0.5, opis: 1, opos: 2, opus: 4, opys: 8 };
-function tokenMultFor(tier) { return MODEL_TOKEN_MULT[tier] ?? MODEL_TOKEN_MULT.opas; }
+function tokenMultFor(tier) { return Object.hasOwn(MODEL_TOKEN_MULT, tier) ? MODEL_TOKEN_MULT[tier] : MODEL_TOKEN_MULT.opas; }
 
 // Which model tiers each plan may use (matches the plan cards: X20 unlocks Opis/Opos, X50 unlocks Opus/Opys).
 const PLAN_MODEL_TIERS = {
@@ -398,7 +415,7 @@ const PLAN_MODEL_TIERS = {
   x50:      ['opas', 'opes', 'opis', 'opos', 'opus', 'opys'],
 };
 function resolveModelTier(userId, requested) {
-  if (!MODEL_TOKEN_MULT[requested]) return 'opas';
+  if (typeof requested !== 'string' || !Object.hasOwn(MODEL_TOKEN_MULT, requested)) return 'opas';
   if (ownerGoogleIds.has(userId)) return requested;
   const plan = getLimits(userId).subscriptionTier || 'free';
   const allowed = PLAN_MODEL_TIERS[plan] || PLAN_MODEL_TIERS.free;
@@ -1234,8 +1251,9 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   if (use.chars + text.length > TTS_DAILY_CHARS) return res.status(429).json({ error: 'tts_limit' });
   use.chars += text.length;
   ttsUsage.set(userId, use);
+  const refund = () => { use.chars = Math.max(0, use.chars - text.length); };
 
-  const voiceId = (VALID_ID.test(charId) && ELEVEN_VOICE_MAP[charId]) || ELEVEN_DEFAULT_VOICE;
+  const voiceId = (Object.hasOwn(ELEVEN_VOICE_MAP, charId) && ELEVEN_VOICE_MAP[charId]) || ELEVEN_DEFAULT_VOICE;
   try {
     const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}/stream?output_format=mp3_44100_64`, {
       method: 'POST',
@@ -1244,6 +1262,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
     });
     if (!r.ok || !r.body) {
       console.warn('[tts] ElevenLabs error', r.status);
+      refund();
       return res.status(502).json({ error: 'tts_failed' });
     }
     res.setHeader('Content-Type', 'audio/mpeg');
@@ -1251,6 +1270,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
     res.send(Buffer.from(await r.arrayBuffer()));
   } catch (e) {
     console.warn('[tts] request failed', e.message);
+    refund();
     res.status(502).json({ error: 'tts_failed' });
   }
 });
@@ -1918,23 +1938,6 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     const ALLOWED_IMG = ['data:image/jpeg;base64,','data:image/jpg;base64,','data:image/png;base64,','data:image/webp;base64,','data:image/gif;base64,'];
     if (!ALLOWED_IMG.some(t => image.startsWith(t))) return res.status(400).json({ error: 'Invalid image format' });
     if (image.length > 1400000) return res.status(400).json({ error: 'Image too large (max ~1MB)' });
-    const imgUid = req.user?.googleId;
-    if (imgUid) {
-      const imgU = getLimits(imgUid);
-      const imgLimit = getImageLimitForUser(imgUid);
-      if (imgLimit !== Infinity && (imgU.imagesDay || 0) >= imgLimit) {
-        return res.status(429).json({ error: `Daily image limit reached (${imgLimit}/day). Resets at 8 AM UTC.` });
-      }
-      let explicit;
-      try {
-        explicit = await isExplicitImage(apiKey, image);
-      } catch (e) {
-        console.warn('[image-safety] check failed, blocking image:', e.message);
-        return res.status(503).json({ error: "We couldn't check that image right now. Please try again in a moment or send your message without it." });
-      }
-      if (explicit) return nsfwDeflect(res, addTokens(imgUid, NSFW_BLOCK_TOKENS));
-      imgU.imagesDay = (imgU.imagesDay || 0) + 1;
-    }
   }
   const modelList = getModelList(modelTier);
   const effortCfg = getEffortCfg(effort, modelTier);
@@ -1952,8 +1955,8 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   if (!conversations[key]) conversations[key] = [];
   convLastUsed[key] = Date.now();
 
-  // Empty message = continuation (AI speaks again without storing a user turn)
-  const isContinuation = !message || !message.trim();
+  // Empty message = continuation (AI speaks again without storing a user turn); an image alone is a real turn
+  const isContinuation = (!message || !message.trim()) && !image;
 
   // ── Lock check — block permanently locked chats ───────────────────────────
   if (!db) return res.status(503).json({ error: 'Service temporarily unavailable' });
@@ -1967,6 +1970,25 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     res.write(`data: ${JSON.stringify({ conversationEnded: true, locked: true, reason: "This chat was permanently ended due to repeated policy violations. You can't send messages here anymore." })}\n\n`);
     res.end();
     return;
+  }
+
+  // ── Image safety: daily cap, then explicit-content check (only after limit and lock checks) ──
+  if (image && !isContinuation) {
+    const imgU = getLimits(userId);
+    const imgLimit = getImageLimitForUser(userId);
+    if (imgLimit !== Infinity && (imgU.imagesDay || 0) >= imgLimit) {
+      return res.status(429).json({ error: `Daily image limit reached (${imgLimit}/day). Resets at 8 AM UTC.` });
+    }
+    imgU.imagesDay = (imgU.imagesDay || 0) + 1; // attempts count toward the cap, including blocked ones
+    let explicit;
+    try {
+      explicit = await isExplicitImage(apiKey, image);
+    } catch (e) {
+      imgU.imagesDay = Math.max(0, imgU.imagesDay - 1); // our failure, not the user's
+      console.warn('[image-safety] check failed, blocking image:', e.message);
+      return res.status(503).json({ error: "We couldn't check that image right now. Please try again in a moment or send your message without it." });
+    }
+    if (explicit) return nsfwDeflect(res, addTokens(userId, NSFW_BLOCK_TOKENS));
   }
 
   // ── Slur detection (three strikes per conversation) ────────────────────────
@@ -2386,6 +2408,10 @@ app.post('/api/paypal/verify-subscription', async (req, res) => {
         [planKey, subscriptionId, req.user.googleId]
       );
     }
+    const paidLimits = getLimits(req.user.googleId);
+    paidLimits.subscriptionTier = planKey;
+    paidLimits.tierLoaded = true;
+    saveLimitsToDB(req.user.googleId);
     sendReceiptEmail(req.user.name, req.user.email, planKey, subscriptionId).catch(() => {});
     sendPlanWelcomeEmail(req.user.name, req.user.email, planKey).catch(() => {});
     res.json({ ok: true, tier: planKey });
@@ -2432,8 +2458,11 @@ app.post('/api/webhooks/paypal', express.raw({ type: 'application/json' }), asyn
   const subId = event.resource?.id;
   const cancelEvents = ['BILLING.SUBSCRIPTION.CANCELLED', 'BILLING.SUBSCRIPTION.EXPIRED', 'BILLING.SUBSCRIPTION.SUSPENDED'];
   if (cancelEvents.includes(eventType) && subId && db) {
-    await db.query("UPDATE users SET subscription_tier = 'free', paypal_subscription_id = NULL WHERE paypal_subscription_id = $1", [subId])
-      .catch(err => console.error('Webhook DB error:', err));
+    const cancelled = await db.query("UPDATE users SET subscription_tier = 'free', paypal_subscription_id = NULL WHERE paypal_subscription_id = $1 RETURNING google_id", [subId])
+      .catch(err => { console.error('Webhook DB error:', err); return { rows: [] }; });
+    for (const row of cancelled.rows) {
+      if (userLimits[row.google_id]) { userLimits[row.google_id].subscriptionTier = 'free'; saveLimitsToDB(row.google_id); }
+    }
   }
   res.sendStatus(200);
 });
