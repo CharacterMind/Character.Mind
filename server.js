@@ -247,11 +247,11 @@ if (GOOGLE_AUTH_ENABLED) {
     }
     if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId);
     // Cache this account's own subscription tier in userLimits so limit checks don't need a DB hit.
-    // Every account, including the owners', gets only what its own subscription pays for.
+    // Every account gets only what its own subscription pays for, except the Character.Mind account (planFor).
     if (db) {
       db.query('SELECT subscription_tier FROM users WHERE google_id = $1', [user.googleId])
         .then(r => {
-          const tier = r.rows[0]?.subscription_tier || 'free';
+          const tier = planFor(user.email, r.rows[0]?.subscription_tier);
           const lim = getLimits(user.googleId);
           lim.subscriptionTier = tier;
           lim.tierLoaded = true;
@@ -342,10 +342,10 @@ app.post('/api/user/recent-chats', requireAuth, async (req, res) => {
 async function ensureTierLoaded(user) {
   const u = getLimits(user.googleId);
   if (u.tierLoaded) return;
-  if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId); // admin tools only, no plan benefits
+  if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId); // admin tools; the plan comes from planFor()
   if (!db) return;
   const r = await db.query('SELECT subscription_tier FROM users WHERE google_id = $1', [user.googleId]);
-  u.subscriptionTier = r.rows[0]?.subscription_tier || 'free';
+  u.subscriptionTier = planFor(user.email, r.rows[0]?.subscription_tier);
   u.tierLoaded = true;
 }
 
@@ -1906,6 +1906,10 @@ app.delete('/api/conversations/:charId/history', requireAuth, async (req, res) =
 });
 
 const OWNER_EMAILS = new Set(['support.charactermind@gmail.com', 'davey252572727@gmail.com']);
+// Only the Character.Mind business account gets the top plan without paying. Every other account (including the
+// other admin login) gets exactly what its own subscription pays for.
+const FREE_TOP_PLAN_EMAILS = new Set(['support.charactermind@gmail.com']);
+function planFor(email, dbTier) { return FREE_TOP_PLAN_EMAILS.has(email) ? 'x50' : (dbTier || 'free'); }
 const ownerGoogleIds = new Set(); // populated at runtime when owners authenticate
 app.post('/api/admin/reset-limits', requireAuth, (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
