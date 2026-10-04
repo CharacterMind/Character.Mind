@@ -488,8 +488,8 @@ function effortMultFor(effort) { return Object.hasOwn(EFFORT_TOKEN_MULT, effort)
 // Opes costs about 3x Opas at every effort. Higher models are multiples of Opes.
 const OPAS_COST = { low: 220, medium: 350, high: 650, extra: 1300, max: 2600 };
 const OPES_COST = { low: 700, medium: 1200, high: 2000, extra: 4000, max: 8000 };
-// Low tier: Opas, Opes. Mid tier: Opis (1.5x), Opos (2.5x). High tier: Opus (6x), Opys (15x), Opys 2 (30x, the most advanced) - these drain even an X50 allowance fast.
-const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.5, opos: 2.5, opus: 6, opys: 15, opys2: 30 };
+// Low tier: Opas, Opes. Mid tier: Opis (1.5x), Opos (2.5x). High tier: Opus (6x), Opys (15x), Opys 2 (45x = 3x Opys, the most advanced) - these drain even an X50 allowance fast.
+const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.5, opos: 2.5, opus: 6, opys: 15, opys2: 45 };
 function messageCost(modelTier, effort) {
   const e = (typeof effort === 'string' && Object.hasOwn(OPES_COST, effort)) ? effort : 'medium';
   if (modelTier === 'opas' || !Object.hasOwn(COST_FACTOR_VS_OPES, modelTier)) return OPAS_COST[e];
@@ -652,9 +652,10 @@ const EFFORT_DIRECTIVES = {
   max:    'RESPONSE LENGTH: Write the longest, most elaborate reply you can — 10 to 16 paragraphs. Leave nothing out: every sensation, thought, gesture, line of dialogue and shift in the scene. It should read like a full chapter.',
 };
 
-function applyEffortDirective(prompt, effort) {
+const OPYS2_DIRECTIVE = 'QUALITY: You are the most advanced model. Write with exceptional depth and craft: stay perfectly consistent with the character\'s voice, history and the details already established; add layered emotion, subtext and vivid specific detail; move the scene forward with a meaningful choice or twist instead of repeating what was said. Never pad, never repeat earlier phrasing.';
+function applyEffortDirective(prompt, effort, modelTier) {
   const directive = (typeof effort === 'string' && Object.hasOwn(EFFORT_DIRECTIVES, effort)) ? EFFORT_DIRECTIVES[effort] : EFFORT_DIRECTIVES['high'];
-  return prompt + '\n\n' + directive;
+  return prompt + '\n\n' + directive + (modelTier === 'opys2' ? '\n\n' + OPYS2_DIRECTIVE : '');
 }
 
 // ── RP quality wrapper injected into every system prompt ─────────────────────
@@ -1342,6 +1343,8 @@ const GROQ_FAST_MODELS  = ['openai/gpt-oss-20b',  'openai/gpt-oss-120b', ...GROQ
 const GROQ_MODELS       = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b',  ...GROQ_FALLBACKS];
 const GROQ_PRO_MODELS   = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b',  ...GROQ_FALLBACKS];
 const GROQ_OPUS_MODELS  = ['openai/gpt-oss-120b', GROQ_FALLBACKS[0]];
+// Opys 2 only ever runs on the strongest model: a 45x price must not quietly be served by a weaker overflow model.
+const GROQ_OPYS2_MODELS = ['openai/gpt-oss-120b'];
 
 // Per-tier effort configs — max effort uses highest reasoning + tokens
 const EFFORT_CONFIG = {
@@ -1397,6 +1400,7 @@ EFFORT_CONFIG.opys2 = EFFORT_CONFIG.opys; // the most advanced model: same top s
 // After upgrading Groq, set GROQ_OUTPUT_CAP (e.g. 16000) and GROQ_ALLOW_HIGH_REASONING=1 on Render.
 const GROQ_OUTPUT_CAP = Number(process.env.GROQ_OUTPUT_CAP) || 2200;
 // The model's hidden thinking counts against max_tokens, so a small cap cuts the visible reply off mid-sentence.
+const OPYS2_OUTPUT_CAP = Number(process.env.OPYS2_OUTPUT_CAP) || 3200;
 const GROQ_OUTPUT_MIN = Math.min(1400, GROQ_OUTPUT_CAP);
 // Keeps what we send as chat history small, newest messages first, so one request doesn't eat the whole minute's allowance.
 const HISTORY_CHAR_BUDGET = Number(process.env.HISTORY_CHAR_BUDGET) || 7000;
@@ -1418,8 +1422,10 @@ function getEffortCfg(effort, tier) {
   const t = EFFORT_CONFIG[tier] ? tier : 'opas';
   const cfg = EFFORT_CONFIG[t];
   const base = (typeof effort === 'string' && Object.hasOwn(cfg, effort)) ? cfg[effort] : cfg.medium;
-  const out = { ...base, maxOutputTokens: Math.min(Math.max(base.maxOutputTokens, GROQ_OUTPUT_MIN), GROQ_OUTPUT_CAP) };
-  if (!GROQ_ALLOW_HIGH_REASONING && out.reasoningEffort === 'high') out.reasoningEffort = 'medium';
+  // Opys 2 gets more room per reply and keeps full reasoning; everything else is held to the free-plan limits.
+  const cap = t === 'opys2' ? Math.max(GROQ_OUTPUT_CAP, OPYS2_OUTPUT_CAP) : GROQ_OUTPUT_CAP;
+  const out = { ...base, maxOutputTokens: Math.min(Math.max(base.maxOutputTokens, GROQ_OUTPUT_MIN), cap) };
+  if (t !== 'opys2' && !GROQ_ALLOW_HIGH_REASONING && out.reasoningEffort === 'high') out.reasoningEffort = 'medium';
   return out;
 }
 
@@ -1497,7 +1503,8 @@ function aiErrorMessage(err) {
 }
 
 function getModelList(tier) {
-  if (tier === 'opis' || tier === 'opos' || tier === 'opus' || tier === 'opys' || tier === 'opys2') return GROQ_OPUS_MODELS;
+  if (tier === 'opis' || tier === 'opos' || tier === 'opus' || tier === 'opys') return GROQ_OPUS_MODELS;
+  if (tier === 'opys2') return GROQ_OPYS2_MODELS;
   if (tier === 'opes') return GROQ_PRO_MODELS;
   return GROQ_FAST_MODELS;
 }
@@ -1517,7 +1524,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
   ctx = ctx || {};
   effortCfg = effortCfg || EFFORT_CONFIG.opas.high;
   if (modelIndex === undefined) {
-    const tier = (modelList === GROQ_OPUS_MODELS) ? 'opus' : (modelList === GROQ_PRO_MODELS) ? 'opes' : 'opas';
+    const tier = (modelList === GROQ_OPYS2_MODELS) ? 'opys2' : (modelList === GROQ_OPUS_MODELS) ? 'opus' : (modelList === GROQ_PRO_MODELS) ? 'opes' : 'opas';
     const wm = workingModels[tier];
     const wi = wm ? modelList.indexOf(wm) : -1;
     modelIndex = wi >= 0 ? wi : 0;
@@ -1593,7 +1600,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
       return;
     }
 
-    const tier = modelList === GROQ_OPUS_MODELS ? 'opus' : modelList === GROQ_PRO_MODELS ? 'opes' : 'opas';
+    const tier = modelList === GROQ_OPYS2_MODELS ? 'opys2' : modelList === GROQ_OPUS_MODELS ? 'opus' : modelList === GROQ_PRO_MODELS ? 'opes' : 'opas';
     if (!GROQ_FALLBACKS.includes(model)) workingModels[tier] = model;
     console.log(`Using model: ${model} (tier=${tier})`);
 
@@ -2414,7 +2421,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
 
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(wrapPrompt(systemPrompt), effort),
+    system: applyEffortDirective(wrapPrompt(systemPrompt), effort, modelTier),
     messages: fitHistory(aiHistory(hist).slice(-12)), effortCfg: regenEffortCfg, modelList: regenModelList,
     userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => {
@@ -2517,7 +2524,7 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   const trigger = [{ role: 'user', content: `[Scene opens. ${charName} enters or is already present. Begin the scene — speak first, act first, set the atmosphere. The other person has just arrived. Go.]` }];
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(wrapPrompt(systemPrompt), effort),
+    system: applyEffortDirective(wrapPrompt(systemPrompt), effort, modelTier),
     messages: trigger, effortCfg: greetEffortCfg, modelList: greetModelList,
     userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => { conversations[key].push({ role: 'assistant', content: text }); persistConv(key); },
@@ -2738,7 +2745,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(wrapPrompt(char.systemPrompt) + crisisContext + callModeDirective, effort),
+    system: applyEffortDirective(wrapPrompt(char.systemPrompt) + crisisContext + callModeDirective, effort, modelTier),
     messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => { conversations[key].push({ role: 'assistant', content: text }); persistConv(key); },
     logLabel: 'Chat'
