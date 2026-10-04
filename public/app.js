@@ -60,6 +60,14 @@ function clientMessageCost(tier, effort) {
 }
 // Roughly how many visible characters a full reply has at each effort (used to ramp the live counter up to the cost)
 const EXPECTED_REPLY_CHARS = { low: 250, medium: 500, high: 1200, extra: 2500, max: 4000 };
+// Versions 2 to 5 are asked for a set number of words at High, Extra and Max (must match WORDS_BY_EFFORT / WORDS_BY_VERSION in server.js)
+const WORDS_BY_EFFORT = { high: 350, extra: 600, max: 900 };
+const WORDS_BY_VERSION = { 2: 1, 3: 1.3, 4: 1.8, 5: 2 };
+function expectedReplyChars(tier, effort) {
+  const tv = tierVersion(tier);
+  if (tv && WORDS_BY_EFFORT[effort]) return Math.round(WORDS_BY_EFFORT[effort] * WORDS_BY_VERSION[tv.v] / 50) * 50 * 6;   // about 6 characters a word
+  return EXPECTED_REPLY_CHARS[effort] || 1200;
+}
 // Model tiers each plan may use — must match PLAN_MODEL_TIERS in server.js.
 const PLAN_MODEL_TIERS = {};
 for (const [plan, rank] of Object.entries(PLAN_RANK)) {
@@ -72,17 +80,17 @@ function liveReplyCost() {
   const plan = (typeof lastKnownUsage !== 'undefined' && lastKnownUsage && lastKnownUsage.subscriptionTier) || 'free';
   if (!(PLAN_MODEL_TIERS[plan] || PLAN_MODEL_TIERS.free).includes(tier)) tier = 'opes';
   const effort = callModeActive ? 'low' : (OPES_COST[selectedEffort] ? selectedEffort : 'medium');
-  return { cost: clientMessageCost(tier, effort), effort };
+  return { cost: clientMessageCost(tier, effort), effort, tier };
 }
 function liveCostSoFar(chars) {
-  const { cost, effort } = liveReplyCost();
-  return Math.round(cost * Math.min(1, chars / (EXPECTED_REPLY_CHARS[effort] || 1200)));
+  const { cost, effort, tier } = liveReplyCost();
+  return Math.round(cost * Math.min(1, chars / expectedReplyChars(tier, effort)));
 }
 // The live counter under a reply: it ramps up to the price of the reply and then KEEPS counting at the same pace for as long
 // as the reply keeps writing (long replies run far past the "expected" length). The usage bars still stop at the real price.
 function liveTokensShown(chars) {
-  const { cost, effort } = liveReplyCost();
-  return Math.round(cost * chars / (EXPECTED_REPLY_CHARS[effort] || 1200));
+  const { cost, effort, tier } = liveReplyCost();
+  return Math.round(cost * chars / expectedReplyChars(tier, effort));
 }
 const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', max:'Max' };
 
@@ -1055,7 +1063,7 @@ function updateSettingsUsage(u) {
   if (!settingsModal || settingsModal.style.display === 'none') return;
   const sPct = Math.min(100, Math.round((u.sessionTokens / u.sessionLimit) * 100));
   const wPct = Math.min(100, Math.round((u.weeklyTokens / u.weeklyLimit) * 100));
-  const fillClass = p => p >= 90 ? 'danger' : p >= 70 ? 'warn' : '';
+  const fillClass = p => p >= 90 ? 'danger' : p >= 75 ? 'warn' : '';   // the same steps as the usage window (50 / 75 / 90)
   const sBar = document.getElementById('settingsSessionBar');
   if (sBar) { sBar.style.width = sPct + '%'; sBar.className = 'settings-usage-bar-fill ' + fillClass(sPct); }
   const sPctEl = document.getElementById('settingsSessionPct');
@@ -1940,6 +1948,7 @@ async function generateGreeting() {
   const myEpoch = chatEpoch;   // taken BEFORE any waiting, so a chat switch during the request is noticed
   showTyping(true);
   isStreaming = true;
+  beginLiveBars();
   document.getElementById('sendBtn').disabled = true;
 
   let msgEl = null, bubble = null, gotFirst = false;
@@ -2009,7 +2018,7 @@ async function generateGreeting() {
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
       if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
       scrollToBottom();
-      if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings, pendingUsage.weeklyResetsAt, pendingUsage); }
+      if (pendingUsage) { updateUsageBars(pendingUsage); }
       if (bubble) bubble.classList.remove('streaming');
       if (streamText) saveHistoryLocal();
     });
@@ -2122,6 +2131,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
 
   showTyping(true);
   isStreaming = true;
+  beginLiveBars();
   document.getElementById('sendBtn').disabled = true;
 
   // Give up only when NOTHING has arrived for a while (the server says "still working" every 10 seconds), or after a very long
@@ -2217,7 +2227,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
       if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
       scrollToBottom();
-      if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings, pendingUsage.weeklyResetsAt, pendingUsage); }
+      if (pendingUsage) { updateUsageBars(pendingUsage); }
       if (bubble) {
         bubble.classList.remove('streaming');
         playSound('done');
@@ -2527,11 +2537,19 @@ function usageFillClass(pct) {
   return 'green';
 }
 
+// The usage when this reply began. The server takes the cost of the reply at the very start, so a refresh in the middle of the reply
+// already contains it; counting from this snapshot means the bars never add it twice.
+let liveBase = null;
+function beginLiveBars() {
+  if (lastKnownUsage) applyUsageResets(lastKnownUsage);
+  liveBase = lastKnownUsage ? { s: lastKnownUsage.sessionTokens || 0, w: lastKnownUsage.weeklyTokens || 0 } : null;
+}
 function liveUpdateBars(extraTokens) {
   if (!lastKnownUsage || !lastKnownUsage.sessionLimit) return;
   applyUsageResets(lastKnownUsage);
-  const sBase = lastKnownUsage.sessionTokens || 0;
-  const wBase = lastKnownUsage.weeklyTokens  || 0;
+  if (!liveBase) beginLiveBars();
+  const sBase = liveBase ? liveBase.s : (lastKnownUsage.sessionTokens || 0);
+  const wBase = liveBase ? liveBase.w : (lastKnownUsage.weeklyTokens  || 0);
   const sEst = sBase + extraTokens;
   const wEst = wBase + extraTokens;
   const sPct = Math.min(100, Math.round(sEst / lastKnownUsage.sessionLimit * 100));
@@ -2543,7 +2561,7 @@ function liveUpdateBars(extraTokens) {
 }
 
 function updateUsageBars(usage) {
-  pruneWarningBanners(usage);
+  renderUsageBanners(usage);
   updateUsageModal(usage);
   updateSettingsUsage(usage);
   if (usage.cooldownUntil && Date.now() < usage.cooldownUntil) {
@@ -2708,109 +2726,51 @@ function showWarning(msg, autoCloseMs, persistent) {
   if (autoCloseMs && !persistent) setTimeout(() => banner.remove(), autoCloseMs);
 }
 
-// localStorage key for warning timestamps per user
-function warnTsKey(userId, key) { return `cm_warn_ts_${userId}_${key}`; }
+// ── Usage warning banners ──────────────────────────────────────────────────────
+// Always drawn from the CURRENT usage numbers (never from one-off events or saved timestamps), so they are the same after every
+// reload, on every device and in every browser. They use the same steps as the bar colours and the headline: 50%, 75% and 90%.
+const WEEKLY_BANNER_TEXT = { 50: "You've used half of your weekly limit.", 75: "You've used 75% of your weekly limit.", 90: "You've used 90% of your weekly limit." };
+const SESSION_BANNER_TEXT = { 90: "You've used 90% of your session limit." };   // a session is short and resets by itself, so one warning is enough
+function usagePctOf(used, limit) { return (limit > 0 && typeof used === 'number') ? Math.min(100, Math.round(used / limit * 100)) : 0; }   // the same rounding the bars show
+function usageStep(pct) { return pct >= 90 ? 90 : pct >= 75 ? 75 : pct >= 50 ? 50 : 0; }
+function bannerDismissKey() { return 'cm_usage_banner_dismissed_' + (currentUser?.googleId || 'anon'); }
+function loadBannerDismissals() { try { return JSON.parse(localStorage.getItem(bannerDismissKey()) || '{}') || {}; } catch (_) { return {}; } }
+function saveBannerDismissal(kind, level, windowStart) { try { const d = loadBannerDismissals(); d[kind] = { level, windowStart }; localStorage.setItem(bannerDismissKey(), JSON.stringify(d)); } catch (_) {} }
+// closing a banner hides that level until the usage reaches a higher level or a new week / session begins
+function bannerDismissed(w) { const d = loadBannerDismissals()[w.kind]; return !!d && d.windowStart === w.windowStart && d.level >= w.level; }
 
-const H24 = 24 * 60 * 60 * 1000;
-const H3  =  3 * 60 * 60 * 1000;
-
-// The warnings and the usage each one is about. A warning is only shown (or kept on screen) while the usage is still that high:
-// after a reset, a refund, a new session or a new week it is no longer true, and an old saved one must not come back.
-const WARN_RULES = [
-  { key: 'weekly25',  type: 'weekly',  pct: 25, msg: 'Approaching your weekly limit.' },
-  { key: 'weekly50',  type: 'weekly',  pct: 50, msg: 'Approaching your weekly limit.' },
-  { key: 'weekly75',  type: 'weekly',  pct: 75, msg: "You've used 75% of your weekly limit." },
-  { key: 'weekly90',  type: 'weekly',  pct: 90, msg: "You've used 90% of your weekly limit." },
-  { key: 'session90', type: 'session', pct: 90, msg: "You've used 90% of your session limit." },
-];
-function warningStillTrue(type, pct, usage) {
-  if (!usage) return true;
-  const used = type === 'session' ? usage.sessionTokens : usage.weeklyTokens;
-  const limit = type === 'session' ? usage.sessionLimit : usage.weeklyLimit;
-  if (!(limit > 0) || typeof used !== 'number') return true;   // no numbers to check against: leave things as they are
-  return (used / limit) * 100 >= pct;
-}
-// Take down any warning on screen whose usage level is no longer reached
-function pruneWarningBanners(usage) {
+function renderUsageBanners(usage) {
   const container = document.getElementById('warningBanners');
   if (!container || !usage) return;
-  for (const msg of new Set(WARN_RULES.map(r => r.msg))) {
-    if (WARN_RULES.some(r => r.msg === msg && warningStillTrue(r.type, r.pct, usage))) continue;
-    [...container.children].forEach(b => { if ((b.dataset.warnMsg || b.querySelector('span')?.textContent || '').trim() === msg) b.remove(); });
-  }
-}
-
-function processWarnings(warnings, weeklyResetsAt, usage) {
-  if (!warnings || !warnings.length) return;
-  const uid = currentUser?.googleId || 'anon';
-  const now = Date.now();
-  for (const w of warnings) {
-    if (!warningStillTrue(w.type, w.pct, usage)) continue;
-    const key = w.type + w.pct;
-    const tsKey = warnTsKey(uid, key);
-    let triggerTs = null;
-    try { triggerTs = parseInt(localStorage.getItem(tsKey) || '0', 10) || null; } catch (_) {}
-
-    const isWeekly90  = w.type === 'weekly'  && w.pct === 90;
-    const isSession90 = w.type === 'session' && w.pct === 90;
-
-    const showMsg = (w.pct >= 50 && w.type === 'weekly')
-      ? w.msg + ' — '  // upgrade link appended via showWarningWithUpgrade
-      : w.msg;
-    if (isWeekly90) {
-      if (!triggerTs) { try { localStorage.setItem(tsKey, String(now)); } catch (_) {} triggerTs = now; }
-      if (!weeklyResetsAt || now < weeklyResetsAt) showWarningWithUpgrade(w.msg, 0, true);
-      else try { localStorage.removeItem(tsKey); } catch (_) {}
-    } else if (isSession90) {
-      if (!triggerTs) { try { localStorage.setItem(tsKey, String(now)); } catch (_) {} triggerTs = now; }
-      const hideAt = triggerTs + H3;
-      if (now < hideAt) showWarning(w.msg, hideAt - now);
-    } else if (w.pct >= 50 && w.type === 'weekly') {
-      // 50 / 75% weekly — show with upgrade CTA, auto-hides 24h after trigger
-      if (!triggerTs) { try { localStorage.setItem(tsKey, String(now)); } catch (_) {} triggerTs = now; }
-      const hideAt = triggerTs + H24;
-      if (now < hideAt) showWarningWithUpgrade(w.msg, hideAt - now, false);
-    } else {
-      // 25% weekly — plain banner, auto-hides 24h after trigger
-      if (!triggerTs) { try { localStorage.setItem(tsKey, String(now)); } catch (_) {} triggerTs = now; }
-      const hideAt = triggerTs + H24;
-      if (now < hideAt) showWarning(w.msg, hideAt - now);
+  const want = [];
+  const wStep = usageStep(usagePctOf(usage.weeklyTokens, usage.weeklyLimit));
+  if (wStep) want.push({ kind: 'weekly', level: wStep, msg: WEEKLY_BANNER_TEXT[wStep], windowStart: usage.weeklyStart || 0, upgrade: true, persistent: wStep === 90 });
+  const sStep = usageStep(usagePctOf(usage.sessionTokens, usage.sessionLimit));
+  if (SESSION_BANNER_TEXT[sStep]) want.push({ kind: 'session', level: sStep, msg: SESSION_BANNER_TEXT[sStep], windowStart: usage.sessionStartedAt || 0, upgrade: false, persistent: false });
+  // take down any usage banner that no longer applies (a reset, a new week, a lower level...)
+  [...container.querySelectorAll('.warning-banner[data-usage-kind]')].forEach(b => {
+    if (!want.some(w => w.kind === b.dataset.usageKind && String(w.level) === b.dataset.usageLevel)) b.remove();
+  });
+  for (const w of want) {
+    if (!w.persistent && bannerDismissed(w)) continue;
+    if (container.querySelector('.warning-banner[data-usage-kind="' + w.kind + '"][data-usage-level="' + w.level + '"]')) continue;
+    const banner = document.createElement('div');
+    banner.className = 'warning-banner' + (w.persistent ? ' warning-banner-critical' : '');
+    banner.dataset.usageKind = w.kind; banner.dataset.usageLevel = String(w.level); banner.dataset.warnMsg = w.msg;
+    const text = document.createElement('span');
+    text.textContent = w.msg + (w.upgrade ? ' ' : '');
+    banner.appendChild(text);
+    if (w.upgrade) {
+      const link = document.createElement('button');
+      link.className = 'warning-upgrade-link'; link.textContent = 'Upgrade \u2192'; link.onclick = () => openPricingModal();
+      banner.appendChild(link);
     }
-    warnedThresholds.add(key);
-  }
-}
-
-// On page load, restore any banners that are still within their window
-function restoreWarningBanners(usage) {
-  if (!currentUser) return;
-  const uid = currentUser.googleId;
-  const now = Date.now();
-  const weeklyResetsAt = usage?.weeklyResetsAt || 0;
-
-  const checks = [
-    { key: 'weekly25', type: 'weekly',  pct: 25, msg: 'Approaching your weekly limit.',        ttl: H24, persistent: false, upgrade: false },
-    { key: 'weekly50', type: 'weekly',  pct: 50, msg: 'Approaching your weekly limit.',        ttl: H24, persistent: false, upgrade: true  },
-    { key: 'weekly75', type: 'weekly',  pct: 75, msg: "You've used 75% of your weekly limit.", ttl: H24, persistent: false, upgrade: true  },
-    { key: 'weekly90', type: 'weekly',  pct: 90, msg: "You've used 90% of your weekly limit.", ttl: 0,   persistent: true,  upgrade: true  },
-    { key: 'session90',type: 'session', pct: 90, msg: "You've used 90% of your session limit.", ttl: H3, persistent: false, upgrade: false },
-  ];
-  for (const c of checks) {
-    const tsKey = warnTsKey(uid, c.key);
-    let ts = null;
-    try { ts = parseInt(localStorage.getItem(tsKey) || '0', 10) || null; } catch (_) {}
-    if (!ts) continue;
-    // saved from an earlier moment, but the usage is no longer that high (reset, refund, new session or week): forget it
-    if (!warningStillTrue(c.type, c.pct, usage)) { try { localStorage.removeItem(tsKey); } catch (_) {} continue; }
-    if (c.persistent) {
-      if (!weeklyResetsAt || now < weeklyResetsAt) showWarningWithUpgrade(c.msg, 0, true);
-      else try { localStorage.removeItem(tsKey); } catch (_) {}
-    } else {
-      const hideAt = ts + c.ttl;
-      if (now < hideAt) {
-        if (c.upgrade) showWarningWithUpgrade(c.msg, hideAt - now, false);
-        else showWarning(c.msg, hideAt - now);
-      } else try { localStorage.removeItem(tsKey); } catch (_) {}
-    }
+    const close = document.createElement('button');
+    close.className = 'warning-banner-close'; close.setAttribute('aria-label', 'Dismiss'); close.textContent = '\u2715';
+    if (w.persistent) close.style.display = 'none';   // the 90% weekly warning stays until the week resets
+    else close.onclick = () => { saveBannerDismissal(w.kind, w.level, w.windowStart); banner.remove(); };
+    banner.appendChild(close);
+    container.appendChild(banner);
   }
 }
 
@@ -2825,7 +2785,6 @@ async function loadUsage() {
     loadAccountPrefs();
     updateUsageBars(usage);
     updateUsageTimestamp();
-    restoreWarningBanners(usage);
     updateSettingsPlanCard(usage.subscriptionTier);
     renderUserBadge();
     updateModelPickerLocks();
@@ -4539,6 +4498,7 @@ async function regenerate() {
   if (isStreaming || !currentChar) return;
   const myEpoch = chatEpoch;   // taken BEFORE any waiting, so a chat switch during the request is noticed
   isStreaming = true;
+  beginLiveBars();
   document.getElementById('sendBtn').disabled = true;
 
   const messagesDiv = document.getElementById('messages');
@@ -4623,7 +4583,7 @@ async function regenerate() {
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
       if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
       scrollToBottom();
-      if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings, pendingUsage.weeklyResetsAt, pendingUsage); }
+      if (pendingUsage) { updateUsageBars(pendingUsage); }
       if (bubble) bubble.classList.remove('streaming');
       if (streamText) {
         const store = regenStore.get(id);

@@ -707,8 +707,7 @@ function addTokens(sid, tokens) {
   const warnings = [];
   if (sPct >= 90 && !u.warned.session90) { u.warned.session90 = true; warnings.push({ type: 'session', pct: 90, msg: "You've used 90% of your session limit." }); }
   const wt = [
-    { pct: 25, key: 'weekly25', msg: 'Approaching your weekly limit.' },
-    { pct: 50, key: 'weekly50', msg: 'Approaching your weekly limit.' },
+    { pct: 50, key: 'weekly50', msg: "You've used half of your weekly limit." },
     { pct: 75, key: 'weekly75', msg: "You've used 75% of your weekly limit." },
     { pct: 90, key: 'weekly90', msg: "You've used 90% of your weekly limit." },
   ];
@@ -734,7 +733,7 @@ function refundTokens(sid, tokens) {
   if (u.warned) {
     if ((u.sessionTokens / sessionLimitFor(u)) * 100 < 90) u.warned.session90 = false;
     const wPct = (u.weeklyTokens / weeklyLimitFor(u)) * 100;
-    for (const [k, p] of [['weekly25', 25], ['weekly50', 50], ['weekly75', 75], ['weekly90', 90]]) if (wPct < p) u.warned[k] = false;
+    for (const [k, p] of [['weekly50', 50], ['weekly75', 75], ['weekly90', 90]]) if (wPct < p) u.warned[k] = false;
   }
   saveLimitsToDB(sid);
 }
