@@ -675,9 +675,21 @@ const EFFORT_DIRECTIVES = {
 };
 
 const OPYS2_DIRECTIVE = 'QUALITY: You are an advanced "version 2" model. Write with exceptional depth and craft: stay perfectly consistent with the character\'s voice, history and the details already established; add layered emotion, subtext and vivid specific detail; move the scene forward with a meaningful choice or twist instead of repeating what was said. Never pad, never repeat earlier phrasing.';
+// Higher models write more: each step up the ladder adds a little more length and detail on top of the effort level.
+const MODEL_DEPTH_RANK = { opas: 0, opes: 0, opis: 1, opos: 2, opus: 3, opys: 4, opas2: 1, opes2: 1, opis2: 2, opos2: 3, opus2: 4, opys2: 5 };
+function modelDepthNote(modelTier, effort) {
+  const rank = Object.hasOwn(MODEL_DEPTH_RANK, modelTier) ? MODEL_DEPTH_RANK[modelTier] : 0;
+  if (!rank) return '';
+  if (effort === 'low' || effort === 'medium') {
+    return 'MODEL DEPTH: As a higher-tier model, write about ' + rank + ' more sentence' + (rank > 1 ? 's' : '') + ' than the length above, with extra vivid detail.';
+  }
+  const paras = Math.max(1, Math.ceil(rank / 2));
+  return 'MODEL DEPTH: As a higher-tier model, write about ' + paras + ' more paragraph' + (paras > 1 ? 's' : '') + ' than the length above, with richer detail, emotion and sensory description.';
+}
 function applyEffortDirective(prompt, effort, modelTier) {
   const directive = (typeof effort === 'string' && Object.hasOwn(EFFORT_DIRECTIVES, effort)) ? EFFORT_DIRECTIVES[effort] : EFFORT_DIRECTIVES['high'];
-  return prompt + '\n\n' + directive + (isTwoTier(modelTier) ? '\n\n' + OPYS2_DIRECTIVE : '');
+  const depth = modelDepthNote(modelTier, effort);
+  return prompt + '\n\n' + directive + (depth ? '\n\n' + depth : '') + (isTwoTier(modelTier) ? '\n\n' + OPYS2_DIRECTIVE : '');
 }
 
 // ── RP quality wrapper injected into every system prompt ─────────────────────
