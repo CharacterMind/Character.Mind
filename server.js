@@ -403,9 +403,9 @@ const LIMITS = {
 };
 
 // Plan limits are set in tokens (what a reply is charged: model tokens x model multiplier x effort multiplier).
-// Free is sized so a free user normally reaches the session limit in ~30 minutes (20-40) of chatting on Opes:
-// ~32 Medium messages at ~1 min each, or ~14 High messages at ~2 min each. Advanced is 2.5x Free;
-// X20 and X50 are multiples of Advanced, for both session and weekly.
+// Free is sized for roughly an hour of steady chatting on Opes (~64 Medium or ~28 High messages per session),
+// with the cheaper Opas going much further. Advanced is 2.5x Free; X20 and X50 are multiples of Advanced,
+// for both session and weekly.
 // Weekly = 5 sessions' worth, so nobody can run every session back to back all week.
 // Messages are an outcome, not an input. An "average message" (Opes at High effort) is ~3,200 charged tokens;
 // lighter models/efforts get more messages and heavier ones get fewer.
@@ -413,8 +413,8 @@ const AVG_MESSAGE_TOKENS = 3200;
 const X20_MULT = 20;  // X20 = 20x Advanced
 const X50_MULT = 50;  // X50 = 50x Advanced
 const TIER_TOKEN_LIMITS = {
-  free:     { session: 45000,  weekly: 225000 },
-  advanced: { session: 112500, weekly: 562500 },
+  free:     { session: 90000,  weekly: 450000 },
+  advanced: { session: 225000, weekly: 1125000 },
 };
 TIER_TOKEN_LIMITS.x20 = { session: TIER_TOKEN_LIMITS.advanced.session * X20_MULT, weekly: TIER_TOKEN_LIMITS.advanced.weekly * X20_MULT };
 TIER_TOKEN_LIMITS.x50 = { session: TIER_TOKEN_LIMITS.advanced.session * X50_MULT, weekly: TIER_TOKEN_LIMITS.advanced.weekly * X50_MULT };
