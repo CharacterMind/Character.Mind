@@ -512,8 +512,26 @@ for (const b of BASE_TIERS) for (const v of VERSIONS) MODEL_TOKEN_MULT[b + v] = 
 const VERSION_FACTOR    = { 2: 1.5, 3: 3, 4: 6, 5: 16 };
 const VERSION_MAX_BOOST = { 2: 1.25, 3: 2.5, 4: 4, 5: 5 };
 // Reply room (relative to the base model) and the most tokens a reply may use, per version
-const VERSION_ROOM = { 2: 1.5, 3: 1.75, 4: 2, 5: 2.25 };
-const VERSION_CAP  = { 2: 2800, 3: 3000, 4: 3200, 5: 3500 };
+const VERSION_ROOM = { 2: 1.5, 3: 1.75, 4: 2.25, 5: 2.75 };
+const VERSION_CAP  = { 2: 2800, 3: 3300, 4: 3900, 5: 4500 };
+const VERSION_CAP_SCALE = Number(process.env.VERSION_CAP_SCALE) || 1;
+for (const k of Object.keys(VERSION_CAP)) VERSION_CAP[k] = Math.round(VERSION_CAP[k] * VERSION_CAP_SCALE);
+// Groq's free plan allows about 8,000 tokens per request, counting the prompt AND the reply room together.
+// So the bigger the reply room, the smaller the prompt has to be. The reply room is fitted to what the prompt leaves over.
+const GROQ_REQUEST_BUDGET = Number(process.env.GROQ_REQUEST_BUDGET) || 7400;
+const MIN_REPLY_ROOM = 1200;
+function estimateTokens(str) { return Math.ceil(String(str || '').length / 3.4); }
+function fitOutputRoom(cfg, system, messages) {
+  const used = estimateTokens(system) + (messages || []).reduce((n, m) => n + estimateTokens(m && m.content) + 6, 0) + 40;
+  const allowed = Math.max(MIN_REPLY_ROOM, GROQ_REQUEST_BUDGET - used);
+  return allowed < cfg.maxOutputTokens ? { ...cfg, maxOutputTokens: allowed } : cfg;
+}
+// A bigger reply means less room for old messages (Version 5's long-term notes make up for it)
+function historyBudgetFor(modelTier) {
+  const tv = tierVersion(modelTier);
+  if (!tv) return HISTORY_CHAR_BUDGET;
+  return ({ 2: 7000, 3: 6000, 4: 4500, 5: 3000 })[tv.v] || HISTORY_CHAR_BUDGET;
+}
 // Which plan first unlocks each base model, and the plan ranks
 const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1, opus: 2, opys: 3 };
 const PLAN_RANK = { free: 0, advanced: 1, x20: 2, x50: 3 };
@@ -832,11 +850,23 @@ async function buildMemoryNote(modelTier, fullMsgs, key, charName) {
   return parts.length ? '\n\n' + parts.join('\n\n') : '';
 }
 
+// How long a long reply should be. These fit inside what the free Groq plan can hold; if the Groq limits are ever raised, set
+// GROQ_LENGTH_SCALE (for example 3) together with GROQ_REQUEST_BUDGET and VERSION_CAP_SCALE and every length grows with them.
+const LENGTH_SCALE = Number(process.env.GROQ_LENGTH_SCALE) || 1;
+const WORDS_BY_EFFORT = { high: 350, extra: 600, max: 900 };
+const WORDS_BY_VERSION = { 2: 1, 3: 1.3, 4: 1.8, 5: 2 };
+function lengthTargetNote(modelTier, effort) {
+  const tv = tierVersion(modelTier);
+  if (!tv || !Object.hasOwn(WORDS_BY_EFFORT, effort)) return '';
+  const words = Math.round(WORDS_BY_EFFORT[effort] * WORDS_BY_VERSION[tv.v] * LENGTH_SCALE / 50) * 50;
+  return 'LENGTH TARGET: this is a long-form reply. Aim for roughly ' + words + ' words, keep every paragraph full, and do not wrap up early.';
+}
 function applyEffortDirective(prompt, effort, modelTier) {
   const directive = (typeof effort === 'string' && Object.hasOwn(EFFORT_DIRECTIVES, effort)) ? EFFORT_DIRECTIVES[effort] : EFFORT_DIRECTIVES['high'];
   const depth = modelDepthNote(modelTier, effort);
   const style = modelStyleNote(modelTier);
-  return prompt + '\n\n' + directive + (depth ? '\n\n' + depth : '') + (style ? '\n\n' + style : '') + (isVersionedTier(modelTier) ? '\n\n' + OPYS2_DIRECTIVE : '');
+  const target = lengthTargetNote(modelTier, effort);
+  return prompt + '\n\n' + directive + (depth ? '\n\n' + depth : '') + (target ? '\n\n' + target : '') + (style ? '\n\n' + style : '') + (isVersionedTier(modelTier) ? '\n\n' + OPYS2_DIRECTIVE : '');
 }
 
 // ── RP quality wrapper injected into every system prompt ─────────────────────
@@ -1644,6 +1674,7 @@ function withSigs(userId, charId, msgs) {
 // lets an exception leave the response hanging.
 function startReplyStream(o) {
   const { res, apiKey, system, messages, effortCfg, modelList, userId, charId, modelTier, effort, releaseSlot, onComplete, onFail, logLabel } = o;
+  const effortCfgFit = fitOutputRoom(effortCfg, system, messages);   // never ask for more reply room than the request can hold
   const ctx = { aborted: false, req: null };
   res.on('close', () => {
     if (!res.writableEnded) { ctx.aborted = true; if (ctx.req) ctx.req.destroy(new Error('client aborted')); }
@@ -1690,7 +1721,7 @@ function startReplyStream(o) {
       } catch (e) { finished = false; fail(e); }
     },
     (err) => fail(err),
-    undefined, effortCfg, modelList, ctx);
+    undefined, effortCfgFit, modelList, ctx);
 }
 
 // A clear message when the AI provider is rate-limiting us (instead of a generic error)
@@ -2735,7 +2766,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   startReplyStream({
     res, apiKey,
     system: applyEffortDirective(wrapPrompt(systemPrompt), effort, modelTier) + regenMem,
-    messages: fitHistory(aiHistory(hist).slice(-12), Math.max(3500, HISTORY_CHAR_BUDGET - regenMem.length)), effortCfg: regenEffortCfg, modelList: regenModelList,
+    messages: fitHistory(aiHistory(hist).slice(-12), historyBudgetFor(modelTier)), effortCfg: regenEffortCfg, modelList: regenModelList,
     userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => {
       hist.push({ role: 'assistant', content: text }); persistConv(key);
@@ -3031,7 +3062,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   // Chat APIs require the last turn to be a user turn — inject a hidden continuation trigger if needed
   const memNote = await buildMemoryNote(modelTier, aiHistory(conversations[key]), key, (dbChar && dbChar.name) || charId);
   // the memory note takes some of the room, so the oldest recent messages make way for it (the request size stays the same)
-  const history = fitHistory(aiHistory(conversations[key]).slice(-12), Math.max(3500, HISTORY_CHAR_BUDGET - memNote.length));
+  const history = fitHistory(aiHistory(conversations[key]).slice(-12), historyBudgetFor(modelTier));
   const lastRole = history[history.length - 1]?.role;
   let messagesForGroq = (isContinuation && lastRole !== 'user')
     ? [...history, { role: 'user', content: '...' }]
