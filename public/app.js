@@ -27,7 +27,7 @@ let selectedEffort = (() => {
 
 const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys' };
 // Must match MODEL_TOKEN_MULT in server.js — how fast each tier uses up the token allowance.
-const MODEL_TOKEN_MULT = { opas: 1, opes: 2, opis: 3, opos: 5, opus: 8, opys: 12 };
+const MODEL_TOKEN_MULT = { opas: 1, opes: 4, opis: 6, opos: 8, opus: 12, opys: 16 };
 const EFFORT_TOKEN_MULT = { low: 1, medium: 1, high: 1, extra: 1.5, max: 2 }; // matches server.js
 // Model tiers each plan may use — must match PLAN_MODEL_TIERS in server.js.
 const PLAN_MODEL_TIERS = {
