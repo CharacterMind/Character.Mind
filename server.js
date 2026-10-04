@@ -566,6 +566,10 @@ Stay in character as described above at all times — never break character to l
 
 ONE EXCEPTION — GENUINE DISTRESS: If a user's message suggests they may be personally struggling — real suicidal thoughts, self-harm, or severe emotional pain (not a fictional character speaking, not the plot of a story, but the actual human behind the screen hurting right now) — step out of character briefly. Speak as yourself, warmly and simply. Something like: "Hey — stepping out of the story for a second. Are you doing okay?" Then follow their lead entirely. If they say they're fine or want to keep the roleplay going, go straight back into character without making it a big deal. If they want to talk, listen with real warmth. If they seem to be in serious crisis, gently suggest they reach out to a local crisis line or someone they trust. No lectures, no forced endings — just genuine care.
 
+TWO MORE EXCEPTIONS — PLATFORM RULES AND SUPPORT:
+1. If the user asks why you can't do anything sexual or explicit, step out of the scene briefly and explain kindly that Character.Mind has Terms of Service and a Privacy Policy that do not allow sexual or explicit content, and that you have to follow them. Say "Character.Mind" or "Character Mind" — vary it naturally. Mention that they can contact the support team if they disagree or think something was flagged by mistake. Do not lecture, do not be cold, and never write anything sexual.
+2. If the user asks how to contact support, the team, or for the support email, give them this address exactly: ${SUPPORT_EMAIL}
+
 [WRITING CRAFT — follow this precisely]
 Write like a skilled author, not a chatbot. These rules are non-negotiable:
 
@@ -943,6 +947,30 @@ const NSFW_DEFLECT = [
   "[ Character.Mind ] Explicit content isn't something Character.Mind generates. That message goes against our Terms of Use.",
   "[ Character.Mind ] This message has been blocked. Sexual content is not permitted per our Terms of Use.",
 ];
+
+const SUPPORT_EMAIL = 'support.charactermind@gmail.com';
+
+// "Why can't you do sexual stuff?" — answered with a policy explanation instead of the block card.
+const POLICY_WHY_RE = /\b(why|how\s+come)\b/i;
+const POLICY_TOPIC_RE = /\b(sex|sexual|sexy|nsfw|explicit|erotic|porn|smut|lewd|nude|naked|horny|dick|cock|penis|pussy|vagina|tits|boobs|breasts?|masturbat\w*|orgasm|adult\s+content)\b/i;
+const POLICY_REFUSAL_RE = /\b(can'?t|cannot|won'?t|wont|not\s+allowed|allowed|blocked?|refuse|refusing|deflect\w*|filter\w*|censor\w*|forbidden|aren'?t|isn'?t|don'?t|doesn'?t)\b/i;
+
+function isPolicyWhyQuestion(msg) {
+  return !!msg && msg.length < 400 && POLICY_WHY_RE.test(msg) && POLICY_TOPIC_RE.test(msg) && POLICY_REFUSAL_RE.test(msg);
+}
+
+function buildPolicyExplanation() {
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  const brand = pick(['Character.Mind', 'Character Mind']);
+  const brand2 = pick(['Character.Mind', 'Character Mind']);
+  const templates = [
+    `Good question. Sexual and explicit content isn't allowed under the ${brand} Terms of Service, and every character here has to follow them. It's a platform rule, not something personal. If you think a message was flagged by mistake, you can contact our support team. Just ask me and I'll give you the email.`,
+    `I can't do anything sexual or explicit because ${brand}'s Terms of Service and Privacy Policy don't permit it, and I have to stay within them. That goes for every character on ${brand2}, not just me. If you'd like to talk to a real person about it, ask me for the support email.`,
+    `That's just how ${brand} works. Our Terms of Service rule out sexual and explicit content, so I'm not able to go there, no matter the story. You can read the Terms of Service and Privacy Policy on ${brand2}. And if you have questions or feel something was blocked unfairly, reach out to support. I'm happy to share the email if you ask.`,
+    `It comes down to the ${brand} Terms of Service. They don't allow sexual or explicit content, and I'm required to follow them, along with the Privacy Policy. It isn't a judgment on you. If you'd like to take it up with the team, you can contact support, and I can give you the address if you ask.`
+  ];
+  return pick(templates);
+}
 
 const NSFW_CARD_VARIANTS = 4;
 
@@ -2038,6 +2066,14 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     await setModStatus(userId, charId, newStrikes, false);
     const warning = newStrikes === 1 ? SLUR_WARNING_1 : SLUR_WARNING_2;
     return slurDeflect(res, warning, buildUsagePayload(getLimits(userId), userId));
+  }
+
+  // ── "Why can't you do that?" about sexual content — explain the rules, don't block ──
+  if (!isContinuation && message && isPolicyWhyQuestion(msgNorm)) {
+    const explanation = buildPolicyExplanation();
+    conversations[key].push({ role: 'user', content: message }, { role: 'assistant', content: explanation });
+    const usage = addTokens(userId, Math.round(explanation.length / 3.5));
+    return slurDeflect(res, explanation, usage);
   }
 
   // ── NSFW detection — return a random deflection, no Gemini call needed ───────
