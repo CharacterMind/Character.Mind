@@ -321,7 +321,7 @@ async function verifyAndActivateSubscription(subscriptionId, planKey) {
       setTimeout(() => {
         closePaypalCheckout();
         closePricingModal();
-        fetchUsageAndUpdateUI();
+        loadUsage();
         showWarning(`Welcome to ${PLAN_LABELS[planKey]}! Your new limits are now active.`, 5000);
       }, 1800);
     } else {
