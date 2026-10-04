@@ -416,7 +416,9 @@ function matchCharacterTemplate(name) {
       const isMultiWord = na.includes(' ');
       const isLong = na.length >= 8;
       if (!isMultiWord && !isLong) continue; // skip short single-word aliases in substring pass
-      if (norm.includes(na) || na.includes(norm)) return t;
+      // The typed name may contain the alias ("Poppy Playtime Doll"), or be most of a longer alias ("Bobby Bearhu"). A short name that merely
+      // appears INSIDE a long alias ("A", "Cat", "Jack", "Day") is a different character and must never get that persona.
+      if (norm.includes(na) || (na.includes(norm) && norm.length >= Math.ceil(na.length * 0.7))) return t;
     }
   }
 

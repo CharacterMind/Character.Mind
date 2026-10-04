@@ -178,7 +178,10 @@ app.use((req, res, next) => {
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 // Behind Cloudflare the real visitor address arrives in CF-Connecting-IP (Cloudflare sets it itself). Without it, req.ip can be a
 // Cloudflare address shared by thousands of visitors, which would make per-address limits block real people.
-const visitorIp = (req) => { const h = req.headers['cf-connecting-ip']; return (typeof h === 'string' && /^[0-9a-fA-F:.]{3,45}$/.test(h)) ? h : req.ip; };
+// Only trust that header when the site really sits behind Cloudflare (set TRUST_CLOUDFLARE=1 then). Without Cloudflare in front, anyone could
+// send a made-up CF-Connecting-IP and slip past every per-address limit; Render's own forwarded address (req.ip) is the real one.
+const TRUST_CLOUDFLARE = /^(1|true|on)$/i.test(String(process.env.TRUST_CLOUDFLARE || '').trim());
+const visitorIp = (req) => { const h = TRUST_CLOUDFLARE ? req.headers['cf-connecting-ip'] : null; return (typeof h === 'string' && /^[0-9a-fA-F:.]{3,45}$/.test(h)) ? h : req.ip; };
 const perUserKey = (req) => req.user?.googleId || ipKeyGenerator(visitorIp(req));
 const authLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => ipKeyGenerator(visitorIp(req)) });
 app.use('/auth/google', authLimiter);
@@ -202,7 +205,9 @@ app.use((req, res, next) => {
   if (p === '/maintenance.html' || p.startsWith('/maintenance/') || p.startsWith('/api/webhooks/') || p === '/robots.txt' || p === '/favicon.ico') return next();
   res.setHeader('Retry-After', '120');
   res.setHeader('Cache-Control', 'no-store');
-  if (p.startsWith('/api/') || p.startsWith('/auth/')) return res.status(503).json({ error: 'character.mind is under maintenance. Please try again in a few minutes.', maintenance: true });
+  // a person's browser opening a /auth/... address (the end of a sign-in, for instance) gets the maintenance page, not raw JSON
+  const wantsPage = req.method === 'GET' && String(req.headers.accept || '').includes('text/html');
+  if (p.startsWith('/api/') || (p.startsWith('/auth/') && !wantsPage)) return res.status(503).json({ error: 'character.mind is under maintenance. Please try again in a few minutes.', maintenance: true });
   return res.status(503).sendFile(path.join(__dirname, 'public', 'maintenance.html'));
 });
 app.use(express.static(path.join(__dirname, 'public'), {
@@ -1361,8 +1366,9 @@ const NSFW_RE = new RegExp(
   '\\w+\\s+(my|your|his|her|their)\\s+' + NSFW_BODY_PARTS + '|' +
   // classic explicit acts
   'blow\\s*job|hand\\s*job|rim\\s*job|rim\\s+me|' +
-  'finger\\s+(me|you|her|him)\\b|fist\\s+(me|you|her|him)\\b|' +
-  'fuck\\s+(me|you|her|him|us|each\\s+other)\\b|' +
+  'finger\\s+(me|you|her|him)\\b|fist\\s+me\\b|' +
+  // "fuck him up / off / over" is anger, not sex
+  'fuck\\s+(me|you|her|him|us|each\\s+other)\\b(?!\\s+(up|off|over|around)\\b)|' +
   // body part + preposition (inside me, in me, on me)
   NSFW_BODY_PARTS + '\\s*(in|into|inside|on)\\s*(me|you|my|your|his|her)|' +
   // cum/orgasm
@@ -1379,10 +1385,11 @@ const NSFW_RE = new RegExp(
   'jerk\\s+(me|you|him)\\s+off|jack\\s+(me|you|him)\\s+off|' +
   'masturbat(e|ing)\\s+(me|for\\s+me|together)|' +
   // action during sex
-  'inside\\s+(me|you)\\s+(now|please|deeper)\\b|go\\s+deeper\\b|' +
+  // (a bare "go deeper", "pound him" or "ride him hard" is ordinary story talk: caves, fights, horses, so each needs sexual context)
+  'inside\\s+(me|you)\\s+(now|please|deeper)\\b|go\\s+deeper\\s+(inside|into)\\s+(me|you)\\b|' +
   'thrust(ing)?\\s+into\\s+(me|you)\\b|' +
-  'ride\\s+(me|you|him|her)\\s+(hard|fast|now|please)\\b|' +
-  'pound\\s+(me|you|her|him)\\b|' +
+  'ride\\s+(me|you)\\s+(hard|harder|fast|faster|now|please)\\b|' +
+  'pound\\s+(me|you)\\s+(harder|hard|deeper|faster|now|please)\\b|' +
   'jerk(ing)?\\s+off\\b|send\\s+(me\\s+)?nudes?\\b' +
   ')\\b',
   'i'
@@ -1904,6 +1911,8 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
   let gotResponse = false;
   const req = https.request({ hostname: 'api.groq.com', path: reqPath, method: 'POST', headers }, (res) => {
     gotResponse = true;
+    // Decode as UTF-8 across chunk boundaries: an emoji, curly quote or dash split between two network packets must not turn into "�"
+    if (typeof res.setEncoding === 'function') res.setEncoding('utf8');
     if (res.statusCode !== 200) {
       let errBody = '';
       res.on('data', d => errBody += d);
@@ -2754,6 +2763,11 @@ app.delete('/api/characters/:id', requireAuth, async (req, res) => {
     if (check.rows[0].device_id !== userId) return res.status(403).json({ error: 'Not your character' });
     await db.query('DELETE FROM characters WHERE id = $1', [req.params.id]);
     db.query('DELETE FROM story_summaries WHERE char_id = $1', [req.params.id]).catch(() => {});
+    // The character is gone: forget it everywhere, so nobody can keep chatting with (or syncing chats into) a character that no longer exists
+    knownCharIds.delete(req.params.id);
+    db.query('DELETE FROM chat_current WHERE char_id = $1', [req.params.id]).catch(() => {});
+    db.query('DELETE FROM chat_moderation WHERE char_id = $1', [req.params.id]).catch(() => {});
+    for (const k of Object.keys(conversations)) { if (k.endsWith(':' + req.params.id)) delete conversations[k]; }
     invalidateCharList();
     res.json({ ok: true });
   } catch (err) {

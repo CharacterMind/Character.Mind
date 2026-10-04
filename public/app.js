@@ -569,8 +569,7 @@ async function confirmNewChat() {
 // ── Update check: if the site is updated while this tab is open, offer a reload ────────────
 let bootVersion = null, updateBannerShown = false;
 async function checkForUpdate() {
-  if (updateBannerShown) return;
-  try {
+  try {   // (still runs after the "new version" banner is up, because switching to maintenance mode matters more)
     const r = await fetch('/api/version', { cache: 'no-store' });
     if (!r.ok) {
       // the site was switched to maintenance mode while this tab was open: show the maintenance page (never in the middle of a reply)
@@ -582,7 +581,7 @@ async function checkForUpdate() {
       return;
     }
     const { v } = await r.json();
-    if (!v) return;
+    if (!v || updateBannerShown) return;
     if (bootVersion === null) { bootVersion = v; return; }
     if (v !== bootVersion) {
       updateBannerShown = true;
@@ -620,7 +619,11 @@ window.addEventListener('DOMContentLoaded', async () => {
   checkSeasonalEvent();
   try {
     const r = await fetch('/auth/me');
-    currentUser = await r.json();
+    // switched to maintenance mode: show the maintenance page, not a half-working app
+    if (r.status === 503) { const j = await r.json().catch(() => null); if (j && j.maintenance) { location.replace('/maintenance.html'); return; } }
+    // an error answer (a 500, a 429...) is not a signed-in person: only a real account object counts
+    const data = r.ok ? await r.json().catch(() => null) : null;
+    currentUser = (data && typeof data === 'object' && data.googleId) ? data : null;
     window.currentUser = currentUser;
   } catch (_) { currentUser = null; }
 
@@ -654,9 +657,13 @@ async function loadCharacters() {
   try {
     const res = await fetch('/api/characters');
     if (res.status === 401) { characters = []; renderSidebarChats(); return; }
-    characters = await res.json();
+    if (res.status === 503) { const j = await res.json().catch(() => null); if (j && j.maintenance) { location.replace('/maintenance.html'); return; } }
+    // only a real list replaces the characters: an error answer (an object, or plain text) must not blank the home page
+    const list = res.ok ? await res.json() : null;
+    if (Array.isArray(list)) characters = list;
+    else if (!Array.isArray(characters)) characters = [];
   } catch {
-    characters = [];
+    if (!Array.isArray(characters)) characters = [];
   }
   renderSidebarChats();
 }
@@ -1000,8 +1007,10 @@ async function copyContactEmail() {
 }
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeContact(); });
 
-function signOut() {
-  fetch('/auth/logout', { method: 'POST' }).catch(() => {});
+async function signOut() {
+  // Only show "signed out" once the server really ended the session; otherwise a reload would sign the person straight back in
+  const r = await fetch('/auth/logout', { method: 'POST' }).catch(() => null);
+  if (!r || !r.ok) { showWarning("Couldn't sign you out. Please try again in a moment."); return; }
   currentUser = null;
   document.getElementById('userDropdown')?.classList.remove('open');
   document.getElementById('userBadge')?.classList.remove('dd-open');
@@ -1942,6 +1951,22 @@ function updateTypingAvatar() {
   if (inp) inp.placeholder = `Message ${currentChar.name}…`;
 }
 
+// A reply is given up on only if NOTHING arrives for 45 seconds (the server says "still working" every 10 seconds), or after 6 minutes in all.
+function makeStreamWatch() {
+  const ctrl = new AbortController();
+  let idle = null;
+  const bump = () => { clearTimeout(idle); idle = setTimeout(() => ctrl.abort(), 45000); };
+  const cap = setTimeout(() => ctrl.abort(), 360000);
+  bump();
+  return { signal: ctrl.signal, bump, clear() { clearTimeout(idle); clearTimeout(cap); } };
+}
+// After a reply fails or is stopped: no counter left running, no reply left "typing"
+function cleanupStreamUi() {
+  if (streamTimer) { clearInterval(streamTimer); streamTimer = null; }
+  hideStreamStatsNow();
+  document.querySelectorAll('.bubble.streaming').forEach(b => b.classList.remove('streaming'));
+}
+
 // ── Auto-generate greeting (c.ai behaviour — character speaks first) ──────────
 async function generateGreeting() {
   if (!currentChar) return;
@@ -1952,16 +1977,19 @@ async function generateGreeting() {
   document.getElementById('sendBtn').disabled = true;
 
   let msgEl = null, bubble = null, gotFirst = false;
+  const watch = makeStreamWatch();
 
   try {
     const res = await fetch(`/api/greet/${currentChar.id}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ effort: selectedEffort, modelTier: selectedModelTier })
+      body: JSON.stringify({ effort: selectedEffort, modelTier: selectedModelTier }),
+      signal: watch.signal
     });
-    if (myEpoch !== chatEpoch) { try { if (res.body) res.body.cancel(); } catch (_) {} return; }   // the chat changed while waiting
+    if (myEpoch !== chatEpoch) { watch.clear(); try { if (res.body) res.body.cancel(); } catch (_) {} return; }   // the chat changed while waiting
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
+      watch.clear();
       showTyping(false); isStreaming = false;
       if (res.status === 401) { window.location.href = '/'; return; }
       if (res.status === 429) {
@@ -1984,7 +2012,8 @@ async function generateGreeting() {
 
     while (true) {
       const { done, value } = await reader.read();
-      if (myEpoch !== chatEpoch) { try { reader.cancel(); } catch (_) {} return; }
+      watch.bump();
+      if (myEpoch !== chatEpoch) { watch.clear(); try { reader.cancel(); } catch (_) {} return; }
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
@@ -2011,6 +2040,7 @@ async function generateGreeting() {
         }
       }
     }
+    watch.clear();
     drainTypewriter(() => {
       if (msgEl) { if (streamSig) msgEl.dataset.sig = streamSig; else delete msgEl.dataset.sig; }
       if (msgEl) stopStreamStats(msgEl, streamRealTokens);
@@ -2023,8 +2053,10 @@ async function generateGreeting() {
       if (streamText) saveHistoryLocal();
     });
   } catch (err) {
+    watch.clear();
     if (myEpoch !== chatEpoch) return;   // an old request failing must not touch the chat that is open now
     flushTypewriter();
+    cleanupStreamUi();
     showTyping(false);
     isStreaming = false;
     const lockoutActiveErr = document.getElementById('lockoutBar')?.style.display !== 'none';
@@ -2032,7 +2064,7 @@ async function generateGreeting() {
     if (!gotFirst) {
       document.getElementById('chatWelcome').innerHTML = `
         <div class="chat-welcome-name">${escHtml(currentChar.name)}</div>
-        <div style="color:var(--text3);font-size:14px;margin-top:8px">${escHtml(err.message || 'Failed to generate greeting. Try sending a message.')}</div>`;
+        <div style="color:var(--text3);font-size:14px;margin-top:8px">${escHtml(err.name === 'AbortError' ? 'The connection went quiet. Try sending a message.' : (err.message || 'Failed to generate greeting. Try sending a message.'))}</div>`;
     }
   } finally {
     if (myEpoch === chatEpoch) showTyping(false);
@@ -3201,13 +3233,24 @@ function saveEdit(btn) {
   // Remove the last entry (the user message we're re-sending) from the sync
   const histWithout = localHistory.slice(0, -1);
   // Clear first, then sync, in order (running them together could leave the server chat empty)
-  fetch(`/api/conversations/${currentChar.id}`, { method: 'DELETE' })
-    .catch(() => {})
-    .then(() => fetch(`/api/conversations/${currentChar.id}/sync`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ history: histWithout })
-    }))
-    .then(() => sendMessage(newText, true)).catch(() => sendMessage(newText, true));
+  pushHistoryToServer(currentChar.id, histWithout).then(() => sendMessage(newText, true)).catch(() => sendMessage(newText, true));
+}
+
+// Replace the chat the server holds with this history. The server chat is cleared first, so the new copy must really arrive: if the
+// whole history is too big for one request (very long replies), the NEWEST part is sent instead of leaving the server chat empty.
+async function pushHistoryToServer(id, history) {
+  await fetch(`/api/conversations/${id}`, { method: 'DELETE' }).catch(() => {});
+  if (!history || !history.length) return true;
+  let part = history;
+  for (let attempt = 0; attempt < 5 && part.length; attempt++) {
+    const r = await fetch(`/api/conversations/${id}/sync`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ history: part })
+    }).catch(() => null);
+    if (r && r.ok) return true;
+    if (!r || r.status !== 413) return false;        // a different problem (maintenance, network...): nothing smaller will fix it
+    part = part.slice(Math.ceil(part.length / 2));   // too big: try again with the newest half
+  }
+  return false;
 }
 
 function cancelEdit(btn) {
@@ -3242,15 +3285,7 @@ function resyncServer() {
   if (!currentChar) return;
   const id = currentChar.id;
   const localHistory = loadHistoryLocal(id);
-  fetch(`/api/conversations/${id}`, { method: 'DELETE' })
-    .then(() => {
-      if (localHistory.length > 0) {
-        return fetch(`/api/conversations/${id}/sync`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ history: localHistory })
-        });
-      }
-    }).catch(() => {});
+  pushHistoryToServer(id, localHistory).catch(() => {});
 }
 
 // ── Message Rendering — c.ai style ───────────────────────────────────────────
@@ -3550,6 +3585,7 @@ function regenNavStep(id, dir) {
   const bubble = msgEl.querySelector('.bubble');
   if (bubble) setBubbleRaw(bubble, store.texts[store.idx]);
   if (store.sigs && store.sigs[store.idx]) msgEl.dataset.sig = store.sigs[store.idx]; else delete msgEl.dataset.sig;   // the signature of the version shown
+  msgEl.querySelectorAll('.like-btn.active, .dislike-btn.active').forEach(b => b.classList.remove('active'));
   regenNavUpdate(msgEl);
   scrollToBottom();
 }
@@ -4516,6 +4552,7 @@ async function regenerate() {
 
   flushTypewriter();
   if (bubble) { bubble.innerHTML = ''; bubble.classList.add('streaming'); }
+  msgEl.querySelectorAll('.like-btn.active, .dislike-btn.active').forEach(b => b.classList.remove('active'));   // a new reply starts without the old thumbs
   const oldStats = msgEl.querySelector('.stream-stats');
   if (oldStats) { oldStats.classList.remove('done'); oldStats.classList.remove('active'); oldStats.style.display = ''; }
   startTypewriter(bubble, msgEl);
@@ -4523,16 +4560,19 @@ async function regenerate() {
   showTyping(false);
 
   let streamText = '';
+  const watch = makeStreamWatch();
   try {
     const res = await fetch(`/api/regenerate/${currentChar.id}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ modelTier: selectedModelTier, effort: selectedEffort })
+      body: JSON.stringify({ modelTier: selectedModelTier, effort: selectedEffort }),
+      signal: watch.signal
     });
 
-    if (myEpoch !== chatEpoch) { try { if (res.body) res.body.cancel(); } catch (_) {} return; }   // the chat changed while waiting
+    if (myEpoch !== chatEpoch) { watch.clear(); try { if (res.body) res.body.cancel(); } catch (_) {} return; }   // the chat changed while waiting
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
+      watch.clear();
       if (res.status === 401) { isStreaming = false; window.location.href = '/'; return; }
       if (res.status === 429) {
         if (err.regenLimitReached) {
@@ -4543,6 +4583,7 @@ async function regenerate() {
         const store = regenStore.get(id);
         if (bubble && store) { bubble.classList.remove('streaming'); setBubbleRaw(bubble, store.texts[store.idx]); }
         flushTypewriter();
+        cleanupStreamUi();
         isStreaming = false;
         const lockoutActive429 = document.getElementById('lockoutBar')?.style.display !== 'none';
         if (!lockoutActive429) document.getElementById('sendBtn').disabled = false;
@@ -4557,7 +4598,8 @@ async function regenerate() {
 
     while (true) {
       const { done, value } = await reader.read();
-      if (myEpoch !== chatEpoch) { try { reader.cancel(); } catch (_) {} return; }
+      watch.bump();
+      if (myEpoch !== chatEpoch) { watch.clear(); try { reader.cancel(); } catch (_) {} return; }
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
@@ -4575,6 +4617,7 @@ async function regenerate() {
         }
       }
     }
+    watch.clear();
 
     drainTypewriter(() => {
       if (msgEl) { if (streamSig) msgEl.dataset.sig = streamSig; else delete msgEl.dataset.sig; }
@@ -4597,8 +4640,10 @@ async function regenerate() {
     });
 
   } catch (err) {
+    watch.clear();
     if (myEpoch !== chatEpoch) return;   // an old request failing must not touch the chat that is open now
     flushTypewriter();
+    cleanupStreamUi();
     showTyping(false);
     isStreaming = false;
     const lockoutActiveErr = document.getElementById('lockoutBar')?.style.display !== 'none';
@@ -4606,7 +4651,7 @@ async function regenerate() {
     const store = regenStore.get(id);
     if (bubble) {
       bubble.classList.remove('streaming');
-      if (store?.texts?.length) setBubbleRaw(bubble, store.texts[store.idx]); else { delete bubble.dataset.raw; bubble.innerHTML = `<p>⚠️ ${escHtml(err.message)}</p>`; }
+      if (store?.texts?.length) setBubbleRaw(bubble, store.texts[store.idx]); else { delete bubble.dataset.raw; bubble.innerHTML = `<p>⚠️ ${escHtml(err.name === 'AbortError' ? 'The connection went quiet, so the reply stopped. Please try again.' : err.message)}</p>`; }
     }
   } finally {
     if (myEpoch === chatEpoch) showTyping(false);
@@ -4783,9 +4828,13 @@ async function newChat() {
   if (!currentChar) return;
   abandonStream();
   releaseChatInput();
-  // Save to local past chats + archive to server
+  // Archive the chat on the server first. If saving fails (the server then keeps the live chat), do NOT clear it: tell the person instead.
+  const arch = await fetch(`/api/conversations/${currentChar.id}/archive`, { method: 'POST' }).catch(() => null);
+  if (!arch || arch.status === 500 || arch.status === 503) {
+    showWarning("Couldn't save your current chat, so it was left as it is. Please try again in a moment.");
+    return;
+  }
   savePastChatLocal(currentChar.id, loadHistoryLocal(currentChar.id));
-  await fetch(`/api/conversations/${currentChar.id}/archive`, { method: 'POST' }).catch(() => {});
   // Await the DELETE so the server clears history before we try to greet
   await fetch(`/api/conversations/${currentChar.id}`, { method: 'DELETE' }).catch(() => {});
   // Clear stale local history so reload starts fresh
@@ -5065,7 +5114,7 @@ async function createCharacter(e) {
 
   submitBtn.textContent = 'Saving…';
 
-  const creatorName = currentUser?.name || localStorage.getItem('cm_creator_name') || '@you';
+  const creatorName = String(currentUser?.name || localStorage.getItem('cm_creator_name') || '@you').slice(0, 40);
   const char = {
     id, name, tagline, creatorName,
     description: desc,
