@@ -2717,3 +2717,8 @@ body:not(.voice-on) .btn-call { display: none !important; }
 
 /* Live token count shows while a reply types out (no spinner animation); app.js hides it just before the end */
 .stream-stats .stream-spinner { display: none !important; }
+
+/* iPhone Safari zooms the page when a focused input has text smaller than 16px */
+@media (max-width: 768px) {
+  input, textarea, select { font-size: 16px; }
+}

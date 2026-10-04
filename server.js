@@ -139,7 +139,7 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.paypal.com https://www.paypalobjects.com; style-src 'self' 'unsafe-inline' https://www.paypalobjects.com; img-src 'self' data: https:; media-src 'self' blob: data:; connect-src 'self' https://accounts.google.com https://www.paypal.com https://www.sandbox.paypal.com https://api-m.sandbox.paypal.com https://api-m.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com https://www.sandbox.paypal.com; frame-ancestors 'none'");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.paypal.com https://www.paypalobjects.com; style-src 'self' 'unsafe-inline' https://www.paypalobjects.com https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' blob: data:; connect-src 'self' https://accounts.google.com https://www.paypal.com https://www.sandbox.paypal.com https://api-m.sandbox.paypal.com https://api-m.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com https://www.sandbox.paypal.com; frame-ancestors 'none'");
   if (process.env.NODE_ENV === 'production' && req.protocol !== 'https') {
     return res.redirect(301, 'https://' + req.headers.host + req.url);
   }
@@ -201,6 +201,10 @@ app.use('/api/chat/reset-mod', resetModLimiter);
 app.use('/api/generate-persona', personaLimiter);
 app.use('/api/crisis-resources', geoLimiter);
 app.use(['/api/chat', '/api/regenerate', '/api/greet'], chatBurstLimiter);
+const webhookLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => ipKeyGenerator(req.ip) });
+const convLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false, keyGenerator: perUserKey, message: { error: 'Too many requests. Please slow down.' } });
+app.use('/api/webhooks/paypal', webhookLimiter);
+app.use('/api/conversations', convLimiter);
 
 const GOOGLE_AUTH_ENABLED = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 if (GOOGLE_AUTH_ENABLED) {
@@ -334,24 +338,29 @@ async function ensureTierLoaded(user) {
 }
 
 // At most 2 AI replies per user at once, so parallel requests can't blow past the token limits.
+// Returns a release function (or null after answering 429). The slot is released when the reply
+// finishes or fails, not when the client disconnects, because the AI keeps working until we stop it.
 const chatInFlight = new Map();
 function acquireChatSlot(req, res, userId) {
   const n = chatInFlight.get(userId) || 0;
   if (n >= 2) {
     res.status(429).json({ error: 'Please wait for your current reply to finish.' });
-    return false;
+    return null;
   }
   chatInFlight.set(userId, n + 1);
   let released = false;
+  let timer = null;
   const release = () => {
     if (released) return;
     released = true;
+    clearTimeout(timer);
     const left = (chatInFlight.get(userId) || 1) - 1;
     if (left <= 0) chatInFlight.delete(userId); else chatInFlight.set(userId, left);
   };
-  res.on('close', release);
+  timer = setTimeout(release, 150000); // safety net so a slot can never be stuck forever
+  if (timer.unref) timer.unref();
   res.on('finish', release);
-  return true;
+  return release;
 }
 
 async function requireAuth(req, res, next) {
@@ -607,6 +616,16 @@ function addTokens(sid, tokens) {
   }
   saveLimitsToDB(sid); // persist asynchronously — fire-and-forget
   return { warnings, ...buildUsagePayload(u, sid) };
+}
+
+// Give back tokens reserved for a reply that failed or came back empty.
+function refundTokens(sid, tokens) {
+  const u = userLimits[sid];
+  if (!u) return;
+  u.sessionTokens = Math.max(0, (u.sessionTokens || 0) - tokens);
+  u.weeklyTokens = Math.max(0, (u.weeklyTokens || 0) - tokens);
+  if (u.cooldownUntil && u.sessionTokens < sessionLimitFor(u)) u.cooldownUntil = null;
+  saveLimitsToDB(sid);
 }
 
 // ── Effort directive ──────────────────────────────────────────────────────────
@@ -1162,8 +1181,8 @@ function splitConvKey(key) {
 // Load a conversation from the database the first time it is touched after a restart or idle purge.
 const convLoading = new Map();
 async function ensureConvLoaded(key) {
-  if (convLoaded.has(key)) return;
-  if (convLoading.has(key)) return convLoading.get(key);
+  if (convLoaded.has(key)) return true;
+  if (convLoading.has(key)) { await convLoading.get(key); return convLoaded.has(key); }
   const p = (async () => {
     if (!db) { convLoaded.add(key); return; }
     const [uid, charId] = splitConvKey(key);
@@ -1181,6 +1200,7 @@ async function ensureConvLoaded(key) {
   convLoading.set(key, p);
   try { await p; } finally { convLoading.delete(key); }
   convLastUsed[key] = Date.now();
+  return convLoaded.has(key);
 }
 
 // Only real characters may have conversations (stops arbitrary keys from filling memory and the database).
@@ -1230,7 +1250,7 @@ function persistConv(key) {
 
 // The AI model sometimes answers with a bare canned refusal ("I can't help with that"), e.g. for roleplay violence.
 // When a whole reply is just that, we replace it with an actual explanation.
-const BARE_REFUSAL_RE = /^\s*(?:i['’]?m\s+sorry,?\s*(?:but\s*)?|sorry,?\s*(?:but\s*)?)?i\s*(?:can['’]?t|cannot|won['’]?t|am\s+unable\s+to|am\s+not\s+able\s+to)\s+(?:help|assist|continue|comply|do\s+that|go\s+there|engage|provide|write\s+that)/i;
+const BARE_REFUSAL_RE = /^\s*(?:i['’]?m\s+sorry,?\s*(?:but\s*)?|sorry,?\s*(?:but\s*)?)?i\s*(?:can['’]?t|cannot|won['’]?t|am\s+unable\s+to|am\s+not\s+able\s+to)\s+(?:help(?!\s+but\b|\s+\w+ing\b)|assist|continue|comply|do\s+that|go\s+there|engage|provide|write\s+that)/i;
 function isBareRefusal(text) {
   return typeof text === 'string' && text.length < 220 && BARE_REFUSAL_RE.test(text);
 }
@@ -1289,7 +1309,7 @@ async function getCharPrompt(charId) {
   try {
     const { rows } = await db.query('SELECT name, system_prompt, greeting, greeting_mode FROM characters WHERE id = $1', [charId]);
     if (rows.length) return rows[0];
-  } catch (err) { console.error('[getCharPrompt] DB error:', err.message); }
+  } catch (err) { console.error('[getCharPrompt] DB error:', err.message); throw err; }
   return null;
 }
 
@@ -1363,8 +1383,64 @@ function getEffortCfg(effort, tier) {
   return out;
 }
 
+// Streams one AI reply to the client with all the safety plumbing in one place:
+// reserves the cost up front (so parallel requests can't overshoot), refunds it if the reply fails or is empty,
+// stops the upstream request if the client leaves, swaps a bare canned refusal for an explanation, and never
+// lets an exception leave the response hanging.
+function startReplyStream(o) {
+  const { res, apiKey, system, messages, effortCfg, modelList, userId, modelTier, effort, releaseSlot, onComplete, onFail, logLabel } = o;
+  const ctx = { aborted: false, req: null };
+  res.on('close', () => {
+    if (!res.writableEnded) { ctx.aborted = true; if (ctx.req) ctx.req.destroy(new Error('client aborted')); }
+  });
+  const cost = messageCost(modelTier, effort);
+  const reservation = addTokens(userId, cost);
+  let fullResponse = '', held = '', released = false, finished = false;
+  const send = (obj) => { try { res.write('data: ' + JSON.stringify(obj) + '\n\n'); } catch (_) {} };
+  const close = () => { try { res.end(); } catch (_) {} releaseSlot(); };
+  const fail = (err) => {
+    if (finished) return;
+    finished = true;
+    if (!ctx.aborted) refundTokens(userId, cost);
+    try { if (onFail) onFail(); } catch (_) {}
+    send({ error: aiErrorMessage(err) });
+    close();
+    console.error(logLabel + ' error:', err && err.message);
+  };
+  callGroqStream(apiKey, system, messages,
+    (text) => {
+      if (finished) return;
+      try {
+        fullResponse += text;
+        if (released) { send({ text }); return; }
+        held += text;
+        if (held.length >= 120) { released = true; send({ text: held }); held = ''; }
+      } catch (e) { fail(e); }
+    },
+    () => {
+      if (finished) return;
+      try {
+        if (!fullResponse.trim()) { fail(new Error('empty reply')); return; }
+        finished = true;
+        if (!released) {
+          if (isBareRefusal(fullResponse)) fullResponse = buildRefusalExplanation();
+          released = true;
+          send({ text: fullResponse });
+          held = '';
+        }
+        onComplete(fullResponse);
+        const usage = Object.assign({}, buildUsagePayload(getLimits(userId), userId));
+        send({ done: true, usage, responseTokens: cost, warnings: reservation.warnings });
+        close();
+      } catch (e) { finished = false; fail(e); }
+    },
+    (err) => fail(err),
+    undefined, effortCfg, modelList, ctx);
+}
+
 // A clear message when the AI provider is rate-limiting us (instead of a generic error)
 function aiErrorMessage(err) {
+  if (/empty reply/i.test((err && err.message) || '')) return 'The AI sent back an empty reply. Please try again.';
   return /no working model|429|rate limit|too many requests/i.test((err && err.message) || '')
     ? 'The AI is busy right now. Please try again in a few seconds.'
     : 'AI service error';
@@ -1378,7 +1454,7 @@ function getModelList(tier) {
 
 const workingModels = {};
 
-function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex, effortCfg, modelList) {
+function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex, effortCfg, modelList, ctx) {
   modelList = modelList || GROQ_FAST_MODELS;
   effortCfg = effortCfg || EFFORT_CONFIG.opas.high;
   if (modelIndex === undefined) {
@@ -1428,10 +1504,10 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
             return onError(new Error(`Invalid Groq API key: ${msg}`));
           }
           if (res.statusCode === 429 || res.statusCode === 503 || res.statusCode === 404) {
-            return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList);
+            return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
           }
           if (res.statusCode === 400 && modelIndex + 1 < modelList.length) {
-            return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList);
+            return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
           }
           onError(new Error(msg || `HTTP ${res.statusCode}`));
         } catch (_) { onError(new Error(`HTTP ${res.statusCode}`)); }
@@ -1487,6 +1563,11 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
   });
 
   req.on('error', onError);
+  if (ctx) {
+    ctx.req = req;
+    if (ctx.aborted) { req.destroy(new Error('client aborted')); return; }
+  }
+  req.setTimeout(60000, () => req.destroy(new Error('upstream timeout')));
   req.write(body);
   req.end();
 }
@@ -1661,10 +1742,11 @@ async function archiveConversation(uid, charId, msgs) {
 app.post('/api/chat/reset-mod/:charId', requireAuth, async (req, res) => {
   const { charId } = req.params;
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
+  if (!(await characterExists(charId))) return res.status(404).json({ error: 'Character not found' });
   const uid = req.user.googleId;
   const key = `${uid}:${charId}`;
   // Archive current conversation before resetting if it has messages
-  await ensureConvLoaded(key);
+  if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
   const msgs = conversations[key] || [];
   if (msgs.length > 0 && db) await archiveConversation(uid, charId, msgs);
   await setModStatus(uid, charId, 0, false);
@@ -1679,7 +1761,7 @@ app.post('/api/conversations/:charId/archive', requireAuth, async (req, res) => 
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
   const uid = req.user.googleId;
   const key = `${uid}:${charId}`;
-  await ensureConvLoaded(key);
+  if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
   const msgs = conversations[key] || [];
   if (msgs.length === 0) return res.json({ ok: true, archived: false });
   if (db) {
@@ -2089,13 +2171,15 @@ app.get('/api/conversations/:charId', requireAuth, async (req, res) => {
   if (!VALID_ID.test(req.params.charId)) return res.status(400).json({ error: 'Invalid charId' });
   if (!(await characterExists(req.params.charId))) return res.json([]);
   const key = `${req.user.googleId}:${req.params.charId}`;
-  await ensureConvLoaded(key);
+  if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
   res.json(conversations[key] || []);
 });
 
-app.delete('/api/conversations/:charId', requireAuth, (req, res) => {
+app.delete('/api/conversations/:charId', requireAuth, async (req, res) => {
   if (!VALID_ID.test(req.params.charId)) return res.status(400).json({ error: 'Invalid charId' });
+  if (!(await characterExists(req.params.charId))) return res.json({ ok: true });
   const key = `${req.user.googleId}:${req.params.charId}`;
+  convLastUsed[key] = Date.now();
   conversations[key] = [];
   persistConv(key);
   res.json({ ok: true });
@@ -2138,13 +2222,17 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   if ((u.regenCount || 0) >= LIMITS.REGEN_FREE) {
     return res.status(429).json({ regenLimitReached: true, regenLimit: LIMITS.REGEN_FREE });
   }
-  if (!acquireChatSlot(req, res, userId)) return;
+  const releaseSlot = acquireChatSlot(req, res, userId);
+  if (!releaseSlot) return;
 
-  const dbChar = await getCharPrompt(charId);
+  let dbChar;
+  try { dbChar = await getCharPrompt(charId); }
+  catch (_) { return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' }); }
+  if (!dbChar) return res.status(404).json({ error: 'Character not found' });
   const systemPrompt = dbChar ? dbChar.system_prompt : `You are ${charId}, a unique AI character.`;
 
   const key = `${req.user.googleId}:${charId}`;
-  await ensureConvLoaded(key);
+  if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
   if (!conversations[key]) conversations[key] = [];
   convLastUsed[key] = Date.now();
 
@@ -2179,48 +2267,24 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
-  let fullResponse = '', done = false;
-  let heldText = '', streamReleased = false;
-
   const regenModelList = getModelList(modelTier);
   const regenEffortCfg = getEffortCfg(effort, modelTier);
 
-  callGroqStream(
-    apiKey, applyEffortDirective(wrapPrompt(systemPrompt), effort), aiHistory(hist).slice(-12),
-    (text) => {
-      fullResponse += text;
-      if (streamReleased) { res.write(`data: ${JSON.stringify({ text })}\n\n`); return; }
-      heldText += text;
-      if (heldText.length >= 120) { streamReleased = true; res.write(`data: ${JSON.stringify({ text: heldText })}\n\n`); heldText = ''; }
-    },
-    (tokensUsed) => {
-      if (done) return; done = true;
-      if (!streamReleased) {
-        if (isBareRefusal(fullResponse)) fullResponse = buildRefusalExplanation();
-        streamReleased = true;
-        res.write(`data: ${JSON.stringify({ text: fullResponse })}\n\n`);
-        heldText = '';
-      }
-      hist.push({ role: 'assistant', content: fullResponse });
-      persistConv(key);
-      const tokens = messageCost(modelTier, effort);
-      const usage = addTokens(userId, tokens);
-      res.write(`data: ${JSON.stringify({ done: true, usage, responseTokens: tokens, warnings: usage.warnings })}\n\n`); res.end();
-    },
-    (err) => {
-      if (done) return; done = true;
-      restoreAssistant();
-      res.write(`data: ${JSON.stringify({ error: aiErrorMessage(err) })}\n\n`); res.end();
-      console.error('Regenerate error:', err.message);
-    },
-    undefined, regenEffortCfg, regenModelList
-  );
+  startReplyStream({
+    res, apiKey,
+    system: applyEffortDirective(wrapPrompt(systemPrompt), effort),
+    messages: aiHistory(hist).slice(-12), effortCfg: regenEffortCfg, modelList: regenModelList,
+    userId, modelTier, effort, releaseSlot,
+    onComplete: (text) => { hist.push({ role: 'assistant', content: text }); persistConv(key); },
+    onFail: restoreAssistant,
+    logLabel: 'Regenerate'
+  });
 });
 
 app.post('/api/rewind/:charId', requireAuth, async (req, res) => {
   if (!VALID_ID.test(req.params.charId)) return res.status(400).json({ error: 'Invalid charId' });
   const key = `${req.user.googleId}:${req.params.charId}`;
-  await ensureConvLoaded(key);
+  if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
   const hist = conversations[key] || [];
   let removed = 0;
   if (hist.length > 0 && hist[hist.length - 1].role === 'assistant') { hist.pop(); removed++; }
@@ -2280,17 +2344,21 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   const limit = checkLimits(userId);
   if (limit.blocked) return res.status(429).json({ error: limit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limit });
 
-  if (!acquireChatSlot(req, res, userId)) return;
+  const releaseSlot = acquireChatSlot(req, res, userId);
+  if (!releaseSlot) return;
   if (!db) return res.status(503).json({ error: 'Service temporarily unavailable' });
   const greetMod = await getModStatus(userId, charId);
   if (greetMod.locked) return res.status(403).json({ error: 'This chat has been ended.' });
 
-  const dbChar = await getCharPrompt(charId);
+  let dbChar;
+  try { dbChar = await getCharPrompt(charId); }
+  catch (_) { return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' }); }
+  if (!dbChar) return res.status(404).json({ error: 'Character not found' });
   const charName = dbChar ? dbChar.name : charId;
   const systemPrompt = dbChar ? dbChar.system_prompt : `You are ${charId}.`;
 
   const key = `${req.user.googleId}:${charId}`;
-  await ensureConvLoaded(key);
+  if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
   if (!conversations[key]) conversations[key] = [];
   if (conversations[key].length > 0) return res.status(400).json({ error: 'Already started' });
   convLastUsed[key] = Date.now();
@@ -2302,53 +2370,52 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   res.flushHeaders();
 
   const trigger = [{ role: 'user', content: `[Scene opens. ${charName} enters or is already present. Begin the scene — speak first, act first, set the atmosphere. The other person has just arrived. Go.]` }];
-  let fullResponse = '', done = false;
-
-  callGroqStream(
-    apiKey, applyEffortDirective(wrapPrompt(systemPrompt), effort), trigger,
-    (text) => { fullResponse += text; res.write(`data: ${JSON.stringify({ text })}\n\n`); },
-    (tokensUsed) => {
-      if (done) return; done = true;
-      conversations[key].push({ role: 'assistant', content: fullResponse });
-      persistConv(key);
-      const tokens = messageCost(modelTier, effort);
-      const usage = addTokens(userId, tokens);
-      res.write(`data: ${JSON.stringify({ done: true, usage, responseTokens: tokens, warnings: usage.warnings })}\n\n`); res.end();
-    },
-    (err) => {
-      if (done) return; done = true;
-      res.write(`data: ${JSON.stringify({ error: aiErrorMessage(err) })}\n\n`); res.end();
-      console.error('Greet error:', err.message);
-    },
-    undefined, greetEffortCfg, greetModelList
-  );
+  startReplyStream({
+    res, apiKey,
+    system: applyEffortDirective(wrapPrompt(systemPrompt), effort),
+    messages: trigger, effortCfg: greetEffortCfg, modelList: greetModelList,
+    userId, modelTier, effort, releaseSlot,
+    onComplete: (text) => { conversations[key].push({ role: 'assistant', content: text }); persistConv(key); },
+    logLabel: 'Greet'
+  });
 });
 
-const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
+// Llama-4 Scout (the previous default) was shut down by Groq, which made every image upload fail.
+const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b';
 
-async function isExplicitImage(apiKey, dataUri) {
-  const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+// One vision call that both checks the image against the content rules and describes it.
+// The chat models are text-only, so the character reacts to this description instead of the raw image.
+async function analyzeImage(apiKey, dataUri) {
+  const prompt = 'You are a content-safety checker and image describer. Reply with ONLY a JSON object and no other text: ' +
+    '{"explicit": true or false, "description": "one short factual sentence describing the image"}. ' +
+    'Set explicit to true if the image shows any exposed genitals, exposed female breasts or nipples, exposed buttocks, or explicit sexual activity. ' +
+    'This applies equally to photos, drawings, cartoons and AI-generated images. A bare male chest, swimwear and normal clothing are allowed (explicit false). ' +
+    'The description must be neutral and must not include sexual detail.';
+  const call = (extra) => fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(30000),
     body: JSON.stringify({
       model: GROQ_VISION_MODEL,
       temperature: 0,
-      max_tokens: 5,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'text', text: 'You are a content-safety classifier. Does this image show any exposed genitals, exposed female breasts or nipples, exposed buttocks, or explicit sexual activity? This applies equally to photos, drawings, cartoons and AI-generated images. A bare male chest is allowed. Swimwear and normal clothing are allowed. Answer with exactly one word: YES or NO.' },
-          { type: 'image_url', image_url: { url: dataUri } }
-        ]
-      }]
+      max_tokens: 400,
+      messages: [{ role: 'user', content: [ { type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUri } } ] }],
+      ...extra
     })
   });
-  if (!r.ok) throw new Error('classifier http ' + r.status);
+  // Ask the model not to show its "thinking"; retry without those options if it rejects them
+  let r = await call({ reasoning_effort: 'none', reasoning_format: 'hidden' });
+  if (r.status === 400) r = await call({});
+  if (!r.ok) throw new Error('vision http ' + r.status);
   const j = await r.json();
-  const a = String(j.choices?.[0]?.message?.content || '').trim().toUpperCase();
-  if (a.startsWith('YES')) return true;
-  if (a.startsWith('NO')) return false;
-  throw new Error('unclear classifier answer');
+  const content = String(j.choices?.[0]?.message?.content || '');
+  const m = content.match(/\{[^{}]*"explicit"[^{}]*\}/);
+  if (!m) throw new Error('unclear vision answer');
+  let parsed;
+  try { parsed = JSON.parse(m[0]); } catch (_) { throw new Error('unparseable vision answer'); }
+  if (typeof parsed.explicit !== 'boolean') throw new Error('missing explicit flag');
+  const description = String(parsed.description || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+  return { explicit: parsed.explicit, description };
 }
 
 app.post('/api/chat', requireAuth, async (req, res) => {
@@ -2372,12 +2439,16 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
   const limit = checkLimits(userId);
   if (limit.blocked) return res.status(429).json({ error: limit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limit });
-  if (!acquireChatSlot(req, res, userId)) return;
+  const releaseSlot = acquireChatSlot(req, res, userId);
+  if (!releaseSlot) return;
 
-  const dbChar = await getCharPrompt(charId);
+  let dbChar;
+  try { dbChar = await getCharPrompt(charId); }
+  catch (_) { return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' }); }
+  if (!dbChar) return res.status(404).json({ error: 'Character not found' });
   const char = { systemPrompt: dbChar ? dbChar.system_prompt : `You are ${charId}, a unique AI character.` };
   const key = `${req.user.googleId}:${charId}`;
-  await ensureConvLoaded(key);
+  if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
   if (!conversations[key]) conversations[key] = [];
   convLastUsed[key] = Date.now();
 
@@ -2399,6 +2470,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   }
 
   // ── Image safety: daily cap, then explicit-content check (only after limit and lock checks) ──
+  let imageDescription = '';
   if (image && !isContinuation) {
     const imgU = getLimits(userId);
     const imgLimit = getImageLimitForUser(userId);
@@ -2408,7 +2480,9 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     imgU.imagesDay = (imgU.imagesDay || 0) + 1; // attempts count toward the cap, including blocked ones
     let explicit;
     try {
-      explicit = await isExplicitImage(apiKey, image);
+      const analysis = await analyzeImage(apiKey, image);
+      explicit = analysis.explicit;
+      imageDescription = analysis.description;
     } catch (e) {
       imgU.imagesDay = Math.max(0, imgU.imagesDay - 1); // our failure, not the user's
       console.warn('[image-safety] check failed, blocking image:', e.message);
@@ -2495,15 +2569,14 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     ? [...history, { role: 'user', content: '...' }]
     : history;
 
-  // If an image was attached, replace the last user message with a vision content block
-  if (image && !isContinuation) {
+  // If an image was attached, tell the character what it shows (the chat models are text-only)
+  if (image && !isContinuation && imageDescription) {
     const lastIdx = messagesForGroq.length - 1;
     if (messagesForGroq[lastIdx]?.role === 'user') {
-      const visionContent = [{ type: 'image_url', image_url: { url: image } }];
-      if (message && message.trim()) visionContent.push({ type: 'text', text: message });
+      const base = (message && message.trim()) ? message : '';
       messagesForGroq = [
         ...messagesForGroq.slice(0, lastIdx),
-        { role: 'user', content: visionContent }
+        { role: 'user', content: (base ? base + '\n\n' : '') + '[The user shared an image. What it shows: ' + imageDescription + ']' }
       ];
     }
   }
@@ -2514,58 +2587,17 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
-  let fullResponse = '';
-  let heldText = '';
-  let streamReleased = false;
-  let done = false;
-
   const callModeDirective = callMode
     ? '\n\n[CALL MODE — You are on a live voice call. Keep your reply SHORT: 1-2 sentences, under 25 words. Speak naturally — no asterisks, no markdown, no action text in parentheses. Plain conversational words only.]'
     : '';
 
-  callGroqStream(
-    apiKey,
-    applyEffortDirective(wrapPrompt(char.systemPrompt) + crisisContext + callModeDirective, effort),
-    messagesForGroq,
-    (text) => {
-      fullResponse += text;
-      // Hold the first ~120 characters so a bare refusal can be replaced before the user sees it
-      if (streamReleased) { res.write(`data: ${JSON.stringify({ text })}\n\n`); return; }
-      heldText += text;
-      if (heldText.length >= 120) {
-        streamReleased = true;
-        res.write(`data: ${JSON.stringify({ text: heldText })}\n\n`);
-        heldText = '';
-      }
-    },
-    (tokensUsed) => {
-      if (done) return;
-      done = true;
-      if (!streamReleased) {
-        // A short reply was held back entirely: swap in an explanation if it is just a canned refusal
-        if (isBareRefusal(fullResponse)) fullResponse = buildRefusalExplanation();
-        streamReleased = true;
-        res.write(`data: ${JSON.stringify({ text: fullResponse })}\n\n`);
-        heldText = '';
-      }
-      conversations[key].push({ role: 'assistant', content: fullResponse });
-      persistConv(key);
-      const tokens = messageCost(modelTier, effort);
-      const usage = addTokens(userId, tokens);
-      res.write(`data: ${JSON.stringify({ done: true, usage, responseTokens: tokens, warnings: usage.warnings })}\n\n`);
-      res.end();
-    },
-    (err) => {
-      if (done) return;
-      done = true;
-      res.write(`data: ${JSON.stringify({ error: aiErrorMessage(err) })}\n\n`);
-      res.end();
-      console.error('Chat error:', err.message);
-    },
-    undefined,
-    effortCfg,
-    modelList
-  );
+  startReplyStream({
+    res, apiKey,
+    system: applyEffortDirective(wrapPrompt(char.systemPrompt) + crisisContext + callModeDirective, effort),
+    messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot,
+    onComplete: (text) => { conversations[key].push({ role: 'assistant', content: text }); persistConv(key); },
+    logLabel: 'Chat'
+  });
 });
 
 // ── Email helpers ─────────────────────────────────────────────────────────────
@@ -2886,6 +2918,7 @@ app.post('/api/paypal/verify-subscription', async (req, res) => {
     const paidLimits = getLimits(req.user.googleId);
     paidLimits.subscriptionTier = planKey;
     paidLimits.tierLoaded = true;
+    paidLimits.sessionTokens = 0; paidLimits.sessionStartedAt = null; paidLimits.cooldownUntil = null; // fresh session on the new plan
     saveLimitsToDB(req.user.googleId);
     sendReceiptEmail(req.user.name, req.user.email, planKey, subscriptionId).catch(() => {});
     sendPlanWelcomeEmail(req.user.name, req.user.email, planKey).catch(() => {});
@@ -2897,6 +2930,7 @@ app.post('/api/paypal/verify-subscription', async (req, res) => {
 });
 
 app.post('/api/webhooks/paypal', async (req, res) => {
+  if (!req.headers['paypal-transmission-sig'] || !req.headers['paypal-transmission-id']) return res.sendStatus(400);
   let event;
   try { event = JSON.parse((req.rawBody || Buffer.from('')).toString('utf8')); } catch { return res.sendStatus(400); }
 
@@ -2935,9 +2969,12 @@ app.post('/api/webhooks/paypal', async (req, res) => {
 
   const eventType = event.event_type;
   const subId = event.resource?.id;
-  const cancelEvents = ['BILLING.SUBSCRIPTION.CANCELLED', 'BILLING.SUBSCRIPTION.EXPIRED', 'BILLING.SUBSCRIPTION.SUSPENDED'];
+  const endEvents = ['BILLING.SUBSCRIPTION.CANCELLED', 'BILLING.SUBSCRIPTION.EXPIRED'];
+  const cancelEvents = [...endEvents, 'BILLING.SUBSCRIPTION.SUSPENDED'];
   if (cancelEvents.includes(eventType) && subId && db) {
-    const cancelled = await db.query("UPDATE users SET subscription_tier = 'free', paypal_subscription_id = NULL WHERE paypal_subscription_id = $1 RETURNING google_id", [subId])
+    const clearId = endEvents.includes(eventType);
+    const cancelled = await db.query(
+      "UPDATE users SET subscription_tier = 'free'" + (clearId ? ', paypal_subscription_id = NULL' : '') + ' WHERE paypal_subscription_id = $1 RETURNING google_id', [subId])
       .catch(err => { console.error('Webhook DB error:', err); return { rows: [] }; });
     for (const row of cancelled.rows) {
       if (userLimits[row.google_id]) { userLimits[row.google_id].subscriptionTier = 'free'; saveLimitsToDB(row.google_id); }
@@ -2953,8 +2990,25 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+function loadOwnerIds() {
+  if (!db) return;
+  db.query('SELECT google_id FROM users WHERE email = ANY($1)', [[...OWNER_EMAILS]])
+    .then(r => r.rows.forEach(row => ownerGoogleIds.add(row.google_id)))
+    .catch(() => {});
+}
+
+// Clear JSON errors (e.g. an upload that is too large) instead of an HTML error page
+app.use((err, req, res, next) => {
+  if (err && (err.type === 'entity.too.large' || err.status === 413)) return res.status(413).json({ error: 'That upload is too large. Try a smaller image.' });
+  if (err && err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid request' });
+  console.error('Unhandled error:', err && err.message);
+  if (res.headersSent) return next(err);
+  res.status(500).json({ error: 'Something went wrong. Please try again.' });
+});
+
 function startListening() {
   app.listen(PORT, () => {
+    loadOwnerIds();
     console.log(`\nAI Character Site running at http://localhost:${PORT}\n`);
   });
 }

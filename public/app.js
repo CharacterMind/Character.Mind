@@ -1546,7 +1546,7 @@ function saveHistoryLocal() {
       : {
           role: el.classList.contains('user') ? 'user' : 'ai',
           content: bubbleToRaw(el.querySelector('.bubble'))
-        }).filter(m => m.content || m.card);
+        }).filter(m => (m.content || m.card) && !(m.role === 'ai' && /^\s*⚠️/.test(m.content)));
     const all = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}');
     all[currentChar.id] = items.slice(-150);
     localStorage.setItem(userKey('cm_history'), JSON.stringify(all));
@@ -1849,14 +1849,33 @@ function onImageSelected(event) {
   const file = event.target.files?.[0];
   event.target.value = '';
   if (!file) return;
-  if (file.size > 4 * 1024 * 1024) { showWarning('Image must be under 4 MB.'); return; }
+  if (file.size > 12 * 1024 * 1024) { showWarning('Image must be under 12 MB.'); return; }
   const reader = new FileReader();
+  reader.onerror = () => showWarning('Could not read that image. Try a different one.');
   reader.onload = (e) => {
-    pendingImageB64 = e.target.result;
-    const thumb = document.getElementById('imgPreviewThumb');
-    const strip = document.getElementById('imgPreviewStrip');
-    if (thumb) thumb.src = pendingImageB64;
-    if (strip) strip.style.display = 'flex';
+    const img = new Image();
+    img.onerror = () => showWarning('Could not load that image. Try a different file.');
+    img.onload = () => {
+      // Phone photos are far larger than the server accepts, so shrink and compress them first
+      const MAX_SIDE = 1024;
+      const scale = Math.min(1, MAX_SIDE / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(img.width * scale));
+      canvas.height = Math.max(1, Math.round(img.height * scale));
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      let quality = 0.85;
+      let out = canvas.toDataURL('image/jpeg', quality);
+      while (out.length > 450000 && quality > 0.4) { quality -= 0.15; out = canvas.toDataURL('image/jpeg', quality); }
+      if (out.length > 450000) { showWarning('That image is too large. Try a smaller one.'); return; }
+      pendingImageB64 = out;
+      const thumb = document.getElementById('imgPreviewThumb');
+      const strip = document.getElementById('imgPreviewStrip');
+      if (thumb) thumb.src = pendingImageB64;
+      if (strip) strip.style.display = 'flex';
+    };
+    img.src = e.target.result;
   };
   reader.readAsDataURL(file);
 }
@@ -2979,14 +2998,17 @@ function saveEdit(btn) {
   // Sync history without the last user turn, then resend
   saveHistoryLocal();
   if (!currentChar) return;
-  fetch(`/api/conversations/${currentChar.id}`, { method: 'DELETE' });
   const localHistory = loadHistoryLocal(currentChar.id);
   // Remove the last entry (the user message we're re-sending) from the sync
   const histWithout = localHistory.slice(0, -1);
-  fetch(`/api/conversations/${currentChar.id}/sync`, {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ history: histWithout })
-  }).then(() => sendMessage(newText, true)).catch(() => sendMessage(newText, true));
+  // Clear first, then sync, in order (running them together could leave the server chat empty)
+  fetch(`/api/conversations/${currentChar.id}`, { method: 'DELETE' })
+    .catch(() => {})
+    .then(() => fetch(`/api/conversations/${currentChar.id}/sync`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ history: histWithout })
+    }))
+    .then(() => sendMessage(newText, true)).catch(() => sendMessage(newText, true));
 }
 
 function cancelEdit(btn) {
