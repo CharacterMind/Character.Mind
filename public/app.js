@@ -1765,7 +1765,7 @@ async function generateGreeting() {
         if (!line.startsWith('data: ')) continue;
         const data = JSON.parse(line.slice(6));
         if (data.error) throw new Error(data.error);
-        if (data.done && data.usage) { streamRealTokens = data.responseTokens || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
+        if (data.done && data.usage) { hideStreamStatsNow(); streamRealTokens = data.responseTokens || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
         if (data.text) {
           if (!gotFirst) {
             gotFirst = true;
@@ -1939,7 +1939,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
           }
           break;
         }
-        if (data.done && data.usage) { streamRealTokens = data.responseTokens || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
+        if (data.done && data.usage) { hideStreamStatsNow(); streamRealTokens = data.responseTokens || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
         if (data.text) {
           if (!gotFirst) {
             gotFirst = true;
@@ -3201,14 +3201,13 @@ function stopStreamStats(msgEl, finalTokens) {
   streamStartTime = null;
   const stats = msgEl?.querySelector('.stream-stats');
   if (!stats) return;
-  // Show the exact amount deducted from the allowance (server-reported tokens x tier multiplier)
-  stats.style.display = '';
-  stats.classList.remove('active');
-  stats.classList.add('done');
-  if (finalTokens) {
-    const tokEl = stats.querySelector('.stream-tok');
-    if (tokEl) tokEl.textContent = fmtLiveTokens(finalTokens) + ' tokens';
-  }
+  // The final token count is never shown
+  stats.style.display = 'none';
+}
+
+// Hide every token counter right away (called the moment a reply finishes arriving).
+function hideStreamStatsNow() {
+  document.querySelectorAll('.stream-stats').forEach(s => { s.style.display = 'none'; });
 }
 
 // ── Regeneration history ──────────────────────────────────────────────────────
@@ -4248,7 +4247,7 @@ async function regenerate() {
         if (!line.startsWith('data: ')) continue;
         const data = JSON.parse(line.slice(6));
         if (data.error) throw new Error(data.error);
-        if (data.done && data.usage) { streamRealTokens = data.responseTokens || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
+        if (data.done && data.usage) { hideStreamStatsNow(); streamRealTokens = data.responseTokens || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
         if (data.text) {
           streamText += data.text;
           feedTypewriter(data.text);
@@ -4311,13 +4310,16 @@ function renderMarkdown(text) {
         return `<span class="narration">${part.slice(1, -1)}</span>`;
       }
       if (!part.trim()) return part; // whitespace only, preserve
-      // Dialogue: strip existing surrounding quotes then add curly ones
+      // Text with quote marks: wrap only the quoted speech in curly quotes (the text was HTML-escaped, so " is &quot;)
+      if (/(&quot;|[“”])/.test(part)) {
+        return part.replace(/(?:&quot;|“)([^]*?)(?:&quot;|”)/g, '<span class="dialogue">“$1”</span>');
+      }
+      // No quote marks at all: treat the whole segment as speech
       const leadWs = part.match(/^(\s*)/)[1];
       const trailWs = part.match(/(\s*)$/)[1];
       const inner = part.slice(leadWs.length, part.length - trailWs.length || undefined);
-      const cleaned = inner.replace(/^[“”"]+/, '').replace(/[“”"]+$/, '');
-      if (!cleaned.trim()) return part;
-      return `${leadWs}<span class="dialogue">“${cleaned}”</span>${trailWs}`;
+      if (!inner.trim()) return part;
+      return `${leadWs}<span class="dialogue">“${inner}”</span>${trailWs}`;
     }).join('');
     return `<p>${html.replace(/\n/g, '<br>')}</p>`;
   }).filter(Boolean).join('');
