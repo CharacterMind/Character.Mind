@@ -4886,3 +4886,8 @@ function showEventBanner(msg, eventName) {
   document.body.appendChild(banner);
   setTimeout(() => banner.remove(), 10000);
 }
+
+// Voice features (call button, read-aloud) stay hidden until a TTS provider is configured server-side.
+fetch('/api/tts/status').then(r => (r.ok ? r.json() : null)).then(d => {
+  if (d && d.enabled) document.body.classList.add('voice-on');
+}).catch(() => {});

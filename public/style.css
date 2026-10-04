@@ -2698,3 +2698,6 @@ html, body {
   border: 1px solid var(--border2); border-radius: 10px;
   line-height: 1.5;
 }
+
+body:not(.voice-on) .btn-call,
+body:not(.voice-on) .tts-btn { display: none !important; }
