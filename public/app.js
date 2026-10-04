@@ -876,7 +876,7 @@ function toggleUdPolicies(e) {
   if (sub) sub.style.display = sub.style.display === 'none' ? 'block' : 'none';
 }
 
-const WELCOME_VERSION = 'v3'; // bumped so everyone sees the new welcome once
+const WELCOME_VERSION = 'v4'; // bumped so everyone sees the new welcome once
 
 function toggleSidebar() {
   const sidebar = document.getElementById('sidebar');
