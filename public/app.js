@@ -4487,7 +4487,6 @@ function toggleMsgDislike(btn) {
   btn.closest('.msg-footer').querySelector('.like-btn')?.classList.remove('active');
   btn.style.transform = 'scale(1.35)';
   setTimeout(() => { btn.style.transform = ''; }, 180);
-  setTimeout(() => regenerate(), 500);
 }
 
 // ── Regenerate ─────────────────────────────────────────────────────────────────
