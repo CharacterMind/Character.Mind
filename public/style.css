@@ -2746,3 +2746,5 @@ body:not(.voice-on) .btn-call::after { content: "Soon"; position: absolute; top:
   .md-more-btn .md-chev { transform: rotate(90deg); }
   .model-dropdown { max-height: calc(100vh - 150px); max-height: calc(100dvh - 150px); overflow-y: auto; }
 }
+
+.md-sub-label { font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text3); padding: 6px 12px 4px; }

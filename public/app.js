@@ -10,9 +10,9 @@ let currentFilter = 'all';
 let lastUserMessage = '';
 // ── Model & Effort state ───────────────────────────────────────────────────────
 const EFFORT_LEVELS = ['low','medium','high','extra','max'];
-const ALL_TIERS = ['opas','opes','opis','opos','opus','opys','opys2'];
+const ALL_TIERS = ['opas','opes','opis','opos','opus','opys','opas2','opes2','opis2','opos2','opus2','opys2'];
 // Models tucked into the "More models" submenu of the picker
-const MORE_MODEL_TIERS = ['opus','opys','opys2'];
+const MORE_MODEL_TIERS = ['opus','opys','opas2','opes2','opis2','opos2','opus2','opys2'];
 // The chosen model and effort are remembered per account (see loadAccountPrefs), never shared between accounts
 let selectedModelTier = 'opas';
 let selectedEffort = 'medium';
@@ -31,19 +31,26 @@ function loadAccountPrefs() {
   updateModelBarLabel();
 }
 
-const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys', opys2:'Opys 2' };
+const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys', opas2:'Opas 2', opes2:'Opes 2', opis2:'Opis 2', opos2:'Opos 2', opus2:'Opus 2', opys2:'Opys 2' };
 // Must match OPAS_COST / OPES_COST / COST_FACTOR_VS_OPES in server.js — what one reply costs from the allowance.
 const OPAS_COST = { low: 220, medium: 350, high: 650, extra: 1300, max: 5200 };
 const OPES_COST = { low: 700, medium: 1200, high: 2000, extra: 4000, max: 16000 };
-const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.5, opos: 2.5, opus: 6, opys: 15, opys2: 45 };
+const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.5, opos: 2.5, opus: 6, opys: 15, opes2: 2, opis2: 3.75, opos2: 6.25, opus2: 18, opys2: 45 };
+const MAX_EFFORT_BOOST_V2 = 1.5; // Max effort on a "2" model costs this much more again
+function clientMessageCost(tier, effort) {
+  const boost = (/2$/.test(tier) && effort === 'max') ? MAX_EFFORT_BOOST_V2 : 1;
+  if (tier === 'opas2') return Math.round(OPAS_COST[effort] * 2 * boost);
+  if (tier === 'opas' || !(tier in COST_FACTOR_VS_OPES)) return OPAS_COST[effort];
+  return Math.round(OPES_COST[effort] * COST_FACTOR_VS_OPES[tier] * boost);
+}
 // Roughly how many visible characters a full reply has at each effort (used to ramp the live counter up to the cost)
 const EXPECTED_REPLY_CHARS = { low: 250, medium: 500, high: 1200, extra: 2500, max: 4000 };
 // Model tiers each plan may use — must match PLAN_MODEL_TIERS in server.js.
 const PLAN_MODEL_TIERS = {
   free:     ['opas', 'opes'],
-  advanced: ['opas', 'opes', 'opis', 'opos'],
-  x20:      ['opas', 'opes', 'opis', 'opos', 'opus'],
-  x50:      ['opas', 'opes', 'opis', 'opos', 'opus', 'opys', 'opys2'],
+  advanced: ['opas', 'opes', 'opis', 'opos', 'opas2', 'opes2'],
+  x20:      ['opas', 'opes', 'opis', 'opos', 'opus', 'opas2', 'opes2', 'opis2', 'opos2'],
+  x50:      ['opas', 'opes', 'opis', 'opos', 'opus', 'opys', 'opas2', 'opes2', 'opis2', 'opos2', 'opus2', 'opys2'],
 };
 // The total cost of the reply being written, and how much of it to show so far (ramps up as the text types)
 function liveReplyCost() {
@@ -51,8 +58,7 @@ function liveReplyCost() {
   const plan = (typeof lastKnownUsage !== 'undefined' && lastKnownUsage && lastKnownUsage.subscriptionTier) || 'free';
   if (!(PLAN_MODEL_TIERS[plan] || PLAN_MODEL_TIERS.free).includes(tier)) tier = 'opes';
   const effort = callModeActive ? 'low' : (OPES_COST[selectedEffort] ? selectedEffort : 'medium');
-  if (tier === 'opas' || !(tier in COST_FACTOR_VS_OPES)) return { cost: OPAS_COST[effort], effort };
-  return { cost: Math.round(OPES_COST[effort] * COST_FACTOR_VS_OPES[tier]), effort };
+  return { cost: clientMessageCost(tier, effort), effort };
 }
 function liveCostSoFar(chars) {
   const { cost, effort } = liveReplyCost();
@@ -61,7 +67,7 @@ function liveCostSoFar(chars) {
 const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', max:'Max' };
 
 // Token usage multiplier shown on Max effort warning per tier
-const MAX_EFFORT_MULTIPLIERS = { opas:'13×', opes:'13×', opis:'13×', opos:'13×', opus:'13×', opys:'13×', opys2:'13×' };
+const MAX_EFFORT_MULTIPLIERS = { opas:'13×', opes:'13×', opis:'13×', opos:'13×', opus:'13×', opys:'13×', opas2:'20×', opes2:'20×', opis2:'20×', opos2:'20×', opus2:'20×', opys2:'20×' };
 
 function currentPlanKey() {
   return (typeof lastKnownUsage !== 'undefined' && lastKnownUsage && lastKnownUsage.subscriptionTier) || 'free';
@@ -96,6 +102,11 @@ const MODEL_ICONS = {
   opus: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
   opys: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
   opys2: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
+  opas2: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
+  opes2: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
+  opis2: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
+  opos2: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
+  opus2: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
 };
 
 function updateModelBarLabel() {

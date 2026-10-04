@@ -488,7 +488,7 @@ function tokenLimitsFor(u) {
   return TIER_TOKEN_LIMITS[u.subscriptionTier || 'free'] || TIER_TOKEN_LIMITS.free;
 }
 // How fast each model tier burns your token allowance (top tiers cost far more).
-const MODEL_TOKEN_MULT = { opas: 1, opes: 3, opis: 4, opos: 5, opus: 6, opys: 8, opys2: 10 };
+const MODEL_TOKEN_MULT = { opas: 1, opes: 3, opis: 4, opos: 5, opus: 6, opys: 8, opas2: 2, opes2: 6, opis2: 8, opos2: 10, opus2: 12, opys2: 16 };
 // Extra cost for the higher effort levels, on top of the model multiplier (they also write longer replies).
 const EFFORT_TOKEN_MULT = { low: 1, medium: 1, high: 1, extra: 1.5, max: 2 };
 function effortMultFor(effort) { return Object.hasOwn(EFFORT_TOKEN_MULT, effort) ? EFFORT_TOKEN_MULT[effort] : 1; }
@@ -499,21 +499,28 @@ function effortMultFor(effort) { return Object.hasOwn(EFFORT_TOKEN_MULT, effort)
 const OPAS_COST = { low: 220, medium: 350, high: 650, extra: 1300, max: 5200 };
 const OPES_COST = { low: 700, medium: 1200, high: 2000, extra: 4000, max: 16000 }; // Max is deliberately extreme: about 13x a Medium message
 // Low tier: Opas, Opes. Mid tier: Opis (1.5x), Opos (2.5x). High tier: Opus (6x), Opys (15x), Opys 2 (45x = 3x Opys, the most advanced) - these drain even an X50 allowance fast.
-const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.5, opos: 2.5, opus: 6, opys: 15, opys2: 45 };
+// Every model has a "2" version: smarter (full reasoning, more room per reply, an extra quality instruction, always the
+// strongest model) and priced at 2x to 3x its base model, and Max effort on a "2" model costs 1.5x more again.
+// Opas 2 = 2x Opas; Opes 2 = 2x Opes; Opis 2 = 2.5x Opis; Opos 2 = 2.5x Opos; Opus 2 = 3x Opus; Opys 2 = 3x Opys.
+const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.5, opos: 2.5, opus: 6, opys: 15, opes2: 2, opis2: 3.75, opos2: 6.25, opus2: 18, opys2: 45 };
+const MAX_EFFORT_BOOST_V2 = 1.5;
+const isTwoTier = (t) => typeof t === 'string' && t.length > 1 && t.endsWith('2');
 function messageCost(modelTier, effort) {
   const e = (typeof effort === 'string' && Object.hasOwn(OPES_COST, effort)) ? effort : 'medium';
+  const boost = (isTwoTier(modelTier) && e === 'max') ? MAX_EFFORT_BOOST_V2 : 1;
+  if (modelTier === 'opas2') return Math.round(OPAS_COST[e] * 2 * boost);
   if (modelTier === 'opas' || !Object.hasOwn(COST_FACTOR_VS_OPES, modelTier)) return OPAS_COST[e];
-  return Math.round(OPES_COST[e] * COST_FACTOR_VS_OPES[modelTier]);
+  return Math.round(OPES_COST[e] * COST_FACTOR_VS_OPES[modelTier] * boost);
 }
 function tokenMultFor(tier) { return Object.hasOwn(MODEL_TOKEN_MULT, tier) ? MODEL_TOKEN_MULT[tier] : MODEL_TOKEN_MULT.opas; }
 
 // Which model tiers each plan may use (matches the plan cards and the model picker):
-// Free = Opas, Opes; Advanced adds Opis, Opos; X20 adds Opus; X50 adds Opys and Opys 2.
+// Free = Opas, Opes; Advanced adds Opis, Opos, Opas 2, Opes 2; X20 adds Opus, Opis 2, Opos 2; X50 adds Opys, Opus 2, Opys 2.
 const PLAN_MODEL_TIERS = {
   free:     ['opas', 'opes'],
-  advanced: ['opas', 'opes', 'opis', 'opos'],
-  x20:      ['opas', 'opes', 'opis', 'opos', 'opus'],
-  x50:      ['opas', 'opes', 'opis', 'opos', 'opus', 'opys', 'opys2'],
+  advanced: ['opas', 'opes', 'opis', 'opos', 'opas2', 'opes2'],
+  x20:      ['opas', 'opes', 'opis', 'opos', 'opus', 'opas2', 'opes2', 'opis2', 'opos2'],
+  x50:      ['opas', 'opes', 'opis', 'opos', 'opus', 'opys', 'opas2', 'opes2', 'opis2', 'opos2', 'opus2', 'opys2'],
 };
 function resolveModelTier(userId, requested) {
   if (typeof requested !== 'string' || !Object.hasOwn(MODEL_TOKEN_MULT, requested)) return 'opas';
@@ -662,10 +669,10 @@ const EFFORT_DIRECTIVES = {
   max:    'RESPONSE LENGTH: Write the longest, most elaborate reply you can — 10 to 16 paragraphs. Leave nothing out: every sensation, thought, gesture, line of dialogue and shift in the scene. It should read like a full chapter.',
 };
 
-const OPYS2_DIRECTIVE = 'QUALITY: You are the most advanced model. Write with exceptional depth and craft: stay perfectly consistent with the character\'s voice, history and the details already established; add layered emotion, subtext and vivid specific detail; move the scene forward with a meaningful choice or twist instead of repeating what was said. Never pad, never repeat earlier phrasing.';
+const OPYS2_DIRECTIVE = 'QUALITY: You are an advanced "version 2" model. Write with exceptional depth and craft: stay perfectly consistent with the character\'s voice, history and the details already established; add layered emotion, subtext and vivid specific detail; move the scene forward with a meaningful choice or twist instead of repeating what was said. Never pad, never repeat earlier phrasing.';
 function applyEffortDirective(prompt, effort, modelTier) {
   const directive = (typeof effort === 'string' && Object.hasOwn(EFFORT_DIRECTIVES, effort)) ? EFFORT_DIRECTIVES[effort] : EFFORT_DIRECTIVES['high'];
-  return prompt + '\n\n' + directive + (modelTier === 'opys2' ? '\n\n' + OPYS2_DIRECTIVE : '');
+  return prompt + '\n\n' + directive + (isTwoTier(modelTier) ? '\n\n' + OPYS2_DIRECTIVE : '');
 }
 
 // ── RP quality wrapper injected into every system prompt ─────────────────────
@@ -1360,7 +1367,7 @@ const GROQ_FAST_MODELS  = ['openai/gpt-oss-20b',  'openai/gpt-oss-120b', ...GROQ
 const GROQ_MODELS       = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b',  ...GROQ_FALLBACKS];
 const GROQ_PRO_MODELS   = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b',  ...GROQ_FALLBACKS];
 const GROQ_OPUS_MODELS  = ['openai/gpt-oss-120b', GROQ_FALLBACKS[0]];
-// Opys 2 only ever runs on the strongest model: a 45x price must not quietly be served by a weaker overflow model.
+// Every "2" model only ever runs on the strongest model: a 45x price must not quietly be served by a weaker overflow model.
 const GROQ_OPYS2_MODELS = ['openai/gpt-oss-120b'];
 
 // Per-tier effort configs — max effort uses highest reasoning + tokens
@@ -1409,7 +1416,7 @@ const EFFORT_CONFIG = {
   },
 };
 
-EFFORT_CONFIG.opys2 = EFFORT_CONFIG.opys; // the most advanced model: same top settings, charged 2x Opys
+for (const k of ['opas', 'opes', 'opis', 'opos', 'opus', 'opys']) EFFORT_CONFIG[k + '2'] = EFFORT_CONFIG[k]; // a "2" model starts from its base settings, then gets the upgrades in getEffortCfg
 
 // Groq's free plan allows only 8,000 tokens per minute per model, and a request counts its input PLUS its
 // max_tokens against that. The big caps above could never fit, so Extra/Max always failed. Until the Groq plan
@@ -1439,10 +1446,13 @@ function getEffortCfg(effort, tier) {
   const t = EFFORT_CONFIG[tier] ? tier : 'opas';
   const cfg = EFFORT_CONFIG[t];
   const base = (typeof effort === 'string' && Object.hasOwn(cfg, effort)) ? cfg[effort] : cfg.medium;
-  // Opys 2 gets more room per reply and keeps full reasoning; everything else is held to the free-plan limits.
-  const cap = t === 'opys2' ? Math.max(GROQ_OUTPUT_CAP, OPYS2_OUTPUT_CAP) : GROQ_OUTPUT_CAP;
-  const out = { ...base, maxOutputTokens: Math.min(Math.max(base.maxOutputTokens, GROQ_OUTPUT_MIN), cap) };
-  if (t !== 'opys2' && !GROQ_ALLOW_HIGH_REASONING && out.reasoningEffort === 'high') out.reasoningEffort = 'medium';
+  // A "2" model gets more room per reply and a notch more reasoning; everything else is held to the free-plan limits.
+  const two = isTwoTier(t);
+  const cap = two ? Math.max(GROQ_OUTPUT_CAP, OPYS2_OUTPUT_CAP) : GROQ_OUTPUT_CAP;
+  const room = Math.max(base.maxOutputTokens, GROQ_OUTPUT_MIN) * (two ? 1.5 : 1); // a "2" model gets 50% more room, up to its cap
+  const out = { ...base, maxOutputTokens: Math.min(Math.round(room), cap) };
+  if (two) out.reasoningEffort = ({ low: 'medium', medium: 'high', high: 'high' })[out.reasoningEffort] || out.reasoningEffort;
+  else if (!GROQ_ALLOW_HIGH_REASONING && out.reasoningEffort === 'high') out.reasoningEffort = 'medium';
   return out;
 }
 
@@ -1521,7 +1531,7 @@ function aiErrorMessage(err) {
 
 function getModelList(tier) {
   if (tier === 'opis' || tier === 'opos' || tier === 'opus' || tier === 'opys') return GROQ_OPUS_MODELS;
-  if (tier === 'opys2') return GROQ_OPYS2_MODELS;
+  if (isTwoTier(tier)) return GROQ_OPYS2_MODELS;
   if (tier === 'opes') return GROQ_PRO_MODELS;
   return GROQ_FAST_MODELS;
 }
