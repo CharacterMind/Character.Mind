@@ -402,16 +402,24 @@ const LIMITS = {
   CALL_DAILY: 3
 };
 
-// Token limits per plan. Free and Advanced are set by hand; X20 and X50 are 20x and 50x the Free plan.
-// A "normal message" = Opes at High effort = ~800 reply tokens x 2 (Opes) = ~1,600 charged tokens.
-const X20_MULT = 20;
-const X50_MULT = 50;
+// Plan limits are defined as an average number of messages per session, then converted to tokens.
+// The "average message" = Opes at High effort = ~800 reply tokens x 2 (Opes) = ~1,600 charged tokens.
+// Lighter models/efforts get more messages than this; heavier ones get fewer.
+const AVG_MESSAGE_TOKENS = 1600;
+const MESSAGES_PER_SESSION = { free: 30, advanced: 60 };
+const X20_MULT = 20;  // X20 = 20x Advanced
+const X50_MULT = 50;  // X50 = 50x Advanced
+const WEEKLY_SESSIONS = 5; // weekly limit = this many sessions' worth
+function limitsForMessages(n) {
+  const session = n * AVG_MESSAGE_TOKENS;
+  return { session, weekly: session * WEEKLY_SESSIONS };
+}
 const TIER_TOKEN_LIMITS = {
-  free:     { session: 20000, weekly: 100000 },
-  advanced: { session: 50000, weekly: 250000 },
+  free:     limitsForMessages(MESSAGES_PER_SESSION.free),
+  advanced: limitsForMessages(MESSAGES_PER_SESSION.advanced),
+  x20:      limitsForMessages(MESSAGES_PER_SESSION.advanced * X20_MULT),
+  x50:      limitsForMessages(MESSAGES_PER_SESSION.advanced * X50_MULT),
 };
-TIER_TOKEN_LIMITS.x20 = { session: TIER_TOKEN_LIMITS.free.session * X20_MULT, weekly: TIER_TOKEN_LIMITS.free.weekly * X20_MULT };
-TIER_TOKEN_LIMITS.x50 = { session: TIER_TOKEN_LIMITS.free.session * X50_MULT, weekly: TIER_TOKEN_LIMITS.free.weekly * X50_MULT };
 function tokenLimitsFor(u) {
   return TIER_TOKEN_LIMITS[u.subscriptionTier || 'free'] || TIER_TOKEN_LIMITS.free;
 }
