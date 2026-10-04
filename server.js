@@ -376,6 +376,12 @@ const LIMITS = {
   CALL_DAILY: 3
 };
 
+const TIER_SESSION_LIMITS = { free: 20000, advanced: 80000, x20: 80000, x50: 80000 };
+function sessionLimitFor(u) {
+  return TIER_SESSION_LIMITS[u.subscriptionTier || 'free'] ?? TIER_SESSION_LIMITS.free;
+}
+const NSFW_BLOCK_TOKENS = 200;
+
 const TIER_CALL_LIMITS  = { free: 3,   advanced: 5,   x20: 100,  x50: 250  };
 const TIER_MEMO_LIMITS  = { free: 30,  advanced: 50,  x20: 1000, x50: 2500 };
 const TIER_IMAGE_LIMITS = { free: 5,   advanced: 10,  x20: 200,  x50: 500  };
@@ -445,7 +451,7 @@ function buildUsagePayload(u, userId) {
   const memosRemaining = memoLimit === Infinity ? 9999 : Math.max(0, memoLimit - (u.memosToday || 0));
   return {
     sessionTokens: u.sessionTokens,
-    sessionLimit: LIMITS.SESSION,
+    sessionLimit: sessionLimitFor(u),
     sessionStartedAt: u.sessionStartedAt,
     sessionExpiresAt: u.sessionStartedAt ? u.sessionStartedAt + LIMITS.SESSION_COOLDOWN_MS : null,
     cooldownUntil: u.cooldownUntil,
@@ -475,7 +481,7 @@ function addTokens(sid, tokens) {
 
   u.sessionTokens += tokens;
   u.weeklyTokens += tokens;
-  const sPct = (u.sessionTokens / LIMITS.SESSION) * 100;
+  const sPct = (u.sessionTokens / sessionLimitFor(u)) * 100;
   const wPct = (u.weeklyTokens / LIMITS.WEEKLY) * 100;
   const warnings = [];
   if (sPct >= 90 && !u.warned.session90) { u.warned.session90 = true; warnings.push({ type: 'session', pct: 90, msg: "You've used 90% of your session limit." }); }
@@ -488,7 +494,7 @@ function addTokens(sid, tokens) {
   for (const t of wt) {
     if (wPct >= t.pct && !u.warned[t.key]) { u.warned[t.key] = true; warnings.push({ type: 'weekly', pct: t.pct, msg: t.msg }); }
   }
-  if (u.sessionTokens >= LIMITS.SESSION && !u.cooldownUntil) {
+  if (u.sessionTokens >= sessionLimitFor(u) && !u.cooldownUntil) {
     // Block until the session window expires (not a fresh cooldown — enforces Anthropic-style 2h window)
     u.cooldownUntil = u.sessionStartedAt + LIMITS.SESSION_COOLDOWN_MS;
   }
@@ -844,7 +850,7 @@ function slurDeflect(res, warning, usage) {
   words.forEach((w, i) => {
     res.write(`data: ${JSON.stringify({ text: (i === 0 ? '' : ' ') + w })}\n\n`);
   });
-  res.write(`data: ${JSON.stringify({ done: true, usage: usage || {}, responseTokens: 0, warnings: [] })}\n\n`);
+  res.write(`data: ${JSON.stringify({ done: true, usage: usage || {}, responseTokens: 0, warnings: (usage && usage.warnings) || [] })}\n\n`);
   res.end();
 }
 
@@ -902,7 +908,7 @@ function nsfwDeflect(res, usage) {
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
   res.write(`data: ${JSON.stringify({ nsfw: true })}\n\n`);
-  res.write(`data: ${JSON.stringify({ done: true, usage: usage || {}, responseTokens: 0, warnings: [] })}\n\n`);
+  res.write(`data: ${JSON.stringify({ done: true, usage: usage || {}, responseTokens: 0, warnings: (usage && usage.warnings) || [] })}\n\n`);
   res.end();
 }
 
@@ -1712,7 +1718,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   // If the last user message was NSFW, deflect the regen too
   const lastUserMsg = hist[hist.length - 1]?.content || '';
   if (NSFW_RE.test(lastUserMsg)) {
-    return nsfwDeflect(res, buildUsagePayload(getLimits(userId), userId));
+    return nsfwDeflect(res, addTokens(userId, NSFW_BLOCK_TOKENS));
   }
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -1897,7 +1903,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         console.warn('[image-safety] check failed, blocking image:', e.message);
         return res.status(503).json({ error: "We couldn't check that image right now. Please try again in a moment or send your message without it." });
       }
-      if (explicit) return nsfwDeflect(res, buildUsagePayload(imgU, imgUid));
+      if (explicit) return nsfwDeflect(res, addTokens(imgUid, NSFW_BLOCK_TOKENS));
       imgU.imagesDay = (imgU.imagesDay || 0) + 1;
     }
   }
@@ -1957,7 +1963,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
   // ── NSFW detection — return a random deflection, no Gemini call needed ───────
   if (!isContinuation && message && NSFW_RE.test(msgNorm)) {
-    return nsfwDeflect(res, buildUsagePayload(getLimits(userId), userId));
+    return nsfwDeflect(res, addTokens(userId, NSFW_BLOCK_TOKENS));
   }
 
   // ── Crisis keyword detection ───────────────────────────────────────────────
