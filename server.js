@@ -386,6 +386,24 @@ TIER_TOKEN_LIMITS.x50 = { session: TIER_TOKEN_LIMITS.advanced.session * X50_MULT
 function tokenLimitsFor(u) {
   return TIER_TOKEN_LIMITS[u.subscriptionTier || 'free'] || TIER_TOKEN_LIMITS.free;
 }
+// How fast each model tier burns your token allowance (top tiers cost far more).
+const MODEL_TOKEN_MULT = { opas: 0.25, opes: 0.5, opis: 1, opos: 2, opus: 4, opys: 8 };
+function tokenMultFor(tier) { return MODEL_TOKEN_MULT[tier] ?? MODEL_TOKEN_MULT.opas; }
+
+// Which model tiers each plan may use (matches the plan cards: X20 unlocks Opis/Opos, X50 unlocks Opus/Opys).
+const PLAN_MODEL_TIERS = {
+  free:     ['opas', 'opes'],
+  advanced: ['opas', 'opes'],
+  x20:      ['opas', 'opes', 'opis', 'opos'],
+  x50:      ['opas', 'opes', 'opis', 'opos', 'opus', 'opys'],
+};
+function resolveModelTier(userId, requested) {
+  if (!MODEL_TOKEN_MULT[requested]) return 'opas';
+  if (ownerGoogleIds.has(userId)) return requested;
+  const plan = getLimits(userId).subscriptionTier || 'free';
+  const allowed = PLAN_MODEL_TIERS[plan] || PLAN_MODEL_TIERS.free;
+  return allowed.includes(requested) ? requested : 'opes';
+}
 function sessionLimitFor(u) { return tokenLimitsFor(u).session; }
 function weeklyLimitFor(u) { return tokenLimitsFor(u).weekly; }
 const NSFW_BLOCK_TOKENS = 200;
@@ -1699,7 +1717,8 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
   const { charId } = req.params;
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
-  const { modelTier, effort } = req.body;
+  const { modelTier: reqModelTier, effort } = req.body;
+  const modelTier = resolveModelTier(req.user.googleId, reqModelTier);
   const userId = req.user.googleId;
 
   const limit = checkLimits(userId);
@@ -1747,7 +1766,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
       if (done) return; done = true;
       hist.push({ role: 'assistant', content: fullResponse });
       const rawTokens = tokensUsed || Math.round(fullResponse.length / 3.5);
-      const regenMult = modelTier === 'opas' ? 0.25 : modelTier === 'opes' ? 0.5 : 1.0;
+      const regenMult = tokenMultFor(modelTier);
       const tokens = Math.round(rawTokens * regenMult);
       const usage = addTokens(userId, tokens);
       res.write(`data: ${JSON.stringify({ done: true, usage, responseTokens: rawTokens, warnings: usage.warnings })}\n\n`); res.end();
@@ -1811,7 +1830,8 @@ Write ONLY the persona prompt itself. Start with "You are ${name}." No preamble,
 app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
-  const { effort, modelTier } = req.body;
+  const { effort, modelTier: reqModelTier } = req.body;
+  const modelTier = resolveModelTier(req.user.googleId, reqModelTier);
   const { charId } = req.params;
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
   const userId = req.user.googleId;
@@ -1846,7 +1866,7 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
       if (done) return; done = true;
       conversations[key].push({ role: 'assistant', content: fullResponse });
       const rawTokens = tokensUsed || Math.round(fullResponse.length / 3.5);
-      const greetMult = modelTier === 'opas' ? 0.25 : modelTier === 'opes' ? 0.5 : 1.0;
+      const greetMult = tokenMultFor(modelTier);
       const tokens = Math.round(rawTokens * greetMult);
       const usage = addTokens(userId, tokens);
       res.write(`data: ${JSON.stringify({ done: true, usage, responseTokens: rawTokens, warnings: usage.warnings })}\n\n`); res.end();
@@ -1890,7 +1910,8 @@ async function isExplicitImage(apiKey, dataUri) {
 app.post('/api/chat', requireAuth, async (req, res) => {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
-  const { charId, message, modelTier, effort, image, callMode } = req.body;
+  const { charId, message, modelTier: reqModelTier, effort, image, callMode } = req.body;
+  const modelTier = resolveModelTier(req.user.googleId, reqModelTier);
   if (message !== undefined && typeof message !== 'string') return res.status(400).json({ error: 'Invalid request' });
   if (image !== undefined) {
     if (typeof image !== 'string') return res.status(400).json({ error: 'Invalid image' });
@@ -2039,7 +2060,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       done = true;
       conversations[key].push({ role: 'assistant', content: fullResponse });
       const rawTokens = tokensUsed || Math.round(fullResponse.length / 3.5);
-      const tierMult = modelTier === 'opas' ? 0.25 : modelTier === 'opes' ? 0.5 : 1.0;
+      const tierMult = tokenMultFor(modelTier);
       const tokens = Math.round(rawTokens * tierMult);
       const usage = addTokens(userId, tokens);
       res.write(`data: ${JSON.stringify({ done: true, usage, responseTokens: rawTokens, warnings: usage.warnings })}\n\n`);
