@@ -1515,7 +1515,7 @@ function saveHistoryLocal() {
           content: bubbleToRaw(el.querySelector('.bubble'))
         }).filter(m => m.content || m.card);
     const all = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}');
-    all[currentChar.id] = items.slice(-40);
+    all[currentChar.id] = items.slice(-150);
     localStorage.setItem(userKey('cm_history'), JSON.stringify(all));
   } catch (_) {}
 }
@@ -1634,6 +1634,9 @@ async function openChat(charId) {
   messagesDiv.innerHTML = '';
   warnedThresholds.clear();
   loadUsage();
+
+  // If the server only has part of the chat (it restarted mid-conversation), the fuller local copy wins and is re-synced.
+  if (history.length > 0 && loadHistoryLocal(charId).length > history.length) history = [];
 
   if (history.length === 0) {
     const localHistory = loadHistoryLocal(charId);

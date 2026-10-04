@@ -113,6 +113,17 @@ if (db) {
 
   db.query(`CREATE INDEX IF NOT EXISTS idx_chat_archives_user_char ON chat_archives(user_id, char_id)`)
     .catch(() => {});
+
+  // The current (live) conversation per user+character, so a server restart never wipes a chat
+  db.query(`
+    CREATE TABLE IF NOT EXISTS chat_current (
+      user_id TEXT NOT NULL,
+      char_id TEXT NOT NULL,
+      messages JSONB NOT NULL DEFAULT '[]',
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (user_id, char_id)
+    )
+  `).catch(err => console.error('chat_current table init error:', err));
 } else {
   console.warn('No DATABASE_URL — characters will not be persisted');
 }
@@ -334,7 +345,7 @@ setInterval(() => {
   const CONV_TTL = 4 * 60 * 60 * 1000;
   for (const key of Object.keys(conversations)) {
     const ts = convLastUsed[key];
-    if (ts && now - ts > CONV_TTL) { delete conversations[key]; delete convLastUsed[key]; }
+    if (ts && now - ts > CONV_TTL) { delete conversations[key]; delete convLastUsed[key]; convLoaded.delete(key); }
   }
 }, 30 * 60 * 1000);
 
@@ -1007,6 +1018,60 @@ function buildDocsReply(msg) {
   ]);
 }
 
+// ── Conversation persistence (memory + database) ─────────────────────────────
+const CONV_MAX_MESSAGES = 500;
+const convLoaded = new Set();
+const convPersistTimers = new Map();
+
+function splitConvKey(key) {
+  const i = key.indexOf(':');
+  return [key.slice(0, i), key.slice(i + 1)];
+}
+
+// Load a conversation from the database the first time it is touched after a restart or idle purge.
+async function ensureConvLoaded(key) {
+  if (convLoaded.has(key)) return;
+  convLoaded.add(key);
+  if (!db) return;
+  const [uid, charId] = splitConvKey(key);
+  try {
+    const r = await db.query('SELECT messages FROM chat_current WHERE user_id=$1 AND char_id=$2', [uid, charId]);
+    const saved = r.rows[0]?.messages;
+    if (Array.isArray(saved) && saved.length && !(conversations[key] && conversations[key].length)) {
+      conversations[key] = saved;
+    }
+  } catch (e) {
+    convLoaded.delete(key);
+    console.error('ensureConvLoaded error:', e.message);
+  }
+}
+
+// Save the conversation shortly after it changes (debounced, fire-and-forget).
+function persistConv(key) {
+  if (!db) return;
+  convLoaded.add(key);
+  clearTimeout(convPersistTimers.get(key));
+  convPersistTimers.set(key, setTimeout(async () => {
+    convPersistTimers.delete(key);
+    const [uid, charId] = splitConvKey(key);
+    if (conversations[key] && conversations[key].length > CONV_MAX_MESSAGES + 100) {
+      conversations[key] = conversations[key].slice(-CONV_MAX_MESSAGES);
+    }
+    const msgs = conversations[key] || [];
+    try {
+      if (!msgs.length) {
+        await db.query('DELETE FROM chat_current WHERE user_id=$1 AND char_id=$2', [uid, charId]);
+      } else {
+        await db.query(
+          `INSERT INTO chat_current (user_id, char_id, messages, updated_at) VALUES ($1,$2,$3,NOW())
+           ON CONFLICT (user_id, char_id) DO UPDATE SET messages=$3, updated_at=NOW()`,
+          [uid, charId, JSON.stringify(msgs)]
+        );
+      }
+    } catch (e) { console.error('persistConv error:', e.message); }
+  }, 300));
+}
+
 const NSFW_CARD_VARIANTS = 4;
 
 // Keep the blocked message and its card in the saved chat so they survive reloads.
@@ -1015,6 +1080,7 @@ function recordNsfwBlock(key, userText) {
   const variant = Math.floor(Math.random() * NSFW_CARD_VARIANTS);
   if (userText) conversations[key].push({ role: 'user', content: userText });
   conversations[key].push({ role: 'assistant', content: '', card: 'nsfw', variant });
+  persistConv(key);
   return variant;
 }
 
@@ -1388,6 +1454,7 @@ app.post('/api/chat/reset-mod/:charId', requireAuth, async (req, res) => {
   const uid = req.user.googleId;
   const key = `${uid}:${charId}`;
   // Archive current conversation before resetting if it has messages
+  await ensureConvLoaded(key);
   const msgs = conversations[key] || [];
   if (msgs.length > 0 && db) {
     const count = await db.query('SELECT COUNT(*) FROM chat_archives WHERE user_id=$1 AND char_id=$2', [uid, charId])
@@ -1399,6 +1466,7 @@ app.post('/api/chat/reset-mod/:charId', requireAuth, async (req, res) => {
   }
   await setModStatus(uid, charId, 0, false);
   conversations[key] = [];
+  persistConv(key);
   res.json({ ok: true });
 });
 
@@ -1408,6 +1476,7 @@ app.post('/api/conversations/:charId/archive', requireAuth, async (req, res) => 
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
   const uid = req.user.googleId;
   const key = `${uid}:${charId}`;
+  await ensureConvLoaded(key);
   const msgs = conversations[key] || [];
   if (msgs.length === 0) return res.json({ ok: true, archived: false });
   if (db) {
@@ -1420,6 +1489,7 @@ app.post('/api/conversations/:charId/archive', requireAuth, async (req, res) => 
     }
   }
   conversations[key] = [];
+  persistConv(key);
   res.json({ ok: true, archived: true });
 });
 
@@ -1534,10 +1604,11 @@ app.post('/api/admin/wipe-my-data', requireAuth, async (req, res) => {
   delete userLimits[uid];
   // Clear all conversations for this user's sessions
   for (const key of Object.keys(conversations)) {
-    if (key.startsWith(uid + ':')) delete conversations[key];
+    if (key.startsWith(uid + ':')) { delete conversations[key]; convLoaded.delete(key); }
   }
   if (db) {
     await Promise.all([
+      db.query('DELETE FROM chat_current WHERE user_id = $1', [uid]),
       db.query('DELETE FROM user_limits WHERE user_id = $1', [uid]),
       db.query('UPDATE users SET recent_chats = $1, hidden_recents = $2 WHERE google_id = $3', ['{}', '{}', uid])
     ]).catch(() => {});
@@ -1792,9 +1863,10 @@ app.delete('/api/characters/:id', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/api/conversations/:charId', requireAuth, (req, res) => {
+app.get('/api/conversations/:charId', requireAuth, async (req, res) => {
   if (!VALID_ID.test(req.params.charId)) return res.status(400).json({ error: 'Invalid charId' });
   const key = `${req.user.googleId}:${req.params.charId}`;
+  await ensureConvLoaded(key);
   res.json(conversations[key] || []);
 });
 
@@ -1802,6 +1874,7 @@ app.delete('/api/conversations/:charId', requireAuth, (req, res) => {
   if (!VALID_ID.test(req.params.charId)) return res.status(400).json({ error: 'Invalid charId' });
   const key = `${req.user.googleId}:${req.params.charId}`;
   conversations[key] = [];
+  persistConv(key);
   res.json({ ok: true });
 });
 
@@ -1809,14 +1882,15 @@ app.post('/api/conversations/:charId/sync', requireAuth, (req, res) => {
   if (!VALID_ID.test(req.params.charId)) return res.status(400).json({ error: 'Invalid charId' });
   const { history } = req.body;
   if (!Array.isArray(history)) return res.status(400).json({ error: 'Invalid history' });
-  if (history.length > 100) return res.status(400).json({ error: 'Too many messages' });
+  if (history.length > CONV_MAX_MESSAGES) return res.status(400).json({ error: 'Too many messages' });
   const key = `${req.user.googleId}:${req.params.charId}`;
   conversations[key] = history.map(m => (m && m.card === 'nsfw')
     ? { role: 'assistant', content: '', card: 'nsfw', variant: (Number.isInteger(m.variant) && m.variant >= 0 && m.variant < NSFW_CARD_VARIANTS) ? m.variant : 0 }
     : {
         role: m && m.role === 'user' ? 'user' : 'assistant',
         content: String((m && m.content) || '').slice(0, 10000)
-      }).filter(m => m.card || m.content).slice(-40);
+      }).filter(m => m.card || m.content).slice(-CONV_MAX_MESSAGES);
+  persistConv(key);
   res.json({ ok: true });
 });
 
@@ -1841,6 +1915,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   const systemPrompt = dbChar ? dbChar.system_prompt : `You are ${charId}, a unique AI character.`;
 
   const key = `${req.user.googleId}:${charId}`;
+  await ensureConvLoaded(key);
   if (!conversations[key]) conversations[key] = [];
   convLastUsed[key] = Date.now();
 
@@ -1873,6 +1948,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
     (tokensUsed) => {
       if (done) return; done = true;
       hist.push({ role: 'assistant', content: fullResponse });
+      persistConv(key);
       const rawTokens = tokensUsed || Math.round(fullResponse.length / 3.5);
       const regenMult = tokenMultFor(modelTier);
       const tokens = Math.round(rawTokens * regenMult);
@@ -1888,14 +1964,16 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   );
 });
 
-app.post('/api/rewind/:charId', requireAuth, (req, res) => {
+app.post('/api/rewind/:charId', requireAuth, async (req, res) => {
   if (!VALID_ID.test(req.params.charId)) return res.status(400).json({ error: 'Invalid charId' });
   const key = `${req.user.googleId}:${req.params.charId}`;
+  await ensureConvLoaded(key);
   const hist = conversations[key] || [];
   let removed = 0;
   if (hist.length > 0 && hist[hist.length - 1].role === 'assistant') { hist.pop(); removed++; }
   if (hist.length > 0 && hist[hist.length - 1].role === 'user') { hist.pop(); removed++; }
   conversations[key] = hist;
+  persistConv(key);
   res.json({ ok: true, removed, remaining: hist.length });
 });
 
@@ -1954,6 +2032,7 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   const systemPrompt = dbChar ? dbChar.system_prompt : `You are ${charId}.`;
 
   const key = `${req.user.googleId}:${charId}`;
+  await ensureConvLoaded(key);
   if (!conversations[key]) conversations[key] = [];
   if (conversations[key].length > 0) return res.status(400).json({ error: 'Already started' });
   convLastUsed[key] = Date.now();
@@ -1973,6 +2052,7 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
     (tokensUsed) => {
       if (done) return; done = true;
       conversations[key].push({ role: 'assistant', content: fullResponse });
+      persistConv(key);
       const rawTokens = tokensUsed || Math.round(fullResponse.length / 3.5);
       const greetMult = tokenMultFor(modelTier);
       const tokens = Math.round(rawTokens * greetMult);
@@ -2040,6 +2120,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   const dbChar = await getCharPrompt(charId);
   const char = { systemPrompt: dbChar ? dbChar.system_prompt : `You are ${charId}, a unique AI character.` };
   const key = `${req.user.googleId}:${charId}`;
+  await ensureConvLoaded(key);
   if (!conversations[key]) conversations[key] = [];
   convLastUsed[key] = Date.now();
 
@@ -2089,6 +2170,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     if (newStrikes >= 3) {
       await setModStatus(userId, charId, newStrikes, true);
       conversations[key] = [];
+      persistConv(key);
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
@@ -2107,6 +2189,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   if (!isContinuation && message && isPolicyWhyQuestion(msgNorm)) {
     const explanation = buildPolicyExplanation();
     conversations[key].push({ role: 'user', content: message }, { role: 'assistant', content: explanation });
+    persistConv(key);
     const usage = addTokens(userId, Math.round(explanation.length / 3.5));
     return slurDeflect(res, explanation, usage);
   }
@@ -2116,6 +2199,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     const docsReply = buildDocsReply(msgNorm);
     if (docsReply) {
       conversations[key].push({ role: 'user', content: message }, { role: 'assistant', content: docsReply });
+      persistConv(key);
       const usage = addTokens(userId, Math.round(docsReply.length / 3.5));
       return slurDeflect(res, docsReply, usage);
     }
@@ -2144,6 +2228,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   if (!isContinuation) {
     // History stores text only — images are not persisted (too large, one-shot vision)
     conversations[key].push({ role: 'user', content: message || '[image]' });
+    persistConv(key);
   }
 
   // Chat APIs require the last turn to be a user turn — inject a hidden continuation trigger if needed
@@ -2191,6 +2276,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       if (done) return;
       done = true;
       conversations[key].push({ role: 'assistant', content: fullResponse });
+      persistConv(key);
       const rawTokens = tokensUsed || Math.round(fullResponse.length / 3.5);
       const tierMult = tokenMultFor(modelTier);
       const tokens = Math.round(rawTokens * tierMult);
