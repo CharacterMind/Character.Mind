@@ -1400,7 +1400,7 @@ EFFORT_CONFIG.opys2 = EFFORT_CONFIG.opys; // the most advanced model: same top s
 // After upgrading Groq, set GROQ_OUTPUT_CAP (e.g. 16000) and GROQ_ALLOW_HIGH_REASONING=1 on Render.
 const GROQ_OUTPUT_CAP = Number(process.env.GROQ_OUTPUT_CAP) || 2200;
 // The model's hidden thinking counts against max_tokens, so a small cap cuts the visible reply off mid-sentence.
-const OPYS2_OUTPUT_CAP = Number(process.env.OPYS2_OUTPUT_CAP) || 3200;
+const OPYS2_OUTPUT_CAP = Number(process.env.OPYS2_OUTPUT_CAP) || 2800;
 const GROQ_OUTPUT_MIN = Math.min(1400, GROQ_OUTPUT_CAP);
 // Keeps what we send as chat history small, newest messages first, so one request doesn't eat the whole minute's allowance.
 const HISTORY_CHAR_BUDGET = Number(process.env.HISTORY_CHAR_BUDGET) || 7000;
@@ -1498,7 +1498,7 @@ function startReplyStream(o) {
 function aiErrorMessage(err) {
   if (/empty reply/i.test((err && err.message) || '')) return 'The AI sent back an empty reply. Please try again.';
   return /no working model|429|rate limit|too many requests/i.test((err && err.message) || '')
-    ? 'The AI is busy right now. Please try again in a few seconds.'
+    ? 'The AI service is at its limit for this minute. Please wait about 30 seconds and try again. You were not charged.'
     : 'AI service error';
 }
 
@@ -1517,7 +1517,7 @@ function parseRetryAfterMs(msg) {
   if (!m || (!m[1] && !m[2] && !m[3])) return null;
   return Math.round((Number(m[1] || 0) * 60 + Number(m[2] || 0)) * 1000 + Number(m[3] || 0));
 }
-const RATE_RETRY_MAX_MS = 15000;
+const RATE_RETRY_MAX_MS = 30000; // a premium reply is worth a wait of up to 30s when Groq says its minute budget refills by then
 
 function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex, effortCfg, modelList, ctx) {
   modelList = modelList || GROQ_FAST_MODELS;
