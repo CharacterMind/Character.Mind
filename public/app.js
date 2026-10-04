@@ -5,6 +5,7 @@ let currentUser = null;
 let characters = [];
 let currentChar = null;
 let isStreaming = false;
+let chatEpoch = 0; // bumps whenever the open chat changes, so an old reply can't land in the new chat
 let currentFilter = 'all';
 let lastUserMessage = '';
 // ── Model & Effort state ───────────────────────────────────────────────────────
@@ -252,6 +253,7 @@ async function openPaypalCheckout(planKey) {
     document.getElementById('paypal-checkout-status').textContent = 'Loading payment system…';
     try {
       const cfg = await fetch('/api/paypal/config').then(r => r.json());
+      if (cfg && cfg.planIds) Object.assign(PAYPAL_PLAN_IDS, cfg.planIds);
       await new Promise((resolve, reject) => {
         const s = document.createElement('script');
         s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(cfg.clientId)}&vault=true&intent=subscription&components=buttons,card-fields`;
@@ -1026,7 +1028,20 @@ function showView(id) {
 function showHome() { showView('homeView'); setNavActive(0); }
 function showDiscover() { showView('discoverView'); setNavActive(1); renderDiscover(); }
 function showFeed() { showView('feedView'); setNavActive(2); }
-function showCreate() { showView('createView'); pendingAvatarData = null; }
+let avatarPreviewDefault = null;
+function showCreate() {
+  showView('createView');
+  pendingAvatarData = null;
+  const nm = document.getElementById('newName');
+  const prev = document.getElementById('avatarPreview');
+  if (avatarPreviewDefault === null && prev) avatarPreviewDefault = prev.innerHTML;
+  if (nm && nm.dataset.editingId) {
+    delete nm.dataset.editingId;
+    for (const id of ['newName', 'newTagline', 'newDesc', 'newGreeting', 'newPrompt']) { const el = document.getElementById(id); if (el) el.value = ''; }
+    if (prev && avatarPreviewDefault !== null) prev.innerHTML = avatarPreviewDefault;
+    const sb = document.querySelector('.btn-submit'); if (sb) sb.textContent = 'Create Character';
+  }
+}
 function setNavActive(i) { document.querySelectorAll('.sidebar-nav .nav-item')[i]?.classList.add('active'); }
 
 // ── Render Home — c.ai style rows ─────────────────────────────────────────────
@@ -1554,7 +1569,7 @@ function renderSidebarChats() {
   try { histKeys = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}'); } catch {}
 
   const chatted = characters
-    .filter(c => !hidden.has(c.id) && (recents[c.id] || histKeys[c.id]))
+    .filter(c => !hidden.has(c.id) && recents[c.id]) // only characters you have actually sent a message to
     .sort((a, b) => (recents[b.id] || 0) - (recents[a.id] || 0));
 
   if (chatted.length === 0) { list.innerHTML = ''; return; }
@@ -1637,9 +1652,26 @@ function loadPastChatsLocal(charId) {
 }
 
 // ── Open Chat ─────────────────────────────────────────────────────────────────
+function releaseChatInput() {
+  const inp = document.getElementById('messageInput');
+  const btn = document.getElementById('sendBtn');
+  if (inp) inp.disabled = false;
+  const lockoutOn = document.getElementById('lockoutBar')?.style.display;
+  if (btn && (!lockoutOn || lockoutOn === 'none')) btn.disabled = false;
+}
+function abandonStream() {
+  chatEpoch++;
+  isStreaming = false;
+  try { flushTypewriter(); } catch (_) {}
+  try { showTyping(false); } catch (_) {}
+  try { hideStreamStatsNow(); } catch (_) {}
+}
 async function openChat(charId) {
-  currentChar = characters.find(c => c.id === charId);
-  if (!currentChar) return;
+  const nextChar = characters.find(c => c.id === charId);
+  if (!nextChar) return;
+  abandonStream();
+  releaseChatInput();
+  currentChar = nextChar;
   const snapChar = currentChar;
   loadCharVoice();
 
@@ -1791,7 +1823,7 @@ async function resetAndStartNewChat(charId) {
     delete all[charId];
     localStorage.setItem(userKey('cm_history'), JSON.stringify(all));
   } catch(_) {}
-  openChar(charId);
+  openChat(charId);
 }
 
 function updateTypingAvatar() {
@@ -1838,12 +1870,15 @@ async function generateGreeting() {
       return;
     }
 
+    const myEpoch = chatEpoch;
+
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, pendingWarnings = null, streamCharCount = 0;
 
     while (true) {
       const { done, value } = await reader.read();
+      if (myEpoch !== chatEpoch) { try { reader.cancel(); } catch (_) {} return; }
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
@@ -2014,12 +2049,14 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
     }
 
     let msgEl = null, bubble = null, gotFirst = false;
+    const myEpoch = chatEpoch;
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, pendingWarnings = null, streamCharCount = 0;
 
     while (true) {
       const { done, value } = await reader.read();
+      if (myEpoch !== chatEpoch) { try { reader.cancel(); } catch (_) {} return; }
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
@@ -3040,6 +3077,7 @@ function saveAiEdit(btn) {
 }
 
 function saveEdit(btn) {
+  if (isStreaming) { showWarning('Wait for the reply to finish first.'); return; }
   const ctrl = btn.closest('.msg-edit-ctrl');
   const msgEl = ctrl.closest('.msg');
   const bubble = msgEl.querySelector('.bubble');
@@ -3080,6 +3118,7 @@ function cancelEdit(btn) {
 
 function removeMsgEl(btn) {
   btn.closest('.msg-dropdown').classList.add('hidden');
+  if (isStreaming) { showWarning('Wait for the reply to finish first.'); return; }
   btn.closest('.msg').remove();
   saveHistoryLocal();
   resyncServer();
@@ -3087,6 +3126,7 @@ function removeMsgEl(btn) {
 
 function rewindToHere(btn) {
   btn.closest('.msg-dropdown').classList.add('hidden');
+  if (isStreaming) { showWarning('Wait for the reply to finish first.'); return; }
   const msgEl = btn.closest('.msg');
   const msgs = [...document.getElementById('messages').querySelectorAll('.msg')];
   const idx = msgs.indexOf(msgEl);
@@ -3489,9 +3529,10 @@ async function loadResources() {
   if (!el) return;
   el.innerHTML = '<div class="history-empty">Requesting your location for accurate local resources…</div>';
   try {
-    let url = '/api/crisis-resources';
+    // The exact location is sent in the request body, never in the address (addresses end up in server logs)
+    let sendCoords = null;
     if (_cachedGpsCoords) {
-      url = `/api/crisis-resources?lat=${_cachedGpsCoords.lat}&lon=${_cachedGpsCoords.lon}`;
+      sendCoords = _cachedGpsCoords;
     } else if (navigator.geolocation) {
       const coords = await new Promise(resolve => {
         navigator.geolocation.getCurrentPosition(
@@ -3500,9 +3541,11 @@ async function loadResources() {
           { timeout: 7000, maximumAge: 300000 }
         );
       });
-      if (coords) { _cachedGpsCoords = coords; url = `/api/crisis-resources?lat=${coords.lat}&lon=${coords.lon}`; }
+      if (coords) { _cachedGpsCoords = coords; sendCoords = coords; }
     }
-    const res = await fetch(url);
+    const res = sendCoords
+      ? await fetch('/api/crisis-resources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat: sendCoords.lat, lon: sendCoords.lon }) })
+      : await fetch('/api/crisis-resources');
     if (!res.ok) throw new Error('Failed');
     const data = await res.json();
     if (!data.resources) {
@@ -3732,7 +3775,8 @@ function resumePastChat(msgs) {
         content: m.content,
         ...(m.sig ? { sig: m.sig } : {})
       });
-  try { localStorage.setItem(userKey(`cm_history_${currentChar.id}`), JSON.stringify(normalized)); } catch (_) {}
+  saveHistoryLocal();
+  resyncServer();
   closeHistoryPanel();
   scrollToBottom();
 }
@@ -3754,7 +3798,7 @@ function exportHistory() {
 }
 
 function clearHistoryFromPanel() {
-  if (!confirm('Clear all messages in this conversation? This cannot be undone.')) return;
+  if (!confirm('Clear all messages in this conversation? The current chat is saved to your past chats, and the character starts fresh.')) return;
   closeHistoryPanel();
   newChat();
 }
@@ -4325,7 +4369,7 @@ async function regenerate() {
 
   // Snapshot current text into history on first regen
   if (!regenStore.has(id)) {
-    regenStore.set(id, { texts: [bubble?.innerText || ''], idx: 0 });
+    regenStore.set(id, { texts: [bubble ? bubbleToRaw(bubble) : ''], idx: 0 });
   }
 
   flushTypewriter();
@@ -4364,12 +4408,15 @@ async function regenerate() {
       throw new Error(err.error || 'Server error');
     }
 
+    const myEpoch = chatEpoch;
+
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '', streamRealTokens = null, streamSig = null, pendingUsage = null, pendingWarnings = null, streamCharCount = 0;
 
     while (true) {
       const { done, value } = await reader.read();
+      if (myEpoch !== chatEpoch) { try { reader.cancel(); } catch (_) {} return; }
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
@@ -4427,7 +4474,7 @@ async function regenerate() {
 // A character picture is either an uploaded data image or the server's image link
 function isCharImg(src) { return typeof src === 'string' && (src.startsWith('data:image/') || src.startsWith('/api/characters/')); }
 
-function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function escHtml(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 function renderMarkdown(text) {
   let s = escHtml(text);
@@ -4497,6 +4544,8 @@ function autoResize(el) {
 
 async function newChat() {
   if (!currentChar) return;
+  abandonStream();
+  releaseChatInput();
   // Save to local past chats + archive to server
   savePastChatLocal(currentChar.id, loadHistoryLocal(currentChar.id));
   await fetch(`/api/conversations/${currentChar.id}/archive`, { method: 'POST' }).catch(() => {});

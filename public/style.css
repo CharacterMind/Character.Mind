@@ -2737,8 +2737,9 @@ body:not(.voice-on) .btn-call { display: none !important; }
 .md-submenu::before { content: ''; position: absolute; left: -12px; top: 0; bottom: 0; width: 12px; } /* keeps hover alive while the mouse crosses the gap */
 .md-more.open .md-submenu { display: block; }
 @media (hover: hover) and (min-width: 769px) { .md-more:hover .md-submenu { display: block; } }
-@media (max-width: 768px) {
-  /* no room beside the picker on a phone: the extra models open underneath instead */
+@media (max-width: 1400px) {
+  /* no room beside the picker on a phone, tablet or smaller desktop: the extra models open underneath instead */
   .md-submenu { position: static; min-width: 0; margin: 2px 0 0 10px; box-shadow: none; border-color: transparent; background: transparent; padding: 0; }
   .md-more-btn .md-chev { transform: rotate(90deg); }
+  .model-dropdown { max-height: calc(100vh - 150px); max-height: calc(100dvh - 150px); overflow-y: auto; }
 }

@@ -1784,10 +1784,11 @@ async function reverseGeocode(lat, lon) {
   });
 }
 
-app.get('/api/crisis-resources', requireAuth, async (req, res) => {
+async function crisisResourcesHandler(req, res) {
   let geo;
-  const lat = parseFloat(req.query.lat);
-  const lon = parseFloat(req.query.lon);
+  const src = req.method === 'POST' ? (req.body || {}) : req.query;
+  const lat = parseFloat(src.lat);
+  const lon = parseFloat(src.lon);
   if (!isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
     geo = await reverseGeocode(lat, lon);
   }
@@ -1802,7 +1803,9 @@ app.get('/api/crisis-resources', requireAuth, async (req, res) => {
   ];
   const country = geo && geo.country;
   res.json({ location: locationStr, resources: allLines.map(r => ({ ...r, url: crisisUrlFor(r.crisisName, country) })) });
-});
+}
+app.get('/api/crisis-resources', requireAuth, crisisResourcesHandler);
+app.post('/api/crisis-resources', requireAuth, crisisResourcesHandler);
 
 app.get('/api/usage', requireAuth, (req, res) => {
   res.json(buildUsagePayload(getLimits(req.user.googleId), req.user.googleId));
@@ -3156,7 +3159,9 @@ async function getPayPalToken() {
 }
 
 app.get('/api/paypal/config', (req, res) => {
-  res.json({ clientId: process.env.PAYPAL_CLIENT_ID || '', env: process.env.PAYPAL_ENV || 'sandbox' });
+  const planIds = {};
+  for (const [k, v] of Object.entries(PAYPAL_PLAN_IDS)) if (v) planIds[k] = v;
+  res.json({ clientId: process.env.PAYPAL_CLIENT_ID || '', env: process.env.PAYPAL_ENV || 'sandbox', planIds });
 });
 
 async function cancelPayPalSubscription(subId, reason) {
