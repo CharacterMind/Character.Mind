@@ -2695,7 +2695,10 @@ html, body {
   line-height: 1.5;
 }
 
-body:not(.voice-on) .btn-call { display: none !important; }
+/* Voice is not live yet: the call button shows a "Soon" tag and explains that when clicked */
+.btn-call { position: relative; }
+body:not(.voice-on) .btn-call { opacity: .75; }
+body:not(.voice-on) .btn-call::after { content: "Soon"; position: absolute; top: -7px; right: -9px; font-size: 9px; font-weight: 700; letter-spacing: .02em; background: #7c3aed; color: #fff; padding: 1px 6px; border-radius: 8px; line-height: 1.5; }
 
 .past-chat-toolbar { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text3); padding: 0 2px 2px; flex-shrink: 0; }
 .past-chat-delall { background: none; border: 1px solid var(--border2); color: #ef4444; border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; }

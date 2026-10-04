@@ -3951,6 +3951,8 @@ function showCallInactivityBanner() {
 let callRecognition = null;
 
 function toggleCallMode() {
+  // Voice is not live yet: the button is shown with a "Soon" tag and explains itself when clicked
+  if (!document.body.classList.contains('voice-on')) { showWarning('Voice calls are coming soon! 🎙️', 4500); return; }
   if (callModeActive) { endCallMode(); } else { startCallMode(); }
 }
 
