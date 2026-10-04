@@ -85,31 +85,31 @@ const PLAN_DATA = [
   {
     key: 'free', name: 'Free', monthly: 0, annual: 0,
     callsPerDay: 3, memosPerDay: 30,
-    features: ['3 voice calls per day', '30 read-alouds per day', 'Opas & Opes AI models', 'All characters'],
+    features: ['Opas & Opes AI models', 'All characters'],
   },
   {
     key: 'advanced', name: 'Advanced', monthly: 4.99, annual: 44.99,
     callsPerDay: 5, memosPerDay: 50,
-    features: ['5 voice calls per day', '50 read-alouds per day', 'Opas & Opes AI models', 'Everything in Free'],
+    features: ['Opas & Opes AI models', 'Everything in Free'],
   },
   {
     key: 'x20', name: 'X20', badge: 'Most Popular', monthly: 12.99, annual: 109.99,
     callsPerDay: 100, memosPerDay: 1000,
-    features: ['100 voice calls per day', '1,000 read-alouds per day', 'Opis & Opos models unlocked', 'Everything in Advanced'],
+    features: ['Opis & Opos models unlocked', 'Everything in Advanced'],
   },
   {
     key: 'x50', name: 'X50', badge: 'Best Value', monthly: 24.99, annual: 199.99,
     callsPerDay: 250, memosPerDay: 2500,
-    features: ['250 voice calls per day', '2,500 read-alouds per day', 'Opus & Opys models unlocked', 'Everything in X20'],
+    features: ['Opus & Opys models unlocked', 'Everything in X20'],
   },
 ];
 
 const PLAN_LABELS = { free: 'Free', advanced: 'Advanced', x20: 'X20', x50: 'X50' };
 const PLAN_SUBS = {
-  free:     '3 calls/day · 30 read-alouds/day',
-  advanced: '5 calls/day · 50 read-alouds/day',
-  x20:      '100 calls/day · 1,000 read-alouds/day',
-  x50:      '250 calls/day · 2,500 read-alouds/day',
+  free:     'Free plan',
+  advanced: 'Advanced plan',
+  x20:      'X20 plan',
+  x50:      'X50 plan',
 };
 
 let pricingPeriod = 'monthly';

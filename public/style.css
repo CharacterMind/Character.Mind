@@ -2701,3 +2701,4 @@ html, body {
 
 body:not(.voice-on) .btn-call,
 body:not(.voice-on) .tts-btn { display: none !important; }
+body:not(.voice-on) .ip-row[onclick="openVoicePanel()"] { display: none !important; }
