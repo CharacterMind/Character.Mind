@@ -1501,7 +1501,7 @@ function saveHistoryLocal() {
     const msgs = document.getElementById('messages');
     const items = [...msgs.querySelectorAll('.msg')].map(el => ({
       role: el.classList.contains('user') ? 'user' : 'ai',
-      content: el.querySelector('.bubble')?.innerText || ''
+      content: bubbleToRaw(el.querySelector('.bubble'))
     })).filter(m => m.content);
     const all = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}');
     all[currentChar.id] = items.slice(-40);
@@ -2879,7 +2879,7 @@ function editMsgText(btn) {
   const bubble = msgEl.querySelector('.bubble');
   btn.closest('.msg-dropdown').classList.add('hidden');
   const origHtml = bubble.innerHTML;
-  const origText = bubble.innerText;
+  const origText = isAi ? bubbleToRaw(bubble) : bubble.innerText;
   bubble.contentEditable = 'true';
   bubble.classList.add('editing');
   // Show as plain text while editing so user sees raw content
@@ -4287,6 +4287,22 @@ function renderMarkdown(text) {
     }).join('');
     return `<p>${html.replace(/\n/g, '<br>')}</p>`;
   }).filter(Boolean).join('');
+}
+
+// Rebuild the original markup (*narration*, **bold**) from a rendered bubble so reloads keep the styling.
+function bubbleToRaw(bubble) {
+  if (!bubble) return '';
+  const paras = bubble.querySelectorAll(':scope > p');
+  if (!paras.length) return bubble.innerText || '';
+  const walk = n => {
+    if (n.nodeType === 3) return n.textContent;
+    if (n.nodeName === 'BR') return '\n';
+    const inner = [...n.childNodes].map(walk).join('');
+    if (n.classList && n.classList.contains('narration')) return `*${inner}*`;
+    if (n.nodeName === 'STRONG') return `**${inner}**`;
+    return inner;
+  };
+  return [...paras].map(p => [...p.childNodes].map(walk).join('')).join('\n\n');
 }
 
 function showTyping(v) {
