@@ -1444,13 +1444,9 @@ html, body {
 .usage-fill-modal.yellow { background: #eab308; }
 .usage-fill-modal.orange { background: #f97316; }
 .usage-fill-modal.red    { background: #ef4444; }
-.usage-limits-note {
-  font-size: 11.5px; color: var(--text3); padding: 16px 24px 4px;
-  line-height: 1.5;
-}
 .usage-updated-row {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 24px 16px; gap: 8px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 12px 24px 14px; gap: 6px;
 }
 #usageUpdatedText { font-size: 11px; color: var(--text3); }
 .usage-refresh-btn {
