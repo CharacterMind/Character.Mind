@@ -408,6 +408,7 @@ async function loadLimitsFromDB() {
         weeklyStart: d.weeklyStart || null,
         warned: d.warned || {},
         regenCount: d.regenCount || 0,
+        regenDayStart: d.regenDayStart || null,
         callsToday: d.callsToday || 0,
         callDayStart: d.callDayStart || null,
         memosToday: d.memosToday || 0,
@@ -437,7 +438,7 @@ function saveLimitsToDB(userId) {
 const LIMITS = {
   SESSION_COOLDOWN_MS: Number(process.env.SESSION_COOLDOWN_MS) || (2 * 60 * 60 * 1000 + 3000),
   WEEKLY_MS: 7 * 24 * 60 * 60 * 1000,
-  REGEN_FREE: 2,
+  REGEN_FREE: 5, // free plan: regenerations per day (resets with the other daily counters)
   CALL_DAILY: 3
 };
 
@@ -549,6 +550,7 @@ function getLimits(sid) {
   if (!u.callDayStart  || u.callDayStart  < callWindow) { u.callsToday  = 0; u.callDayStart  = callWindow; }
   if (!u.memoDayStart  || u.memoDayStart  < callWindow) { u.memosToday  = 0; u.memoDayStart  = callWindow; }
   if (!u.imageDayStart || u.imageDayStart < callWindow) { u.imagesDay   = 0; u.imageDayStart = callWindow; }
+  if (!u.regenDayStart || u.regenDayStart < callWindow) { u.regenCount = 0; u.regenDayStart = callWindow; }
   return u;
 }
 
@@ -1018,6 +1020,10 @@ const CRISIS_RE =/\b(i\s+)?(want|wanna|need|going|gonna|am\s+going)\s+to\s+(die|
 const SLUR_RE = /\bn[i1!|*]+gg[ae3*]+r[sz]?\b|\bk[i1*]+k[e3*]+[sz]?\b|\bch[i1*]+nk[sz]?\b|\bsp[i1*]+c[sz]?\b|\bf[a4@*]+gg[o0*]+t[sz]?\b|\bd[y*]+k[e3*]+[sz]?\b|\br[e3*]+t[a4*]+rd[sz]?\b/i;
 // The idiom "a chink in the armor" is not a slur
 const SLUR_IDIOM_RE = /\bchinks?\s+in\s+(the|his|her|my|your|their|its|our)\s+armou?r\b/gi;
+function redactIfUnsafe(text) {
+  const n = normalizeMsg(text);
+  return (NSFW_RE.test(n) || hasSlur(n)) ? '[message removed]' : text;
+}
 function hasSlur(text) { return SLUR_RE.test(String(text || '').replace(SLUR_IDIOM_RE, '')); }
 
 // Strip zero-width chars and NFKC-normalize to defeat unicode homoglyph/invisible-char bypass attempts
@@ -1918,7 +1924,7 @@ app.get('/api/characters', async (req, res) => {
   const userId = req.user?.googleId || '';
   try {
     const { rows } = await db.query(
-      'SELECT id, name, tagline, description, system_prompt, greeting, greeting_mode, color, creator_name, device_id, image, tags, interactions, created_at FROM characters ORDER BY created_at DESC'
+      'SELECT id, name, tagline, description, system_prompt, greeting, greeting_mode, color, creator_name, device_id, (image IS NOT NULL AND length(image) > 0) AS has_image, COALESCE(length(image), 0) AS image_len, tags, interactions, created_at FROM characters ORDER BY created_at DESC'
     );
     const authed = !!req.user;
     const isOwnerUser = !!(userId && ownerGoogleIds.has(userId));
@@ -1933,11 +1939,31 @@ app.get('/api/characters', async (req, res) => {
         color: r.color, accentColor: r.color,
         creator: official ? 'Character Mind Playtime Co' : (/character\s*\.?\s*mind/i.test(r.creator_name || '') ? 'Community creator' : r.creator_name),
         isOfficial: official,
-        image: safeImage(r.image), tags: r.tags || [], interactions: r.interactions,
+        image: r.has_image ? '/api/characters/' + encodeURIComponent(r.id) + '/image?v=' + r.image_len : null,
+        tags: r.tags || [], interactions: r.interactions,
         isMine: mine
       };
     }));
   } catch (err) { console.error('list characters error:', err.message); res.status(500).json({ error: 'Could not load characters' }); }
+});
+
+// Character picture as a real image (cacheable), instead of a huge base64 string inside the character list
+app.get('/api/characters/:id/image', async (req, res) => {
+  if (!VALID_ID.test(req.params.id)) return res.status(400).end();
+  if (!db) return res.status(404).end();
+  try {
+    const { rows } = await db.query('SELECT image FROM characters WHERE id = $1', [req.params.id]);
+    const img = rows[0] && safeImage(rows[0].image);
+    if (!img) return res.status(404).end();
+    const m = img.match(/^data:(image\/(?:png|jpe?g|webp|gif));base64,(.+)$/);
+    if (!m) return res.status(404).end();
+    res.setHeader('Content-Type', m[1]);
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+    res.send(Buffer.from(m[2], 'base64'));
+  } catch (err) {
+    console.error('character image error:', err.message);
+    res.status(500).end();
+  }
 });
 
 app.get('/api/characters/:id', async (req, res) => {
@@ -1967,6 +1993,7 @@ function isValidColorStr(color) {
   return false;
 }
 
+const KEEP_IMAGE_RE = /^\/api\/characters\/[A-Za-z0-9_-]{1,64}\/image(\?v=\d+)?$/;
 const SAFE_IMAGE_RE = /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/]+={0,2}$/;
 function safeImage(img) { return (typeof img === 'string' && img.length <= 512000 && SAFE_IMAGE_RE.test(img)) ? img : null; }
 
@@ -1981,7 +2008,7 @@ function validateChar(body) {
   if (greetingMode && !['fixed', 'auto'].includes(greetingMode)) return 'Invalid greetingMode';
   if (color && !isValidColorStr(color)) { console.warn('[validateChar] rejected color:', JSON.stringify(color)); return 'Invalid color format'; }
   if (creatorName && creatorName.length > 40) return 'Creator name must be ≤40 characters';
-  if (image && typeof image === 'string') {
+  if (image && typeof image === 'string' && !KEEP_IMAGE_RE.test(image)) {
     if (image.length > 512000) return 'Image too large (max ~384KB)';
     if (!SAFE_IMAGE_RE.test(image)) return 'Image must be a valid base64-encoded JPEG, PNG, WebP, or GIF';
   }
@@ -2039,11 +2066,11 @@ app.post('/api/characters', requireAuth, async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, tagline=EXCLUDED.tagline, description=EXCLUDED.description,
          system_prompt=EXCLUDED.system_prompt, greeting=EXCLUDED.greeting, greeting_mode=EXCLUDED.greeting_mode,
-         color=EXCLUDED.color, creator_name=EXCLUDED.creator_name, image=EXCLUDED.image, tags=EXCLUDED.tags
+         color=EXCLUDED.color, creator_name=EXCLUDED.creator_name, image=CASE WHEN $13::boolean THEN characters.image ELSE EXCLUDED.image END, tags=EXCLUDED.tags
        RETURNING id, name, tagline, color`,
       [id, name.trim(), (tagline||'').trim(), (description||'').trim(), systemPrompt.trim(),
        greeting||null, greetingMode||'fixed', color||'#7c3aed', (creatorName||'Anonymous').trim(),
-       userId, image||null, JSON.stringify((tags||[]).slice(0,10))]
+       userId, (KEEP_IMAGE_RE.test(image || '') ? null : (image || null)), JSON.stringify((tags||[]).slice(0,10)), KEEP_IMAGE_RE.test(image || '')]
     );
     res.json({ ...rows[0], isMine: true });
   } catch (err) {
@@ -2081,10 +2108,10 @@ app.put('/api/characters/:id', requireAuth, async (req, res) => {
     if (!check.rows.length) return res.status(404).json({ error: 'Not found' });
     if (check.rows[0].device_id !== userId) return res.status(403).json({ error: 'Not your character' });
     await db.query(
-      `UPDATE characters SET name=$1, tagline=$2, description=$3, system_prompt=$4, greeting=$5, greeting_mode=$6, color=$7, image=$8, tags=$9 WHERE id=$10`,
+      `UPDATE characters SET name=$1, tagline=$2, description=$3, system_prompt=$4, greeting=$5, greeting_mode=$6, color=$7, image=CASE WHEN $11::boolean THEN image ELSE $8 END, tags=$9 WHERE id=$10`,
       [name.trim(), (tagline||'').trim(), (description||'').trim(), systemPrompt.trim(),
-       greeting||null, greetingMode||'fixed', color||'#7c3aed', image||null,
-       JSON.stringify((tags||[]).slice(0,10)), req.params.id]
+       greeting||null, greetingMode||'fixed', color||'#7c3aed', (KEEP_IMAGE_RE.test(image || '') ? null : (image || null)),
+       JSON.stringify((tags||[]).slice(0,10)), req.params.id, KEEP_IMAGE_RE.test(image || '')]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -2200,7 +2227,7 @@ app.post('/api/conversations/:charId/sync', requireAuth, async (req, res) => {
     ? { role: 'assistant', content: '', card: 'nsfw', variant: (Number.isInteger(m.variant) && m.variant >= 0 && m.variant < NSFW_CARD_VARIANTS) ? m.variant : 0 }
     : {
         role: m && m.role === 'user' ? 'user' : 'assistant',
-        content: String((m && m.content) || '').slice(0, 10000)
+        content: (m && m.role === 'user') ? redactIfUnsafe(String((m && m.content) || '').slice(0, 10000)) : String((m && m.content) || '').slice(0, 10000)
       }).filter(m => m.card || m.content).slice(-CONV_MAX_MESSAGES);
   persistConv(key);
   res.json({ ok: true });
@@ -2219,7 +2246,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   if (limit.blocked) return res.status(429).json({ error: limit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limit });
 
   const u = getLimits(userId);
-  if ((u.regenCount || 0) >= LIMITS.REGEN_FREE) {
+  if ((u.subscriptionTier || 'free') === 'free' && (u.regenCount || 0) >= LIMITS.REGEN_FREE) {
     return res.status(429).json({ regenLimitReached: true, regenLimit: LIMITS.REGEN_FREE });
   }
   const releaseSlot = acquireChatSlot(req, res, userId);
@@ -2275,7 +2302,10 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
     system: applyEffortDirective(wrapPrompt(systemPrompt), effort),
     messages: aiHistory(hist).slice(-12), effortCfg: regenEffortCfg, modelList: regenModelList,
     userId, modelTier, effort, releaseSlot,
-    onComplete: (text) => { hist.push({ role: 'assistant', content: text }); persistConv(key); },
+    onComplete: (text) => {
+      hist.push({ role: 'assistant', content: text }); persistConv(key);
+      u.regenCount = (u.regenCount || 0) + 1; saveLimitsToDB(userId);
+    },
     onFail: restoreAssistant,
     logLabel: 'Regenerate'
   });
@@ -2519,7 +2549,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   // ── "Why can't you do that?" about sexual content — explain the rules, don't block ──
   if (!isContinuation && message && isPolicyWhyQuestion(msgNorm)) {
     const explanation = buildPolicyExplanation();
-    conversations[key].push({ role: 'user', content: message }, { role: 'assistant', content: explanation });
+    conversations[key].push({ role: 'user', content: redactIfUnsafe(message) }, { role: 'assistant', content: explanation });
     persistConv(key);
     const usage = addTokens(userId, Math.round(explanation.length / 3.5));
     return slurDeflect(res, explanation, usage);
@@ -2888,10 +2918,20 @@ app.post('/api/paypal/verify-subscription', async (req, res) => {
 
   try {
     const token = await getPayPalToken();
-    const resp = await fetch(`${PAYPAL_BASE}/v1/billing/subscriptions/${subscriptionId}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const sub = await resp.json();
+    // PayPal can take a few seconds to mark a just-approved subscription ACTIVE, so wait for it briefly
+    let sub = null;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const resp = await fetch(`${PAYPAL_BASE}/v1/billing/subscriptions/${subscriptionId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      sub = await resp.json();
+      if (sub.status !== 'APPROVAL_PENDING' && sub.status !== 'APPROVED') break;
+      await new Promise(r => setTimeout(r, 1500));
+    }
+    // A subscription created for another account can't be claimed here
+    if (sub.custom_id && sub.custom_id !== req.user.googleId) {
+      return res.status(403).json({ error: 'This subscription belongs to another account' });
+    }
 
     if (sub.status !== 'ACTIVE') {
       return res.status(400).json({ error: 'Subscription not active', status: sub.status });
@@ -2969,6 +3009,25 @@ app.post('/api/webhooks/paypal', async (req, res) => {
 
   const eventType = event.event_type;
   const subId = event.resource?.id;
+  // Activate the plan from PayPal's own notification, so a payment is never lost if the browser call failed
+  if (eventType === 'BILLING.SUBSCRIPTION.ACTIVATED' && subId && db) {
+    const customId = String((event.resource && event.resource.custom_id) || '');
+    const planId = event.resource && event.resource.plan_id;
+    const tier = Object.keys(PAYPAL_PLAN_IDS).find(k => PAYPAL_PLAN_IDS[k] && PAYPAL_PLAN_IDS[k] === planId);
+    if (tier && /^[0-9]{5,40}$/.test(customId)) {
+      try {
+        const upd = await db.query(
+          'UPDATE users SET subscription_tier = $1, paypal_subscription_id = $2 WHERE google_id = $3 AND NOT EXISTS (SELECT 1 FROM users WHERE paypal_subscription_id = $2 AND google_id <> $3) RETURNING google_id',
+          [tier, subId, customId]);
+        if (upd.rows.length) {
+          const lim = getLimits(customId);
+          lim.subscriptionTier = tier; lim.tierLoaded = true;
+          lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null;
+          saveLimitsToDB(customId);
+        }
+      } catch (e) { console.error('Webhook activation error:', e.message); }
+    }
+  }
   const endEvents = ['BILLING.SUBSCRIPTION.CANCELLED', 'BILLING.SUBSCRIPTION.EXPIRED'];
   const cancelEvents = [...endEvents, 'BILLING.SUBSCRIPTION.SUSPENDED'];
   if (cancelEvents.includes(eventType) && subId && db) {

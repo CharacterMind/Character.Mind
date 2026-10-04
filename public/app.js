@@ -272,7 +272,7 @@ function initPayPalWidgets(planKey) {
     paypal.Buttons({
       style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'subscribe' },
       createSubscription(data, actions) {
-        return actions.subscription.create({ plan_id: planId });
+        return actions.subscription.create({ plan_id: planId, custom_id: String(currentUser.googleId) });
       },
       onApprove(data) { return verifyAndActivateSubscription(data.subscriptionID, planKey); },
       onError(err) {
@@ -287,7 +287,7 @@ function initPayPalWidgets(planKey) {
     paypalCardFields = null;
     const eligible = paypal.CardFields && paypal.CardFields({
       createSubscription(data, actions) {
-        return actions.subscription.create({ plan_id: planId });
+        return actions.subscription.create({ plan_id: planId, custom_id: String(currentUser.googleId) });
       },
       onApprove(data) { return verifyAndActivateSubscription(data.subscriptionID, planKey); },
       onError(err) {
@@ -1001,7 +1001,7 @@ function homeTopbar() {
 }
 
 function homeCard(c) {
-  const av = c.image && c.image.startsWith('data:image/')
+  const av = isCharImg(c.image)
     ? `<div class="hc-avatar"><img src="${c.image}" style="width:100%;height:100%;object-fit:cover;border-radius:10px"></div>`
     : `<div class="hc-avatar" style="background:${safeColor(c.color)}">${escHtml((c.name||'?')[0])}</div>`;
   const creator = (c.creator || 'anonymous').replace(/^@/, '');
@@ -1298,13 +1298,13 @@ function initGradientPicker(color) {
 }
 
 function charAvatarHtml(c, cls) {
-  if (c.image && c.image.startsWith('data:image/')) return `<div class="${cls}" style="background:#111"><img src="${c.image}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit"></div>`;
+  if (isCharImg(c.image)) return `<div class="${cls}" style="background:#111"><img src="${c.image}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit"></div>`;
   return `<div class="${cls}" style="background:${safeColor(c.color)}">${escHtml(c.name[0]||'?')}</div>`;
 }
 
 function charRow(c) {
   const safeId = escHtml(c.id);
-  const av = (c.image && c.image.startsWith('data:image/'))
+  const av = (isCharImg(c.image))
     ? `<div class="char-row-avatar" style="background:#111;overflow:hidden"><img src="${c.image}" style="width:100%;height:100%;object-fit:cover;border-radius:10px"></div>`
     : `<div class="char-row-avatar" style="background:${safeColor(c.color)}">${escHtml(c.name[0]||'?')}</div>`;
   const ownerBtns = c.isMine ? `
@@ -1602,7 +1602,7 @@ async function openChat(charId) {
   const mobAvEl = document.getElementById('mobChatAvatar');
   const mobNmEl = document.getElementById('mobChatName');
   if (mobAvEl) {
-    if (currentChar.image && currentChar.image.startsWith('data:image/')) {
+    if (isCharImg(currentChar.image)) {
       mobAvEl.innerHTML = `<img src="${currentChar.image}" style="width:100%;height:100%;object-fit:cover;">`;
     } else {
       mobAvEl.style.background = safeColor(currentChar.color);
@@ -1614,7 +1614,7 @@ async function openChat(charId) {
   // Update info panel
   const ia = document.getElementById('infoAvatar');
   if (ia) {
-    if (currentChar.image && currentChar.image.startsWith('data:image/')) { ia.style.background = '#111'; ia.style.borderRadius = '12px'; ia.innerHTML = `<img src="${currentChar.image}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`; }
+    if (isCharImg(currentChar.image)) { ia.style.background = '#111'; ia.style.borderRadius = '12px'; ia.innerHTML = `<img src="${currentChar.image}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`; }
     else { ia.style.background = safeColor(currentChar.color); ia.style.borderRadius = '12px'; ia.textContent = currentChar.name[0]||'?'; }
   }
   const infoName = document.getElementById('infoName');
@@ -1744,7 +1744,7 @@ function updateTypingAvatar() {
   if (!currentChar) return;
   const ta = document.getElementById('typingAvatar');
   const tn = document.getElementById('typingName');
-  if (currentChar.image && currentChar.image.startsWith('data:image/')) { ta.style.background = '#111'; ta.innerHTML = `<img src="${currentChar.image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`; }
+  if (isCharImg(currentChar.image)) { ta.style.background = '#111'; ta.innerHTML = `<img src="${currentChar.image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`; }
   else { ta.style.background = safeColor(currentChar.color); ta.textContent = currentChar.name[0]||'?'; }
   if (tn) tn.textContent = currentChar.name;
   const inp = document.getElementById('messageInput');
@@ -3055,7 +3055,7 @@ function resyncServer() {
 // ── Message Rendering — c.ai style ───────────────────────────────────────────
 function msgAvatarHtml(cls) {
   if (!currentChar) return `<div class="${cls}" style="background:#555">A</div>`;
-  if (currentChar.image && currentChar.image.startsWith('data:image/')) return `<div class="${cls}" style="background:#111;overflow:hidden"><img src="${currentChar.image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>`;
+  if (isCharImg(currentChar.image)) return `<div class="${cls}" style="background:#111;overflow:hidden"><img src="${currentChar.image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>`;
   return `<div class="${cls}" style="background:${safeColor(currentChar.color)}">${escHtml(currentChar.name[0]||'?')}</div>`;
 }
 
@@ -3889,7 +3889,7 @@ async function startCallMode() {
     // Character image on top of orbs
     const imgEl = document.getElementById('callCharImg');
     if (imgEl) {
-      if (currentChar.image && currentChar.image.startsWith('data:image/')) {
+      if (isCharImg(currentChar.image)) {
         imgEl.style.backgroundImage = `url('${currentChar.image}')`;
       } else {
         imgEl.style.backgroundImage = '';
@@ -4289,7 +4289,7 @@ async function regenerate() {
       if (res.status === 401) { isStreaming = false; window.location.href = '/'; return; }
       if (res.status === 429) {
         if (err.regenLimitReached) {
-          showWarning(`Free tier limit: ${err.regenLimit} regenerations used. Upgrade for unlimited.`);
+          showWarning(`Free plan limit: ${err.regenLimit} regenerations used today. Upgrade for unlimited.`);
         } else if (err.type === 'session') { startCooldown(err.cooldownUntil, 'session', true); }
         else if (err.type === 'weekly') { startCooldown(err.resetsAt, 'weekly', true); }
         // Restore current version
@@ -4363,6 +4363,9 @@ async function regenerate() {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
+// A character picture is either an uploaded data image or the server's image link
+function isCharImg(src) { return typeof src === 'string' && (src.startsWith('data:image/') || src.startsWith('/api/characters/')); }
+
 function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 function renderMarkdown(text) {
