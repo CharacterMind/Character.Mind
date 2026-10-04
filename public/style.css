@@ -2709,7 +2709,9 @@ body:not(.voice-on) .btn-call::after { content: "Soon"; position: absolute; top:
 .stream-stats.done { animation: none; opacity: 0.6; }
 
 /* Read-aloud and the browser-voice picker are retired: only the HD call voice remains. */
-.tts-btn { display: none !important; } /* the Voice row in the character panel is shown again, as "Soon" */
+/* Read-aloud is not live yet: the speaker next to each reply is always visible with a small "Soon" tag */
+body:not(.voice-on) .tts-btn { opacity: .85; gap: 4px; }
+body:not(.voice-on) .tts-btn::after { content: "Soon"; font-size: 9px; font-weight: 700; letter-spacing: .02em; color: #fff; background: #7c3aed; padding: 1px 6px; border-radius: 8px; line-height: 1.5; }
 
 .bubble a.chat-link { color: var(--accent-l, #a78bfa); text-decoration: underline; text-underline-offset: 2px; font-weight: 600; }
 .bubble a.chat-link:hover { color: var(--accent, #7c5cbf); }

@@ -3220,7 +3220,7 @@ function appendMessage(role, text, imgB64) {
         ${msgAvatarHtml('msg-avatar')}
         <span class="msg-name">${escHtml(currentChar?.name || 'AI')}</span>
         <span class="msg-badge">C.M</span>
-        <button class="tts-btn" onclick="toggleTTS(this)" title="Play message"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M8 5v14l11-7z"/></svg></button>
+        <button class="tts-btn" onclick="toggleTTS(this)" title="Read aloud (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
         ${msgMenuHtml('ai')}
       </div>
       <div class="bubble">${renderMarkdown(text)}</div>
@@ -3248,7 +3248,7 @@ function createAiMessage() {
       ${msgAvatarHtml('msg-avatar')}
       <span class="msg-name">${escHtml(currentChar?.name || 'AI')}</span>
       <span class="msg-badge">C.M</span>
-      <button class="tts-btn" onclick="toggleTTS(this)" title="Play message"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M8 5v14l11-7z"/></svg></button>
+      <button class="tts-btn" onclick="toggleTTS(this)" title="Read aloud (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
       ${msgMenuHtml('ai')}
     </div>
     <div class="bubble"></div>
@@ -3822,6 +3822,8 @@ let activeTTSUtterance = null;
 let activeTTSBtn = null;
 
 async function toggleTTS(btn) {
+  // Read-aloud is not live yet: the speaker is shown with a "Soon" tag and explains itself when clicked
+  if (!document.body.classList.contains('voice-on')) { showWarning('Read aloud is coming soon! 🔊', 4500); return; }
   const bubble = btn.closest('.msg').querySelector('.bubble');
   const text = (bubble.innerText || bubble.textContent).trim();
   if (!text) return;
