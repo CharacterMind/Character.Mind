@@ -124,7 +124,7 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.paypal.com https://www.paypalobjects.com; style-src 'self' 'unsafe-inline' https://www.paypalobjects.com; img-src 'self' data: https:; connect-src 'self' https://accounts.google.com https://www.paypal.com https://www.sandbox.paypal.com https://api-m.sandbox.paypal.com https://api-m.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com https://www.sandbox.paypal.com; frame-ancestors 'none'");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.paypal.com https://www.paypalobjects.com; style-src 'self' 'unsafe-inline' https://www.paypalobjects.com; img-src 'self' data: https:; media-src 'self' blob: data:; connect-src 'self' https://accounts.google.com https://www.paypal.com https://www.sandbox.paypal.com https://api-m.sandbox.paypal.com https://api-m.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com https://www.sandbox.paypal.com; frame-ancestors 'none'");
   if (process.env.NODE_ENV === 'production' && req.protocol !== 'https') {
     return res.redirect(301, 'https://' + req.headers.host + req.url);
   }

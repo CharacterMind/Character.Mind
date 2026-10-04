@@ -3591,6 +3591,21 @@ function stopCallAudio() {
   if (callAudio) { try { callAudio.pause(); } catch (_) {} callAudio = null; }
 }
 
+async function playCallBlob(blob, text) {
+  if (!callModeActive) return;
+  const url = URL.createObjectURL(blob);
+  const audio = new Audio(url);
+  callAudio = audio;
+  const finish = () => {
+    URL.revokeObjectURL(url);
+    if (callAudio === audio) callAudio = null;
+    if (callModeActive) listenForSpeech();
+  };
+  audio.onended = finish;
+  audio.onerror = finish;
+  try { await audio.play(); } catch (_) { finish(); if (callModeActive) callModeBrowserTTS(text); }
+}
+
 async function callModeElevenTTS(text) {
   try {
     const r = await fetch('/api/tts', {
@@ -3602,19 +3617,7 @@ async function callModeElevenTTS(text) {
       if (r.status === 501) elevenTTSOk = false;
       throw new Error('tts ' + r.status);
     }
-    const blob = await r.blob();
-    if (!callModeActive) return;
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    callAudio = audio;
-    const finish = () => {
-      URL.revokeObjectURL(url);
-      if (callAudio === audio) callAudio = null;
-      if (callModeActive) listenForSpeech();
-    };
-    audio.onended = finish;
-    audio.onerror = finish;
-    await audio.play();
+    await playCallBlob(await r.blob(), text);
   } catch (_) {
     if (callModeActive) callModeBrowserTTS(text);
   }
