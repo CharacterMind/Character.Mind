@@ -3397,14 +3397,16 @@ async function loadPastChats() {
 
     const allArchives = [
       ...serverArchives.map(a => ({ ...a, _src: 'server' })),
-      ...uniqueLocal.map((a, i) => ({ ...a, _localIdx: i, _src: 'local' }))
+      ...uniqueLocal.map(a => ({ ...a, _localIdx: localArchives.indexOf(a), _src: 'local' }))
     ].sort((a, b) => new Date(b.archived_at) - new Date(a.archived_at));
 
     if (!allArchives.length) {
       el.innerHTML = '<div class="history-empty">No past chats yet. Use "New Chat" to archive the current conversation.</div>';
       return;
     }
-    el.innerHTML = allArchives.map(a => {
+    window._pastChatList = allArchives;
+    const deleteAllBar = `<div class="past-chat-toolbar"><span>${allArchives.length} past chat${allArchives.length !== 1 ? 's' : ''}</span><button class="past-chat-delall" onclick="deleteAllPastChats()">Delete all</button></div>`;
+    el.innerHTML = deleteAllBar + allArchives.map((a, i) => {
       const date = new Date(a.archived_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
       const firstMsg = a._src === 'local' ? a.messages?.[0] : a.first_msg;
       const msgCount = a._src === 'local' ? (a.messages?.length || 0) : (a.message_count || 0);
@@ -3412,13 +3414,56 @@ async function loadPastChats() {
       const role = firstMsg?.role === 'user' ? 'You' : escHtml(currentChar.name || 'AI');
       const clickArg = a._src === 'local' ? `null,'local',${a._localIdx}` : `${a.id},'server'`;
       return `<div class="past-chat-entry" onclick="viewPastChat(${clickArg})">
-        <div class="past-chat-meta"><span class="past-chat-date">${date}</span><span class="past-chat-count">${msgCount} msg${msgCount !== 1 ? 's' : ''}</span></div>
+        <div class="past-chat-meta"><span class="past-chat-date">${date}</span><span class="past-chat-count">${msgCount} msg${msgCount !== 1 ? 's' : ''}<button class="past-chat-del" title="Delete this chat" aria-label="Delete this chat" onclick="deletePastChatAt(${i}, event)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></span></div>
         <div class="past-chat-preview"><span class="past-chat-who">${role}:</span> ${preview}</div>
       </div>`;
     }).join('');
   } catch (_) {
     el.innerHTML = '<div class="history-empty">Could not load past chats.</div>';
   }
+}
+
+function pastChatMatchToken(a) {
+  const fm = a.messages ? a.messages[0] : a.first_msg;
+  const count = a.messages ? a.messages.length : a.message_count;
+  return `${count}_${(fm?.content || '').slice(0, 30)}`;
+}
+
+function removeLocalPastChats(charId, shouldRemove) {
+  try {
+    const key = userKey(`cm_pastchats_${charId}`);
+    const kept = JSON.parse(localStorage.getItem(key) || '[]').filter(a => !shouldRemove(a));
+    localStorage.setItem(key, JSON.stringify(kept));
+  } catch (_) {}
+}
+
+async function deletePastChatAt(i, ev) {
+  if (ev) ev.stopPropagation();
+  const a = window._pastChatList && window._pastChatList[i];
+  if (!a || !currentChar) return;
+  if (!confirm('Delete this past chat? This cannot be undone.')) return;
+  if (a._src === 'server') {
+    try {
+      const r = await fetch(`/api/conversations/${currentChar.id}/history/${a.id}`, { method: 'DELETE' });
+      if (!r.ok) throw new Error();
+    } catch (_) { showWarning('Could not delete that chat. Please try again.'); return; }
+    const t = pastChatMatchToken(a);
+    removeLocalPastChats(currentChar.id, l => pastChatMatchToken(l) === t);
+  } else {
+    removeLocalPastChats(currentChar.id, l => l._token === a._token);
+  }
+  loadPastChats();
+}
+
+async function deleteAllPastChats() {
+  if (!currentChar) return;
+  if (!confirm(`Delete ALL past chats with ${currentChar.name || 'this character'}? Your current conversation is kept. This cannot be undone.`)) return;
+  try {
+    const r = await fetch(`/api/conversations/${currentChar.id}/history`, { method: 'DELETE' });
+    if (!r.ok) throw new Error();
+  } catch (_) { showWarning('Could not delete your past chats. Please try again.'); return; }
+  try { localStorage.removeItem(userKey(`cm_pastchats_${currentChar.id}`)); } catch (_) {}
+  loadPastChats();
 }
 
 async function viewPastChat(archiveId, src, localIdx) {

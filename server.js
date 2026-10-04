@@ -1314,6 +1314,35 @@ app.get('/api/conversations/:charId/history/:archiveId', requireAuth, async (req
   res.json(result.rows[0]);
 });
 
+// Delete one archived conversation
+app.delete('/api/conversations/:charId/history/:archiveId', requireAuth, async (req, res) => {
+  const { charId, archiveId } = req.params;
+  if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
+  if (!/^\d+$/.test(archiveId)) return res.status(400).json({ error: 'Invalid archiveId' });
+  if (!db) return res.status(503).json({ error: 'Service temporarily unavailable' });
+  try {
+    await db.query('DELETE FROM chat_archives WHERE id=$1 AND user_id=$2 AND char_id=$3', [parseInt(archiveId), req.user.googleId, charId]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('delete archive error:', e);
+    res.status(500).json({ error: 'Could not delete' });
+  }
+});
+
+// Delete all archived conversations with one character
+app.delete('/api/conversations/:charId/history', requireAuth, async (req, res) => {
+  const { charId } = req.params;
+  if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
+  if (!db) return res.status(503).json({ error: 'Service temporarily unavailable' });
+  try {
+    const r = await db.query('DELETE FROM chat_archives WHERE user_id=$1 AND char_id=$2', [req.user.googleId, charId]);
+    res.json({ ok: true, deleted: r.rowCount });
+  } catch (e) {
+    console.error('delete all archives error:', e);
+    res.status(500).json({ error: 'Could not delete' });
+  }
+});
+
 const OWNER_EMAILS = new Set(['support.charactermind@gmail.com', 'davey252572727@gmail.com']);
 const ownerGoogleIds = new Set(); // populated at runtime when owners authenticate
 app.post('/api/admin/reset-limits', requireAuth, (req, res) => {

@@ -2702,3 +2702,10 @@ html, body {
 body:not(.voice-on) .btn-call,
 body:not(.voice-on) .tts-btn { display: none !important; }
 body:not(.voice-on) .ip-row[onclick="openVoicePanel()"] { display: none !important; }
+
+.past-chat-toolbar { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text3); padding: 0 2px 2px; flex-shrink: 0; }
+.past-chat-delall { background: none; border: 1px solid var(--border2); color: #ef4444; border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+.past-chat-delall:hover { background: rgba(239,68,68,.12); }
+.past-chat-count { display: inline-flex; align-items: center; gap: 8px; }
+.past-chat-del { background: none; border: none; color: var(--text3); cursor: pointer; padding: 2px; border-radius: 4px; display: inline-flex; }
+.past-chat-del:hover { color: #ef4444; background: rgba(239,68,68,.12); }
