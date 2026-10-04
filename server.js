@@ -710,10 +710,26 @@ function modelDepthNote(modelTier, effort) {
   const paras = Math.max(1, Math.ceil(rank / 2));
   return 'MODEL DEPTH: As a higher-tier model, write about ' + paras + ' more paragraph' + (paras > 1 ? 's' : '') + ' than the length above, with richer detail, emotion and sensory description.';
 }
+// Each model family has its own way of writing, so the models feel different and not just longer or pricier.
+// This sits UNDER the character's own voice: the character always comes first.
+const MODEL_STYLE = {
+  opas: 'WRITING STYLE: quick and punchy. Short sentences, snappy dialogue, fast pacing, only the details that matter.',
+  opes: 'WRITING STYLE: a balanced storyteller. Natural dialogue with a steady amount of description, easy to follow and good for everyday chatting.',
+  opis: 'WRITING STYLE: precise and observant. Notice small details, keep continuity perfect, reason carefully about what the character knows, and let clues and logic matter. Good for complex plots and mysteries.',
+  opos: 'WRITING STYLE: an immersive roleplay writer. Build the scene with senses (sound, smell, touch, light), atmosphere and emotional beats, and keep a strong sense of momentum and place.',
+  opus: 'WRITING STYLE: emotionally deep. Write subtext, inner conflict and layered feelings, let the character react to earlier events in the chat, and show what they leave unsaid.',
+  opys: 'WRITING STYLE: a master storyteller. Cinematic pacing, vivid imagery, deliberate tension and surprise, memorable lines, and a plot that keeps moving without ever breaking the character.'
+};
+function modelStyleNote(modelTier) {
+  const tv = tierVersion(modelTier);
+  const base = tv ? tv.base : modelTier;
+  return Object.hasOwn(MODEL_STYLE, base) ? MODEL_STYLE[base] : '';
+}
 function applyEffortDirective(prompt, effort, modelTier) {
   const directive = (typeof effort === 'string' && Object.hasOwn(EFFORT_DIRECTIVES, effort)) ? EFFORT_DIRECTIVES[effort] : EFFORT_DIRECTIVES['high'];
   const depth = modelDepthNote(modelTier, effort);
-  return prompt + '\n\n' + directive + (depth ? '\n\n' + depth : '') + (isVersionedTier(modelTier) ? '\n\n' + OPYS2_DIRECTIVE : '');
+  const style = modelStyleNote(modelTier);
+  return prompt + '\n\n' + directive + (depth ? '\n\n' + depth : '') + (style ? '\n\n' + style : '') + (isVersionedTier(modelTier) ? '\n\n' + OPYS2_DIRECTIVE : '');
 }
 
 // ── RP quality wrapper injected into every system prompt ─────────────────────
