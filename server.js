@@ -402,30 +402,20 @@ const LIMITS = {
   CALL_DAILY: 3
 };
 
-// Plan limits are defined as an average number of messages per session, then converted to tokens.
-// The "average message" = Opes at High effort = ~800 reply tokens x 2 (Opes) = ~1,600 charged tokens.
-// Lighter models/efforts get more messages than this; heavier ones get fewer.
+// Plan limits are set in tokens (what a reply is charged: model tokens x model multiplier x effort multiplier).
+// Free and Advanced are chosen by hand; X20 and X50 are multiples of Advanced, for both session and weekly.
+// Weekly = 5 sessions' worth, so nobody can run every session back to back all week.
+// Messages are an outcome, not an input. An "average message" (Opes at High effort) is ~1,600 charged tokens;
+// lighter models/efforts get more messages and heavier ones get fewer.
 const AVG_MESSAGE_TOKENS = 1600;
-const MESSAGES_PER_SESSION = { free: 20, advanced: 45 }; // modeled on Claude: Free ~20, Pro ~45 (Max 20x = 20 x Pro = 900)
 const X20_MULT = 20;  // X20 = 20x Advanced
 const X50_MULT = 50;  // X50 = 50x Advanced
-// Weekly limit in average messages: Free and Advanced are 5 sessions' worth; X20 is its session
-// limit x20 (24,000) and X50 is its session limit x50 (150,000).
-const MESSAGES_PER_WEEK = {
-  free:     MESSAGES_PER_SESSION.free * 5,
-  advanced: MESSAGES_PER_SESSION.advanced * 5,
-  x20:      MESSAGES_PER_SESSION.advanced * X20_MULT * X20_MULT,
-  x50:      MESSAGES_PER_SESSION.advanced * X50_MULT * X50_MULT,
-};
-function limitsForMessages(sessionMsgs, weeklyMsgs) {
-  return { session: sessionMsgs * AVG_MESSAGE_TOKENS, weekly: weeklyMsgs * AVG_MESSAGE_TOKENS };
-}
 const TIER_TOKEN_LIMITS = {
-  free:     limitsForMessages(MESSAGES_PER_SESSION.free, MESSAGES_PER_WEEK.free),
-  advanced: limitsForMessages(MESSAGES_PER_SESSION.advanced, MESSAGES_PER_WEEK.advanced),
-  x20:      limitsForMessages(MESSAGES_PER_SESSION.advanced * X20_MULT, MESSAGES_PER_WEEK.x20),
-  x50:      limitsForMessages(MESSAGES_PER_SESSION.advanced * X50_MULT, MESSAGES_PER_WEEK.x50),
+  free:     { session: 30000,  weekly: 150000 },
+  advanced: { session: 75000,  weekly: 375000 },
 };
+TIER_TOKEN_LIMITS.x20 = { session: TIER_TOKEN_LIMITS.advanced.session * X20_MULT, weekly: TIER_TOKEN_LIMITS.advanced.weekly * X20_MULT };
+TIER_TOKEN_LIMITS.x50 = { session: TIER_TOKEN_LIMITS.advanced.session * X50_MULT, weekly: TIER_TOKEN_LIMITS.advanced.weekly * X50_MULT };
 function tokenLimitsFor(u) {
   return TIER_TOKEN_LIMITS[u.subscriptionTier || 'free'] || TIER_TOKEN_LIMITS.free;
 }
