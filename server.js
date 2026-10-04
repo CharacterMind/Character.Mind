@@ -1814,7 +1814,11 @@ function parseRetryAfterMs(msg) {
   if (!m || (!m[1] && !m[2] && !m[3])) return null;
   return Math.round((Number(m[1] || 0) * 60 + Number(m[2] || 0)) * 1000 + Number(m[3] || 0));
 }
-const RATE_RETRY_MAX_MS = 30000; // a premium reply is worth a wait of up to 30s when Groq says its minute budget refills by then
+// A premium reply is worth waiting for when Groq says its minute budget refills soon. The browser is kept informed while we wait
+// (a "still working" note every 10 seconds), so a wait of up to about a minute no longer ends in an error.
+const RATE_RETRY_MAX_MS = 55000;     // the longest single wait Groq may ask for
+const RATE_RETRY_TOTAL_MS = 100000;  // the longest total waiting for one reply
+const RATE_RETRY_MAX_TRIES = 3;      // how many times to wait and go round again
 
 function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex, effortCfg, modelList, ctx) {
   modelList = modelList || GROQ_FAST_MODELS;
@@ -1828,12 +1832,13 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
   }
   if (modelIndex >= modelList.length) {
     if (ctx.rateLimited) {
-      // Every model was out of tokens for this minute. If the wait is short, wait once and go round again.
-      if (!ctx.retried && !ctx.aborted && ctx.retryAfterMs != null && ctx.retryAfterMs <= RATE_RETRY_MAX_MS) {
-        ctx.retried = true;
-        const wait = Math.max(500, ctx.retryAfterMs + 300);
+      // Every model was out of tokens for this minute. If the wait is not too long, wait and go round again (a few times, within a total limit).
+      const wait = Math.max(500, (ctx.retryAfterMs || 0) + 300);
+      if (!ctx.aborted && ctx.retryAfterMs != null && ctx.retryAfterMs <= RATE_RETRY_MAX_MS && (ctx.retries || 0) < RATE_RETRY_MAX_TRIES && (ctx.waitedMs || 0) + wait <= RATE_RETRY_TOTAL_MS) {
+        ctx.retries = (ctx.retries || 0) + 1;
+        ctx.waitedMs = (ctx.waitedMs || 0) + wait;
         ctx.rateLimited = false; ctx.retryAfterMs = null;
-        console.log('All models rate limited, retrying in ' + wait + 'ms');
+        console.log('All models rate limited, retrying in ' + wait + 'ms (try ' + ctx.retries + ')');
         return setTimeout(() => {
           if (ctx.aborted) return onError(new Error('client aborted'));
           callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, 0, effortCfg, modelList, ctx);
