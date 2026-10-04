@@ -402,22 +402,23 @@ const LIMITS = {
   CALL_DAILY: 3
 };
 
-// Token limits per plan. Free and Advanced are set by hand; X20 and X50 are multiples of Advanced.
+// Token limits per plan. Free and Advanced are set by hand; X20 and X50 are 20x and 50x the Free plan.
+// A "normal message" = Opes at High effort = ~800 reply tokens x 2 (Opes) = ~1,600 charged tokens.
 const X20_MULT = 20;
 const X50_MULT = 50;
 const TIER_TOKEN_LIMITS = {
   free:     { session: 20000, weekly: 100000 },
-  advanced: { session: 40000, weekly: 250000 },
+  advanced: { session: 50000, weekly: 250000 },
 };
-TIER_TOKEN_LIMITS.x20 = { session: TIER_TOKEN_LIMITS.advanced.session * X20_MULT, weekly: TIER_TOKEN_LIMITS.advanced.weekly * X20_MULT };
-TIER_TOKEN_LIMITS.x50 = { session: TIER_TOKEN_LIMITS.advanced.session * X50_MULT, weekly: TIER_TOKEN_LIMITS.advanced.weekly * X50_MULT };
+TIER_TOKEN_LIMITS.x20 = { session: TIER_TOKEN_LIMITS.free.session * X20_MULT, weekly: TIER_TOKEN_LIMITS.free.weekly * X20_MULT };
+TIER_TOKEN_LIMITS.x50 = { session: TIER_TOKEN_LIMITS.free.session * X50_MULT, weekly: TIER_TOKEN_LIMITS.free.weekly * X50_MULT };
 function tokenLimitsFor(u) {
   return TIER_TOKEN_LIMITS[u.subscriptionTier || 'free'] || TIER_TOKEN_LIMITS.free;
 }
 // How fast each model tier burns your token allowance (top tiers cost far more).
-const MODEL_TOKEN_MULT = { opas: 1, opes: 4, opis: 8, opos: 12, opus: 20, opys: 32 };
+const MODEL_TOKEN_MULT = { opas: 1, opes: 2, opis: 3, opos: 5, opus: 8, opys: 12 };
 // Extra cost for the higher effort levels, on top of the model multiplier (they also write longer replies).
-const EFFORT_TOKEN_MULT = { low: 1, medium: 1, high: 1, extra: 2, max: 4 };
+const EFFORT_TOKEN_MULT = { low: 1, medium: 1, high: 1, extra: 1.5, max: 2 };
 function effortMultFor(effort) { return Object.hasOwn(EFFORT_TOKEN_MULT, effort) ? EFFORT_TOKEN_MULT[effort] : 1; }
 function tokenMultFor(tier) { return Object.hasOwn(MODEL_TOKEN_MULT, tier) ? MODEL_TOKEN_MULT[tier] : MODEL_TOKEN_MULT.opas; }
 
