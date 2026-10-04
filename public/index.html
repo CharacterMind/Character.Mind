@@ -6,15 +6,15 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>character.mind — AI Character Chat</title>
+<title>character.mind â€” AI Character Chat</title>
 <meta name="description" content="Chat with AI-powered characters from Poppy Playtime and beyond. Create your own characters, give them personalities, and have real conversations. Free to use.">
 <meta name="keywords" content="AI character chat, Poppy Playtime AI, chat with AI characters, character.mind, Huggy Wuggy AI, Kissy Missy AI, AI roleplay">
-<meta property="og:title" content="character.mind — AI Character Chat">
+<meta property="og:title" content="character.mind â€” AI Character Chat">
 <meta property="og:description" content="Chat with AI-powered characters from Poppy Playtime and beyond. Create your own characters and have real conversations.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://charactermind.onrender.com">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="character.mind — AI Character Chat">
+<meta name="twitter:title" content="character.mind â€” AI Character Chat">
 <meta name="twitter:description" content="Chat with AI-powered characters from Poppy Playtime and beyond. Free to use.">
 <link rel="canonical" href="https://charactermind.onrender.com">
 <link rel="icon" type="image/webp" href="/logo.webp">
@@ -27,7 +27,7 @@
 </head>
 <body>
 
-<!-- Loading screen — shown until auth check resolves -->
+<!-- Loading screen â€” shown until auth check resolves -->
 <div id="appLoading" class="app-loading">
   <div class="app-loading-logo">
     <img class="logo-icon logo-img" src="/logo.webp" alt="c.m">
@@ -102,8 +102,8 @@
       <button class="reset-limits-btn" onclick="adminResetLimits()" id="resetLimitsBtn">Reset limits</button>
       <div id="notifyWrap" style="margin-top:16px;border-top:1px solid var(--border2);padding-top:16px;text-align:left">
         <p style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);margin-bottom:10px">Notify users of policy update</p>
-        <input id="notifySubject" type="text" placeholder="Subject line…" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:8px 10px;margin-bottom:8px;outline:none" />
-        <textarea id="notifyMsg" placeholder="Summarize what changed…" rows="4" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:8px 10px;margin-bottom:8px;outline:none;resize:vertical;font-family:inherit"></textarea>
+        <input id="notifySubject" type="text" placeholder="Subject lineâ€¦" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:8px 10px;margin-bottom:8px;outline:none" />
+        <textarea id="notifyMsg" placeholder="Summarize what changedâ€¦" rows="4" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:8px 10px;margin-bottom:8px;outline:none;resize:vertical;font-family:inherit"></textarea>
         <button class="reset-limits-btn" onclick="adminNotifyUsers()" id="notifyBtn" style="width:100%;text-align:center">Send to all users</button>
       </div>
     </div>
@@ -207,7 +207,7 @@
     </div>
   </aside>
 
-  <!-- Sidebar expand button — visible only when sidebar is collapsed -->
+  <!-- Sidebar expand button â€” visible only when sidebar is collapsed -->
   <button class="sidebar-expand-btn" onclick="toggleSidebar()" title="Open sidebar">
     <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
   </button>
@@ -224,7 +224,7 @@
       <span class="mob-nav-title">character.mind</span>
     </div>
 
-    <!-- Home View — rendered entirely by renderHome() in app.js -->
+    <!-- Home View â€” rendered entirely by renderHome() in app.js -->
     <div class="view" id="homeView"></div>
 
     <!-- Discover View -->
@@ -265,7 +265,7 @@
             </div>
             <input type="file" id="avatarUpload" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none" onchange="previewAvatar(event)">
           </div>
-          <div class="avatar-policy-note">JPEG, PNG, WebP or GIF only. No nudity, explicit content, or images of minors — violations result in account removal.</div>
+          <div class="avatar-policy-note">JPEG, PNG, WebP or GIF only. No nudity, explicit content, or images of minors â€” violations result in account removal.</div>
 
           <div class="create-field">
             <label>Character name</label>
@@ -286,7 +286,7 @@
           </div>
 
           <div class="create-field">
-            <label>Greeting <span class="field-hint">— first thing they say to you</span></label>
+            <label>Greeting <span class="field-hint">â€” first thing they say to you</span></label>
             <textarea id="newGreeting" placeholder='e.g. "Took you long enough. I\'ve been waiting."' rows="3" maxlength="4096" oninput="updateCount('newGreeting','greetingCount',4096)"></textarea>
             <div class="field-count"><span id="greetingCount">0</span>/4096</div>
             <div class="greeting-mode-row">
@@ -299,12 +299,12 @@
           </div>
 
           <div class="create-field">
-            <label>Character Persona <span class="field-hint">— how they think and speak</span></label>
+            <label>Character Persona <span class="field-hint">â€” how they think and speak</span></label>
             <div class="persona-gen-row">
-              <button type="button" class="persona-gen-btn" id="personaGenBtn" onclick="generatePersona()">✨ Auto-generate</button>
-              <button type="button" class="persona-gen-btn persona-reset-btn" id="personaResetBtn" onclick="resetToTemplate()" style="display:none">↺ Reset to built-in lore</button>
+              <button type="button" class="persona-gen-btn" id="personaGenBtn" onclick="generatePersona()">âœ¨ Auto-generate</button>
+              <button type="button" class="persona-gen-btn persona-reset-btn" id="personaResetBtn" onclick="resetToTemplate()" style="display:none">â†º Reset to built-in lore</button>
             </div>
-            <textarea id="newPrompt" placeholder="Describe their personality, speech style, flaws, and backstory — or hit Auto-generate." rows="5"></textarea>
+            <textarea id="newPrompt" placeholder="Describe their personality, speech style, flaws, and backstory â€” or hit Auto-generate." rows="5"></textarea>
           </div>
 
           <div class="create-field create-field-row">
@@ -321,7 +321,7 @@
                 <input type="hidden" id="newColor" value="#7c3aed">
                 <span class="gc-hint">Hit <strong>+</strong> to blend colors into a gradient</span>
                 <select class="gc-cb-select" id="gcColorblindPicker" onchange="setColorblindMode(this.value)" title="Color vision mode">
-                  <option value="">👁 Normal</option>
+                  <option value="">ðŸ‘ Normal</option>
                   <option value="deuteranopia">Deuteranopia (green weak)</option>
                   <option value="protanopia">Protanopia (red weak)</option>
                   <option value="tritanopia">Tritanopia (blue-yellow)</option>
@@ -329,7 +329,7 @@
                 </select>
               </div>
               <div id="gcAchroNote" class="gc-achro-note" style="display:none">
-                You have complete colorblindness — accent color won't be visible to you. A default will be used; other users will see it.
+                You have complete colorblindness â€” accent color won't be visible to you. A default will be used; other users will see it.
               </div>
             </div>
           </div>
@@ -371,7 +371,7 @@
         <div class="lockout-bar" id="lockoutBar" style="display:none">
           <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
           <span id="lockoutMsg">Session limit reached</span>
-          <span class="lockout-dot">·</span>
+          <span class="lockout-dot">Â·</span>
           <span id="lockoutCountdown">Resets in 2:00:00</span>
         </div>
         <div class="img-preview-strip" id="imgPreviewStrip" style="display:none">
@@ -386,7 +386,7 @@
             <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
           </button>
           <div class="input-wrap">
-            <textarea id="messageInput" placeholder="Message…" rows="1"
+            <textarea id="messageInput" placeholder="Messageâ€¦" rows="1"
               onkeydown="handleKey(event)"
               oninput="autoResize(this)"></textarea>
           </div>
@@ -438,20 +438,20 @@
         </div>
         <!-- Call limit reached modal -->
         <div id="callLimitModal" class="call-limit-modal" style="display:none">
-          <button class="call-limit-x" onclick="hideCallLimitModal()">✕</button>
+          <button class="call-limit-x" onclick="hideCallLimitModal()">âœ•</button>
           <div class="call-limit-inner">
             <div class="call-limit-headline">You've used all your voice calls today.</div>
             <div class="call-limit-sub">Resets in <span id="callLimitCountdown" class="call-limit-countdown">--:--:--</span></div>
             <div class="call-limit-divider"></div>
             <div class="call-limit-upgrade-label">Want unlimited calls?</div>
-            <button class="call-limit-upgrade-btn" onclick="hideCallLimitModal(); openPricingModal()">See plans →</button>
+            <button class="call-limit-upgrade-btn" onclick="hideCallLimitModal(); openPricingModal()">See plans â†’</button>
             <button class="call-limit-got-it" onclick="hideCallLimitModal()">Got it</button>
           </div>
         </div>
         <!-- 1 call remaining warning banner -->
         <div id="callWarningBanner" class="call-warning-banner" style="display:none">
           <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-          1 voice call left today — <span class="call-warning-upgrade" onclick="openPricingModal()">Upgrade for more</span>
+          1 voice call left today â€” <span class="call-warning-upgrade" onclick="openPricingModal()">Upgrade for more</span>
         </div>
         <!-- Call ended due to inactivity banner -->
         <div id="callInactivityBanner" class="call-warning-banner" style="display:none;background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.3);color:#ef4444">
@@ -461,7 +461,7 @@
         <!-- Read-aloud daily limit banner -->
         <div id="memoLimitBanner" class="call-warning-banner" style="display:none">
           <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-          Read-aloud limit reached — resets <span class="memo-limit-time">at 8 AM</span>
+          Read-aloud limit reached â€” resets <span class="memo-limit-time">at 8 AM</span>
         </div>
         <!-- Model/effort bar -->
         <div class="model-bar-zone">
@@ -747,7 +747,7 @@
               </button>
               <button class="epp-item" id="effortOptMax" onclick="setEffort('max');closeAllPickers()">
                 <span class="epp-item-name">Max</span>
-                <span class="epp-max-warn" id="effortMaxWarn">⚠ 3.3× or more usage</span>
+                <span class="epp-max-warn" id="effortMaxWarn">âš  3.3Ã— or more usage</span>
                 <svg class="epp-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
             </div>
@@ -757,13 +757,13 @@
               <svg class="mb-model-icon" id="modelBarIcon" viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
               <span id="mbModelLabel">Opas</span>
             </button>
-            <span class="mb-sep">·</span>
+            <span class="mb-sep">Â·</span>
             <button class="mb-effort-btn" id="mbEffortBtn" onclick="toggleEffortPanel()">
               <span id="mbEffortLabel">Medium</span>
             </button>
           </div>
         </div>
-        <div class="disclaimer">This is A.I. and not a real person. Treat everything it says as fiction ▾</div>
+        <div class="disclaimer">This is A.I. and not a real person. Treat everything it says as fiction â–¾</div>
       </div>
     </div>
 
@@ -882,13 +882,13 @@
         <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
     </div>
-    <div class="crop-hint">Drag to reposition &nbsp;·&nbsp; Scroll or pinch to zoom</div>
+    <div class="crop-hint">Drag to reposition &nbsp;Â·&nbsp; Scroll or pinch to zoom</div>
     <div class="crop-container" id="cropContainer">
       <img id="cropImg" draggable="false" alt="">
       <div class="crop-circle-overlay"></div>
     </div>
     <div class="crop-zoom-row">
-      <button class="crop-zoom-btn" onclick="adjustZoom(-0.1)">−</button>
+      <button class="crop-zoom-btn" onclick="adjustZoom(-0.1)">âˆ’</button>
       <input type="range" id="zoomSlider" class="crop-zoom-slider" min="0.05" max="8" step="0.005" oninput="setZoomFromSlider(this.value)">
       <button class="crop-zoom-btn" onclick="adjustZoom(0.1)">+</button>
     </div>
@@ -935,28 +935,28 @@
 
     <div class="welcome-features welcome-features--solo">
       <div class="wf">
-        <span class="wf-icon">🎙️</span>
+        <span class="wf-icon">ðŸŽ™ï¸</span>
         <div>
           <div class="wf-name">Voices <span class="welcome-soon-tag">Coming soon</span></div>
           <div class="wf-desc">Hear your characters speak their replies out loud.</div>
         </div>
       </div>
       <div class="wf">
-        <span class="wf-icon">📞</span>
+        <span class="wf-icon">ðŸ“ž</span>
         <div>
           <div class="wf-name">Calling your AI <span class="welcome-soon-tag">Coming soon</span></div>
           <div class="wf-desc">Talk to your characters on a live voice call.</div>
         </div>
       </div>
       <div class="wf">
-        <span class="wf-icon">🎭</span>
+        <span class="wf-icon">ðŸŽ­</span>
         <div>
           <div class="wf-name">More characters <span class="welcome-soon-tag">Coming soon</span></div>
           <div class="wf-desc">New characters are being added all the time.</div>
         </div>
       </div>
       <div class="wf">
-        <span class="wf-icon">✨</span>
+        <span class="wf-icon">âœ¨</span>
         <div>
           <div class="wf-name">And more <span class="welcome-soon-tag">Coming soon</span></div>
           <div class="wf-desc">We're building more features all the time.</div>
@@ -967,7 +967,7 @@
     <p class="welcome-patience">Thank you for being here early. Character Mind is still in development, so you may run into bugs or slow replies while we improve it. Please be patient with us, and tell us what you find through <strong>Contact us</strong> in the menu.</p>
 
     <div class="welcome-footer">
-      <button class="welcome-cta" onclick="closeWelcome()">Let's go →</button>
+      <button class="welcome-cta" onclick="closeWelcome()">Let's go â†’</button>
     </div>
   </div>
 </div>
@@ -995,7 +995,7 @@
         <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
         <div class="lm-card-text">
           <div class="lm-card-title">Limit resets automatically</div>
-          <div class="lm-card-sub">No action needed — just come back.</div>
+          <div class="lm-card-sub">No action needed â€” just come back.</div>
         </div>
       </div>
     </div>
@@ -1068,10 +1068,10 @@
           <p class="settings-field-sub">Adapts the accent color, chat bubbles, and usage indicators for your type of color vision. Select the one that matches what you have.</p>
           <select class="settings-select" id="colorblindMode" onchange="setColorblindMode(this.value)">
             <option value="">None</option>
-            <option value="deuteranopia">Deuteranopia — red-green [green weakness, most common]</option>
-            <option value="protanopia">Protanopia — red-green [red weakness]</option>
-            <option value="tritanopia">Tritanopia — blue-yellow</option>
-            <option value="achromatopsia">Achromatopsia — monochromacy</option>
+            <option value="deuteranopia">Deuteranopia â€” red-green [green weakness, most common]</option>
+            <option value="protanopia">Protanopia â€” red-green [red weakness]</option>
+            <option value="tritanopia">Tritanopia â€” blue-yellow</option>
+            <option value="achromatopsia">Achromatopsia â€” monochromacy</option>
           </select>
         </div>
       </div>
@@ -1090,12 +1090,12 @@
         <div class="settings-usage-section">
           <div class="settings-usage-row">
             <span class="settings-usage-label">Session</span>
-            <span class="settings-usage-pct" id="settingsSessionPct">—</span>
+            <span class="settings-usage-pct" id="settingsSessionPct">â€”</span>
           </div>
           <div class="settings-usage-bar-track"><div class="settings-usage-bar-fill" id="settingsSessionBar"></div></div>
           <div class="settings-usage-row" style="margin-top:14px">
             <span class="settings-usage-label">Weekly</span>
-            <span class="settings-usage-pct" id="settingsWeeklyPct">—</span>
+            <span class="settings-usage-pct" id="settingsWeeklyPct">â€”</span>
           </div>
           <div class="settings-usage-bar-track"><div class="settings-usage-bar-fill" id="settingsWeeklyBar"></div></div>
         </div>
@@ -1193,7 +1193,7 @@
 <div id="paypalCheckoutModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closePaypalCheckout()">
   <div class="co-modal">
 
-    <!-- ── Left: payment form ── -->
+    <!-- â”€â”€ Left: payment form â”€â”€ -->
     <div class="co-left">
       <button class="co-close" onclick="closePaypalCheckout()" aria-label="Close">
         <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
@@ -1247,7 +1247,7 @@
         </div>
         <button id="card-submit-btn" class="card-submit-btn" onclick="submitCardPayment()">Subscribe Now</button>
         <div id="card-not-eligible" class="card-not-eligible" style="display:none">
-          Card payments not available in your region — please use PayPal.
+          Card payments not available in your region â€” please use PayPal.
         </div>
       </div>
 
@@ -1256,7 +1256,7 @@
       <p class="paypal-checkout-footer">Secured by PayPal &middot; Cancel anytime &middot; No hidden fees</p>
     </div>
 
-    <!-- ── Right: order summary ── -->
+    <!-- â”€â”€ Right: order summary â”€â”€ -->
     <div class="co-right">
       <div class="co-summary-title">Summary</div>
       <div class="co-summary-row">
@@ -1280,7 +1280,7 @@
 </div>
 
 <style>
-/* ── Checkout modal layout ── */
+/* â”€â”€ Checkout modal layout â”€â”€ */
 .co-modal {
   background: var(--bg2);
   border: 1px solid var(--border);
@@ -1406,6 +1406,6 @@
 }
 </style>
 
-<script src="app.js?v=190"></script>
+<script src="app.js?v=191"></script>
 </body>
 </html>

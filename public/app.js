@@ -2111,8 +2111,14 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
   isStreaming = true;
   document.getElementById('sendBtn').disabled = true;
 
+  // Give up only when NOTHING has arrived for a while (the server says "still working" every 10 seconds), or after a very long
+  // total time. A long reply is allowed to take as long as it needs; the old fixed 90-second limit cut long replies off.
   let streamAbortCtrl = new AbortController();
-  const streamTimeout = setTimeout(() => streamAbortCtrl.abort(), 90000);
+  let idleTimer = null;
+  const bumpIdle = () => { clearTimeout(idleTimer); idleTimer = setTimeout(() => streamAbortCtrl.abort(), 45000); };
+  const capTimer = setTimeout(() => streamAbortCtrl.abort(), 360000);
+  const streamTimeout = { clear() { clearTimeout(idleTimer); clearTimeout(capTimer); } };
+  bumpIdle();
 
   try {
     const res = await fetch('/api/chat', {
@@ -2122,9 +2128,10 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
       signal: streamAbortCtrl.signal
     });
 
-    if (myEpoch !== chatEpoch) { try { if (res.body) res.body.cancel(); } catch (_) {} return; }   // the chat changed while waiting
+    if (myEpoch !== chatEpoch) { streamTimeout.clear(); try { if (res.body) res.body.cancel(); } catch (_) {} return; }   // the chat changed while waiting
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
+      streamTimeout.clear();
       if (res.status === 401) { window.location.href = '/'; return; }
       if (res.status === 429 && (err.type === 'session' || err.type === 'weekly')) {
         if (err.type === 'session') startCooldown(err.cooldownUntil, 'session', true);
@@ -2142,8 +2149,9 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
 
     while (true) {
       const { done, value } = await reader.read();
-      if (myEpoch !== chatEpoch) { try { reader.cancel(); } catch (_) {} return; }
+      if (myEpoch !== chatEpoch) { streamTimeout.clear(); try { reader.cancel(); } catch (_) {} return; }
       if (done) break;
+      bumpIdle();   // something arrived (text or the server's "still working"), so the connection is alive
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
       buffer = lines.pop();
@@ -2186,9 +2194,9 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
           liveUpdateBars(liveCostSoFar(streamCharCount));
         }
       }
-      if (convEnded) { isStreaming = false; clearTimeout(streamTimeout); return; }
+      if (convEnded) { isStreaming = false; streamTimeout.clear(); return; }
     }
-    clearTimeout(streamTimeout);
+    streamTimeout.clear();
     drainTypewriter(() => {
       if (msgEl) { if (streamSig) msgEl.dataset.sig = streamSig; else delete msgEl.dataset.sig; }
       if (msgEl) stopStreamStats(msgEl, streamRealTokens);
@@ -2207,15 +2215,17 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
       saveHistoryLocal();
     });
   } catch (err) {
-    clearTimeout(streamTimeout);
+    streamTimeout.clear();
     if (myEpoch !== chatEpoch) return;   // an old request failing must not touch the chat that is open now
     flushTypewriter();
+    if (streamTimer) { clearInterval(streamTimer); streamTimer = null; }   // a failed reply must not leave a counter running
+    hideStreamStatsNow();
     showTyping(false);
     isStreaming = false;
     const lockoutActiveErr = document.getElementById('lockoutBar')?.style.display !== 'none';
     if (!lockoutActiveErr) document.getElementById('sendBtn').disabled = false;
     document.querySelectorAll('.bubble.streaming').forEach(b => b.classList.remove('streaming'));
-    const errMsg = err.name === 'AbortError' ? 'Response timed out. Please try again.' : err.message;
+    const errMsg = err.name === 'AbortError' ? 'The connection went quiet, so the reply stopped. What was written is kept above. Please try again.' : err.message;
     appendMessage('ai', `⚠️ ${errMsg}`);
     if (callModeActive) setTimeout(() => listenForSpeech(), 2000);
   }

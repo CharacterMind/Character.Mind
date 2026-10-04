@@ -394,7 +394,7 @@ function acquireChatSlot(req, res, userId) {
     const left = (chatInFlight.get(userId) || 1) - 1;
     if (left <= 0) chatInFlight.delete(userId); else chatInFlight.set(userId, left);
   };
-  timer = setTimeout(release, 150000); // safety net so a slot can never be stuck forever
+  timer = setTimeout(release, 330000); // safety net so a slot can never be stuck forever
   if (timer.unref) timer.unref();
   res.on('finish', release);
   return release;
@@ -1726,7 +1726,12 @@ function startReplyStream(o) {
   const reservation = addTokens(userId, cost);
   let fullResponse = '', held = '', released = false, finished = false;
   const send = (obj) => { try { res.write('data: ' + JSON.stringify(obj) + '\n\n'); } catch (_) {} };
-  const close = () => { try { res.end(); } catch (_) {} releaseSlot(); };
+  // While the AI is thinking or waiting for its turn, say "still here" every 10 seconds. Without this a long wait with no text can look
+  // like a dead connection to the browser or to the proxies in between, and the reply gets cut off.
+  const pingTimer = setInterval(() => { try { if (!res.writableEnded) res.write(': still working\n\n'); } catch (_) {} }, 10000);
+  if (pingTimer.unref) pingTimer.unref();
+  res.on('close', () => clearInterval(pingTimer));
+  const close = () => { clearInterval(pingTimer); try { res.end(); } catch (_) {} releaseSlot(); };
   const fail = (err) => {
     if (finished) return;
     finished = true;
