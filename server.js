@@ -22,8 +22,20 @@ const PORT = process.env.PORT || 8080;
 app.set('trust proxy', 1);
 
 // ── Database ───────────────────────────────────────────────────────────────────
+// Verify the database's certificate (sslmode=verify-full) instead of just encrypting; keeps pg quiet about
+// the old "require" meaning too. Set DATABASE_SSL_INSECURE=1 only if a host's certificate can't be verified.
+function dbConnectionString(raw) {
+  try {
+    const u = new URL(raw);
+    if (u.searchParams.has('sslmode') || u.searchParams.has('ssl')) { u.searchParams.delete('ssl'); u.searchParams.set('sslmode', 'verify-full'); }
+    return u.toString();
+  } catch (_) { return raw; }
+}
 const db = process.env.DATABASE_URL
-  ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
+  ? new Pool({
+      connectionString: dbConnectionString(process.env.DATABASE_URL),
+      ssl: { rejectUnauthorized: process.env.DATABASE_SSL_INSECURE !== '1' }
+    })
   : null;
 
 if (!process.env.DATABASE_URL) {
@@ -1470,8 +1482,17 @@ function getModelList(tier) {
 
 const workingModels = {};
 
+// Groq says "Please try again in 1.5s" / "2m3.4s" / "450ms" when a model is out of tokens-per-minute
+function parseRetryAfterMs(msg) {
+  const m = /try again in\s+(?:(\d+)m(?!s))?\s*(?:(\d+(?:\.\d+)?)s)?\s*(?:(\d+(?:\.\d+)?)ms)?/i.exec(msg || '');
+  if (!m || (!m[1] && !m[2] && !m[3])) return null;
+  return Math.round((Number(m[1] || 0) * 60 + Number(m[2] || 0)) * 1000 + Number(m[3] || 0));
+}
+const RATE_RETRY_MAX_MS = 15000;
+
 function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex, effortCfg, modelList, ctx) {
   modelList = modelList || GROQ_FAST_MODELS;
+  ctx = ctx || {};
   effortCfg = effortCfg || EFFORT_CONFIG.opas.high;
   if (modelIndex === undefined) {
     const tier = (modelList === GROQ_OPUS_MODELS) ? 'opus' : (modelList === GROQ_PRO_MODELS) ? 'opes' : 'opas';
@@ -1480,6 +1501,20 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     modelIndex = wi >= 0 ? wi : 0;
   }
   if (modelIndex >= modelList.length) {
+    if (ctx.rateLimited) {
+      // Every model was out of tokens for this minute. If the wait is short, wait once and go round again.
+      if (!ctx.retried && !ctx.aborted && ctx.retryAfterMs != null && ctx.retryAfterMs <= RATE_RETRY_MAX_MS) {
+        ctx.retried = true;
+        const wait = Math.max(500, ctx.retryAfterMs + 300);
+        ctx.rateLimited = false; ctx.retryAfterMs = null;
+        console.log('All models rate limited, retrying in ' + wait + 'ms');
+        return setTimeout(() => {
+          if (ctx.aborted) return;
+          callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, 0, effortCfg, modelList, ctx);
+        }, wait);
+      }
+      return onError(new Error('Rate limit reached on every model (429 too many requests)'));
+    }
     return onError(new Error('No working model found. Check your Groq API key.'));
   }
 
@@ -1518,6 +1553,11 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
           console.log(`Model ${model} status ${res.statusCode}: ${msg}`);
           if (res.statusCode === 401 || res.statusCode === 403) {
             return onError(new Error(`Invalid Groq API key: ${msg}`));
+          }
+          if (res.statusCode === 429) {
+            ctx.rateLimited = true;
+            const ra = parseRetryAfterMs(msg);
+            if (ra != null && (ctx.retryAfterMs == null || ra < ctx.retryAfterMs)) ctx.retryAfterMs = ra;
           }
           if (res.statusCode === 429 || res.statusCode === 503 || res.statusCode === 404) {
             return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
