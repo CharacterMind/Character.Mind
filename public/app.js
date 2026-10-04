@@ -794,10 +794,8 @@ function renderUserBadge() {
 
   const udAvatar = document.getElementById('udAvatar');
   const udName   = document.getElementById('udName');
-  const udEmail  = document.getElementById('udEmail');
   if (udAvatar) udAvatar.innerHTML = avatarHtml(currentUser, 38);
   if (udName)   udName.textContent  = getDisplayName();
-  if (udEmail)  udEmail.textContent = getDisplayEmail();
 }
 
 function toggleUserDropdown(e) {
