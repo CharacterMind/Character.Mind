@@ -632,6 +632,12 @@ THREE MORE EXCEPTIONS — PLATFORM RULES, LINKS AND SUPPORT:
 2. If the user asks how to contact support, the team, or for the support email, give them this address exactly: ${SUPPORT_EMAIL}
 3. Whenever you mention the Terms of Service or the Privacy Policy, write them as clickable links in exactly this form: [Terms of Service](/terms) and [Privacy Policy](/privacy). Only link the one(s) they asked about.
 
+FICTION VS REAL LIFE:
+- This is collaborative fiction, and these characters come from horror games. Violence, danger, fights, villains and characters dying are normal in a story. If the user's character attacks, threatens or kills another character, including an enemy or monster like the Prototype, that is fiction: stay in character and play it out with tension and consequences. Do not refuse, and do not lecture.
+- Step out of the story only for REAL life: when the user seems to be talking about harming a real person, about their own real thoughts of suicide or self-harm, or about something that is clearly not the story. If you can't tell whether they mean the story or real life, ask one short question: "Quick check: is this part of the story, or are you talking about real life?"
+- A fictional character's death or even suicide that is clearly part of the plot can be handled with care inside the fiction. If it sounds like the user's own feelings, step out gently and warmly (see the distress rule above).
+- NEVER answer with only "I can't help with that." If you truly must decline something (for example explicit sexual content or instructions that could harm real people), say in one or two sentences why, and say what you CAN do instead, such as continuing the scene a different way.
+
 [WRITING CRAFT — follow this precisely]
 Write like a skilled author, not a chatbot. These rules are non-negotiable:
 
@@ -1216,6 +1222,21 @@ function persistConv(key) {
       }
     } catch (e) { console.error('persistConv error:', e.message); }
   }, 300));
+}
+
+// The AI model sometimes answers with a bare canned refusal ("I can't help with that"), e.g. for roleplay violence.
+// When a whole reply is just that, we replace it with an actual explanation.
+const BARE_REFUSAL_RE = /^\s*(?:i['’]?m\s+sorry,?\s*(?:but\s*)?|sorry,?\s*(?:but\s*)?)?i\s*(?:can['’]?t|cannot|won['’]?t|am\s+unable\s+to|am\s+not\s+able\s+to)\s+(?:help|assist|continue|comply|do\s+that|go\s+there|engage|provide|write\s+that)/i;
+function isBareRefusal(text) {
+  return typeof text === 'string' && text.length < 220 && BARE_REFUSAL_RE.test(text);
+}
+
+function buildRefusalExplanation() {
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  return pick([
+    `Sorry, that came out as a flat refusal, and that isn't a good answer. Let me explain. Fighting, danger and even killing a villain like the Prototype are fine in a story, so I'm happy to play that out. The AI behind me sometimes gets over-cautious when a message could sound like real life. If you meant it as part of the roleplay, say so, for example "In the story, I...", and I'll continue the scene. The things I can't do are explicit sexual content and anything that would help hurt real people. If you ever mean something real, I'm here to listen. And if you think I got this wrong, you can contact support. Just ask me for the email.`,
+    `Let me give you a real answer instead of a flat no. In a story, violence is allowed. You can fight, threaten or even kill an enemy like the Prototype, and I'll play it out with you. The AI I run on sometimes plays it too safe when a line could be read as real-life harm. Tell me it's part of the scene, like "In the story, I...", and we'll keep going. I won't write explicit sexual content or help with harming real people, and if you ever talk about real feelings, I'll step out of the story to listen. If this seems like a mistake, you can reach support. Ask me for the email and I'll share it.`
+  ]);
 }
 
 const NSFW_CARD_VARIANTS = 4;
@@ -2126,15 +2147,27 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   res.flushHeaders();
 
   let fullResponse = '', done = false;
+  let heldText = '', streamReleased = false;
 
   const regenModelList = getModelList(modelTier);
   const regenEffortCfg = getEffortCfg(effort, modelTier);
 
   callGroqStream(
     apiKey, applyEffortDirective(wrapPrompt(systemPrompt), effort), aiHistory(hist).slice(-12),
-    (text) => { fullResponse += text; res.write(`data: ${JSON.stringify({ text })}\n\n`); },
+    (text) => {
+      fullResponse += text;
+      if (streamReleased) { res.write(`data: ${JSON.stringify({ text })}\n\n`); return; }
+      heldText += text;
+      if (heldText.length >= 120) { streamReleased = true; res.write(`data: ${JSON.stringify({ text: heldText })}\n\n`); heldText = ''; }
+    },
     (tokensUsed) => {
       if (done) return; done = true;
+      if (!streamReleased) {
+        if (isBareRefusal(fullResponse)) fullResponse = buildRefusalExplanation();
+        streamReleased = true;
+        res.write(`data: ${JSON.stringify({ text: fullResponse })}\n\n`);
+        heldText = '';
+      }
       hist.push({ role: 'assistant', content: fullResponse });
       persistConv(key);
       const rawTokens = tokensUsed || Math.round(fullResponse.length / 3.5);
@@ -2453,6 +2486,8 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   res.flushHeaders();
 
   let fullResponse = '';
+  let heldText = '';
+  let streamReleased = false;
   let done = false;
 
   const callModeDirective = callMode
@@ -2465,11 +2500,25 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     messagesForGroq,
     (text) => {
       fullResponse += text;
-      res.write(`data: ${JSON.stringify({ text })}\n\n`);
+      // Hold the first ~120 characters so a bare refusal can be replaced before the user sees it
+      if (streamReleased) { res.write(`data: ${JSON.stringify({ text })}\n\n`); return; }
+      heldText += text;
+      if (heldText.length >= 120) {
+        streamReleased = true;
+        res.write(`data: ${JSON.stringify({ text: heldText })}\n\n`);
+        heldText = '';
+      }
     },
     (tokensUsed) => {
       if (done) return;
       done = true;
+      if (!streamReleased) {
+        // A short reply was held back entirely: swap in an explanation if it is just a canned refusal
+        if (isBareRefusal(fullResponse)) fullResponse = buildRefusalExplanation();
+        streamReleased = true;
+        res.write(`data: ${JSON.stringify({ text: fullResponse })}\n\n`);
+        heldText = '';
+      }
       conversations[key].push({ role: 'assistant', content: fullResponse });
       persistConv(key);
       const rawTokens = tokensUsed || Math.round(fullResponse.length / 3.5);
