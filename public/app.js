@@ -2517,6 +2517,7 @@ const OUTDOOR_MESSAGES = [
 const warnedThresholds = new Set();
 
 function fmtTokens(n) {
+  if (n >= 999950) return (n / 1000000).toFixed(1) + 'M';
   return n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n);
 }
 
@@ -3476,6 +3477,7 @@ function flushTypewriter() {
 }
 
 function fmtLiveTokens(n) {
+  if (n >= 999950) return (n / 1000000).toFixed(1) + 'M';   // 1.0M, 1.1M, 1.2M ... (never "1000.0k")
   if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
   return String(n);
 }
