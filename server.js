@@ -1817,6 +1817,33 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   );
 });
 
+const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
+
+async function isExplicitImage(apiKey, dataUri) {
+  const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: GROQ_VISION_MODEL,
+      temperature: 0,
+      max_tokens: 5,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: 'You are a content-safety classifier. Does this image show any exposed genitals, exposed female breasts or nipples, exposed buttocks, or explicit sexual activity? This applies equally to photos, drawings, cartoons and AI-generated images. A bare male chest is allowed. Swimwear and normal clothing are allowed. Answer with exactly one word: YES or NO.' },
+          { type: 'image_url', image_url: { url: dataUri } }
+        ]
+      }]
+    })
+  });
+  if (!r.ok) throw new Error('classifier http ' + r.status);
+  const j = await r.json();
+  const a = String(j.choices?.[0]?.message?.content || '').trim().toUpperCase();
+  if (a.startsWith('YES')) return true;
+  if (a.startsWith('NO')) return false;
+  throw new Error('unclear classifier answer');
+}
+
 app.post('/api/chat', requireAuth, async (req, res) => {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
@@ -1834,6 +1861,14 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       if (imgLimit !== Infinity && (imgU.imagesDay || 0) >= imgLimit) {
         return res.status(429).json({ error: `Daily image limit reached (${imgLimit}/day). Resets at 8 AM UTC.` });
       }
+      let explicit;
+      try {
+        explicit = await isExplicitImage(apiKey, image);
+      } catch (e) {
+        console.warn('[image-safety] check failed, blocking image:', e.message);
+        return res.status(503).json({ error: "We couldn't check that image right now. Please try again in a moment or send your message without it." });
+      }
+      if (explicit) return nsfwDeflect(res, buildUsagePayload(imgU, imgUid));
       imgU.imagesDay = (imgU.imagesDay || 0) + 1;
     }
   }
