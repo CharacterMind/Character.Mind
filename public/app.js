@@ -2887,6 +2887,24 @@ function formatAgo(ts) {
   return `Updated ${hr} hr ago`;
 }
 
+// "just now", "5 minutes ago", "3 hours ago", "13 days ago", "about 1 month ago", "2 months ago", "about 1 year ago" (the way Character.AI words it)
+function timeAgo(when) {
+  const t = new Date(when).getTime();
+  if (!isFinite(t)) return '';
+  const sec = Math.max(0, Math.floor((Date.now() - t) / 1000));
+  if (sec < 60) return 'just now';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return min + (min === 1 ? ' minute ago' : ' minutes ago');
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return hr + (hr === 1 ? ' hour ago' : ' hours ago');
+  const day = Math.floor(hr / 24);
+  if (day < 30) return day + (day === 1 ? ' day ago' : ' days ago');
+  if (day < 45) return 'about 1 month ago';
+  if (day < 365) { const mo = Math.round(day / 30); return mo + ' months ago'; }
+  const yr = Math.floor(day / 365);
+  return (day % 365 < 90 ? 'about ' : 'over ') + yr + (yr === 1 ? ' year ago' : ' years ago');
+}
+
 function updateUsageTimestamp() {
   const el = document.getElementById('usageUpdatedText');
   if (el) el.textContent = formatAgo(lastUsageFetch);
@@ -3840,14 +3858,16 @@ async function loadPastChats() {
     window._pastChatList = allArchives;
     const deleteAllBar = `<div class="past-chat-toolbar"><span>${allArchives.length} past chat${allArchives.length !== 1 ? 's' : ''}</span><button class="past-chat-delall" onclick="deleteAllPastChats()">Delete all</button></div>`;
     el.innerHTML = deleteAllBar + allArchives.map((a, i) => {
-      const date = new Date(a.archived_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-      const firstMsg = a._src === 'local' ? a.messages?.[0] : a.first_msg;
+      const exact = new Date(a.archived_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const date = timeAgo(a.archived_at) || exact;   // "13 days ago"; the exact date shows when you hover
+      const lastMsg = a._src === 'local' ? a.messages?.[a.messages.length - 1] : (a.last_msg || a.first_msg);
       const msgCount = a._src === 'local' ? (a.messages?.length || 0) : (a.message_count || 0);
-      const preview = firstMsg ? escHtml((firstMsg.content || '').slice(0, 80) + ((firstMsg.content?.length || 0) > 80 ? '…' : '')) : 'No messages';
-      const role = firstMsg?.role === 'user' ? 'You' : escHtml(currentChar.name || 'AI');
+      const lastText = lastMsg ? String(lastMsg.card === 'nsfw' ? '' : (lastMsg.content || '')) : '';
+      const preview = lastMsg ? escHtml(lastText.slice(0, 160) + (lastText.length > 160 ? '…' : '')) : 'No messages';
+      const role = (lastMsg?.role === 'user') ? 'You' : escHtml(currentChar.name || 'AI');
       const clickArg = a._src === 'local' ? `null,'local',${a._localIdx}` : `${a.id},'server'`;
       return `<div class="past-chat-entry" onclick="viewPastChat(${clickArg})">
-        <div class="past-chat-meta"><span class="past-chat-date">${date}</span><span class="past-chat-count">${msgCount} msg${msgCount !== 1 ? 's' : ''}<button class="past-chat-del" title="Delete this chat" aria-label="Delete this chat" onclick="deletePastChatAt(${i}, event)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></span></div>
+        <div class="past-chat-meta"><span class="past-chat-date" title="${escHtml(exact)}">${escHtml(date)}</span><span class="past-chat-count">${msgCount} msg${msgCount !== 1 ? 's' : ''}<button class="past-chat-del" title="Delete this chat" aria-label="Delete this chat" onclick="deletePastChatAt(${i}, event)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></span></div>
         <div class="past-chat-preview"><span class="past-chat-who">${role}:</span> ${preview}</div>
       </div>`;
     }).join('');
@@ -3910,7 +3930,7 @@ async function viewPastChat(archiveId, src, localIdx) {
     const entry = locals[localIdx];
     if (!entry) { el.innerHTML = '<div class="history-empty">Could not load this chat.</div>'; return; }
     msgs = entry.messages || [];
-    dateStr = new Date(entry.archived_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    dateStr = (timeAgo(entry.archived_at) ? timeAgo(entry.archived_at) + ' \u00b7 ' : '') + new Date(entry.archived_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   } else {
     el.innerHTML = '<div class="history-empty">Loading…</div>';
     try {
@@ -3918,7 +3938,7 @@ async function viewPastChat(archiveId, src, localIdx) {
       if (!res.ok) throw new Error();
       const archive = await res.json();
       msgs = archive.messages || [];
-      dateStr = new Date(archive.archived_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      dateStr = (timeAgo(archive.archived_at) ? timeAgo(archive.archived_at) + ' \u00b7 ' : '') + new Date(archive.archived_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     } catch (_) {
       el.innerHTML = '<div class="history-empty">Could not load this chat.</div>';
       return;

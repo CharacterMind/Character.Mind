@@ -2301,7 +2301,7 @@ app.get('/api/conversations/:charId/history', requireAuth, async (req, res) => {
   const uid = req.user.googleId;
   const limit = Math.min(parseInt(req.query.limit) || 20, 50);
   const result = await db.query(
-    'SELECT id, archived_at, jsonb_array_length(messages) AS message_count, messages->0 AS first_msg FROM chat_archives WHERE user_id=$1 AND char_id=$2 ORDER BY archived_at DESC LIMIT $3',
+    'SELECT id, archived_at, jsonb_array_length(messages) AS message_count, messages->0 AS first_msg, messages->(jsonb_array_length(messages) - 1) AS last_msg FROM chat_archives WHERE user_id=$1 AND char_id=$2 ORDER BY archived_at DESC LIMIT $3',
     [uid, charId, limit]
   ).catch(() => ({ rows: [] }));
   res.json(result.rows);
