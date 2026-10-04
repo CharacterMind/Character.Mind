@@ -90,7 +90,8 @@ if (db) {
     .catch(err => console.error('Add subscription_tier column error:', err));
 
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS paypal_subscription_id TEXT`)
-    .catch(err => console.error('Add paypal_subscription_id column error:', err));
+    .then(() => db.query('CREATE UNIQUE INDEX IF NOT EXISTS users_paypal_sub_uniq ON users (paypal_subscription_id) WHERE paypal_subscription_id IS NOT NULL'))
+    .catch(err => console.error('Add paypal_subscription_id column/index error:', err));
 
   db.query(`
     CREATE TABLE IF NOT EXISTS user_limits (
@@ -151,10 +152,15 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.paypal.com https://www.paypalobjects.com; style-src 'self' 'unsafe-inline' https://www.paypalobjects.com https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' blob: data:; connect-src 'self' https://accounts.google.com https://www.paypal.com https://www.sandbox.paypal.com https://api-m.sandbox.paypal.com https://api-m.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com https://www.sandbox.paypal.com; frame-ancestors 'none'");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.paypal.com https://www.paypalobjects.com; style-src 'self' 'unsafe-inline' https://www.paypalobjects.com https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' blob: data:; connect-src 'self' https://accounts.google.com https://www.paypal.com https://www.sandbox.paypal.com https://api-m.sandbox.paypal.com https://api-m.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com https://www.sandbox.paypal.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
   if (process.env.NODE_ENV === 'production' && req.protocol !== 'https') {
-    return res.redirect(301, 'https://' + req.headers.host + req.url);
+    // Only redirect to a plain hostname (a forged Host header can't smuggle in anything else)
+    const host = /^[A-Za-z0-9.-]+(:[0-9]+)?$/.test(req.headers.host || '') ? req.headers.host : null;
+    if (!host) return res.status(400).end();
+    const base = 'https://' + host;
+    return res.redirect(301, base + req.originalUrl);
   }
+  if (process.env.NODE_ENV === 'production') res.setHeader('Strict-Transport-Security', 'max-age=31536000');
   next();
 });
 
@@ -214,6 +220,9 @@ app.use('/api/generate-persona', personaLimiter);
 app.use('/api/crisis-resources', geoLimiter);
 app.use(['/api/chat', '/api/regenerate', '/api/greet'], chatBurstLimiter);
 const webhookLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => ipKeyGenerator(req.ip) });
+const paypalVerifyLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 15, standardHeaders: true, legacyHeaders: false, keyGenerator: perUserKey, message: { error: 'Too many attempts. Please try again later.' } });
+const charWriteLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false, keyGenerator: perUserKey, message: { error: 'Too many character changes. Please try again later.' } });
+const charReadLimiter = rateLimit({ windowMs: 60 * 1000, max: 240, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => ipKeyGenerator(req.ip) });
 const convLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false, keyGenerator: perUserKey, message: { error: 'Too many requests. Please slow down.' } });
 app.use('/api/webhooks/paypal', webhookLimiter);
 app.use('/api/conversations', convLimiter);
@@ -226,6 +235,7 @@ if (GOOGLE_AUTH_ENABLED) {
     callbackURL:  (process.env.SITE_URL || process.env.APP_URL || 'http://localhost:8080') + '/auth/google/callback',
     state:        true
   }, (_at, _rt, profile, done) => {
+    if (profile.emails && profile.emails[0] && profile.emails[0].verified === false) return done(null, false);
     const user = {
       googleId: profile.id,
       name:     profile.displayName,
@@ -912,7 +922,14 @@ const CRISIS_NUMBERS = {
 
 const ipGeoCache = new Map();
 
+const geoMiss = new Map();
 async function getGeoForIp(ip) {
+  if ((geoMiss.get(ip) || 0) > Date.now()) return null;
+  const g = await lookupGeoForIp(ip);
+  if (!g && ip) { if (geoMiss.size > 5000) geoMiss.clear(); geoMiss.set(ip, Date.now() + 2 * 60 * 1000); }
+  return g;
+}
+async function lookupGeoForIp(ip) {
   if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('fc') || ip.startsWith('fd') || ip.startsWith('fe80')) return null;
   const cached = ipGeoCache.get(ip);
   if (cached) return cached;
@@ -1470,7 +1487,7 @@ function startReplyStream(o) {
         fullResponse += text;
         if (released) { send({ text }); return; }
         held += text;
-        if (held.length >= 120) { released = true; send({ text: held }); held = ''; }
+        if (held.length >= 220) { released = true; send({ text: held }); held = ''; }
       } catch (e) { fail(e); }
     },
     () => {
@@ -1510,6 +1527,7 @@ function getModelList(tier) {
 }
 
 const workingModels = {};
+const workingModelsAt = {};
 
 // Groq says "Please try again in 1.5s" / "2m3.4s" / "450ms" when a model is out of tokens-per-minute
 function parseRetryAfterMs(msg) {
@@ -1525,7 +1543,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
   effortCfg = effortCfg || EFFORT_CONFIG.opas.high;
   if (modelIndex === undefined) {
     const tier = (modelList === GROQ_OPYS2_MODELS) ? 'opys2' : (modelList === GROQ_OPUS_MODELS) ? 'opus' : (modelList === GROQ_PRO_MODELS) ? 'opes' : 'opas';
-    const wm = workingModels[tier];
+    const wm = (workingModelsAt[tier] || 0) > Date.now() - 60000 ? workingModels[tier] : null;
     const wi = wm ? modelList.indexOf(wm) : -1;
     modelIndex = wi >= 0 ? wi : 0;
   }
@@ -1538,7 +1556,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
         ctx.rateLimited = false; ctx.retryAfterMs = null;
         console.log('All models rate limited, retrying in ' + wait + 'ms');
         return setTimeout(() => {
-          if (ctx.aborted) return;
+          if (ctx.aborted) return onError(new Error('client aborted'));
           callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, 0, effortCfg, modelList, ctx);
         }, wait);
       }
@@ -1571,12 +1589,18 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     'authorization': `Bearer ${apiKey}`
   };
 
+  let gotResponse = false;
   const req = https.request({ hostname: 'api.groq.com', path: reqPath, method: 'POST', headers }, (res) => {
+    gotResponse = true;
     if (res.statusCode !== 200) {
       let errBody = '';
       res.on('data', d => errBody += d);
       res.on('end', () => {
         try {
+          if ((res.statusCode >= 500 || res.statusCode === 413) && modelIndex + 1 < modelList.length && !ctx.aborted) {
+            console.log(`Model ${model} status ${res.statusCode}, trying the next model`);
+            return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
+          }
           const parsed = JSON.parse(errBody);
           const msg = parsed.error?.message || '';
           console.log(`Model ${model} status ${res.statusCode}: ${msg}`);
@@ -1601,7 +1625,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     }
 
     const tier = modelList === GROQ_OPYS2_MODELS ? 'opys2' : modelList === GROQ_OPUS_MODELS ? 'opus' : modelList === GROQ_PRO_MODELS ? 'opes' : 'opas';
-    if (!GROQ_FALLBACKS.includes(model)) workingModels[tier] = model;
+    if (!GROQ_FALLBACKS.includes(model)) { workingModels[tier] = model; workingModelsAt[tier] = Date.now(); }
     console.log(`Using model: ${model} (tier=${tier})`);
 
     let buffer = '';
@@ -1615,7 +1639,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
       if (!collected.trim()) {
         if (!ctx.boosted) {
           ctx.boosted = true;
-          const more = { ...effortCfg, maxOutputTokens: Math.min(Math.round(effortCfg.maxOutputTokens * 1.5), 3500), reasoningEffort: 'low' };
+          const more = { ...effortCfg, maxOutputTokens: Math.max(effortCfg.maxOutputTokens, Math.min(Math.round(effortCfg.maxOutputTokens * 1.5), 3500)), reasoningEffort: 'low' };
           return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex, more, modelList, ctx);
         }
         return onDone(0);
@@ -1653,6 +1677,19 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
       }
     });
 
+    // The connection can be cut mid-reply without an 'end' or an error. Finish with what we have, or fail so the charge is refunded.
+    res.on('aborted', () => {
+      if (finished) return;
+      finished = true;
+      if (collected.trim()) onDone(usageTokens || Math.ceil(responseTextLen / 4));
+      else onError(new Error('upstream closed'));
+    });
+    res.on('close', () => {
+      if (finished) return;
+      finished = true;
+      if (collected.trim()) onDone(usageTokens || Math.ceil(responseTextLen / 4));
+      else onError(new Error('upstream closed'));
+    });
     res.on('end', () => {
       if (buffer.trim()) {
         const raw = buffer.startsWith('data: ') ? buffer.slice(6).trim() : '';
@@ -1668,7 +1705,13 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     });
   });
 
-  req.on('error', onError);
+  req.on('error', (e) => {
+    if (!ctx.aborted && !gotResponse && e.message !== 'upstream timeout' && modelIndex + 1 < modelList.length) {
+      console.log(`Model ${model} connection error (${e.message}), trying the next model`);
+      return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
+    }
+    onError(e);
+  });
   if (ctx) {
     ctx.req = req;
     if (ctx.aborted) { req.destroy(new Error('client aborted')); return; }
@@ -1677,6 +1720,31 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
   req.write(body);
   req.end();
 }
+
+// Save pending chat writes when the server is told to stop (every deploy restarts it)
+let shuttingDown = false;
+process.on('SIGTERM', async () => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log('SIGTERM: saving pending chats');
+  try {
+    const keys = [...convPersistTimers.keys()];
+    for (const k of keys) { clearTimeout(convPersistTimers.get(k)); convPersistTimers.delete(k); }
+    await Promise.race([
+      Promise.all(keys.map(async (key) => {
+        const [uid, charId] = splitConvKey(key);
+        const msgs = conversations[key] || [];
+        if (!db) return;
+        if (!msgs.length) await db.query('DELETE FROM chat_current WHERE user_id=$1 AND char_id=$2', [uid, charId]);
+        else await db.query(
+          "INSERT INTO chat_current (user_id, char_id, messages, updated_at) VALUES ($1,$2,$3,NOW()) ON CONFLICT (user_id, char_id) DO UPDATE SET messages=$3, updated_at=NOW()",
+          [uid, charId, JSON.stringify(msgs)]);
+      })),
+      new Promise(r => setTimeout(r, 2500))
+    ]);
+  } catch (e) { console.error('SIGTERM save failed:', e.message); }
+  process.exit(0);
+});
 
 // ── API Routes ─────────────────────────────────────────────────────────────────
 
@@ -1865,6 +1933,7 @@ app.post('/api/chat/reset-mod/:charId', requireAuth, async (req, res) => {
 app.post('/api/conversations/:charId/archive', requireAuth, async (req, res) => {
   const { charId } = req.params;
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
+  if (!(await characterExists(charId))) return res.status(404).json({ error: 'Character not found' });
   const uid = req.user.googleId;
   const key = `${uid}:${charId}`;
   if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
@@ -2031,13 +2100,20 @@ app.get('/api/templates', (req, res) => {
   res.json(TEMPLATES.map(t => ({ name: t.name, aliases: t.aliases })));
 });
 
-app.get('/api/characters', async (req, res) => {
+const TEMPLATE_PROMPTS = new Set((TEMPLATES || []).map(t => t.systemPrompt).filter(Boolean));
+let charListCache = { at: 0, rows: null };
+const CHAR_LIST_TTL_MS = 15000;
+function invalidateCharList() { charListCache.at = 0; }
+app.get('/api/characters', charReadLimiter, async (req, res) => {
   if (!db) return res.json([]);
   const userId = req.user?.googleId || '';
   try {
-    const { rows } = await db.query(
+    let rows;
+    if (charListCache.rows && Date.now() - charListCache.at < CHAR_LIST_TTL_MS) rows = charListCache.rows;
+    else rows = (await db.query(
       'SELECT id, name, tagline, description, system_prompt, greeting, greeting_mode, color, creator_name, device_id, (image IS NOT NULL AND length(image) > 0) AS has_image, COALESCE(length(image), 0) AS image_len, tags, interactions, created_at FROM characters ORDER BY created_at DESC'
-    );
+    )).rows;
+    if (rows !== charListCache.rows) charListCache = { at: Date.now(), rows };
     const authed = !!req.user;
     const isOwnerUser = !!(userId && ownerGoogleIds.has(userId));
     res.json(rows.map(r => {
@@ -2047,7 +2123,7 @@ app.get('/api/characters', async (req, res) => {
         id: r.id, name: r.name, tagline: r.tagline, description: r.description,
         // The personality prompt is private: only its creator (or the site owner) receives it
         ...(authed ? { greeting: r.greeting, greetingMode: r.greeting_mode } : {}),
-        ...((mine || isOwnerUser) ? { systemPrompt: r.system_prompt } : {}),
+        ...(((mine && !TEMPLATE_PROMPTS.has(r.system_prompt)) || isOwnerUser) ? { systemPrompt: r.system_prompt } : {}),
         color: r.color, accentColor: r.color,
         creator: official ? 'Character Mind Playtime Co' : (/character\s*\.?\s*mind/i.test(r.creator_name || '') ? 'Community creator' : r.creator_name),
         isOfficial: official,
@@ -2060,7 +2136,7 @@ app.get('/api/characters', async (req, res) => {
 });
 
 // Character picture as a real image (cacheable), instead of a huge base64 string inside the character list
-app.get('/api/characters/:id/image', async (req, res) => {
+app.get('/api/characters/:id/image', charReadLimiter, async (req, res) => {
   if (!VALID_ID.test(req.params.id)) return res.status(400).end();
   if (!db) return res.status(404).end();
   try {
@@ -2109,6 +2185,33 @@ const KEEP_IMAGE_RE = /^\/api\/characters\/[A-Za-z0-9_-]{1,64}\/image(\?v=\d+)?$
 const SAFE_IMAGE_RE = /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/]+={0,2}$/;
 function safeImage(img) { return (typeof img === 'string' && img.length <= 512000 && SAFE_IMAGE_RE.test(img)) ? img : null; }
 
+function charTypeError(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return 'Invalid request';
+  for (const f of ['id', 'name', 'tagline', 'description', 'systemPrompt', 'greeting', 'greetingMode', 'color', 'creatorName', 'image']) {
+    if (body[f] != null && typeof body[f] !== 'string') return 'Invalid ' + f;
+  }
+  return null;
+}
+function charTextUnsafe(body) {
+  for (const f of [body.name, body.tagline, body.description, body.greeting]) {
+    if (f && redactIfUnsafe(f) !== f) return true;
+  }
+  return false;
+}
+async function charImageProblem(image) {
+  // Only a newly uploaded picture is checked; the "keep existing" marker is not a picture
+  if (!image || KEEP_IMAGE_RE.test(image)) return null;
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return { status: 503, error: "We couldn't check that picture right now. Please try again in a moment." };
+  try {
+    const analysis = await analyzeImage(apiKey, image);
+    if (analysis.explicit) return { status: 400, error: "That picture can't be used: explicit images aren't allowed on Character Mind." };
+    return null;
+  } catch (e) {
+    console.warn('[image-safety] character picture check failed:', e.message);
+    return { status: 503, error: "We couldn't check that picture right now. Please try again in a moment." };
+  }
+}
 function validateChar(body) {
   const { id, name, tagline, description, systemPrompt, greeting, greetingMode, color, creatorName, image, tags } = body;
   if (!id || !VALID_ID.test(id)) return 'Invalid character id (alphanumeric, _ -, max 64)';
@@ -2131,8 +2234,10 @@ function validateChar(body) {
   return null;
 }
 
-app.post('/api/characters', requireAuth, async (req, res) => {
+app.post('/api/characters', requireAuth, charWriteLimiter, async (req, res) => {
   if (!db) return res.status(503).json({ error: 'No database configured' });
+  const typeErr = charTypeError(req.body);
+  if (typeErr) return res.status(400).json({ error: typeErr });
 
   // Apply known-character template BEFORE validation so a blank persona gets filled in
   const rawBody = req.body;
@@ -2151,6 +2256,9 @@ app.post('/api/characters', requireAuth, async (req, res) => {
 
   const validErr = validateChar(body);
   if (validErr) return res.status(400).json({ error: validErr });
+  if (charTextUnsafe(body)) return res.status(400).json({ error: "The name or text contains language that isn't allowed on Character Mind." });
+  const imgProblem = await charImageProblem(body.image);
+  if (imgProblem) return res.status(imgProblem.status).json({ error: imgProblem.error });
 
   const { id, name, tagline, description, systemPrompt, greeting, greetingMode, color, image, tags } = body;
   const userId = req.user.googleId;
@@ -2179,11 +2287,14 @@ app.post('/api/characters', requireAuth, async (req, res) => {
        ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, tagline=EXCLUDED.tagline, description=EXCLUDED.description,
          system_prompt=EXCLUDED.system_prompt, greeting=EXCLUDED.greeting, greeting_mode=EXCLUDED.greeting_mode,
          color=EXCLUDED.color, creator_name=EXCLUDED.creator_name, image=CASE WHEN $13::boolean THEN characters.image ELSE EXCLUDED.image END, tags=EXCLUDED.tags
+       WHERE characters.device_id = EXCLUDED.device_id
        RETURNING id, name, tagline, color`,
       [id, name.trim(), (tagline||'').trim(), (description||'').trim(), systemPrompt.trim(),
        greeting||null, greetingMode||'fixed', color||'#7c3aed', (creatorName||'Anonymous').trim(),
        userId, (KEEP_IMAGE_RE.test(image || '') ? null : (image || null)), JSON.stringify((tags||[]).slice(0,10)), KEEP_IMAGE_RE.test(image || '')]
     );
+    if (!rows.length) return res.status(403).json({ error: 'Not your character' });
+    invalidateCharList();
     res.json({ ...rows[0], isMine: true });
   } catch (err) {
     console.error('POST /api/characters:', err.message);
@@ -2191,8 +2302,10 @@ app.post('/api/characters', requireAuth, async (req, res) => {
   }
 });
 
-app.put('/api/characters/:id', requireAuth, async (req, res) => {
+app.put('/api/characters/:id', requireAuth, charWriteLimiter, async (req, res) => {
   if (!db) return res.status(503).json({ error: 'No database' });
+  const typeErr = charTypeError(req.body);
+  if (typeErr) return res.status(400).json({ error: typeErr });
 
   // Apply known-character template BEFORE validation so a blank persona gets filled in
   const rawBody2 = req.body;
@@ -2211,6 +2324,9 @@ app.put('/api/characters/:id', requireAuth, async (req, res) => {
 
   const validErr = validateChar({ id: req.params.id, ...body2 });
   if (validErr) return res.status(400).json({ error: validErr });
+  if (charTextUnsafe(body2)) return res.status(400).json({ error: "The name or text contains language that isn't allowed on Character Mind." });
+  const imgProblem = await charImageProblem(body2.image);
+  if (imgProblem) return res.status(imgProblem.status).json({ error: imgProblem.error });
 
   const { name, tagline, description, systemPrompt, greeting, greetingMode, color, image, tags } = body2;
   const userId = req.user.googleId;
@@ -2225,6 +2341,7 @@ app.put('/api/characters/:id', requireAuth, async (req, res) => {
        greeting||null, greetingMode||'fixed', color||'#7c3aed', (KEEP_IMAGE_RE.test(image || '') ? null : (image || null)),
        JSON.stringify((tags||[]).slice(0,10)), req.params.id, KEEP_IMAGE_RE.test(image || '')]
     );
+    invalidateCharList();
     res.json({ ok: true });
   } catch (err) {
     console.error('PUT /api/characters:', err.message);
@@ -2299,6 +2416,7 @@ app.delete('/api/characters/:id', requireAuth, async (req, res) => {
     if (!check.rows.length) return res.status(404).json({ error: 'Not found' });
     if (check.rows[0].device_id !== userId) return res.status(403).json({ error: 'Not your character' });
     await db.query('DELETE FROM characters WHERE id = $1', [req.params.id]);
+    invalidateCharList();
     res.json({ ok: true });
   } catch (err) {
     console.error('DELETE /api/characters:', err.message);
@@ -2349,11 +2467,12 @@ app.post('/api/conversations/:charId/sync', requireAuth, async (req, res) => {
       continue;
     }
     const role = (m && m.role === 'user') ? 'user' : 'assistant';
-    let content = String((m && m.content) || '').slice(0, 10000);
+    const rawContent = String((m && m.content) || '');
+    let content = rawContent.slice(0, 10000);
     if (!content) continue;
     if (role === 'user') content = redactIfUnsafe(content);
     else {
-      const verified = (typeof m.sig === 'string' && m.sig === signReply(uid, cid, content)) || knownAssistant.has(content) || (greetingText && content === greetingText);
+      const verified = (typeof m.sig === 'string' && m.sig === signReply(uid, cid, rawContent)) || knownAssistant.has(rawContent) || (greetingText && rawContent === greetingText);
       if (!verified) continue;
     }
     accepted.push({ role, content });
@@ -2441,8 +2560,9 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   });
 });
 
-app.post('/api/rewind/:charId', requireAuth, async (req, res) => {
+app.post('/api/rewind/:charId', requireAuth, convLimiter, async (req, res) => {
   if (!VALID_ID.test(req.params.charId)) return res.status(400).json({ error: 'Invalid charId' });
+  if (!(await characterExists(req.params.charId))) return res.status(404).json({ error: 'Character not found' });
   const key = `${req.user.googleId}:${req.params.charId}`;
   if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
   const hist = conversations[key] || [];
@@ -3039,7 +3159,19 @@ app.get('/api/paypal/config', (req, res) => {
   res.json({ clientId: process.env.PAYPAL_CLIENT_ID || '', env: process.env.PAYPAL_ENV || 'sandbox' });
 });
 
-app.post('/api/paypal/verify-subscription', async (req, res) => {
+async function cancelPayPalSubscription(subId, reason) {
+  if (typeof subId !== 'string' || !/^I-[A-Z0-9]{6,40}$/.test(subId)) return;
+  try {
+    const token = await getPayPalToken();
+    const r = await fetch(`${PAYPAL_BASE}/v1/billing/subscriptions/${subId}/cancel`, {
+      method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: String(reason).slice(0, 120) })
+    });
+    console.log('Cancelled replaced PayPal subscription', subId, 'status', r.status);
+  } catch (e) { console.error('Could not cancel replaced PayPal subscription', subId, e.message); }
+}
+
+app.post('/api/paypal/verify-subscription', paypalVerifyLimiter, async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not logged in' });
   const { subscriptionId, planKey } = req.body;
   const validPlans = { advanced: true, x20: true, x50: true };
@@ -3059,8 +3191,8 @@ app.post('/api/paypal/verify-subscription', async (req, res) => {
       await new Promise(r => setTimeout(r, 1500));
     }
     // A subscription created for another account can't be claimed here
-    if (sub.custom_id && sub.custom_id !== req.user.googleId) {
-      return res.status(403).json({ error: 'This subscription belongs to another account' });
+    if (sub.custom_id !== req.user.googleId) {
+      return res.status(403).json({ error: 'This subscription is not linked to your account' });
     }
 
     if (sub.status !== 'ACTIVE') {
@@ -3080,11 +3212,20 @@ app.post('/api/paypal/verify-subscription', async (req, res) => {
     // One subscription can only upgrade one account
     const taken = await db.query('SELECT 1 FROM users WHERE paypal_subscription_id = $1 AND google_id <> $2 LIMIT 1', [subscriptionId, req.user.googleId]);
     if (taken.rows.length) return res.status(409).json({ error: 'This subscription is already linked to another account' });
+    const prev = await db.query('SELECT subscription_tier, paypal_subscription_id FROM users WHERE google_id = $1', [req.user.googleId]);
+    const prevSub = prev.rows[0] && prev.rows[0].paypal_subscription_id;
+    if (prevSub === subscriptionId && prev.rows[0].subscription_tier === planKey) {
+      // Already active: calling this again must not reset the session or re-send emails
+      const cur = getLimits(req.user.googleId); cur.subscriptionTier = planKey; cur.tierLoaded = true;
+      return res.json({ ok: true, tier: planKey });
+    }
     const upd = await db.query(
       'UPDATE users SET subscription_tier = $1, paypal_subscription_id = $2 WHERE google_id = $3',
       [planKey, subscriptionId, req.user.googleId]
     );
     if (!upd.rowCount) return res.status(500).json({ error: 'Could not activate subscription' });
+    // Changing plans must not leave the old subscription billing in the background
+    if (prevSub && prevSub !== subscriptionId) cancelPayPalSubscription(prevSub, 'Replaced by a new plan');
     const paidLimits = getLimits(req.user.googleId);
     paidLimits.subscriptionTier = planKey;
     paidLimits.tierLoaded = true;
@@ -3140,7 +3281,7 @@ app.post('/api/webhooks/paypal', async (req, res) => {
   const eventType = event.event_type;
   const subId = event.resource?.id;
   // Activate the plan from PayPal's own notification, so a payment is never lost if the browser call failed
-  if (eventType === 'BILLING.SUBSCRIPTION.ACTIVATED' && subId && db) {
+  if ((eventType === 'BILLING.SUBSCRIPTION.ACTIVATED' || eventType === 'BILLING.SUBSCRIPTION.RE-ACTIVATED') && subId && db) {
     const customId = String((event.resource && event.resource.custom_id) || '');
     const planId = event.resource && event.resource.plan_id;
     const tier = Object.keys(PAYPAL_PLAN_IDS).find(k => PAYPAL_PLAN_IDS[k] && PAYPAL_PLAN_IDS[k] === planId);
@@ -3155,7 +3296,7 @@ app.post('/api/webhooks/paypal', async (req, res) => {
           lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null;
           saveLimitsToDB(customId);
         }
-      } catch (e) { console.error('Webhook activation error:', e.message); }
+      } catch (e) { console.error('Webhook activation error:', e.message); return res.sendStatus(500); }
     }
   }
   const endEvents = ['BILLING.SUBSCRIPTION.CANCELLED', 'BILLING.SUBSCRIPTION.EXPIRED'];
@@ -3164,7 +3305,8 @@ app.post('/api/webhooks/paypal', async (req, res) => {
     const clearId = endEvents.includes(eventType);
     const cancelled = await db.query(
       "UPDATE users SET subscription_tier = 'free'" + (clearId ? ', paypal_subscription_id = NULL' : '') + ' WHERE paypal_subscription_id = $1 RETURNING google_id', [subId])
-      .catch(err => { console.error('Webhook DB error:', err); return { rows: [] }; });
+      .catch(err => { console.error('Webhook DB error:', err); return null; });
+    if (!cancelled) return res.sendStatus(500); // let PayPal retry
     for (const row of cancelled.rows) {
       if (userLimits[row.google_id]) { userLimits[row.google_id].subscriptionTier = 'free'; saveLimitsToDB(row.google_id); }
     }
