@@ -2795,3 +2795,7 @@ body:not(.voice-on) .tts-btn::after { content: "Soon"; font-size: 9px; font-weig
 /* History panel: "13 days ago" as the heading, with a snippet of the last message (like Character.AI) */
 .past-chat-date { font-size: 15px; font-weight: 600; color: var(--text1, var(--text)); }
 .past-chat-preview { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; color: var(--text3); }
+
+/* The usage bars slide to their new value when a reply finishes */
+.usage-fill-modal { transition: width 1.1s cubic-bezier(.22,.8,.3,1), background .4s ease; }
+.settings-usage-bar-fill { transition: width 1.1s cubic-bezier(.22,.8,.3,1), background .4s ease; }

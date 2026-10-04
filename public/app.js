@@ -82,10 +82,6 @@ function liveReplyCost() {
   const effort = callModeActive ? 'low' : (OPES_COST[selectedEffort] ? selectedEffort : 'medium');
   return { cost: clientMessageCost(tier, effort), effort, tier };
 }
-function liveCostSoFar(chars) {
-  const { cost, effort, tier } = liveReplyCost();
-  return Math.round(cost * Math.min(1, chars / expectedReplyChars(tier, effort)));
-}
 // The live counter under a reply: it ramps up to the price of the reply and then KEEPS counting at the same pace for as long
 // as the reply keeps writing (long replies run far past the "expected" length). The usage bars still stop at the real price.
 function liveTokensShown(chars) {
@@ -1068,6 +1064,7 @@ function showSettingsTab(tab) {
 function updateSettingsUsage(u) {
   if (!u) return;
   applyUsageResets(u);
+  if (isStreaming) return;   // not while a reply is being written (see updateUsageBars)
   const settingsModal = document.getElementById('settingsModal');
   if (!settingsModal || settingsModal.style.display === 'none') return;
   const sPct = Math.min(100, Math.round((u.sessionTokens / u.sessionLimit) * 100));
@@ -1749,12 +1746,14 @@ function releaseChatInput() {
   if (btn && (!lockoutOn || lockoutOn === 'none')) btn.disabled = false;
 }
 function abandonStream() {
+  const wasStreaming = isStreaming;
   chatEpoch++;
   if (streamTimer) { clearInterval(streamTimer); streamTimer = null; }
   isStreaming = false;
   try { flushTypewriter(); } catch (_) {}
   try { showTyping(false); } catch (_) {}
   try { hideStreamStatsNow(); } catch (_) {}
+  if (wasStreaming) setTimeout(() => { try { loadUsage(); } catch (_) {} }, 800);   // the reply was left: show what it really cost
 }
 async function openChat(charId) {
   const nextChar = characters.find(c => c.id === charId);
@@ -1962,6 +1961,7 @@ function makeStreamWatch() {
 }
 // After a reply fails or is stopped: no counter left running, no reply left "typing"
 function cleanupStreamUi() {
+  setTimeout(() => { try { loadUsage(); } catch (_) {} }, 400);   // a failed reply may have been refunded: show the real numbers
   if (streamTimer) { clearInterval(streamTimer); streamTimer = null; }
   hideStreamStatsNow();
   document.querySelectorAll('.bubble.streaming').forEach(b => b.classList.remove('streaming'));
@@ -1973,7 +1973,6 @@ async function generateGreeting() {
   const myEpoch = chatEpoch;   // taken BEFORE any waiting, so a chat switch during the request is noticed
   showTyping(true);
   isStreaming = true;
-  beginLiveBars();
   document.getElementById('sendBtn').disabled = true;
 
   let msgEl = null, bubble = null, gotFirst = false;
@@ -2036,7 +2035,6 @@ async function generateGreeting() {
           streamText += data.text;
           feedTypewriter(data.text);
           streamCharCount += data.text.length;
-          liveUpdateBars(liveCostSoFar(streamCharCount));
         }
       }
     }
@@ -2163,7 +2161,6 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
 
   showTyping(true);
   isStreaming = true;
-  beginLiveBars();
   document.getElementById('sendBtn').disabled = true;
 
   // Give up only when NOTHING has arrived for a while (the server says "still working" every 10 seconds), or after a very long
@@ -2246,7 +2243,6 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
           streamText += data.text;
           feedTypewriter(data.text);
           streamCharCount += data.text.length;
-          liveUpdateBars(liveCostSoFar(streamCharCount));
         }
       }
       if (convEnded) { isStreaming = false; streamTimeout.clear(); return; }
@@ -2273,6 +2269,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
     streamTimeout.clear();
     if (myEpoch !== chatEpoch) return;   // an old request failing must not touch the chat that is open now
     flushTypewriter();
+    setTimeout(() => { try { loadUsage(); } catch (_) {} }, 400);   // a failed reply may have been refunded: show the real numbers
     if (streamTimer) { clearInterval(streamTimer); streamTimer = null; }   // a failed reply must not leave a counter running
     hideStreamStatsNow();
     showTyping(false);
@@ -2569,30 +2566,12 @@ function usageFillClass(pct) {
   return 'green';
 }
 
-// The usage when this reply began. The server takes the cost of the reply at the very start, so a refresh in the middle of the reply
-// already contains it; counting from this snapshot means the bars never add it twice.
-let liveBase = null;
-function beginLiveBars() {
-  if (lastKnownUsage) applyUsageResets(lastKnownUsage);
-  liveBase = lastKnownUsage ? { s: lastKnownUsage.sessionTokens || 0, w: lastKnownUsage.weeklyTokens || 0 } : null;
-}
-function liveUpdateBars(extraTokens) {
-  if (!lastKnownUsage || !lastKnownUsage.sessionLimit) return;
-  applyUsageResets(lastKnownUsage);
-  if (!liveBase) beginLiveBars();
-  const sBase = liveBase ? liveBase.s : (lastKnownUsage.sessionTokens || 0);
-  const wBase = liveBase ? liveBase.w : (lastKnownUsage.weeklyTokens  || 0);
-  const sEst = sBase + extraTokens;
-  const wEst = wBase + extraTokens;
-  const sPct = Math.min(100, Math.round(sEst / lastKnownUsage.sessionLimit * 100));
-  const wPct = Math.min(100, Math.round(wEst / lastKnownUsage.weeklyLimit  * 100));
-  const sBar = document.getElementById('usageSessionBar');
-  if (sBar) { sBar.style.width = sPct + '%'; sBar.className = 'usage-fill-modal ' + usageFillClass(sPct); }
-  const wBar = document.getElementById('usageWeeklyBar');
-  if (wBar) { wBar.style.width = wPct + '%'; wBar.className = 'usage-fill-modal ' + usageFillClass(wPct); }
-}
-
+// The usage bars do NOT move while a reply is being written. Like Anthropic's usage meter they update when the reply is finished,
+// to the real number the server took, and slide there smoothly. (The server takes the whole cost when the reply starts, so showing it
+// mid-reply would make the bars jump to the end the moment you press send.)
 function updateUsageBars(usage) {
+  // a refresh in the middle of a reply already contains that reply's cost: remember it, but draw nothing until the reply is finished
+  if (isStreaming) { lastKnownUsage = usage; return; }
   renderUsageBanners(usage);
   updateUsageModal(usage);
   updateSettingsUsage(usage);
@@ -2974,6 +2953,7 @@ function updateUsageModal(u) {
   if (!u) return;
   applyUsageResets(u);
   lastKnownUsage = u;
+  if (isStreaming) return;   // not while a reply is being written (see updateUsageBars)
   const modal = document.getElementById('usageModal');
   if (!modal || modal.style.display === 'none') return;
 
@@ -4572,7 +4552,6 @@ async function regenerate() {
   if (isStreaming || !currentChar) return;
   const myEpoch = chatEpoch;   // taken BEFORE any waiting, so a chat switch during the request is noticed
   isStreaming = true;
-  beginLiveBars();
   document.getElementById('sendBtn').disabled = true;
 
   const messagesDiv = document.getElementById('messages');
@@ -4651,7 +4630,6 @@ async function regenerate() {
           streamText += data.text;
           feedTypewriter(data.text);
           streamCharCount += data.text.length;
-          liveUpdateBars(liveCostSoFar(streamCharCount));
         }
       }
     }
