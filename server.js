@@ -878,7 +878,8 @@ const NSFW_RE = new RegExp(
   'inside\\s+(me|you)\\s+(now|please|deeper)\\b|go\\s+deeper\\b|' +
   'thrust(ing)?\\s+into\\s+(me|you)\\b|' +
   'ride\\s+(me|you|him|her)\\s+(hard|fast|now|please)\\b|' +
-  'pound\\s+(me|you|her|him)\\b' +
+  'pound\\s+(me|you|her|him)\\b|' +
+  'jerk(ing)?\\s+off\\b|send\\s+(me\\s+)?nudes?\\b' +
   ')\\b',
   'i'
 );
