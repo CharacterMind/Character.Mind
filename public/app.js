@@ -479,7 +479,10 @@ document.addEventListener('mouseover', (e) => {
 function toggleMoreModels(e) {
   if (e) e.stopPropagation();
   const more = document.getElementById('mdMore');
-  if (more) more.classList.toggle('open');
+  if (!more) return;
+  more.classList.toggle('open');
+  // On a phone the extra models open underneath: scroll them into view inside the picker
+  if (more.classList.contains('open')) setTimeout(() => { const sub = document.getElementById('mdSubmenu'); if (sub && sub.scrollIntoView) sub.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 30);
 }
 function toggleModelDropdown() {
   const wasOpen = modelDropdownOpen;
