@@ -147,11 +147,15 @@ app.use((req, res, next) => {
 });
 
 // Rate-limit OAuth entry point to prevent abuse
-const { rateLimit } = require('express-rate-limit');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
+const perUserKey = (req) => req.user?.googleId || ipKeyGenerator(req.ip);
 const authLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
 app.use('/auth/google', authLimiter);
-const resetModLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => req.user?.googleId || req.ip });
-app.use('/api/chat/reset-mod', resetModLimiter);
+const resetModLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false, keyGenerator: perUserKey });
+// Cheap protection for the endpoints that cost AI or outside-API calls
+const personaLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, keyGenerator: perUserKey, message: { error: 'Too many requests. Please try again later.' } });
+const geoLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, keyGenerator: perUserKey, message: { error: 'Too many requests. Please try again in a minute.' } });
+const chatBurstLimiter = rateLimit({ windowMs: 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false, keyGenerator: perUserKey, message: { error: 'You are sending messages too fast. Please slow down a little.' } });
 app.use(express.static(path.join(__dirname, 'public'), {
   etag: false,
   lastModified: false,
@@ -192,6 +196,11 @@ passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((user, done) => done(null, user));
 app.use(passport.initialize());
 app.use(passport.session());
+app.use('/api/chat/reset-mod', resetModLimiter);
+// Per-user limits for expensive endpoints (must run after login so req.user is known)
+app.use('/api/generate-persona', personaLimiter);
+app.use('/api/crisis-resources', geoLimiter);
+app.use(['/api/chat', '/api/regenerate', '/api/greet'], chatBurstLimiter);
 
 const GOOGLE_AUTH_ENABLED = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 if (GOOGLE_AUTH_ENABLED) {
@@ -270,7 +279,7 @@ app.get('/api/user/hidden-recents', requireAuth, async (req, res) => {
   try {
     const { rows } = await db.query('SELECT hidden_recents FROM users WHERE google_id = $1', [req.user.googleId]);
     res.json({ hidden: rows[0]?.hidden_recents || [] });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
 });
 
 app.post('/api/user/hidden-recents', requireAuth, async (req, res) => {
@@ -279,7 +288,7 @@ app.post('/api/user/hidden-recents', requireAuth, async (req, res) => {
   try {
     await db.query('UPDATE users SET hidden_recents = $1 WHERE google_id = $2', [hidden, req.user.googleId]);
     res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
 });
 
 // ── Recent chats (cross-device sync) ─────────────────────────────────────────
@@ -288,7 +297,7 @@ app.get('/api/user/recent-chats', requireAuth, async (req, res) => {
   try {
     const { rows } = await db.query('SELECT recent_chats FROM users WHERE google_id = $1', [req.user.googleId]);
     res.json({ recents: rows[0]?.recent_chats || {} });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
 });
 
 app.post('/api/user/recent-chats', requireAuth, async (req, res) => {
@@ -310,7 +319,7 @@ app.post('/api/user/recent-chats', requireAuth, async (req, res) => {
     }
     await db.query('UPDATE users SET recent_chats = $1 WHERE google_id = $2', [merged, req.user.googleId]);
     res.json({ ok: true, recents: merged });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err.message); res.status(500).json({ error: 'Something went wrong. Please try again.' }); }
 });
 
 // Make sure this user's plan is loaded in memory (it is lost on restart or when idle state is purged).
@@ -329,6 +338,27 @@ async function ensureTierLoaded(user) {
   u.tierLoaded = true;
 }
 
+// At most 2 AI replies per user at once, so parallel requests can't blow past the token limits.
+const chatInFlight = new Map();
+function acquireChatSlot(req, res, userId) {
+  const n = chatInFlight.get(userId) || 0;
+  if (n >= 2) {
+    res.status(429).json({ error: 'Please wait for your current reply to finish.' });
+    return false;
+  }
+  chatInFlight.set(userId, n + 1);
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    const left = (chatInFlight.get(userId) || 1) - 1;
+    if (left <= 0) chatInFlight.delete(userId); else chatInFlight.set(userId, left);
+  };
+  res.on('close', release);
+  res.on('finish', release);
+  return true;
+}
+
 async function requireAuth(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
   try { await ensureTierLoaded(req.user); } catch (e) { console.warn('ensureTierLoaded failed:', e.message); }
@@ -343,7 +373,8 @@ setInterval(() => {
     const u = userLimits[sid];
     const sessionExpired = !u.cooldownUntil && !u.sessionStartedAt;
     const weeklyExpired = !u.weeklyStart || (now - u.weeklyStart) > LIMITS.WEEKLY_MS;
-    if (sessionExpired && weeklyExpired) delete userLimits[sid];
+    const dailyActive = (u.callsToday || u.memosToday || u.imagesDay) && u.callDayStart >= getCallWindowStart();
+    if (sessionExpired && weeklyExpired && !dailyActive) delete userLimits[sid];
   }
   // Clean conversations idle for more than 4 hours
   const CONV_TTL = 4 * 60 * 60 * 1000;
@@ -584,7 +615,7 @@ const EFFORT_DIRECTIVES = {
 };
 
 function applyEffortDirective(prompt, effort) {
-  const directive = EFFORT_DIRECTIVES[effort] || EFFORT_DIRECTIVES['high'];
+  const directive = (typeof effort === 'string' && Object.hasOwn(EFFORT_DIRECTIVES, effort)) ? EFFORT_DIRECTIVES[effort] : EFFORT_DIRECTIVES['high'];
   return prompt + '\n\n' + directive;
 }
 
@@ -956,6 +987,9 @@ function crisisUrlFor(name, countryCode) {
 const CRISIS_RE =/\b(i\s+)?(want|wanna|need|going|gonna|am\s+going)\s+to\s+(die|kill\s+myself|end\s+(it|my\s+life|it\s+all)|hurt\s+myself)\b|\bkill\s+myself\b|\bsuicid(al|e)\b|\bself[- ]?harm\b|\bdon'?t\s+want\s+to\s+(live|be\s+here|exist)\b|\bcan'?t\s+(go\s+on|take\s+it|do\s+this)\s*(anymore|any\s+more)?\b|\bend\s+(it\s+all|my\s+life|everything)\b/i;
 
 const SLUR_RE = /\bn[i1!|*]+gg[ae3*]+r[sz]?\b|\bk[i1*]+k[e3*]+[sz]?\b|\bch[i1*]+nk[sz]?\b|\bsp[i1*]+c[sz]?\b|\bf[a4@*]+gg[o0*]+t[sz]?\b|\bd[y*]+k[e3*]+[sz]?\b|\br[e3*]+t[a4*]+rd[sz]?\b/i;
+// The idiom "a chink in the armor" is not a slur
+const SLUR_IDIOM_RE = /\bchinks?\s+in\s+(the|his|her|my|your|their|its|our)\s+armou?r\b/gi;
+function hasSlur(text) { return SLUR_RE.test(String(text || '').replace(SLUR_IDIOM_RE, '')); }
 
 // Strip zero-width chars and NFKC-normalize to defeat unicode homoglyph/invisible-char bypass attempts
 function normalizeMsg(text) {
@@ -1116,21 +1150,46 @@ function splitConvKey(key) {
 }
 
 // Load a conversation from the database the first time it is touched after a restart or idle purge.
+const convLoading = new Map();
 async function ensureConvLoaded(key) {
   if (convLoaded.has(key)) return;
-  convLoaded.add(key);
-  if (!db) return;
-  const [uid, charId] = splitConvKey(key);
-  try {
-    const r = await db.query('SELECT messages FROM chat_current WHERE user_id=$1 AND char_id=$2', [uid, charId]);
-    const saved = r.rows[0]?.messages;
-    if (Array.isArray(saved) && saved.length && !(conversations[key] && conversations[key].length)) {
-      conversations[key] = saved;
+  if (convLoading.has(key)) return convLoading.get(key);
+  const p = (async () => {
+    if (!db) { convLoaded.add(key); return; }
+    const [uid, charId] = splitConvKey(key);
+    try {
+      const r = await db.query('SELECT messages FROM chat_current WHERE user_id=$1 AND char_id=$2', [uid, charId]);
+      const saved = r.rows[0]?.messages;
+      if (Array.isArray(saved) && saved.length && !(conversations[key] && conversations[key].length)) {
+        conversations[key] = saved;
+      }
+      convLoaded.add(key);
+    } catch (e) {
+      console.error('ensureConvLoaded error:', e.message);
     }
-  } catch (e) {
-    convLoaded.delete(key);
-    console.error('ensureConvLoaded error:', e.message);
-  }
+  })();
+  convLoading.set(key, p);
+  try { await p; } finally { convLoading.delete(key); }
+  convLastUsed[key] = Date.now();
+}
+
+// Only real characters may have conversations (stops arbitrary keys from filling memory and the database).
+const knownCharIds = new Set();
+async function characterExists(charId) {
+  if (knownCharIds.has(charId)) return true;
+  if (!db) return false;
+  try {
+    const r = await db.query('SELECT 1 FROM characters WHERE id = $1 LIMIT 1', [charId]);
+    if (r.rows.length) { knownCharIds.add(charId); return true; }
+  } catch (e) { console.error('characterExists error:', e.message); }
+  return false;
+}
+const MAX_CONVERSATIONS_PER_USER = 300;
+function userConversationCount(uid) {
+  const prefix = uid + ':';
+  let n = 0;
+  for (const k of Object.keys(conversations)) if (k.startsWith(prefix)) n++;
+  return n;
 }
 
 // Save the conversation shortly after it changes (debounced, fire-and-forget).
@@ -1266,7 +1325,7 @@ const EFFORT_CONFIG = {
 function getEffortCfg(effort, tier) {
   const t = EFFORT_CONFIG[tier] ? tier : 'opas';
   const cfg = EFFORT_CONFIG[t];
-  return cfg[effort] || cfg.medium;
+  return (typeof effort === 'string' && Object.hasOwn(cfg, effort)) ? cfg[effort] : cfg.medium;
 }
 
 function getModelList(tier) {
@@ -1536,6 +1595,27 @@ app.get('/api/chat/lock-status/:charId', requireAuth, async (req, res) => {
   res.json({ locked: mod.locked, strikes: mod.strikes });
 });
 
+const MAX_ARCHIVES_PER_CHAR = 200;
+// Save a conversation to the archive, deleting the oldest ones first when the limit is reached
+// (instead of silently dropping the new chat). Returns true when it was saved.
+async function archiveConversation(uid, charId, msgs) {
+  if (!db) return false;
+  try {
+    const count = parseInt((await db.query('SELECT COUNT(*) FROM chat_archives WHERE user_id=$1 AND char_id=$2', [uid, charId])).rows[0]?.count || 0);
+    if (count >= MAX_ARCHIVES_PER_CHAR) {
+      await db.query(
+        'DELETE FROM chat_archives WHERE id IN (SELECT id FROM chat_archives WHERE user_id=$1 AND char_id=$2 ORDER BY archived_at ASC LIMIT $3)',
+        [uid, charId, count - MAX_ARCHIVES_PER_CHAR + 1]
+      );
+    }
+    await db.query('INSERT INTO chat_archives(user_id, char_id, messages) VALUES($1,$2,$3)', [uid, charId, JSON.stringify(msgs)]);
+    return true;
+  } catch (e) {
+    console.error('archiveConversation error:', e.message);
+    return false;
+  }
+}
+
 app.post('/api/chat/reset-mod/:charId', requireAuth, async (req, res) => {
   const { charId } = req.params;
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
@@ -1544,14 +1624,7 @@ app.post('/api/chat/reset-mod/:charId', requireAuth, async (req, res) => {
   // Archive current conversation before resetting if it has messages
   await ensureConvLoaded(key);
   const msgs = conversations[key] || [];
-  if (msgs.length > 0 && db) {
-    const count = await db.query('SELECT COUNT(*) FROM chat_archives WHERE user_id=$1 AND char_id=$2', [uid, charId])
-      .then(r => parseInt(r.rows[0]?.count || 0)).catch(() => 0);
-    if (count < 200) {
-      await db.query('INSERT INTO chat_archives(user_id, char_id, messages) VALUES($1,$2,$3)',
-        [uid, charId, JSON.stringify(msgs)]).catch(() => {});
-    }
-  }
+  if (msgs.length > 0 && db) await archiveConversation(uid, charId, msgs);
   await setModStatus(uid, charId, 0, false);
   conversations[key] = [];
   persistConv(key);
@@ -1568,13 +1641,9 @@ app.post('/api/conversations/:charId/archive', requireAuth, async (req, res) => 
   const msgs = conversations[key] || [];
   if (msgs.length === 0) return res.json({ ok: true, archived: false });
   if (db) {
-    // Cap at 200 archives per user-character pair to prevent DB flooding
-    const count = await db.query('SELECT COUNT(*) FROM chat_archives WHERE user_id=$1 AND char_id=$2', [uid, charId])
-      .then(r => parseInt(r.rows[0]?.count || 0)).catch(() => 0);
-    if (count < 200) {
-      await db.query('INSERT INTO chat_archives(user_id, char_id, messages) VALUES($1,$2,$3)',
-        [uid, charId, JSON.stringify(msgs)]).catch(() => {});
-    }
+    // Keep at most 200 archives per user-character pair; if saving fails, keep the live chat instead of wiping it
+    const saved = await archiveConversation(uid, charId, msgs);
+    if (!saved) return res.status(500).json({ error: 'Could not save your chat. Please try again.' });
   }
   conversations[key] = [];
   persistConv(key);
@@ -1964,6 +2033,7 @@ app.delete('/api/characters/:id', requireAuth, async (req, res) => {
 
 app.get('/api/conversations/:charId', requireAuth, async (req, res) => {
   if (!VALID_ID.test(req.params.charId)) return res.status(400).json({ error: 'Invalid charId' });
+  if (!(await characterExists(req.params.charId))) return res.json([]);
   const key = `${req.user.googleId}:${req.params.charId}`;
   await ensureConvLoaded(key);
   res.json(conversations[key] || []);
@@ -1977,12 +2047,17 @@ app.delete('/api/conversations/:charId', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/conversations/:charId/sync', requireAuth, (req, res) => {
+app.post('/api/conversations/:charId/sync', requireAuth, async (req, res) => {
   if (!VALID_ID.test(req.params.charId)) return res.status(400).json({ error: 'Invalid charId' });
+  if (!(await characterExists(req.params.charId))) return res.status(404).json({ error: 'Character not found' });
   const { history } = req.body;
   if (!Array.isArray(history)) return res.status(400).json({ error: 'Invalid history' });
   if (history.length > CONV_MAX_MESSAGES) return res.status(400).json({ error: 'Too many messages' });
   const key = `${req.user.googleId}:${req.params.charId}`;
+  if (!conversations[key] && userConversationCount(req.user.googleId) >= MAX_CONVERSATIONS_PER_USER) {
+    return res.status(429).json({ error: 'Too many active conversations' });
+  }
+  convLastUsed[key] = Date.now();
   conversations[key] = history.map(m => (m && m.card === 'nsfw')
     ? { role: 'assistant', content: '', card: 'nsfw', variant: (Number.isInteger(m.variant) && m.variant >= 0 && m.variant < NSFW_CARD_VARIANTS) ? m.variant : 0 }
     : {
@@ -2009,6 +2084,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   if ((u.regenCount || 0) >= LIMITS.REGEN_FREE) {
     return res.status(429).json({ regenLimitReached: true, regenLimit: LIMITS.REGEN_FREE });
   }
+  if (!acquireChatSlot(req, res, userId)) return;
 
   const dbChar = await getCharPrompt(charId);
   const systemPrompt = dbChar ? dbChar.system_prompt : `You are ${charId}, a unique AI character.`;
@@ -2018,16 +2094,29 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   if (!conversations[key]) conversations[key] = [];
   convLastUsed[key] = Date.now();
 
+  // Permanently locked chats can't be regenerated either
+  if (!db) return res.status(503).json({ error: 'Service temporarily unavailable' });
+  const regenMod = await getModStatus(userId, charId);
+  if (regenMod.locked) return res.status(403).json({ error: 'This chat has been ended.' });
+
   const hist = conversations[key];
-  if (hist.length > 0 && hist[hist.length - 1].role === 'assistant' && !hist[hist.length - 1].card) hist.pop();
+  let poppedAssistant = null;
+  if (hist.length > 0 && hist[hist.length - 1].role === 'assistant' && !hist[hist.length - 1].card) poppedAssistant = hist.pop();
+  const restoreAssistant = () => { if (poppedAssistant) { hist.push(poppedAssistant); poppedAssistant = null; } };
   if (hist.length === 0 || hist[hist.length - 1].role !== 'user') {
+    restoreAssistant();
     return res.status(400).json({ error: 'Nothing to regenerate' });
   }
 
-  // If the last user message was NSFW, deflect the regen too
-  const lastUserMsg = hist[hist.length - 1]?.content || '';
+  // If the last user message was NSFW or a slur (history can be synced from the client), refuse the regen too
+  const lastUserMsg = normalizeMsg(hist[hist.length - 1]?.content || '');
   if (NSFW_RE.test(lastUserMsg)) {
+    restoreAssistant();
     return nsfwDeflect(res, addTokens(userId, NSFW_BLOCK_TOKENS));
+  }
+  if (hasSlur(lastUserMsg)) {
+    restoreAssistant();
+    return slurDeflect(res, SLUR_WARNING_2, buildUsagePayload(getLimits(userId), userId));
   }
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -2056,6 +2145,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
     },
     (err) => {
       if (done) return; done = true;
+      restoreAssistant();
       res.write(`data: ${JSON.stringify({ error: 'AI service error' })}\n\n`); res.end();
       console.error('Regenerate error:', err.message);
     },
@@ -2125,6 +2215,11 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
 
   const limit = checkLimits(userId);
   if (limit.blocked) return res.status(429).json({ error: limit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limit });
+
+  if (!acquireChatSlot(req, res, userId)) return;
+  if (!db) return res.status(503).json({ error: 'Service temporarily unavailable' });
+  const greetMod = await getModStatus(userId, charId);
+  if (greetMod.locked) return res.status(403).json({ error: 'This chat has been ended.' });
 
   const dbChar = await getCharPrompt(charId);
   const charName = dbChar ? dbChar.name : charId;
@@ -2215,6 +2310,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
   const limit = checkLimits(userId);
   if (limit.blocked) return res.status(429).json({ error: limit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limit });
+  if (!acquireChatSlot(req, res, userId)) return;
 
   const dbChar = await getCharPrompt(charId);
   const char = { systemPrompt: dbChar ? dbChar.system_prompt : `You are ${charId}, a unique AI character.` };
@@ -2264,7 +2360,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
   // ── Slur detection (three strikes per conversation) ────────────────────────
   const msgNorm = normalizeMsg(message);
-  if (!isContinuation && message && SLUR_RE.test(msgNorm)) {
+  if (!isContinuation && message && hasSlur(msgNorm)) {
     const newStrikes = modStatus.strikes + 1;
     if (newStrikes >= 3) {
       await setModStatus(userId, charId, newStrikes, true);

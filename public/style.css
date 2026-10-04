@@ -148,7 +148,7 @@ html, body {
 .user-badge.dd-open .ub-chevron { transform: rotate(180deg); }
 
 /* ── Layout ─────────────────────────────────────────────────────────────── */
-.app { display: flex; height: 100vh; overflow: hidden; }
+.app { display: flex; height: 100vh; height: 100dvh; overflow: hidden; }
 
 /* ── Sidebar ─────────────────────────────────────────────────────────────── */
 .sidebar {
@@ -2213,7 +2213,7 @@ html, body {
 @media (max-width: 400px) {
   .bubble { font-size: 14px; padding: 10px 13px; }
   .msg.user .bubble { max-width: 93%; }
-  .input-wrap textarea { font-size: 15px; }
+  .input-wrap textarea { font-size: 16px; }
   .chat-body { padding: 16px 8px 10px; }
 }
 
