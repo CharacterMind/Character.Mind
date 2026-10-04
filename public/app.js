@@ -39,9 +39,9 @@ for (const b of BASE_TIERS) for (const v of VERSIONS) MODEL_LABELS[b + v] = MODE
 const OPAS_COST = { low: 220, medium: 350, high: 540, extra: 800, max: 1200 };
 const OPES_COST = { low: 700, medium: 1200, high: 1800, extra: 2600, max: 4000 };
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3 };
-// Must match the server: versions 2 to 5 cost 1.5x, 2.5x, 4x and 8x their base model, with an extra 1.25x, 2x, 3x and 5x on Max effort
-const VERSION_FACTOR = { 2: 1.5, 3: 2.5, 4: 4, 5: 8 };
-const VERSION_MAX_BOOST = { 2: 1.25, 3: 2, 4: 3, 5: 5 };
+// Must match the server: versions 2 to 5 cost 1.5x, 3x, 6x and 16x their base model, with an extra 1.25x, 2.5x, 4x and 5x on Max effort
+const VERSION_FACTOR = { 2: 1.5, 3: 3, 4: 6, 5: 16 };
+const VERSION_MAX_BOOST = { 2: 1.25, 3: 2.5, 4: 4, 5: 5 };
 const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1, opus: 2, opys: 3 };
 const PLAN_RANK = { free: 0, advanced: 1, x20: 2, x50: 3 };
 function tierVersion(t) {
@@ -82,7 +82,7 @@ const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', 
 
 // Token usage multiplier shown on Max effort warning per tier
 const MAX_EFFORT_MULTIPLIERS = {};
-{ // Max effort vs Medium: 3.3x on a base model, then 4.2x, 6.7x, 10x and 16.7x on versions 2 to 5
+{ // Max effort vs Medium: 3.3x on a base model, then 4.2x, 8.3x, 13.3x and 16.7x on versions 2 to 5
   const baseRatio = OPES_COST.max / OPES_COST.medium;
   const fmt = (x) => (Math.round(x * 10) / 10) + '×';
   for (const b of BASE_TIERS) { MAX_EFFORT_MULTIPLIERS[b] = fmt(baseRatio); for (const v of VERSIONS) MAX_EFFORT_MULTIPLIERS[b + v] = fmt(baseRatio * VERSION_MAX_BOOST[v]); }

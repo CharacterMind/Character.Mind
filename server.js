@@ -499,8 +499,8 @@ const VERSIONS = [2, 3, 4, 5];
 const MODEL_TOKEN_MULT = { opas: 1, opes: 3, opis: 4, opos: 5, opus: 6, opys: 8 };
 for (const b of BASE_TIERS) for (const v of VERSIONS) MODEL_TOKEN_MULT[b + v] = MODEL_TOKEN_MULT[b] * v;
 // What a version costs compared with its base model, and the extra multiplier it adds on Max effort
-const VERSION_FACTOR    = { 2: 1.5, 3: 2.5, 4: 4, 5: 8 };
-const VERSION_MAX_BOOST = { 2: 1.25, 3: 2, 4: 3, 5: 5 };
+const VERSION_FACTOR    = { 2: 1.5, 3: 3, 4: 6, 5: 16 };
+const VERSION_MAX_BOOST = { 2: 1.25, 3: 2.5, 4: 4, 5: 5 };
 // Reply room (relative to the base model) and the most tokens a reply may use, per version
 const VERSION_ROOM = { 2: 1.5, 3: 1.75, 4: 2, 5: 2.25 };
 const VERSION_CAP  = { 2: 2800, 3: 3000, 4: 3200, 5: 3500 };
@@ -522,8 +522,9 @@ function effortMultFor(effort) { return Object.hasOwn(EFFORT_TOKEN_MULT, effort)
 const OPAS_COST = { low: 220, medium: 350, high: 540, extra: 800, max: 1200 };
 const OPES_COST = { low: 700, medium: 1200, high: 1800, extra: 2600, max: 4000 }; // effort ramps gently: Low 0.6x, Medium 1x, High 1.5x, Extra 2.2x, Max 3.3x a Medium message
 // Base models step up gently: Opes 1x, Opis 1.25x, Opos 1.5x, Opus 2x, Opys 3x (of Opes).
-// Versions 2 to 5 cost 1.5x, 2.5x, 4x and 8x their base model, and on Max effort they add 1.25x, 2x, 3x and 5x on top.
-// So Max effort costs about 3.3x a Medium reply on a base model, and 4.2x, 6.7x, 10x and 16.7x on versions 2, 3, 4 and 5.
+// Versions 2 to 5 cost 1.5x, 3x, 6x and 16x their base model, and on Max effort they add 1.25x, 2.5x, 4x and 5x on top.
+// So Max effort costs about 3.3x a Medium reply on a base model, and 4.2x, 8.3x, 13.3x and 16.7x on versions 2, 3, 4 and 5.
+// Versions 4 and 5 are meant to make even an X50 plan think twice: use them only when you really need to.
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3 };
 function messageCost(modelTier, effort) {
   const e = (typeof effort === 'string' && Object.hasOwn(OPES_COST, effort)) ? effort : 'medium';
