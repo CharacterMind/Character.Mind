@@ -1732,6 +1732,17 @@ async function openChat(charId) {
   releaseChatInput();
   currentChar = nextChar;
   applyChatTheme(currentChar);
+  // Never leave the previous character's messages on screen while the new chat loads
+  const welcomeNow = document.getElementById('chatWelcome');
+  document.getElementById('messages').innerHTML = '';
+  if (welcomeNow) welcomeNow.innerHTML = '<div class="chat-loading">Loading…</div>';
+  // Show this chat's saved copy straight away; the server copy is checked afterwards
+  const shownLocal = loadHistoryLocal(charId);
+  if (shownLocal.length) {
+    shownLocal.forEach((m, i) => appendHistoryItem(m, i < shownLocal.length - LIVE_COLOUR_MESSAGES));
+    if (welcomeNow) welcomeNow.innerHTML = '';
+    scrollToBottom();
+  }
   const snapChar = currentChar;
   loadCharVoice();
 
@@ -1810,19 +1821,19 @@ async function openChat(charId) {
   if (currentChar !== snapChar) return;
 
   const messagesDiv = document.getElementById('messages');
-  messagesDiv.innerHTML = '';
   warnedThresholds.clear();
   loadUsage();
 
   // If the server only has part of the chat (it restarted mid-conversation), the fuller local copy wins and is re-synced.
-  if (history.length > 0 && loadHistoryLocal(charId).length > history.length) history = [];
+  if (history.length > 0 && shownLocal.length > history.length) history = [];
+  const lastOf = (h) => { const m = h[h.length - 1]; return m ? String(m.content || '') + (m.card || '') : ''; };
+  const sameAsShown = history.length > 0 && history.length === shownLocal.length && lastOf(history) === lastOf(shownLocal);
 
   if (history.length === 0) {
-    const localHistory = loadHistoryLocal(charId);
+    const localHistory = shownLocal;                      // already on screen
     if (localHistory.length > 0) {
       // Auto-save prior session to local past chats before restoring
       savePastChatLocal(charId, localHistory);
-      localHistory.forEach(appendHistoryItem);
       document.getElementById('chatWelcome').innerHTML = '';
       updateCtxBar();
       // Re-sync server so AI has context for next message
@@ -1832,6 +1843,7 @@ async function openChat(charId) {
         body: JSON.stringify({ history: localHistory })
       }).catch(() => {});
     } else {
+      messagesDiv.innerHTML = '';
       document.getElementById('chatWelcome').innerHTML = '';
       if (currentChar.greeting && currentChar.greetingMode !== 'auto') {
         appendMessage('ai', currentChar.greeting);
@@ -1845,9 +1857,12 @@ async function openChat(charId) {
         generateGreeting();
       }
     }
+  } else if (sameAsShown) {
+    document.getElementById('chatWelcome').innerHTML = '';   // what is shown is already right
   } else {
+    messagesDiv.innerHTML = '';
     document.getElementById('chatWelcome').innerHTML = '';
-    history.forEach(appendHistoryItem);
+    history.forEach((m, i) => appendHistoryItem(m, i < history.length - LIVE_COLOUR_MESSAGES));
   }
 
   renderSidebarChats();
@@ -1856,6 +1871,7 @@ async function openChat(charId) {
 }
 
 function showLockedChat() {
+  const wl = document.getElementById('chatWelcome'); if (wl) wl.innerHTML = '';
   showView('chatView');
   document.getElementById('chatView').classList.remove('hidden');
   const messagesDiv = document.getElementById('messages');
@@ -3249,14 +3265,26 @@ function appendNsfwCard(variant) {
 }
 
 // Draw one saved history entry (a normal message or the Terms-of-Service card).
-function appendHistoryItem(m) {
+// Only the newest messages are drawn letter by letter at once; older ones use a lighter version until they scroll into view
+const LIVE_COLOUR_MESSAGES = 20;
+const liteObserver = (typeof IntersectionObserver !== 'undefined')
+  ? new IntersectionObserver((entries) => {
+      for (const en of entries) {
+        if (!en.isIntersecting) continue;
+        const b = en.target;
+        liteObserver.unobserve(b);
+        if (b.dataset.lite) { delete b.dataset.lite; if (typeof b.dataset.raw === 'string') b.innerHTML = renderMarkdown(b.dataset.raw); }
+      }
+    }, { rootMargin: '400px' })
+  : null;
+function appendHistoryItem(m, lite) {
   if (m && m.card === 'nsfw') { appendNsfwCard(m.variant); return; }
   const isAi = m.role === 'assistant' || m.role === 'ai';
-  const el = appendMessage(isAi ? 'ai' : 'user', m.content);
+  const el = appendMessage(isAi ? 'ai' : 'user', m.content, undefined, lite);
   if (isAi && m.sig && el) el.dataset.sig = m.sig;
 }
 
-function appendMessage(role, text, imgB64) {
+function appendMessage(role, text, imgB64, lite) {
   const div = document.createElement('div');
   div.className = `msg ${role}`;
 
@@ -3269,11 +3297,13 @@ function appendMessage(role, text, imgB64) {
         <button class="tts-btn" onclick="toggleTTS(this)" title="Read aloud (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
         ${msgMenuHtml('ai')}
       </div>
-      <div class="bubble">${renderMarkdown(text)}</div>
+      <div class="bubble">${renderMarkdown(text, undefined, lite ? { lite: true } : undefined)}</div>
       <div class="msg-footer">
         ${regenBtn()}${likeBtn()}${dislikeBtn()}
       </div>`;
-    div.querySelector('.bubble').dataset.raw = String(text == null ? '' : text);
+    const ab = div.querySelector('.bubble');
+    ab.dataset.raw = String(text == null ? '' : text);
+    if (lite && liteObserver) { ab.dataset.lite = '1'; liteObserver.observe(ab); }
   } else {
     div.innerHTML = `
       <div class="msg-header">
@@ -4574,8 +4604,8 @@ function charTheme(ch) {
   const name = String((ch && ch.name) || '').toLowerCase();
   if (/lily/.test(name)) return {
     // black, gold and purple: speech is gold-led and bold, narration is purple-led and italic
-    sp: pal([{ c: '#f4c542' }, { c: '#b794ff' }, { c: BLACK_TEXT, g: '0 0 1px #f4c542, 0 0 4px #f4c542' }], [3, 2, 2]),
-    nr: pal([{ c: '#9a6bff' }, { c: BLACK_TEXT, g: '0 0 1px #b794ff, 0 0 4px #9a6bff' }, { c: '#d4a82f' }], [3, 2, 1])
+    sp: pal([{ c: '#f4c542' }, { c: '#b794ff' }, { c: BLACK_TEXT, g: '1px 0 0 #f4c542, -1px 0 0 #f4c542, 0 1px 0 #f4c542, 0 -1px 0 #f4c542, 0 0 6px rgba(244,197,66,.65)' }], [3, 2, 2]),
+    nr: pal([{ c: '#9a6bff' }, { c: BLACK_TEXT, g: '1px 0 0 #b794ff, -1px 0 0 #b794ff, 0 1px 0 #b794ff, 0 -1px 0 #b794ff, 0 0 6px rgba(154,107,255,.65)' }, { c: '#d4a82f' }], [3, 2, 1])
   };
   if (/poppy/.test(name)) return {
     // blue dress, red hair
@@ -4632,8 +4662,9 @@ function splitSpeechNarration(para) {
   return toks.map(t => t.k === 'plain' ? { k: hasQuotes ? 'nr' : 'sp', t: t.t, plain: true } : { k: t.k === 'speech' ? 'sp' : 'nr', t: t.t });
 }
 
-function renderMarkdown(text, theme) {
+function renderMarkdown(text, theme, opts) {
   theme = theme || activeTheme;
+  const lite = !!(opts && opts.lite);
   const raw = String(text == null ? '' : text).replace(/\*\*/g, '');
   const paras = raw.split(/\n\n+/);
   let letterNo = 0;
@@ -4643,6 +4674,14 @@ function renderMarkdown(text, theme) {
     const n = theme[kind].pick.length;
     const letters = (chunk) => {
       let out = '';
+      if (lite) {
+        // one colour per word: far fewer elements for a long chat history
+        chunk.split(/([\p{L}\p{N}]+)/u).forEach((piece, idx) => {
+          if (idx % 2 === 1) out += '<span class="k' + theme[kind].pick[letterPick(letterNo++, n)] + '">' + escHtml(piece) + '</span>';
+          else out += escHtml(piece);
+        });
+        return out;
+      }
       for (const ch of chunk) {
         if (LETTER_RE.test(ch)) { out += '<span class="k' + theme[kind].pick[letterPick(letterNo++, n)] + '">' + escHtml(ch) + '</span>'; }
         else out += escHtml(ch);
