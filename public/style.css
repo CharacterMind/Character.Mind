@@ -2714,3 +2714,7 @@ body:not(.voice-on) .btn-call { display: none !important; }
 
 .bubble a.chat-link { color: var(--accent-l, #a78bfa); text-decoration: underline; text-underline-offset: 2px; font-weight: 600; }
 .bubble a.chat-link:hover { color: var(--accent, #7c5cbf); }
+
+.resource-link { display: block; color: inherit; text-decoration: none; border-radius: 8px; }
+.resource-link:hover .resource-row { background: var(--bg3); }
+.resource-link .resource-ext { color: var(--accent-l, #a78bfa); font-size: 12px; margin-left: 4px; }

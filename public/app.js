@@ -3383,11 +3383,18 @@ async function loadResources() {
     const locationHtml = data.location
       ? `<div style="font-size:12px;color:var(--text3);margin-bottom:14px">📍 Resources for <strong style="color:var(--text2)">${escHtml(data.location)}</strong></div>`
       : '';
-    const rows = data.resources.map(r => `
-      <div style="padding:10px 0;border-bottom:1px solid var(--border)">
-        <div style="font-size:14px;font-weight:600;color:var(--text1);margin-bottom:2px">${escHtml(r.crisis)}</div>
+    const rows = data.resources.map(r => {
+      const safeUrl = (typeof r.url === 'string' && /^https:\/\//i.test(r.url)) ? r.url : null;
+      const row = `
+      <div class="resource-row" style="padding:10px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:14px;font-weight:600;color:var(--text1);margin-bottom:2px">${escHtml(r.crisis)}${safeUrl ? ' <span class="resource-ext" aria-hidden="true">↗</span>' : ''}</div>
         <div style="font-size:12px;color:var(--text3);line-height:1.5">${escHtml(r.crisisName)}</div>
-      </div>`).join('');
+      </div>`;
+      // Opens the organization's website in a new tab so the person keeps their chat open
+      return safeUrl
+        ? `<a class="resource-link" href="${escHtml(safeUrl)}" target="_blank" rel="noopener noreferrer" title="Open website">${row}</a>`
+        : row;
+    }).join('');
     el.innerHTML = `
       <div style="font-size:13px;color:var(--text3);margin-bottom:14px;line-height:1.7">If you or someone you know is in distress, these local resources are here to help. You are not alone.</div>
       ${locationHtml}

@@ -866,7 +866,75 @@ function getCrisisInfo(geo) {
   return entry;
 }
 
-const CRISIS_RE = /\b(i\s+)?(want|wanna|need|going|gonna|am\s+going)\s+to\s+(die|kill\s+myself|end\s+(it|my\s+life|it\s+all)|hurt\s+myself)\b|\bkill\s+myself\b|\bsuicid(al|e)\b|\bself[- ]?harm\b|\bdon'?t\s+want\s+to\s+(live|be\s+here|exist)\b|\bcan'?t\s+(go\s+on|take\s+it|do\s+this)\s*(anymore|any\s+more)?\b|\bend\s+(it\s+all|my\s+life|everything)\b/i;
+// Official websites for the resources shown in the Safety Resources panel (matched on organization name).
+const CRISIS_LINKS = [
+  [/Suicide & Crisis Lifeline/i, 'https://988lifeline.org'],
+  [/Crisis Text Line Canada/i, 'https://kidshelpphone.ca'],
+  [/Crisis Text Line \(text HOME/i, 'https://www.crisistextline.org'],
+  [/NYC Well/i, 'https://nycwell.cityofnewyork.us'],
+  [/CalHOPE/i, 'https://calhope.org'],
+  [/Suicide Crisis Helpline/i, 'https://988.ca'],
+  [/Talk Suicide Canada/i, 'https://talksuicide.ca'],
+  [/Jeunesse, j.écoute/i, 'https://jeunessejecoute.ca'],
+  [/Kids Help Phone/i, 'https://kidshelpphone.ca'],
+  [/Centre de prévention du suicide de Québec/i, 'https://www.cpsquebec.ca'],
+  [/Centre de prévention du suicide/i, 'https://suicide.ca'],
+  [/Info-Social/i, 'https://www.quebec.ca/en/health/finding-a-resource/info-sante-811'],
+  [/Tel-Aide Outaouais/i, 'https://telaideoutaouais.ca'],
+  [/Tel-Aide Montréal/i, 'https://telaidemontreal.org'],
+  [/Interligne/i, 'https://interligne.co'],
+  [/SOS Violence conjugale/i, 'https://sosviolenceconjugale.ca'],
+  [/Drogue: aide et référence/i, 'https://www.aidedrogue.ca'],
+  [/ConnexOntario/i, 'https://www.connexontario.ca'],
+  [/BC Crisis Line/i, 'https://crisiscentre.bc.ca'],
+  [/Alberta Mental Health Helpline/i, 'https://www.albertahealthservices.ca/amh/Page16859.aspx'],
+  [/Klinic/i, 'https://klinic.mb.ca'],
+  [/Kamatsiaqtut|Nunavut/i, 'https://nunavuthelpline.ca'],
+  [/Shout Crisis Text Line/i, 'https://giveusashout.org'],
+  [/Breathing Space/i, 'https://breathingspace.scot'],
+  [/C\.A\.L\.L\./i, 'https://callhelpline.org.uk'],
+  [/Lifeline Northern Ireland/i, 'https://www.lifelinehelpline.info'],
+  [/Samaritans of HK/i, 'https://www.samaritans.org.hk'],
+  [/Samaritans of Thailand/i, 'https://www.samaritansthai.com'],
+  [/^Samaritans/i, 'https://www.samaritans.org'],
+  [/Suicide Call Back Service/i, 'https://www.suicidecallbackservice.org.au'],
+  [/Beyond Blue/i, 'https://www.beyondblue.org.au'],
+  [/Kids Helpline/i, 'https://kidshelpline.com.au'],
+  [/^Lifeline NZ/i, 'https://www.lifeline.org.nz'],
+  [/^Lifeline \(/i, 'https://www.lifeline.org.au'],
+  [/Numéro National Prévention Suicide/i, 'https://3114.fr'],
+  [/Zelfmoordpreventie/i, 'https://www.113.nl'],
+  [/Centrum ter Preventie van Zelfdoding/i, 'https://www.preventiezelfdoding.be'],
+  [/Mind Självmordslinjen/i, 'https://mind.se'],
+  [/Livslinien/i, 'https://www.livslinien.dk'],
+  [/Mental Helse/i, 'https://mentalhelse.no'],
+  [/Mieli/i, 'https://mieli.fi'],
+  [/Die Dargebotene Hand/i, 'https://www.143.ch'],
+  [/SOS Voz Amiga/i, 'https://www.sosvozamiga.org'],
+  [/Telefono Amico/i, 'https://www.telefonoamico.it'],
+  [/Linka bezpe/i, 'https://www.linkabezpeci.cz'],
+  [/Inochi no Denwa/i, 'https://www.inochinodenwa.org'],
+  [/^iCall/i, 'https://icallhelpline.org'],
+  [/^CVV/i, 'https://cvv.org.br'],
+  [/SAPTEL/i, 'https://www.saptel.org.mx'],
+  [/Centro de Asistencia al Suicida/i, 'https://www.asistenciaalsuicida.org.ar'],
+  [/SADAG/i, 'https://www.sadag.org'],
+  [/NEEM Foundation/i, 'https://neemfoundation.org'],
+  [/Befrienders Kenya/i, 'https://www.befrienderskenya.org'],
+  [/Befrienders KL/i, 'https://www.befrienders.org.my'],
+  [/^ERAN/i, 'https://www.eran.org.il'],
+  [/SOS Singapore/i, 'https://www.sos.org.sg'],
+];
+
+// Returns the official site for a resource, or the country's helpline directory when we don't have a specific one.
+function crisisUrlFor(name, countryCode) {
+  const cc = String(countryCode || '').toUpperCase();
+  if (/^Telefonseelsorge/i.test(name)) return cc === 'AT' ? 'https://www.telefonseelsorge.at' : 'https://www.telefonseelsorge.de';
+  for (const [re, url] of CRISIS_LINKS) if (re.test(name)) return url;
+  return /^[A-Z]{2}$/.test(cc) ? `https://findahelpline.com/countries/${cc.toLowerCase()}` : null;
+}
+
+const CRISIS_RE =/\b(i\s+)?(want|wanna|need|going|gonna|am\s+going)\s+to\s+(die|kill\s+myself|end\s+(it|my\s+life|it\s+all)|hurt\s+myself)\b|\bkill\s+myself\b|\bsuicid(al|e)\b|\bself[- ]?harm\b|\bdon'?t\s+want\s+to\s+(live|be\s+here|exist)\b|\bcan'?t\s+(go\s+on|take\s+it|do\s+this)\s*(anymore|any\s+more)?\b|\bend\s+(it\s+all|my\s+life|everything)\b/i;
 
 const SLUR_RE = /\bn[i1!|*]+gg[ae3*]+r[sz]?\b|\bk[i1*]+k[e3*]+[sz]?\b|\bch[i1*]+nk[sz]?\b|\bsp[i1*]+c[sz]?\b|\bf[a4@*]+gg[o0*]+t[sz]?\b|\bd[y*]+k[e3*]+[sz]?\b|\br[e3*]+t[a4*]+rd[sz]?\b/i;
 
@@ -1357,7 +1425,8 @@ app.get('/api/crisis-resources', requireAuth, async (req, res) => {
     ...(info.extra || []),
     { crisis: info.emergency, crisisName: 'Emergency services — call for immediate danger' }
   ];
-  res.json({ location: locationStr, resources: allLines });
+  const country = geo && geo.country;
+  res.json({ location: locationStr, resources: allLines.map(r => ({ ...r, url: crisisUrlFor(r.crisisName, country) })) });
 });
 
 app.get('/api/usage', requireAuth, (req, res) => {
