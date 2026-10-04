@@ -1343,10 +1343,27 @@ const EFFORT_CONFIG = {
   },
 };
 
+// Groq's free plan allows only 8,000 tokens per minute per model, and a request counts its input PLUS its
+// max_tokens against that. The big caps above could never fit, so Extra/Max always failed. Until the Groq plan
+// is upgraded, cap each reply and avoid "high" reasoning (which can burn the whole budget thinking).
+// After upgrading Groq, set GROQ_OUTPUT_CAP (e.g. 16000) and GROQ_ALLOW_HIGH_REASONING=1 on Render.
+const GROQ_OUTPUT_CAP = Number(process.env.GROQ_OUTPUT_CAP) || 3000;
+const GROQ_ALLOW_HIGH_REASONING = process.env.GROQ_ALLOW_HIGH_REASONING === '1';
+
 function getEffortCfg(effort, tier) {
   const t = EFFORT_CONFIG[tier] ? tier : 'opas';
   const cfg = EFFORT_CONFIG[t];
-  return (typeof effort === 'string' && Object.hasOwn(cfg, effort)) ? cfg[effort] : cfg.medium;
+  const base = (typeof effort === 'string' && Object.hasOwn(cfg, effort)) ? cfg[effort] : cfg.medium;
+  const out = { ...base, maxOutputTokens: Math.min(base.maxOutputTokens, GROQ_OUTPUT_CAP) };
+  if (!GROQ_ALLOW_HIGH_REASONING && out.reasoningEffort === 'high') out.reasoningEffort = 'medium';
+  return out;
+}
+
+// A clear message when the AI provider is rate-limiting us (instead of a generic error)
+function aiErrorMessage(err) {
+  return /no working model|429|rate limit|too many requests/i.test((err && err.message) || '')
+    ? 'The AI is busy right now. Please try again in a few seconds.'
+    : 'AI service error';
 }
 
 function getModelList(tier) {
@@ -1751,6 +1768,18 @@ app.post('/api/admin/reset-mine', requireAuth, (req, res) => {
   delete userLimits[uid];
   if (db) db.query('DELETE FROM user_limits WHERE user_id = $1', [uid]).catch(() => {});
   res.json({ ok: true });
+});
+
+// Owner-only: view the app as another plan (free/advanced/x20/x50) to test limits and usage bars.
+// Lasts until the server restarts; your real owner access returns automatically.
+app.post('/api/admin/set-my-tier', requireAuth, (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  const tier = req.body && req.body.tier;
+  if (typeof tier !== 'string' || !Object.hasOwn(TIER_TOKEN_LIMITS, tier)) return res.status(400).json({ error: 'Invalid tier' });
+  const u = getLimits(req.user.googleId);
+  u.subscriptionTier = tier;
+  u.tierLoaded = true;
+  res.json({ ok: true, tier });
 });
 
 // Owner-only session-only reset (keeps weekly intact)
@@ -2179,7 +2208,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
     (err) => {
       if (done) return; done = true;
       restoreAssistant();
-      res.write(`data: ${JSON.stringify({ error: 'AI service error' })}\n\n`); res.end();
+      res.write(`data: ${JSON.stringify({ error: aiErrorMessage(err) })}\n\n`); res.end();
       console.error('Regenerate error:', err.message);
     },
     undefined, regenEffortCfg, regenModelList
@@ -2288,7 +2317,7 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
     },
     (err) => {
       if (done) return; done = true;
-      res.write(`data: ${JSON.stringify({ error: 'AI service error' })}\n\n`); res.end();
+      res.write(`data: ${JSON.stringify({ error: aiErrorMessage(err) })}\n\n`); res.end();
       console.error('Greet error:', err.message);
     },
     undefined, greetEffortCfg, greetModelList
@@ -2531,7 +2560,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     (err) => {
       if (done) return;
       done = true;
-      res.write(`data: ${JSON.stringify({ error: 'AI service error' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ error: aiErrorMessage(err) })}\n\n`);
       res.end();
       console.error('Chat error:', err.message);
     },
