@@ -3661,8 +3661,9 @@ function callModeTTS(bubble) {
   setCallState('responding');
   window.speechSynthesis.cancel();
   stopCallAudio();
+  // No browser-voice fallback: if the HD voice is unavailable the reply stays as text and the call keeps listening.
   if (elevenTTSOk) { callModeElevenTTS(text); return; }
-  callModeBrowserTTS(text);
+  listenForSpeech();
 }
 
 let elevenTTSOk = true;
@@ -3672,7 +3673,7 @@ function stopCallAudio() {
   if (callAudio) { try { callAudio.pause(); } catch (_) {} callAudio = null; }
 }
 
-async function playCallBlob(blob, text) {
+async function playCallBlob(blob) {
   if (!callModeActive) return;
   const url = URL.createObjectURL(blob);
   const audio = new Audio(url);
@@ -3684,7 +3685,7 @@ async function playCallBlob(blob, text) {
   };
   audio.onended = finish;
   audio.onerror = finish;
-  try { await audio.play(); } catch (_) { finish(); if (callModeActive) callModeBrowserTTS(text); }
+  try { await audio.play(); } catch (_) { finish(); }
 }
 
 async function callModeElevenTTS(text) {
@@ -3698,22 +3699,10 @@ async function callModeElevenTTS(text) {
       if (r.status === 501) elevenTTSOk = false;
       throw new Error('tts ' + r.status);
     }
-    await playCallBlob(await r.blob(), text);
+    await playCallBlob(await r.blob());
   } catch (_) {
-    if (callModeActive) callModeBrowserTTS(text);
+    if (callModeActive) listenForSpeech();
   }
-}
-
-function callModeBrowserTTS(text) {
-  const utterance = new SpeechSynthesisUtterance(text);
-  applyVoice(utterance);
-  let done = false;
-  // Chrome has a known bug where onend silently never fires for long utterances
-  const ttsGuard = setTimeout(() => { if (!done && callModeActive) { done = true; listenForSpeech(); } }, Math.max(3000, text.length * 35));
-  utterance.onend = () => { done = true; clearTimeout(ttsGuard); if (callModeActive) listenForSpeech(); };
-  utterance.onerror = () => { done = true; clearTimeout(ttsGuard); if (callModeActive) listenForSpeech(); };
-  activeTTSUtterance = utterance;
-  window.speechSynthesis.speak(utterance);
 }
 
 // ── Call mode ─────────────────────────────────────────────────────────────────
