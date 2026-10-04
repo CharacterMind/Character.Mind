@@ -1508,10 +1508,12 @@ function saveHistoryLocal() {
   if (!currentChar) return;
   try {
     const msgs = document.getElementById('messages');
-    const items = [...msgs.querySelectorAll('.msg')].map(el => ({
-      role: el.classList.contains('user') ? 'user' : 'ai',
-      content: bubbleToRaw(el.querySelector('.bubble'))
-    })).filter(m => m.content);
+    const items = [...msgs.querySelectorAll('.msg')].map(el => el.classList.contains('nsfw-msg')
+      ? { role: 'ai', content: '', card: 'nsfw', variant: Number(el.dataset.nsfwVariant) || 0 }
+      : {
+          role: el.classList.contains('user') ? 'user' : 'ai',
+          content: bubbleToRaw(el.querySelector('.bubble'))
+        }).filter(m => m.content || m.card);
     const all = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}');
     all[currentChar.id] = items.slice(-40);
     localStorage.setItem(userKey('cm_history'), JSON.stringify(all));
@@ -1638,7 +1640,7 @@ async function openChat(charId) {
     if (localHistory.length > 0) {
       // Auto-save prior session to local past chats before restoring
       savePastChatLocal(charId, localHistory);
-      localHistory.forEach(m => appendMessage(m.role === 'user' ? 'user' : 'ai', m.content));
+      localHistory.forEach(appendHistoryItem);
       document.getElementById('chatWelcome').innerHTML = '';
       updateCtxBar();
       // Re-sync server so AI has context for next message
@@ -1663,7 +1665,7 @@ async function openChat(charId) {
     }
   } else {
     document.getElementById('chatWelcome').innerHTML = '';
-    history.forEach(m => appendMessage(m.role === 'user' ? 'user' : 'ai', m.content));
+    history.forEach(appendHistoryItem);
   }
 
   renderSidebarChats();
@@ -1917,7 +1919,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
         if (!line.startsWith('data: ')) continue;
         const data = JSON.parse(line.slice(6));
         if (data.error) throw new Error(data.error);
-        if (data.nsfw) { showTyping(false); appendNsfwCard(); }
+        if (data.nsfw) { showTyping(false); appendNsfwCard(data.variant); }
         if (data.conversationEnded) {
           convEnded = true;
           showTyping(false);
@@ -3005,10 +3007,13 @@ const NSFW_CARD_TITLES = [
   'Sorry, this goes against our Terms of Service.'
 ];
 
-function appendNsfwCard() {
-  const title = NSFW_CARD_TITLES[Math.floor(Math.random() * NSFW_CARD_TITLES.length)];
+function appendNsfwCard(variant) {
+  const v = (Number.isInteger(variant) && variant >= 0 && variant < NSFW_CARD_TITLES.length)
+    ? variant : Math.floor(Math.random() * NSFW_CARD_TITLES.length);
+  const title = NSFW_CARD_TITLES[v];
   const div = document.createElement('div');
-  div.className = 'msg ai';
+  div.className = 'msg ai nsfw-msg';
+  div.dataset.nsfwVariant = String(v);
   div.innerHTML = `
     <div class="msg-header">
       ${msgAvatarHtml('msg-avatar')}
@@ -3024,6 +3029,13 @@ function appendNsfwCard() {
     </div>`;
   document.getElementById('messages').appendChild(div);
   scrollToBottom();
+}
+
+// Draw one saved history entry (a normal message or the Terms-of-Service card).
+function appendHistoryItem(m) {
+  if (m && m.card === 'nsfw') { appendNsfwCard(m.variant); return; }
+  const isAi = m.role === 'assistant' || m.role === 'ai';
+  appendMessage(isAi ? 'ai' : 'user', m.content);
 }
 
 function appendMessage(role, text, imgB64) {
@@ -3544,7 +3556,8 @@ async function viewPastChat(archiveId, src, localIdx) {
   const rows = msgs.map(m => {
     const isAi = m.role === 'assistant' || m.role === 'ai';
     const name = isAi ? escHtml(currentChar.name || 'AI') : 'You';
-    const text = escHtml((m.content || '').slice(0, 400) + ((m.content?.length || 0) > 400 ? '…' : ''));
+    const content = m.card === 'nsfw' ? NSFW_CARD_TITLES[Number.isInteger(m.variant) ? m.variant % NSFW_CARD_TITLES.length : 0] : (m.content || '');
+    const text = escHtml(content.slice(0, 400) + (content.length > 400 ? '…' : ''));
     return `<div class="history-msg-row ${isAi ? 'ai' : 'user'}"><span class="history-msg-who">${name}</span><span class="history-msg-text">${text}</span></div>`;
   }).join('');
   // Store msgs on window so resumePastChat can access them without re-fetch
@@ -3572,14 +3585,13 @@ function resumePastChat(msgs) {
   if (messagesEl) messagesEl.innerHTML = '';
   const welcome = document.getElementById('chatWelcome');
   if (welcome) welcome.innerHTML = '';
-  msgs.forEach(m => {
-    const isAi = m.role === 'assistant' || m.role === 'ai';
-    appendMessage(isAi ? 'ai' : 'user', m.content);
-  });
-  const normalized = msgs.map(m => ({
-    role: (m.role === 'assistant' || m.role === 'ai') ? 'ai' : 'user',
-    content: m.content
-  }));
+  msgs.forEach(appendHistoryItem);
+  const normalized = msgs.map(m => (m.card === 'nsfw')
+    ? { role: 'ai', content: '', card: 'nsfw', variant: m.variant }
+    : {
+        role: (m.role === 'assistant' || m.role === 'ai') ? 'ai' : 'user',
+        content: m.content
+      });
   try { localStorage.setItem(userKey(`cm_history_${currentChar.id}`), JSON.stringify(normalized)); } catch (_) {}
   closeHistoryPanel();
   scrollToBottom();

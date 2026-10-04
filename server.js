@@ -944,13 +944,36 @@ const NSFW_DEFLECT = [
   "[ Character.Mind ] This message has been blocked. Sexual content is not permitted per our Terms of Use.",
 ];
 
-function nsfwDeflect(res, usage) {
+const NSFW_CARD_VARIANTS = 4;
+
+// Keep the blocked message and its card in the saved chat so they survive reloads.
+function recordNsfwBlock(key, userText) {
+  if (!conversations[key]) conversations[key] = [];
+  const variant = Math.floor(Math.random() * NSFW_CARD_VARIANTS);
+  if (userText) conversations[key].push({ role: 'user', content: userText });
+  conversations[key].push({ role: 'assistant', content: '', card: 'nsfw', variant });
+  return variant;
+}
+
+// What the AI is allowed to see: drop card entries and the blocked message that triggered each one.
+function aiHistory(conv) {
+  const out = [];
+  for (let i = 0; i < conv.length; i++) {
+    const m = conv[i];
+    if (m.card) continue;
+    if (m.role === 'user' && conv[i + 1] && conv[i + 1].card) continue;
+    out.push(m);
+  }
+  return out;
+}
+
+function nsfwDeflect(res, usage, variant) {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
-  res.write(`data: ${JSON.stringify({ nsfw: true })}\n\n`);
+  res.write(`data: ${JSON.stringify({ nsfw: true, variant: variant ?? 0 })}\n\n`);
   res.write(`data: ${JSON.stringify({ done: true, usage: usage || {}, responseTokens: 0, warnings: (usage && usage.warnings) || [] })}\n\n`);
   res.end();
 }
@@ -1725,10 +1748,12 @@ app.post('/api/conversations/:charId/sync', requireAuth, (req, res) => {
   if (!Array.isArray(history)) return res.status(400).json({ error: 'Invalid history' });
   if (history.length > 100) return res.status(400).json({ error: 'Too many messages' });
   const key = `${req.user.googleId}:${req.params.charId}`;
-  conversations[key] = history.map(m => ({
-    role: m.role === 'user' ? 'user' : 'assistant',
-    content: String(m.content || '').slice(0, 10000)
-  })).filter(m => m.content).slice(-40);
+  conversations[key] = history.map(m => (m && m.card === 'nsfw')
+    ? { role: 'assistant', content: '', card: 'nsfw', variant: (Number.isInteger(m.variant) && m.variant >= 0 && m.variant < NSFW_CARD_VARIANTS) ? m.variant : 0 }
+    : {
+        role: m && m.role === 'user' ? 'user' : 'assistant',
+        content: String((m && m.content) || '').slice(0, 10000)
+      }).filter(m => m.card || m.content).slice(-40);
   res.json({ ok: true });
 });
 
@@ -1757,7 +1782,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   convLastUsed[key] = Date.now();
 
   const hist = conversations[key];
-  if (hist.length > 0 && hist[hist.length - 1].role === 'assistant') hist.pop();
+  if (hist.length > 0 && hist[hist.length - 1].role === 'assistant' && !hist[hist.length - 1].card) hist.pop();
   if (hist.length === 0 || hist[hist.length - 1].role !== 'user') {
     return res.status(400).json({ error: 'Nothing to regenerate' });
   }
@@ -1780,7 +1805,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   const regenEffortCfg = getEffortCfg(effort, modelTier);
 
   callGroqStream(
-    apiKey, applyEffortDirective(wrapPrompt(systemPrompt), effort), hist.slice(-12),
+    apiKey, applyEffortDirective(wrapPrompt(systemPrompt), effort), aiHistory(hist).slice(-12),
     (text) => { fullResponse += text; res.write(`data: ${JSON.stringify({ text })}\n\n`); },
     (tokensUsed) => {
       if (done) return; done = true;
@@ -1988,7 +2013,10 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       console.warn('[image-safety] check failed, blocking image:', e.message);
       return res.status(503).json({ error: "We couldn't check that image right now. Please try again in a moment or send your message without it." });
     }
-    if (explicit) return nsfwDeflect(res, addTokens(userId, NSFW_BLOCK_TOKENS));
+    if (explicit) {
+      const variant = recordNsfwBlock(key, (message && message.trim()) ? message : '[image]');
+      return nsfwDeflect(res, addTokens(userId, NSFW_BLOCK_TOKENS), variant);
+    }
   }
 
   // ── Slur detection (three strikes per conversation) ────────────────────────
@@ -2014,7 +2042,8 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
   // ── NSFW detection — return a random deflection, no Gemini call needed ───────
   if (!isContinuation && message && NSFW_RE.test(msgNorm)) {
-    return nsfwDeflect(res, addTokens(userId, NSFW_BLOCK_TOKENS));
+    const variant = recordNsfwBlock(key, message);
+    return nsfwDeflect(res, addTokens(userId, NSFW_BLOCK_TOKENS), variant);
   }
 
   // ── Crisis keyword detection ───────────────────────────────────────────────
@@ -2037,7 +2066,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   }
 
   // Chat APIs require the last turn to be a user turn — inject a hidden continuation trigger if needed
-  const history = conversations[key].slice(-12);
+  const history = aiHistory(conversations[key]).slice(-12);
   const lastRole = history[history.length - 1]?.role;
   let messagesForGroq = (isContinuation && lastRole !== 'user')
     ? [...history, { role: 'user', content: '...' }]
