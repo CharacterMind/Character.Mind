@@ -934,6 +934,29 @@ function closeWelcome() {
   document.getElementById('welcomeModal').style.display = 'none';
 }
 
+// ── Contact us ──────────────────────────────────────────────────────────────────
+function openContact() {
+  document.getElementById('userDropdown')?.classList.remove('open');
+  const m = document.getElementById('contactModal');
+  if (m) m.style.display = 'flex';
+}
+function closeContact() {
+  const m = document.getElementById('contactModal');
+  if (m) m.style.display = 'none';
+}
+async function copyContactEmail() {
+  const email = (document.getElementById('contactEmail')?.textContent || '').trim();
+  const btn = document.getElementById('contactCopyBtn');
+  let ok = false;
+  try { await navigator.clipboard.writeText(email); ok = true; } catch (_) {}
+  if (!ok) { // older browsers: select the text so it can be copied by hand
+    const el = document.getElementById('contactEmail');
+    if (el && window.getSelection) { const r = document.createRange(); r.selectNodeContents(el); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); }
+  }
+  if (btn) { btn.textContent = ok ? 'Copied!' : 'Press Ctrl+C'; setTimeout(() => { btn.textContent = 'Copy'; }, 2200); }
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeContact(); });
+
 function signOut() {
   fetch('/auth/logout', { method: 'POST' }).catch(() => {});
   currentUser = null;

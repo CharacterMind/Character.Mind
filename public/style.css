@@ -2772,3 +2772,15 @@ body:not(.voice-on) .tts-btn::after { content: "Soon"; font-size: 9px; font-weig
 .bubble .nr .k3 { color: var(--nr3, var(--narration)); text-shadow: var(--nr3g, none); }
 .bubble .nr .k4 { color: var(--nr4, var(--narration)); text-shadow: var(--nr4g, none); }
 .bubble .nr .k5 { color: var(--nr5, var(--narration)); text-shadow: var(--nr5g, none); }
+
+/* Contact us window */
+.contact-modal { position: relative; background: var(--bg2); border: 1px solid var(--border2); border-radius: 18px; width: 440px; max-width: calc(100vw - 24px); padding: 28px 26px 24px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 40px 100px rgba(0,0,0,.75), 0 0 0 1px rgba(139,92,246,.1); }
+.contact-title { margin: 0; font-size: 20px; font-weight: 700; color: var(--text); }
+.contact-text { margin: 0; font-size: 14px; line-height: 1.55; color: var(--text2); }
+.contact-email-row { display: flex; align-items: center; gap: 10px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 12px; padding: 10px 12px; }
+.contact-email { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 14px; font-weight: 600; color: var(--text); user-select: all; }
+.contact-copy { flex-shrink: 0; background: #7c3aed; color: #fff; border: 0; border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.contact-copy:hover { opacity: .88; }
+.contact-mail-btn { display: block; text-align: center; text-decoration: none; background: var(--bg3); border: 1px solid var(--border2); color: var(--text); border-radius: 12px; padding: 10px 14px; font-size: 14px; font-weight: 600; }
+.contact-mail-btn:hover { background: var(--bg4, var(--bg3)); }
+.contact-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--text3); }
