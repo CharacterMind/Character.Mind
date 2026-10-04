@@ -2655,7 +2655,7 @@ function updateUsageModal(u) {
     if (u.cooldownUntil && Date.now() < u.cooldownUntil) {
       sSubEl.textContent = formatResetTime(u.cooldownUntil);
     } else if (u.sessionTokens > 0 && u.sessionExpiresAt) {
-      sSubEl.textContent = '2-hour window · ' + formatResetTime(u.sessionExpiresAt);
+      sSubEl.textContent = '3-second window · ' + formatResetTime(u.sessionExpiresAt);
     } else {
       sSubEl.textContent = 'Starts fresh when you send your first message';
     }
@@ -2963,7 +2963,15 @@ function msgAvatarHtml(cls) {
   return `<div class="${cls}" style="background:${safeColor(currentChar.color)}">${escHtml(currentChar.name[0]||'?')}</div>`;
 }
 
+const NSFW_CARD_TITLES = [
+  'This goes against our Terms of Service.',
+  'That message goes against our Terms of Service.',
+  'This content goes against our Terms of Service.',
+  'Sorry, this goes against our Terms of Service.'
+];
+
 function appendNsfwCard() {
+  const title = NSFW_CARD_TITLES[Math.floor(Math.random() * NSFW_CARD_TITLES.length)];
   const div = document.createElement('div');
   div.className = 'msg ai';
   div.innerHTML = `
@@ -2974,7 +2982,7 @@ function appendNsfwCard() {
     </div>
     <div class="nsfw-block-card">
       <div class="nsfw-card-icon">🤖</div>
-      <p class="nsfw-card-title">Sometimes the AI generates a reply that doesn't meet our guidelines.</p>
+      <p class="nsfw-card-title">${title}</p>
       <p class="nsfw-card-body">Please click Report if you believe this could be a false positive. We'll anonymously keep track of Reports to improve the AI.</p>
       <button class="nsfw-card-report" onclick="this.textContent='Reported ✓'; this.disabled=true">Report</button>
       <div class="nsfw-card-dots"><span></span><span></span><span></span></div>

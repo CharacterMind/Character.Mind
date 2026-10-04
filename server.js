@@ -369,7 +369,7 @@ function saveLimitsToDB(userId) {
 
 const LIMITS = {
   SESSION: 80000,
-  SESSION_COOLDOWN_MS: 2 * 60 * 60 * 1000 + 3 * 60 * 1000,
+  SESSION_COOLDOWN_MS: Number(process.env.SESSION_COOLDOWN_MS) || 3000,
   WEEKLY: 600000,
   WEEKLY_MS: 7 * 24 * 60 * 60 * 1000,
   REGEN_FREE: 2,
