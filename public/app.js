@@ -1490,6 +1490,9 @@ function getRecentChats() {
 }
 function touchRecentChat(charId) {
   const now = Date.now();
+  // Chatting again brings a character back even if it was removed from Recents earlier
+  const hiddenNow = getHiddenRecents();
+  if (hiddenNow.delete(charId)) setHiddenRecents(hiddenNow);
   try {
     const r = getRecentChats();
     r[charId] = now;
