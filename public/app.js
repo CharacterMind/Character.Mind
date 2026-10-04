@@ -114,7 +114,6 @@ function updateModelBarLabel() {
   const moreBtn = document.getElementById('mdMoreBtn');
   if (moreBtn) moreBtn.classList.toggle('has-active', MORE_MODEL_TIERS.includes(selectedModelTier));
   const moreEl = document.getElementById('mdMore');
-  if (moreEl && MORE_MODEL_TIERS.includes(selectedModelTier) && modelDropdownOpen) moreEl.classList.add('open');
 
   // Update effort picker checks and max multiplier label
   EFFORT_LEVELS.forEach(e => {
@@ -152,7 +151,7 @@ const PLAN_DATA = [
     features: ['Opis & Opos models unlocked', 'Everything in Free'],
   },
   {
-    key: 'x20', name: 'X20', badge: 'Most Popular', monthly: 12.99, annual: 109.99,
+    key: 'x20', name: 'X20', badge: 'Recommended', monthly: 12.99, annual: 109.99,
     callsPerDay: 100, memosPerDay: 1000,
     features: ['Opus model unlocked', 'Everything in Advanced'],
   },
@@ -457,6 +456,13 @@ function closeAllPickers() {
   const more = document.getElementById('mdMore');
   if (more) more.classList.remove('open');
 }
+// On a mouse the extra models show while the pointer is over 'More models' and go away when it leaves.
+// On a touch screen there is no hover, so tapping the button opens and closes them instead.
+document.addEventListener('mouseover', (e) => {
+  if (!window.matchMedia || !window.matchMedia('(hover: hover)').matches) return;
+  const more = document.getElementById('mdMore');
+  if (more && !more.contains(e.target)) more.classList.remove('open');
+});
 function toggleMoreModels(e) {
   if (e) e.stopPropagation();
   const more = document.getElementById('mdMore');
