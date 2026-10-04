@@ -2010,7 +2010,7 @@ async function generateGreeting() {
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
       if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
       scrollToBottom();
-      if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings, pendingUsage.weeklyResetsAt); }
+      if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings, pendingUsage.weeklyResetsAt, pendingUsage); }
       if (bubble) bubble.classList.remove('streaming');
       if (streamText) saveHistoryLocal();
     });
@@ -2218,7 +2218,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
       if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
       scrollToBottom();
-      if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings, pendingUsage.weeklyResetsAt); }
+      if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings, pendingUsage.weeklyResetsAt, pendingUsage); }
       if (bubble) {
         bubble.classList.remove('streaming');
         playSound('done');
@@ -2544,6 +2544,7 @@ function liveUpdateBars(extraTokens) {
 }
 
 function updateUsageBars(usage) {
+  pruneWarningBanners(usage);
   updateUsageModal(usage);
   updateSettingsUsage(usage);
   if (usage.cooldownUntil && Date.now() < usage.cooldownUntil) {
@@ -2684,7 +2685,7 @@ function showWarning(msg, autoCloseMs, persistent) {
   if (!container) return;
   // Don't stack the same message — just flash the existing one
   for (const b of container.children) {
-    if (b.querySelector('span')?.textContent === msg) {
+    if (b.dataset.warnMsg === msg || b.querySelector('span')?.textContent === msg) {
       b.style.animation = 'none';
       requestAnimationFrame(() => { b.style.animation = ''; });
       return;
@@ -2692,6 +2693,7 @@ function showWarning(msg, autoCloseMs, persistent) {
   }
   const banner = document.createElement('div');
   banner.className = 'warning-banner' + (persistent ? ' warning-banner-critical' : '');
+  banner.dataset.warnMsg = msg;   // so the same warning is never shown twice, whichever kind of banner asks for it
   const text = document.createElement('span');
   text.textContent = msg;
   const close = document.createElement('button');
@@ -2713,11 +2715,38 @@ function warnTsKey(userId, key) { return `cm_warn_ts_${userId}_${key}`; }
 const H24 = 24 * 60 * 60 * 1000;
 const H3  =  3 * 60 * 60 * 1000;
 
-function processWarnings(warnings, weeklyResetsAt) {
+// The warnings and the usage each one is about. A warning is only shown (or kept on screen) while the usage is still that high:
+// after a reset, a refund, a new session or a new week it is no longer true, and an old saved one must not come back.
+const WARN_RULES = [
+  { key: 'weekly25',  type: 'weekly',  pct: 25, msg: 'Approaching your weekly limit.' },
+  { key: 'weekly50',  type: 'weekly',  pct: 50, msg: 'Approaching your weekly limit.' },
+  { key: 'weekly75',  type: 'weekly',  pct: 75, msg: "You've used 75% of your weekly limit." },
+  { key: 'weekly90',  type: 'weekly',  pct: 90, msg: "You've used 90% of your weekly limit." },
+  { key: 'session90', type: 'session', pct: 90, msg: "You've used 90% of your session limit." },
+];
+function warningStillTrue(type, pct, usage) {
+  if (!usage) return true;
+  const used = type === 'session' ? usage.sessionTokens : usage.weeklyTokens;
+  const limit = type === 'session' ? usage.sessionLimit : usage.weeklyLimit;
+  if (!(limit > 0) || typeof used !== 'number') return true;   // no numbers to check against: leave things as they are
+  return (used / limit) * 100 >= pct;
+}
+// Take down any warning on screen whose usage level is no longer reached
+function pruneWarningBanners(usage) {
+  const container = document.getElementById('warningBanners');
+  if (!container || !usage) return;
+  for (const msg of new Set(WARN_RULES.map(r => r.msg))) {
+    if (WARN_RULES.some(r => r.msg === msg && warningStillTrue(r.type, r.pct, usage))) continue;
+    [...container.children].forEach(b => { if ((b.dataset.warnMsg || b.querySelector('span')?.textContent || '').trim() === msg) b.remove(); });
+  }
+}
+
+function processWarnings(warnings, weeklyResetsAt, usage) {
   if (!warnings || !warnings.length) return;
   const uid = currentUser?.googleId || 'anon';
   const now = Date.now();
   for (const w of warnings) {
+    if (!warningStillTrue(w.type, w.pct, usage)) continue;
     const key = w.type + w.pct;
     const tsKey = warnTsKey(uid, key);
     let triggerTs = null;
@@ -2760,17 +2789,19 @@ function restoreWarningBanners(usage) {
   const weeklyResetsAt = usage?.weeklyResetsAt || 0;
 
   const checks = [
-    { key: 'weekly25', msg: 'Approaching your weekly limit.',        ttl: H24, persistent: false, upgrade: false },
-    { key: 'weekly50', msg: 'Approaching your weekly limit.',        ttl: H24, persistent: false, upgrade: true  },
-    { key: 'weekly75', msg: "You've used 75% of your weekly limit.", ttl: H24, persistent: false, upgrade: true  },
-    { key: 'weekly90', msg: "You've used 90% of your weekly limit.", ttl: 0,   persistent: true,  upgrade: true  },
-    { key: 'session90',msg: "You've used 90% of your session limit.", ttl: H3, persistent: false, upgrade: false },
+    { key: 'weekly25', type: 'weekly',  pct: 25, msg: 'Approaching your weekly limit.',        ttl: H24, persistent: false, upgrade: false },
+    { key: 'weekly50', type: 'weekly',  pct: 50, msg: 'Approaching your weekly limit.',        ttl: H24, persistent: false, upgrade: true  },
+    { key: 'weekly75', type: 'weekly',  pct: 75, msg: "You've used 75% of your weekly limit.", ttl: H24, persistent: false, upgrade: true  },
+    { key: 'weekly90', type: 'weekly',  pct: 90, msg: "You've used 90% of your weekly limit.", ttl: 0,   persistent: true,  upgrade: true  },
+    { key: 'session90',type: 'session', pct: 90, msg: "You've used 90% of your session limit.", ttl: H3, persistent: false, upgrade: false },
   ];
   for (const c of checks) {
     const tsKey = warnTsKey(uid, c.key);
     let ts = null;
     try { ts = parseInt(localStorage.getItem(tsKey) || '0', 10) || null; } catch (_) {}
     if (!ts) continue;
+    // saved from an earlier moment, but the usage is no longer that high (reset, refund, new session or week): forget it
+    if (!warningStillTrue(c.type, c.pct, usage)) { try { localStorage.removeItem(tsKey); } catch (_) {} continue; }
     if (c.persistent) {
       if (!weeklyResetsAt || now < weeklyResetsAt) showWarningWithUpgrade(c.msg, 0, true);
       else try { localStorage.removeItem(tsKey); } catch (_) {}
@@ -4593,7 +4624,7 @@ async function regenerate() {
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
       if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
       scrollToBottom();
-      if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings, pendingUsage.weeklyResetsAt); }
+      if (pendingUsage) { updateUsageBars(pendingUsage); processWarnings(pendingWarnings, pendingUsage.weeklyResetsAt, pendingUsage); }
       if (bubble) bubble.classList.remove('streaming');
       if (streamText) {
         const store = regenStore.get(id);
