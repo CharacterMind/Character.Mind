@@ -1321,16 +1321,25 @@ function normalizeMsg(text) {
   return text.normalize('NFKC').replace(/[​-‍‪-‮⁠﻿]/g, '');
 }
 
+// Remembered for 30 seconds (it is read for every message, and only setModStatus changes it, which updates the memory too)
+const modStatusCache = new Map();   // "user:char" -> { v, at }
 async function getModStatus(userId, charId) {
   if (!db) return { strikes: 0, locked: false };
+  const ck = userId + ':' + charId;
+  const hit = modStatusCache.get(ck);
+  if (hit && Date.now() - hit.at < 30000) return { ...hit.v };
   try {
     const r = await db.query('SELECT strikes, locked FROM chat_moderation WHERE user_id=$1 AND char_id=$2', [userId, charId]);
-    return r.rows.length ? { strikes: r.rows[0].strikes, locked: r.rows[0].locked } : { strikes: 0, locked: false };
+    const v = r.rows.length ? { strikes: r.rows[0].strikes, locked: r.rows[0].locked } : { strikes: 0, locked: false };
+    if (modStatusCache.size > 5000) modStatusCache.clear();
+    modStatusCache.set(ck, { v, at: Date.now() });
+    return { ...v };
   } catch { return { strikes: 0, locked: false }; }
 }
 
 async function setModStatus(userId, charId, strikes, locked) {
   if (!db) return;
+  modStatusCache.set(userId + ':' + charId, { v: { strikes, locked }, at: Date.now() });
   try {
     await db.query(
       `INSERT INTO chat_moderation (user_id, char_id, strikes, locked, updated_at)
@@ -1609,11 +1618,21 @@ const conversations = {};
 const convLastUsed = {};
 
 // Fetch authoritative system prompt from DB (never trust req.body.systemPrompt)
+// A character's prompt is read for every message and rarely changes, so it is remembered for a minute (and forgotten at once when any
+// character is created, edited or deleted). That is one database trip fewer before the AI can start.
+const charPromptCache = new Map();   // charId -> { row, at }
+const CHAR_PROMPT_TTL_MS = 60 * 1000;
 async function getCharPrompt(charId) {
   if (!db) return null;
+  const hit = charPromptCache.get(charId);
+  if (hit && Date.now() - hit.at < CHAR_PROMPT_TTL_MS) return hit.row;
   try {
     const { rows } = await db.query('SELECT name, system_prompt, greeting, greeting_mode FROM characters WHERE id = $1', [charId]);
-    if (rows.length) return rows[0];
+    if (rows.length) {
+      if (charPromptCache.size > 500) charPromptCache.clear();
+      charPromptCache.set(charId, { row: rows[0], at: Date.now() });
+      return rows[0];
+    }
   } catch (err) { console.error('[getCharPrompt] DB error:', err.message); throw err; }
   return null;
 }
@@ -1709,17 +1728,31 @@ function fitHistory(msgs, budget) {
 }
 const GROQ_ALLOW_HIGH_REASONING = process.env.GROQ_ALLOW_HIGH_REASONING === '1';
 
+// How much room (in tokens, hidden thinking included) a reply is given. It follows the EFFORT first, then the model: a Low reply asks for a
+// few hundred tokens, Max for a couple of thousand, and a higher model gets a little more. Asking for less is also faster, and it leaves more
+// of Groq's per-minute allowance for the next reply (a request counts its whole room against that allowance, used or not).
+const EFFORT_ROOM = { low: 450, medium: 700, high: 1300, extra: 1900, max: 2400 };
+function replyRoomFor(effort, tier) {
+  const e = (typeof effort === 'string' && Object.hasOwn(EFFORT_ROOM, effort)) ? effort : 'medium';
+  const tv = tierVersion(tier);
+  let room = EFFORT_ROOM[e] * (1 + 0.04 * depthRankFor(tier));      // a higher model writes a little more
+  if (tv) {
+    const words = lengthTargetWords(tier, e);                         // versions 2 to 5 are asked for a set number of words at High, Extra and Max
+    room = words ? words * 1.4 + 400 : room * (1 + 0.1 * (tv.v - 1)); // about 1.4 tokens a word, plus room for a little hidden thinking
+  }
+  return Math.round(Math.min(room, tv ? Math.max(GROQ_OUTPUT_CAP, VERSION_CAP[tv.v]) : GROQ_OUTPUT_CAP));
+}
+
 function getEffortCfg(effort, tier) {
   const t = EFFORT_CONFIG[tier] ? tier : 'opas';
   const cfg = EFFORT_CONFIG[t];
   const base = (typeof effort === 'string' && Object.hasOwn(cfg, effort)) ? cfg[effort] : cfg.medium;
-  // A versioned model (2 to 5) gets more room per reply and more reasoning; everything else is held to the free-plan limits.
   const tv = tierVersion(t);
-  const cap = tv ? Math.max(GROQ_OUTPUT_CAP, VERSION_CAP[tv.v]) : GROQ_OUTPUT_CAP;
-  const room = Math.max(base.maxOutputTokens, GROQ_OUTPUT_MIN) * (tv ? VERSION_ROOM[tv.v] : 1);
-  const out = { ...base, maxOutputTokens: Math.min(Math.round(room), cap) };
-  if (tv) out.reasoningEffort = tv.v >= 4 ? 'high' : (({ low: 'medium', medium: 'high', high: 'high' })[out.reasoningEffort] || out.reasoningEffort);
-  else if (!GROQ_ALLOW_HIGH_REASONING && out.reasoningEffort === 'high') out.reasoningEffort = 'medium';
+  const e = (typeof effort === 'string' && Object.hasOwn(cfg, effort)) ? effort : 'medium';
+  const out = { ...base, maxOutputTokens: replyRoomFor(e, t) };
+  // Hidden thinking is time you wait without seeing anything, and it counts against the minute's allowance. Keep it short for every reply,
+  // and only let the deepest models on the longest replies think a little longer.
+  out.reasoningEffort = (tv && tv.v >= 4 && (e === 'extra' || e === 'max')) ? 'medium' : 'low';
   return out;
 }
 
@@ -2449,7 +2482,7 @@ const TEMPLATE_PROMPTS = new Set((TEMPLATES || []).map(t => t.systemPrompt).filt
 let charListCache = { at: 0, rows: null };
 const CHAR_LIST_TTL_MS = 15000;
 let charListGen = 0;
-function invalidateCharList() { charListCache.at = 0; charListGen++; }
+function invalidateCharList() { charListCache.at = 0; charListGen++; charPromptCache.clear(); }
 app.get('/api/characters', charReadLimiter, async (req, res) => {
   if (!db) return res.json([]);
   const userId = req.user?.googleId || '';
@@ -3101,13 +3134,15 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   const releaseSlot = acquireChatSlot(req, res, userId);
   if (!releaseSlot) return;
 
-  let dbChar;
-  try { dbChar = await getCharPrompt(charId); }
+  const key = `${req.user.googleId}:${charId}`;
+  if (!db) return res.status(503).json({ error: 'Service temporarily unavailable' });
+  // The character, this chat and its moderation status are all needed before the AI can start: fetch them together, not one after another
+  let dbChar, convReady, modStatus;
+  try { [dbChar, convReady, modStatus] = await Promise.all([getCharPrompt(charId), ensureConvLoaded(key), getModStatus(userId, charId)]); }
   catch (_) { return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' }); }
   if (!dbChar) return res.status(404).json({ error: 'Character not found' });
+  if (!convReady) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
   const char = { systemPrompt: dbChar ? dbChar.system_prompt : `You are ${charId}, a unique AI character.` };
-  const key = `${req.user.googleId}:${charId}`;
-  if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
   if (!conversations[key]) conversations[key] = [];
   convLastUsed[key] = Date.now();
 
@@ -3115,8 +3150,6 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   const isContinuation = (!message || !message.trim()) && !image;
 
   // ── Lock check — block permanently locked chats ───────────────────────────
-  if (!db) return res.status(503).json({ error: 'Service temporarily unavailable' });
-  const modStatus = await getModStatus(userId, charId);
   if (modStatus.locked) {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');

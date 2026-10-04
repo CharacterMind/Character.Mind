@@ -3445,12 +3445,13 @@ function remainingTypeMs() {
 }
 
 // Typewriter speed by effort level — lower effort = slower (more visible), higher = faster
+// Replies appear almost as fast as they arrive (the effort decides how LONG a reply is, not how slowly it is shown).
 const TW_SPEED = {
-  low:    { chars: 1, ms: 22 },
-  medium: { chars: 2, ms: 18 },
-  high:   { chars: 4, ms: 14 },
-  extra:  { chars: 7, ms: 10 },
-  max:    { chars: 12, ms: 7 },
+  low:    { chars: 3, ms: 8 },
+  medium: { chars: 4, ms: 8 },
+  high:   { chars: 6, ms: 8 },
+  extra:  { chars: 10, ms: 8 },
+  max:    { chars: 16, ms: 8 },
 };
 
 function startTypewriter(bubble, msgEl) {
@@ -3471,6 +3472,7 @@ function startTypewriter(bubble, msgEl) {
     const now = Date.now();
     credit += (now - lastTick) * perMs;
     lastTick = now;
+    credit = Math.max(credit, Math.ceil(twQueue.length / 4));   // never fall far behind what has already arrived
     if (!twQueue.length) {
       credit = 0;
       if (twOnDrain) { const cb = twOnDrain; twOnDrain = null; cb(); }
