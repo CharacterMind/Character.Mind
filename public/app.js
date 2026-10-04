@@ -1686,6 +1686,7 @@ async function openChat(charId) {
   abandonStream();
   releaseChatInput();
   currentChar = nextChar;
+  applyChatTheme(currentChar);
   const snapChar = currentChar;
   loadCharVoice();
 
@@ -3086,7 +3087,7 @@ function saveAiEdit(btn) {
   bubble.classList.remove('editing');
   const origHtml = ctrl.dataset.origHtml;
   ctrl.remove();
-  bubble.innerHTML = newText ? renderMarkdown(newText) : origHtml;
+  if (newText) setBubbleRaw(bubble, newText); else bubble.innerHTML = origHtml;
   saveHistoryLocal();
 }
 
@@ -3227,6 +3228,7 @@ function appendMessage(role, text, imgB64) {
       <div class="msg-footer">
         ${regenBtn()}${likeBtn()}${dislikeBtn()}
       </div>`;
+    div.querySelector('.bubble').dataset.raw = String(text == null ? '' : text);
   } else {
     div.innerHTML = `
       <div class="msg-header">
@@ -3277,6 +3279,7 @@ let twInterval = null;
 let twOnDrain = null;
 let twStreamDone = false;
 let twSpd = null;
+let twLastRender = 0;
 
 // Called when the full reply has arrived. The counter stays up while the text keeps typing out,
 // and is hidden once there is about a second of typing left.
@@ -3316,7 +3319,9 @@ function startTypewriter(bubble, msgEl) {
     twQueue = twQueue.slice(chunk.length);
     twRevealed += chunk;
     if (twBubble) {
-      twBubble.innerHTML = renderMarkdown(twRevealed);
+      // a long reply is redrawn at most about 15 times a second so the colouring never slows typing down
+      const nowMs = Date.now();
+      if (twRevealed.length < 1200 || nowMs - twLastRender >= 65) { setBubbleRaw(twBubble, twRevealed); twLastRender = nowMs; }
       scrollToBottom();
     }
     updateStreamTokens(twMsgEl, twRevealed.length);
@@ -3340,7 +3345,9 @@ function flushTypewriter() {
   if (twQueue.length && twBubble) {
     twRevealed += twQueue;
     twQueue = '';
-    twBubble.innerHTML = renderMarkdown(twRevealed);
+    setBubbleRaw(twBubble, twRevealed);
+  } else if (twBubble && twRevealed) {
+    setBubbleRaw(twBubble, twRevealed); // make sure the final text is fully drawn
   }
   twBubble = null; twMsgEl = null;
 }
@@ -3427,7 +3434,7 @@ function regenNavStep(id, dir) {
   const msgEl = document.querySelector(`[data-regen-id="${id}"]`);
   if (!msgEl) return;
   const bubble = msgEl.querySelector('.bubble');
-  if (bubble) bubble.innerHTML = renderMarkdown(store.texts[store.idx]);
+  if (bubble) setBubbleRaw(bubble, store.texts[store.idx]);
   regenNavUpdate(msgEl);
   scrollToBottom();
 }
@@ -4416,7 +4423,7 @@ async function regenerate() {
         else if (err.type === 'weekly') { startCooldown(err.resetsAt, 'weekly', true); }
         // Restore current version
         const store = regenStore.get(id);
-        if (bubble && store) { bubble.classList.remove('streaming'); bubble.innerHTML = renderMarkdown(store.texts[store.idx]); }
+        if (bubble && store) { bubble.classList.remove('streaming'); setBubbleRaw(bubble, store.texts[store.idx]); }
         flushTypewriter();
         isStreaming = false;
         const lockoutActive429 = document.getElementById('lockoutBar')?.style.display !== 'none';
@@ -4481,7 +4488,7 @@ async function regenerate() {
     const store = regenStore.get(id);
     if (bubble) {
       bubble.classList.remove('streaming');
-      bubble.innerHTML = store?.texts?.length ? renderMarkdown(store.texts[store.idx]) : `<p>⚠️ ${escHtml(err.message)}</p>`;
+      if (store?.texts?.length) setBubbleRaw(bubble, store.texts[store.idx]); else { delete bubble.dataset.raw; bubble.innerHTML = `<p>⚠️ ${escHtml(err.message)}</p>`; }
     }
   } finally {
     showTyping(false);
@@ -4494,40 +4501,125 @@ function isCharImg(src) { return typeof src === 'string' && (src.startsWith('dat
 
 function escHtml(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
-function renderMarkdown(text) {
-  let s = escHtml(text);
-  s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
-  // Only the site's own Terms and Privacy pages can become links (nothing the AI writes can point elsewhere)
-  s = s.replace(/\[([^\]\n]{1,40})\]\((\/terms|\/privacy)\)/g, '<a class="chat-link" href="$2" target="_blank" rel="noopener">$1</a>');
-  const paras = s.split(/\n\n+/);
+// ── Character text colours ─────────────────────────────────────────────────────
+// Every reply is split the same way, always: "quoted words" are SPEECH, *starred text* is NARRATION, and anything left
+// over is narration when the reply has quotes (the usual way a story is written) and speech when it doesn't.
+// Each letter takes a colour from the character's own palette in a fixed pseudo-random pattern, so it looks the same
+// while typing, after a reload and in old chats. Speech is upright; narration is italic.
+const BLACK_TEXT = '#0b0b10';
+function hexToRgb(h) { const m = /^#?([0-9a-f]{6})$/i.exec(h || ''); if (!m) return null; const n = parseInt(m[1], 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function mixHex(h, toward, t) {
+  const a = hexToRgb(h), b = hexToRgb(toward); if (!a || !b) return h;
+  const c = a.map((v, i) => Math.round(v + (b[i] - v) * t));
+  return '#' + c.map(v => v.toString(16).padStart(2, '0')).join('');
+}
+// A palette is { colors: [{c, g?}], pick: [indexes, repeated to weight them] }. g = glow for black letters so they stay readable.
+function pal(entries, weights) { const pick = []; weights.forEach((w, i) => { for (let k = 0; k < w; k++) pick.push(i); }); return { colors: entries, pick }; }
+function charTheme(ch) {
+  const name = String((ch && ch.name) || '').toLowerCase();
+  if (/lily/.test(name)) return {
+    // black, gold and purple: speech is gold-led and bold, narration is purple-led and italic
+    sp: pal([{ c: '#f4c542' }, { c: '#b794ff' }, { c: BLACK_TEXT, g: '0 0 1px #f4c542, 0 0 4px #f4c542' }], [3, 2, 2]),
+    nr: pal([{ c: '#9a6bff' }, { c: BLACK_TEXT, g: '0 0 1px #b794ff, 0 0 4px #9a6bff' }, { c: '#d4a82f' }], [3, 2, 1])
+  };
+  if (/poppy/.test(name)) return {
+    // blue dress, red hair
+    sp: pal([{ c: '#4da3ff' }, { c: '#ff4d57' }], [3, 2]),
+    nr: pal([{ c: '#5b8de6' }, { c: '#d9505a' }], [3, 2])
+  };
+  if (/doey/.test(name)) return {
+    // blue, red, orange and yellow, in a random pattern
+    sp: pal([{ c: '#4da3ff' }, { c: '#ff4d57' }, { c: '#ff9f43' }, { c: '#ffd93d' }], [1, 1, 1, 1]),
+    nr: pal([{ c: '#3b82f6' }, { c: '#e0343f' }, { c: '#f97316' }, { c: '#eab308' }], [1, 1, 1, 1])
+  };
+  // anyone else: built from the character's own colour(s)
+  const hexes = String((ch && (ch.accentColor || ch.color)) || '').match(/#[0-9a-fA-F]{6}/g) || [];
+  if (hexes.length) {
+    const c1 = hexes[0], c2 = hexes[1] || hexes[0];
+    return {
+      sp: pal([{ c: mixHex(c1, '#ffffff', 0.72) }, { c: mixHex(c2, '#ffffff', 0.55) }, { c: '#faf9f5' }], [3, 2, 1]),
+      nr: pal([{ c: mixHex(c1, '#ffffff', 0.45) }, { c: mixHex(c2, '#ffffff', 0.35) }], [3, 1])
+    };
+  }
+  return { sp: pal([{ c: '#faf9f5' }, { c: '#e0d7ff' }], [3, 1]), nr: pal([{ c: '#b8a4e8' }, { c: '#9f8bd8' }], [3, 1]) };
+}
+// Puts the current character's colours on the chat area (every bubble inside inherits them)
+let activeTheme = charTheme(null);
+function applyChatTheme(ch) {
+  activeTheme = charTheme(ch);
+  const el = document.getElementById('messages');
+  if (!el) return;
+  for (const kind of ['sp', 'nr']) {
+    for (let i = 0; i < 6; i++) { el.style.removeProperty('--' + kind + i); el.style.removeProperty('--' + kind + i + 'g'); }
+    activeTheme[kind].colors.forEach((col, i) => {
+      el.style.setProperty('--' + kind + i, col.c);
+      if (col.g) el.style.setProperty('--' + kind + i + 'g', col.g);
+    });
+  }
+}
+// Fixed pseudo-random colour for the letter at position i (same every time, so nothing flickers while typing)
+function letterPick(i, len) { let h = Math.imul(i + 1, 2654435761) ^ Math.imul((i >> 2) + 7, 40503); h ^= h >>> 15; h = Math.imul(h, 2246822519); h ^= h >>> 13; return (h >>> 0) % len; }
+const LETTER_RE = /[\p{L}\p{N}]/u;
+
+function splitSpeechNarration(para) {
+  const toks = [];
+  const R = /\*([^*]*)(?:\*|$)|(["\u201C])([^"\u201D]*)(?:["\u201D]|$)/g;
+  let last = 0, m;
+  while ((m = R.exec(para)) !== null) {
+    if (m.index > last) toks.push({ k: 'plain', t: para.slice(last, m.index) });
+    if (m[0] === '') { R.lastIndex++; continue; }
+    if (m[2] !== undefined) toks.push({ k: 'speech', t: '\u201C' + m[3] + (/["\u201D]$/.test(m[0]) && m[0].length > 1 ? '\u201D' : '') });
+    else toks.push({ k: 'narr', t: m[1] });
+    last = R.lastIndex;
+  }
+  if (last < para.length) toks.push({ k: 'plain', t: para.slice(last) });
+  const hasQuotes = toks.some(t => t.k === 'speech');
+  return toks.map(t => t.k === 'plain' ? { k: hasQuotes ? 'nr' : 'sp', t: t.t, plain: true } : { k: t.k === 'speech' ? 'sp' : 'nr', t: t.t });
+}
+
+function renderMarkdown(text, theme) {
+  theme = theme || activeTheme;
+  const raw = String(text == null ? '' : text).replace(/\*\*/g, '');
+  const paras = raw.split(/\n\n+/);
+  let letterNo = 0;
+  const emit = (kind, str) => {
+    // links to the site's own Terms/Privacy pages stay clickable; everything else is just text
+    const parts = str.split(/(\[[^\]\n]{1,40}\]\((?:\/terms|\/privacy)\))/g);
+    const n = theme[kind].pick.length;
+    const letters = (chunk) => {
+      let out = '';
+      for (const ch of chunk) {
+        if (LETTER_RE.test(ch)) { out += '<span class="k' + theme[kind].pick[letterPick(letterNo++, n)] + '">' + escHtml(ch) + '</span>'; }
+        else out += escHtml(ch);
+      }
+      return out;
+    };
+    return parts.map(part => {
+      const lm = /^\[([^\]\n]{1,40})\]\((\/terms|\/privacy)\)$/.exec(part);
+      if (lm) return '<a class="chat-link" href="' + lm[2] + '" target="_blank" rel="noopener">' + escHtml(lm[1]) + '</a>';
+      return letters(part);
+    }).join('');
+  };
   return paras.map(p => {
     if (!p.trim()) return '';
-    // Split into narration (*...*) and dialogue segments
-    const parts = p.split(/(\*[^*\n]+\*)/g);
-    const html = parts.map(part => {
-      if (/^\*[^*\n]+\*$/.test(part)) {
-        // Narration: purple italic
-        return `<span class="narration">${part.slice(1, -1)}</span>`;
-      }
-      if (!part.trim()) return part; // whitespace only, preserve
-      // Text with quote marks: wrap only the quoted speech in curly quotes (the text was HTML-escaped, so " is &quot;)
-      if (/(&quot;|[“”])/.test(part)) {
-        return part.replace(/(?:&quot;|“)([^]*?)(?:&quot;|”)/g, '<span class="dialogue">“$1”</span>');
-      }
-      // No quote marks at all: treat the whole segment as speech
-      const leadWs = part.match(/^(\s*)/)[1];
-      const trailWs = part.match(/(\s*)$/)[1];
-      const inner = part.slice(leadWs.length, part.length - trailWs.length || undefined);
-      if (!inner.trim()) return part;
-      return `${leadWs}<span class="dialogue">“${inner}”</span>${trailWs}`;
+    const html = splitSpeechNarration(p).map(seg => {
+      if (!seg.t.trim()) return escHtml(seg.t);
+      return '<span class="' + seg.k + '">' + emit(seg.k, seg.t) + '</span>';
     }).join('');
-    return `<p>${html.replace(/\n/g, '<br>')}</p>`;
+    return '<p>' + html.replace(/\n/g, '<br>') + '</p>';
   }).filter(Boolean).join('');
+}
+// Sets a reply's text and remembers the exact original, so saving/syncing never depends on what is displayed
+function setBubbleRaw(bubble, raw) {
+  if (!bubble) return;
+  bubble.dataset.raw = raw;
+  bubble.innerHTML = renderMarkdown(raw);
 }
 
 // Rebuild the original markup (*narration*, **bold**) from a rendered bubble so reloads keep the styling.
 function bubbleToRaw(bubble) {
   if (!bubble) return '';
+  if (bubble.dataset && typeof bubble.dataset.raw === 'string') return bubble.dataset.raw;
   const paras = bubble.querySelectorAll(':scope > p');
   if (!paras.length) return bubble.innerText || '';
   const walk = n => {

@@ -2756,3 +2756,19 @@ body:not(.voice-on) .tts-btn::after { content: "Soon"; font-size: 9px; font-weig
 
 .welcome-features--solo { max-width: 460px; margin: 4px auto 0; }
 .welcome-soon-tag { display: inline-block; vertical-align: middle; margin-left: 6px; font-size: 9.5px; font-weight: 700; letter-spacing: .03em; color: #fff; background: #7c3aed; padding: 1px 7px; border-radius: 8px; line-height: 1.6; }
+
+/* Character text colours: speech is upright, narration is italic; each letter takes a colour from the character's palette */
+.bubble .sp { font-weight: 500; }
+.bubble .nr { font-style: italic; }
+.bubble .sp .k0 { color: var(--sp0, var(--text)); text-shadow: var(--sp0g, none); }
+.bubble .sp .k1 { color: var(--sp1, var(--text)); text-shadow: var(--sp1g, none); }
+.bubble .sp .k2 { color: var(--sp2, var(--text)); text-shadow: var(--sp2g, none); }
+.bubble .sp .k3 { color: var(--sp3, var(--text)); text-shadow: var(--sp3g, none); }
+.bubble .sp .k4 { color: var(--sp4, var(--text)); text-shadow: var(--sp4g, none); }
+.bubble .sp .k5 { color: var(--sp5, var(--text)); text-shadow: var(--sp5g, none); }
+.bubble .nr .k0 { color: var(--nr0, var(--narration)); text-shadow: var(--nr0g, none); }
+.bubble .nr .k1 { color: var(--nr1, var(--narration)); text-shadow: var(--nr1g, none); }
+.bubble .nr .k2 { color: var(--nr2, var(--narration)); text-shadow: var(--nr2g, none); }
+.bubble .nr .k3 { color: var(--nr3, var(--narration)); text-shadow: var(--nr3g, none); }
+.bubble .nr .k4 { color: var(--nr4, var(--narration)); text-shadow: var(--nr4g, none); }
+.bubble .nr .k5 { color: var(--nr5, var(--narration)); text-shadow: var(--nr5g, none); }
