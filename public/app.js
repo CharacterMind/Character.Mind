@@ -220,6 +220,9 @@ function closePricingModal() {
   document.getElementById('pricingModal').style.display = 'none';
 }
 function setPricingPeriod(period) {
+  // Checkout only has monthly PayPal plans, so a yearly price must never be shown (the person would be charged the monthly one).
+  // Put the yearly toggle back, and remove this line, when yearly PayPal plans exist.
+  period = 'monthly';
   pricingPeriod = period;
   document.getElementById('pricingBtnMonthly').classList.toggle('pt-active', period === 'monthly');
   document.getElementById('pricingBtnAnnual').classList.toggle('pt-active', period === 'annual');
@@ -449,10 +452,6 @@ function renderSettingsTiers(currentTier) {
   el.innerHTML = `
     <div class="st2-header">
       <span class="st2-title">Plans</span>
-      <div class="st2-toggle">
-        <button class="st2-toggle-btn${period === 'monthly' ? ' st2-toggle-active' : ''}" onclick="setSettingsPeriod('monthly')">Monthly</button>
-        <button class="st2-toggle-btn${period === 'annual' ? ' st2-toggle-active' : ''}" onclick="setSettingsPeriod('annual')">Yearly</button>
-      </div>
     </div>
     <div class="st2-cards-wrap">
       ${plans.map(p => {
@@ -475,7 +474,7 @@ function renderSettingsTiers(currentTier) {
 }
 
 function setSettingsPeriod(period) {
-  pricingPeriod = period;
+  pricingPeriod = 'monthly';   // monthly only for now (see setPricingPeriod)
   renderSettingsTiers();
 }
 

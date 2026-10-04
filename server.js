@@ -415,6 +415,9 @@ function acquireChatSlot(req, res, userId) {
   timer = setTimeout(release, 330000); // safety net so a slot can never be stuck forever
   if (timer.unref) timer.unref();
   res.on('finish', release);
+  // If the browser left before an early answer (404, 503...) could be sent, 'finish' never fires and the slot would stay taken
+  // for minutes. Streaming replies handle their own leaving (they stop the AI request and release), so releasing here is safe.
+  res.on('close', release);
   return release;
 }
 
@@ -727,6 +730,12 @@ function refundTokens(sid, tokens) {
   u.sessionTokens = Math.max(0, (u.sessionTokens || 0) - tokens);
   u.weeklyTokens = Math.max(0, (u.weeklyTokens || 0) - tokens);
   if (u.cooldownUntil && u.sessionTokens < sessionLimitFor(u)) u.cooldownUntil = null;
+  // A warning that the refunded reply had triggered no longer applies: let it fire again when the level is really reached
+  if (u.warned) {
+    if ((u.sessionTokens / sessionLimitFor(u)) * 100 < 90) u.warned.session90 = false;
+    const wPct = (u.weeklyTokens / weeklyLimitFor(u)) * 100;
+    for (const [k, p] of [['weekly25', 25], ['weekly50', 50], ['weekly75', 75], ['weekly90', 90]]) if (wPct < p) u.warned[k] = false;
+  }
   saveLimitsToDB(sid);
 }
 
@@ -1727,15 +1736,35 @@ function startReplyStream(o) {
   const ctx = { aborted: false, req: null };
   { const tvLen = tierVersion(modelTier); ctx.minWords = (tvLen && tvLen.v >= 3) ? lengthTargetWords(modelTier, effort) : 0; }
   ctx.getWords = () => { const t = fullResponse.trim(); return t ? t.split(/\s+/).length : 0; };
+  // The browser already left while the server was still preparing: do not start (or charge for) a reply nobody will see
+  if (res.destroyed || res.writableEnded || (res.socket && res.socket.destroyed)) {
+    try { if (onFail) onFail(); } catch (_) {}
+    releaseSlot();
+    return;
+  }
+  // The limit was checked a moment ago, before the character and chat were loaded; check again right before reserving, so two
+  // replies started together cannot both slip past the same limit.
+  const limitNow = checkLimits(userId);
+  if (limitNow.blocked) {
+    try { res.write('data: ' + JSON.stringify({ error: limitNow.type === 'session' ? 'Session limit reached. Please wait for your session to reset.' : 'Weekly limit reached.' }) + '\n\n'); res.end(); } catch (_) {}
+    try { if (onFail) onFail(); } catch (_) {}
+    releaseSlot();
+    return;
+  }
   res.on('close', () => {
     if (!res.writableEnded) {
       ctx.aborted = true;
       if (ctx.req) ctx.req.destroy(new Error('client aborted'));
-      // leaving before the first word has arrived is not charged
-      if (!finished && !fullResponse.trim()) {
+      if (!finished) {
         finished = true;
-        try { refundTokens(userId, cost); } catch (_) {}
-        try { if (onFail) onFail(); } catch (_) {}
+        if (!released) {
+          // nothing had been sent to the browser yet: not charged
+          try { refundTokens(userId, cost); } catch (_) {}
+          try { if (onFail) onFail(); } catch (_) {}
+        } else {
+          // the reader already saw part of the reply: keep it in the chat (and the charge), so what was paid for is not thrown away
+          try { onComplete(fullResponse); } catch (_) {}
+        }
         releaseSlot();
       }
     }
@@ -3548,6 +3577,7 @@ app.post('/api/paypal/verify-subscription', paypalVerifyLimiter, async (req, res
     paidLimits.subscriptionTier = planKey;
     paidLimits.tierLoaded = true;
     paidLimits.sessionTokens = 0; paidLimits.sessionStartedAt = null; paidLimits.cooldownUntil = null; // fresh session on the new plan
+    paidLimits.warned = {};   // the new plan has different limits, so usage warnings start again
     saveLimitsToDB(req.user.googleId);
     sendReceiptEmail(req.user.name, req.user.email, planKey, subscriptionId).catch(() => {});
     sendPlanWelcomeEmail(req.user.name, req.user.email, planKey).catch(() => {});
@@ -3605,14 +3635,23 @@ app.post('/api/webhooks/paypal', async (req, res) => {
     const tier = Object.keys(PAYPAL_PLAN_IDS).find(k => PAYPAL_PLAN_IDS[k] && PAYPAL_PLAN_IDS[k] === planId);
     if (tier && /^[0-9]{5,40}$/.test(customId)) {
       try {
-        const upd = await db.query(
-          'UPDATE users SET subscription_tier = $1, paypal_subscription_id = $2 WHERE google_id = $3 AND NOT EXISTS (SELECT 1 FROM users WHERE paypal_subscription_id = $2 AND google_id <> $3) RETURNING google_id',
-          [tier, subId, customId]);
-        if (upd.rows.length) {
-          const lim = getLimits(customId);
-          lim.subscriptionTier = tier; lim.tierLoaded = true;
-          lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null;
-          saveLimitsToDB(customId);
+        // What the account has now: if it is already on this exact subscription and plan, the browser call got there first and there is
+        // nothing to do (a repeated event must not reset the session again). If it is on ANOTHER subscription, that one is being replaced and
+        // must be cancelled here too, or the person is billed twice when this notification arrives before the browser's own check.
+        const before = await db.query('SELECT subscription_tier, paypal_subscription_id FROM users WHERE google_id = $1', [customId]);
+        const prevSub = before.rows[0] && before.rows[0].paypal_subscription_id;
+        const alreadyDone = before.rows[0] && prevSub === subId && before.rows[0].subscription_tier === tier;
+        if (!alreadyDone) {
+          const upd = await db.query(
+            'UPDATE users SET subscription_tier = $1, paypal_subscription_id = $2 WHERE google_id = $3 AND NOT EXISTS (SELECT 1 FROM users WHERE paypal_subscription_id = $2 AND google_id <> $3) RETURNING google_id',
+            [tier, subId, customId]);
+          if (upd.rows.length) {
+            if (prevSub && prevSub !== subId) cancelPayPalSubscription(prevSub, 'Replaced by a new plan');
+            const lim = getLimits(customId);
+            lim.subscriptionTier = tier; lim.tierLoaded = true;
+            lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null; lim.warned = {};
+            saveLimitsToDB(customId);
+          }
         }
       } catch (e) { console.error('Webhook activation error:', e.message); return res.sendStatus(500); }
     }
@@ -3626,7 +3665,13 @@ app.post('/api/webhooks/paypal', async (req, res) => {
       .catch(err => { console.error('Webhook DB error:', err); return null; });
     if (!cancelled) return res.sendStatus(500); // let PayPal retry
     for (const row of cancelled.rows) {
-      if (userLimits[row.google_id]) { userLimits[row.google_id].subscriptionTier = 'free'; saveLimitsToDB(row.google_id); }
+      // Back to the free plan: start the free session and week from zero. Usage counted against the paid plan's big limits would
+      // otherwise sit far above the free limits and lock the person out until the old week ends.
+      const lim = getLimits(row.google_id);
+      lim.subscriptionTier = 'free'; lim.tierLoaded = true;
+      lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null;
+      lim.weeklyTokens = 0; lim.weeklyStart = null; lim.warned = {};
+      saveLimitsToDB(row.google_id);
     }
   }
   res.sendStatus(200);

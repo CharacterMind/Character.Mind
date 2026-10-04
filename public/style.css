@@ -2788,3 +2788,6 @@ body:not(.voice-on) .tts-btn::after { content: "Soon"; font-size: 9px; font-weig
 .welcome-patience { margin: 0; font-size: 13px; line-height: 1.6; color: var(--text3); text-align: center; max-width: 460px; align-self: center; }
 
 .chat-loading { text-align: center; padding: 40px 0; font-size: 13px; color: var(--text3); }
+
+/* Monthly plans only for now: checkout has no yearly PayPal plans, so the Monthly/Annual toggle is hidden (see setPricingPeriod in app.js) */
+.pricing-toggle { display: none; }
