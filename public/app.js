@@ -927,8 +927,8 @@ function showView(id) {
 function showHome() { showView('homeView'); setNavActive(0); }
 function showDiscover() { showView('discoverView'); setNavActive(1); renderDiscover(); }
 function showFeed() { showView('feedView'); setNavActive(2); }
-function showCreate() { showView('createView'); setNavActive(3); pendingAvatarData = null; }
-function setNavActive(i) { document.querySelectorAll('.nav-item')[i]?.classList.add('active'); }
+function showCreate() { showView('createView'); pendingAvatarData = null; }
+function setNavActive(i) { document.querySelectorAll('.sidebar-nav .nav-item')[i]?.classList.add('active'); }
 
 // ── Render Home — c.ai style rows ─────────────────────────────────────────────
 function homeTopbar() {
