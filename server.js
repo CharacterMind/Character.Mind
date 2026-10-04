@@ -406,7 +406,7 @@ const LIMITS = {
 // The "average message" = Opes at High effort = ~800 reply tokens x 2 (Opes) = ~1,600 charged tokens.
 // Lighter models/efforts get more messages than this; heavier ones get fewer.
 const AVG_MESSAGE_TOKENS = 1600;
-const MESSAGES_PER_SESSION = { free: 30, advanced: 60 };
+const MESSAGES_PER_SESSION = { free: 20, advanced: 45 }; // modeled on Claude: Free ~20, Pro ~45 (Max 20x = 20 x Pro = 900)
 const X20_MULT = 20;  // X20 = 20x Advanced
 const X50_MULT = 50;  // X50 = 50x Advanced
 // Weekly limit in average messages: Free and Advanced are 5 sessions' worth; X20 is its session
