@@ -3333,18 +3333,28 @@ function startTypewriter(bubble, msgEl) {
     : selectedEffort;
   const spd = TW_SPEED[effortKey] || TW_SPEED.high;
   twSpd = spd;
+  // Typing speed follows the clock, not how long each step takes to draw (drawing the coloured letters can be slow on a
+  // phone). That keeps the speed steady and the "about a second left" estimate for the token counter accurate.
+  const perMs = spd.chars / spd.ms;
+  let credit = 0, lastTick = Date.now();
   twInterval = setInterval(() => {
+    const now = Date.now();
+    credit += (now - lastTick) * perMs;
+    lastTick = now;
     if (!twQueue.length) {
+      credit = 0;
       if (twOnDrain) { const cb = twOnDrain; twOnDrain = null; cb(); }
       return;
     }
-    const chunk = twQueue.slice(0, spd.chars);
-    twQueue = twQueue.slice(chunk.length);
+    const n = Math.min(twQueue.length, Math.floor(credit));
+    if (n < 1) return;
+    credit -= n;
+    const chunk = twQueue.slice(0, n);
+    twQueue = twQueue.slice(n);
     twRevealed += chunk;
-    if (twBubble) {
-      // a long reply is redrawn at most about 15 times a second so the colouring never slows typing down
-      const nowMs = Date.now();
-      if (twRevealed.length < 1200 || nowMs - twLastRender >= 65) { setBubbleRaw(twBubble, twRevealed); twLastRender = nowMs; }
+    if (twBubble && now - twLastRender >= 33) {
+      // drawing is the slow part, so it happens at most about 30 times a second
+      setBubbleRaw(twBubble, twRevealed); twLastRender = now;
       scrollToBottom();
     }
     updateStreamTokens(twMsgEl, twRevealed.length);
