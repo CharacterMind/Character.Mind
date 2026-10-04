@@ -230,15 +230,15 @@ if (GOOGLE_AUTH_ENABLED) {
       }).catch(err => console.error('User upsert error:', err.message));
     }
     if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId);
-    // Cache subscription tier in userLimits so limit checks don't need a DB hit
-    if (OWNER_EMAILS.has(user.email)) {
-      // Owner always gets x50 tier at runtime regardless of DB value
-      getLimits(user.googleId).subscriptionTier = 'x50';
-    } else if (db) {
+    // Cache this account's own subscription tier in userLimits so limit checks don't need a DB hit.
+    // Every account, including the owners', gets only what its own subscription pays for.
+    if (db) {
       db.query('SELECT subscription_tier FROM users WHERE google_id = $1', [user.googleId])
         .then(r => {
           const tier = r.rows[0]?.subscription_tier || 'free';
-          getLimits(user.googleId).subscriptionTier = tier;
+          const lim = getLimits(user.googleId);
+          lim.subscriptionTier = tier;
+          lim.tierLoaded = true;
         }).catch(() => {});
     }
     done(null, user);
@@ -326,12 +326,7 @@ app.post('/api/user/recent-chats', requireAuth, async (req, res) => {
 async function ensureTierLoaded(user) {
   const u = getLimits(user.googleId);
   if (u.tierLoaded) return;
-  if (OWNER_EMAILS.has(user.email)) {
-    ownerGoogleIds.add(user.googleId);
-    u.subscriptionTier = 'x50';
-    u.tierLoaded = true;
-    return;
-  }
+  if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId); // admin tools only, no plan benefits
   if (!db) return;
   const r = await db.query('SELECT subscription_tier FROM users WHERE google_id = $1', [user.googleId]);
   u.subscriptionTier = r.rows[0]?.subscription_tier || 'free';
@@ -479,16 +474,16 @@ function messageCost(modelTier, effort) {
 }
 function tokenMultFor(tier) { return Object.hasOwn(MODEL_TOKEN_MULT, tier) ? MODEL_TOKEN_MULT[tier] : MODEL_TOKEN_MULT.opas; }
 
-// Which model tiers each plan may use (matches the plan cards: X20 unlocks Opis/Opos, X50 unlocks Opus/Opys).
+// Which model tiers each plan may use (matches the plan cards and the model picker):
+// Free = Opas, Opes; Advanced adds Opis, Opos; X20 adds Opus; X50 adds Opys.
 const PLAN_MODEL_TIERS = {
   free:     ['opas', 'opes'],
-  advanced: ['opas', 'opes'],
-  x20:      ['opas', 'opes', 'opis', 'opos'],
+  advanced: ['opas', 'opes', 'opis', 'opos'],
+  x20:      ['opas', 'opes', 'opis', 'opos', 'opus'],
   x50:      ['opas', 'opes', 'opis', 'opos', 'opus', 'opys'],
 };
 function resolveModelTier(userId, requested) {
   if (typeof requested !== 'string' || !Object.hasOwn(MODEL_TOKEN_MULT, requested)) return 'opas';
-  if (ownerGoogleIds.has(userId)) return requested;
   const plan = getLimits(userId).subscriptionTier || 'free';
   const allowed = PLAN_MODEL_TIERS[plan] || PLAN_MODEL_TIERS.free;
   return allowed.includes(requested) ? requested : 'opes';
@@ -502,17 +497,14 @@ const TIER_MEMO_LIMITS  = { free: 30,  advanced: 50,  x20: 1000, x50: 2500 };
 const TIER_IMAGE_LIMITS = { free: 5,   advanced: 10,  x20: 200,  x50: 500  };
 
 function getCallLimitForUser(userId) {
-  if (ownerGoogleIds.has(userId)) return Infinity;
   const tier = userLimits[userId]?.subscriptionTier || 'free';
   return TIER_CALL_LIMITS[tier] ?? TIER_CALL_LIMITS.free;
 }
 function getMemoLimitForUser(userId) {
-  if (ownerGoogleIds.has(userId)) return Infinity;
   const tier = userLimits[userId]?.subscriptionTier || 'free';
   return TIER_MEMO_LIMITS[tier] ?? TIER_MEMO_LIMITS.free;
 }
 function getImageLimitForUser(userId) {
-  if (ownerGoogleIds.has(userId)) return Infinity;
   const tier = userLimits[userId]?.subscriptionTier || 'free';
   return TIER_IMAGE_LIMITS[tier] ?? TIER_IMAGE_LIMITS.free;
 }

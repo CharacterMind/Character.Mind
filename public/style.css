@@ -1520,7 +1520,7 @@ html, body {
 
 /* ── User Dropdown ────────────────────────────────────────────────────────── */
 .user-dropdown {
-  position: absolute; bottom: calc(100% + 6px); left: 8px; right: 8px;
+  position: absolute; bottom: 60px; left: 8px; right: 8px;
   background: var(--bg2); border: 1px solid var(--border2);
   border-radius: var(--rl); padding: 6px;
   box-shadow: 0 -8px 32px rgba(0,0,0,.5), 0 0 0 1px rgba(139,92,246,.06);

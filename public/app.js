@@ -35,8 +35,8 @@ const EXPECTED_REPLY_CHARS = { low: 250, medium: 500, high: 1200, extra: 2500, m
 // Model tiers each plan may use — must match PLAN_MODEL_TIERS in server.js.
 const PLAN_MODEL_TIERS = {
   free:     ['opas', 'opes'],
-  advanced: ['opas', 'opes'],
-  x20:      ['opas', 'opes', 'opis', 'opos'],
+  advanced: ['opas', 'opes', 'opis', 'opos'],
+  x20:      ['opas', 'opes', 'opis', 'opos', 'opus'],
   x50:      ['opas', 'opes', 'opis', 'opos', 'opus', 'opys'],
 };
 // The total cost of the reply being written, and how much of it to show so far (ramps up as the text types)
@@ -57,8 +57,30 @@ const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', 
 // Token usage multiplier shown on Max effort warning per tier
 const MAX_EFFORT_MULTIPLIERS = { opas:'4×', opes:'4×', opis:'4×', opos:'4×', opus:'4×', opys:'4×' };
 
-// Tiers locked behind subscription (null = free, 'adv' = Advanced plan, 'max' = Advanced or Max)
-const TIER_SUBSCRIPTION = { opas: null, opes: null, opis: 'adv', opos: 'adv', opus: 'max', opys: 'max' };
+function currentPlanKey() {
+  return (typeof lastKnownUsage !== 'undefined' && lastKnownUsage && lastKnownUsage.subscriptionTier) || 'free';
+}
+function modelAllowedForPlan(tier) {
+  return (PLAN_MODEL_TIERS[currentPlanKey()] || PLAN_MODEL_TIERS.free).includes(tier);
+}
+
+// Unlock or lock each model in the picker to match the account's own plan.
+function updateModelPickerLocks() {
+  ALL_TIERS.forEach(t => {
+    const el = document.getElementById('opt' + t.charAt(0).toUpperCase() + t.slice(1));
+    if (!el) return;
+    const allowed = modelAllowedForPlan(t);
+    el.classList.toggle('md-item-locked', !allowed);
+    const up = el.querySelector('.md-upgrade-btn');
+    if (up) up.style.display = allowed ? 'none' : '';
+  });
+  // If the saved model isn't part of this account's plan (e.g. after switching accounts), fall back to Opes
+  if (!modelAllowedForPlan(selectedModelTier)) {
+    selectedModelTier = 'opes';
+    try { localStorage.setItem('cm_model_tier', 'opes'); } catch (_) {}
+    updateModelBarLabel();
+  }
+}
 
 const MODEL_ICONS = {
   opas: '<path d="M7 2v11h3v9l7-12h-4l4-8z"/>',
@@ -100,7 +122,7 @@ function setModelTier(tier) {
 }
 
 function selectOrUpgrade(tier) {
-  if (!TIER_SUBSCRIPTION[tier]) { setModelTier(tier); return; }
+  if (modelAllowedForPlan(tier)) { setModelTier(tier); return; }
   openPricingModal();
 }
 
@@ -116,17 +138,17 @@ const PLAN_DATA = [
   {
     key: 'advanced', name: 'Advanced', monthly: 4.99, annual: 44.99,
     callsPerDay: 5, memosPerDay: 50,
-    features: ['Opas & Opes AI models', 'Everything in Free'],
+    features: ['Opis & Opos models unlocked', 'Everything in Free'],
   },
   {
     key: 'x20', name: 'X20', badge: 'Most Popular', monthly: 12.99, annual: 109.99,
     callsPerDay: 100, memosPerDay: 1000,
-    features: ['Opis & Opos models unlocked', 'Everything in Advanced'],
+    features: ['Opus model unlocked', 'Everything in Advanced'],
   },
   {
     key: 'x50', name: 'X50', badge: 'Best Value', monthly: 24.99, annual: 199.99,
     callsPerDay: 250, memosPerDay: 2500,
-    features: ['Opus & Opys models unlocked', 'Everything in X20'],
+    features: ['Opys model unlocked', 'Everything in X20'],
   },
 ];
 
@@ -1385,7 +1407,7 @@ async function syncHiddenRecentsFromServer() {
     if (!hidden.length) return;
     const local = getHiddenRecents();
     const merged = new Set([...local, ...hidden]);
-    try { localStorage.setItem('cm_hidden_recents', JSON.stringify([...merged])); } catch {}
+    try { localStorage.setItem(userKey('cm_hidden_recents'), JSON.stringify([...merged])); } catch {}
   } catch (_) {}
 }
 
@@ -2550,6 +2572,7 @@ async function loadUsage() {
     restoreWarningBanners(usage);
     updateSettingsPlanCard(usage.subscriptionTier);
     renderUserBadge();
+    updateModelPickerLocks();
   } catch (_) {}
 }
 
@@ -2820,17 +2843,17 @@ function shareChar() {
 }
 
 function getCharLikes(charId) {
-  try { return JSON.parse(localStorage.getItem('cm_likes') || '{}')[charId] || 0; } catch (_) { return 0; }
+  try { return JSON.parse(localStorage.getItem(userKey('cm_likes')) || '{}')[charId] || 0; } catch (_) { return 0; }
 }
 function isCharLiked(charId) {
-  try { return !!(JSON.parse(localStorage.getItem('cm_liked') || '{}')[charId]); } catch (_) { return false; }
+  try { return !!(JSON.parse(localStorage.getItem(userKey('cm_liked')) || '{}')[charId]); } catch (_) { return false; }
 }
 
 function toggleLike() {
   if (!currentChar) return;
   try {
-    const likes = JSON.parse(localStorage.getItem('cm_likes') || '{}');
-    const liked = JSON.parse(localStorage.getItem('cm_liked') || '{}');
+    const likes = JSON.parse(localStorage.getItem(userKey('cm_likes')) || '{}');
+    const liked = JSON.parse(localStorage.getItem(userKey('cm_liked')) || '{}');
     const key = currentChar.id;
     if (liked[key]) {
       liked[key] = false;
@@ -2839,8 +2862,8 @@ function toggleLike() {
       liked[key] = true;
       likes[key] = (likes[key] || 0) + 1;
     }
-    localStorage.setItem('cm_likes', JSON.stringify(likes));
-    localStorage.setItem('cm_liked', JSON.stringify(liked));
+    localStorage.setItem(userKey('cm_likes'), JSON.stringify(likes));
+    localStorage.setItem(userKey('cm_liked'), JSON.stringify(liked));
     const likeCount = document.getElementById('ipLikeCount');
     if (likeCount) likeCount.textContent = likes[key] || 0;
     const likeBtn = document.getElementById('ipLikeBtn');
