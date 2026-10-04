@@ -486,8 +486,8 @@ function effortMultFor(effort) { return Object.hasOwn(EFFORT_TOKEN_MULT, effort)
 // What ONE reply costs from the allowance, by model and effort. Fixed per message (not the AI's raw token
 // count, which swings a lot because of hidden thinking), so message counts are predictable.
 // Opes costs about 3x Opas at every effort. Higher models are multiples of Opes.
-const OPAS_COST = { low: 220, medium: 350, high: 650, extra: 1300, max: 2600 };
-const OPES_COST = { low: 700, medium: 1200, high: 2000, extra: 4000, max: 8000 };
+const OPAS_COST = { low: 220, medium: 350, high: 650, extra: 1300, max: 5200 };
+const OPES_COST = { low: 700, medium: 1200, high: 2000, extra: 4000, max: 16000 }; // Max is deliberately extreme: about 13x a Medium message
 // Low tier: Opas, Opes. Mid tier: Opis (1.5x), Opos (2.5x). High tier: Opus (6x), Opys (15x), Opys 2 (45x = 3x Opys, the most advanced) - these drain even an X50 allowance fast.
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.5, opos: 2.5, opus: 6, opys: 15, opys2: 45 };
 function messageCost(modelTier, effort) {

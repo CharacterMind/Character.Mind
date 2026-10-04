@@ -32,8 +32,8 @@ function loadAccountPrefs() {
 
 const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys', opys2:'Opys 2' };
 // Must match OPAS_COST / OPES_COST / COST_FACTOR_VS_OPES in server.js — what one reply costs from the allowance.
-const OPAS_COST = { low: 220, medium: 350, high: 650, extra: 1300, max: 2600 };
-const OPES_COST = { low: 700, medium: 1200, high: 2000, extra: 4000, max: 8000 };
+const OPAS_COST = { low: 220, medium: 350, high: 650, extra: 1300, max: 5200 };
+const OPES_COST = { low: 700, medium: 1200, high: 2000, extra: 4000, max: 16000 };
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.5, opos: 2.5, opus: 6, opys: 15, opys2: 45 };
 // Roughly how many visible characters a full reply has at each effort (used to ramp the live counter up to the cost)
 const EXPECTED_REPLY_CHARS = { low: 250, medium: 500, high: 1200, extra: 2500, max: 4000 };
@@ -60,7 +60,7 @@ function liveCostSoFar(chars) {
 const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', max:'Max' };
 
 // Token usage multiplier shown on Max effort warning per tier
-const MAX_EFFORT_MULTIPLIERS = { opas:'4×', opes:'4×', opis:'4×', opos:'4×', opus:'4×', opys:'4×', opys2:'4×' };
+const MAX_EFFORT_MULTIPLIERS = { opas:'13×', opes:'13×', opis:'13×', opos:'13×', opus:'13×', opys:'13×', opys2:'13×' };
 
 function currentPlanKey() {
   return (typeof lastKnownUsage !== 'undefined' && lastKnownUsage && lastKnownUsage.subscriptionTier) || 'free';
@@ -122,7 +122,7 @@ function updateModelBarLabel() {
     if (el) el.classList.toggle('active', e === selectedEffort);
   });
   const maxWarn = document.getElementById('effortMaxWarn');
-  if (maxWarn) maxWarn.textContent = '⚠ ' + (MAX_EFFORT_MULTIPLIERS[selectedModelTier] || '4×') + ' or more usage';
+  if (maxWarn) maxWarn.textContent = '⚠ ' + (MAX_EFFORT_MULTIPLIERS[selectedModelTier] || '13×') + ' or more usage';
 }
 
 function setModelTier(tier) {
