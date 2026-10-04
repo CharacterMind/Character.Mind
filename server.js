@@ -1334,10 +1334,13 @@ async function getCharPrompt(charId) {
 // ── Groq API streaming helper ─────────────────────────────────────────────────
 
 // Fast model for free tiers; big model for paid tiers
-const GROQ_FAST_MODELS  = ['openai/gpt-oss-20b',  'openai/gpt-oss-120b'];
-const GROQ_MODELS       = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
-const GROQ_PRO_MODELS   = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
-const GROQ_OPUS_MODELS  = ['openai/gpt-oss-120b'];
+// Each Groq model has its own free per-minute allowance, so extra models at the end of each list are a free
+// overflow lane: they are only used when the main ones are rate limited (or missing), never remembered as "the" model.
+const GROQ_FALLBACKS    = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+const GROQ_FAST_MODELS  = ['openai/gpt-oss-20b',  'openai/gpt-oss-120b', ...GROQ_FALLBACKS];
+const GROQ_MODELS       = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b',  ...GROQ_FALLBACKS];
+const GROQ_PRO_MODELS   = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b',  ...GROQ_FALLBACKS];
+const GROQ_OPUS_MODELS  = ['openai/gpt-oss-120b', GROQ_FALLBACKS[0]];
 
 // Per-tier effort configs — max effort uses highest reasoning + tokens
 const EFFORT_CONFIG = {
@@ -1586,7 +1589,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     }
 
     const tier = modelList === GROQ_OPUS_MODELS ? 'opus' : modelList === GROQ_PRO_MODELS ? 'opes' : 'opas';
-    workingModels[tier] = model;
+    if (!GROQ_FALLBACKS.includes(model)) workingModels[tier] = model;
     console.log(`Using model: ${model} (tier=${tier})`);
 
     let buffer = '';
