@@ -1090,12 +1090,12 @@ function showFeed() { showView('feedView'); setNavActive(2); }
 let avatarPreviewDefault = null;
 function showCreate() {
   showView('createView');
-  pendingAvatarData = null;
   const nm = document.getElementById('newName');
   const prev = document.getElementById('avatarPreview');
   if (avatarPreviewDefault === null && prev) avatarPreviewDefault = prev.innerHTML;
   if (nm && nm.dataset.editingId) {
     delete nm.dataset.editingId;
+    pendingAvatarData = null;
     for (const id of ['newName', 'newTagline', 'newDesc', 'newGreeting', 'newPrompt']) { const el = document.getElementById(id); if (el) el.value = ''; }
     if (prev && avatarPreviewDefault !== null) prev.innerHTML = avatarPreviewDefault;
     const sb = document.querySelector('.btn-submit'); if (sb) sb.textContent = 'Create Character';
@@ -1720,6 +1720,7 @@ function releaseChatInput() {
 }
 function abandonStream() {
   chatEpoch++;
+  if (streamTimer) { clearInterval(streamTimer); streamTimer = null; }
   isStreaming = false;
   try { flushTypewriter(); } catch (_) {}
   try { showTyping(false); } catch (_) {}
@@ -1730,11 +1731,14 @@ async function openChat(charId) {
   if (!nextChar) return;
   abandonStream();
   releaseChatInput();
+  clearPendingImage();   // an attached picture belongs to the chat it was attached in
+  const openEpoch = chatEpoch;
   currentChar = nextChar;
   applyChatTheme(currentChar);
   // Never leave the previous character's messages on screen while the new chat loads
   const welcomeNow = document.getElementById('chatWelcome');
   document.getElementById('messages').innerHTML = '';
+  if (liteObserver) liteObserver.disconnect();
   if (welcomeNow) welcomeNow.innerHTML = '<div class="chat-loading">Loading…</div>';
   // Show this chat's saved copy straight away; the server copy is checked afterwards
   const shownLocal = loadHistoryLocal(charId);
@@ -1803,22 +1807,22 @@ async function openChat(charId) {
   // Check if this chat has been permanently locked by moderation
   try {
     const lockRes = await fetch(`/api/chat/lock-status/${charId}`);
-    if (currentChar !== snapChar) return;
+    if (chatEpoch !== openEpoch) return;
     if (lockRes.ok) {
       const { locked } = await lockRes.json();
       if (locked) { showLockedChat(); return; }
     }
   } catch (_) {}
-  if (currentChar !== snapChar) return;
+  if (chatEpoch !== openEpoch) return;
 
   // Load conversation history — server first, localStorage fallback
   let history = [];
   try {
     const res = await fetch(`/api/conversations/${charId}`);
-    if (currentChar !== snapChar) return; // preempted by a newer openChat call
+    if (chatEpoch !== openEpoch) return; // preempted by a newer openChat call
     if (res.ok) history = await res.json();
   } catch (_) { /* server temporarily unavailable; use localStorage */ }
-  if (currentChar !== snapChar) return;
+  if (chatEpoch !== openEpoch) return;
 
   const messagesDiv = document.getElementById('messages');
   warnedThresholds.clear();
@@ -1859,6 +1863,10 @@ async function openChat(charId) {
     }
   } else if (sameAsShown) {
     document.getElementById('chatWelcome').innerHTML = '';   // what is shown is already right
+    // ...but its signatures must be the server's current ones, or a later re-sync would drop these replies
+    const aiEls = [...messagesDiv.querySelectorAll('.msg.ai:not(.nsfw-msg)')];
+    const aiHist = history.filter(m => (m.role === 'assistant' || m.role === 'ai') && !m.card);
+    if (aiEls.length === aiHist.length) aiEls.forEach((el, i) => { if (aiHist[i].sig) el.dataset.sig = aiHist[i].sig; else delete el.dataset.sig; });
   } else {
     messagesDiv.innerHTML = '';
     document.getElementById('chatWelcome').innerHTML = '';
@@ -1916,6 +1924,7 @@ function updateTypingAvatar() {
 // ── Auto-generate greeting (c.ai behaviour — character speaks first) ──────────
 async function generateGreeting() {
   if (!currentChar) return;
+  const myEpoch = chatEpoch;   // taken BEFORE any waiting, so a chat switch during the request is noticed
   showTyping(true);
   isStreaming = true;
   document.getElementById('sendBtn').disabled = true;
@@ -1928,6 +1937,7 @@ async function generateGreeting() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ effort: selectedEffort, modelTier: selectedModelTier })
     });
+    if (myEpoch !== chatEpoch) { try { if (res.body) res.body.cancel(); } catch (_) {} return; }   // the chat changed while waiting
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       showTyping(false); isStreaming = false;
@@ -1945,8 +1955,6 @@ async function generateGreeting() {
       }
       return;
     }
-
-    const myEpoch = chatEpoch;
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -1982,7 +1990,7 @@ async function generateGreeting() {
       }
     }
     drainTypewriter(() => {
-      if (msgEl && streamSig) msgEl.dataset.sig = streamSig;
+      if (msgEl) { if (streamSig) msgEl.dataset.sig = streamSig; else delete msgEl.dataset.sig; }
       if (msgEl) stopStreamStats(msgEl, streamRealTokens);
       isStreaming = false;
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
@@ -1993,6 +2001,7 @@ async function generateGreeting() {
       if (streamText) saveHistoryLocal();
     });
   } catch (err) {
+    if (myEpoch !== chatEpoch) return;   // an old request failing must not touch the chat that is open now
     flushTypewriter();
     showTyping(false);
     isStreaming = false;
@@ -2004,7 +2013,7 @@ async function generateGreeting() {
         <div style="color:var(--text3);font-size:14px;margin-top:8px">${escHtml(err.message || 'Failed to generate greeting. Try sending a message.')}</div>`;
     }
   } finally {
-    showTyping(false);
+    if (myEpoch === chatEpoch) showTyping(false);
   }
 }
 
@@ -2057,6 +2066,7 @@ function clearPendingImage() {
 // ── Send Message ──────────────────────────────────────────────────────────────
 async function sendMessage(overrideText, skipAppend, allowEmpty) {
   if (!currentChar) return;
+  const myEpoch = chatEpoch;   // taken BEFORE any waiting, so a chat switch during the request is noticed
   // If we're locked out (limit reached), re-show the modal with a new message every attempt
   const lockoutBarEl = document.getElementById('lockoutBar');
   if (lockoutBarEl && lockoutBarEl.style.display !== 'none') {
@@ -2112,6 +2122,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
       signal: streamAbortCtrl.signal
     });
 
+    if (myEpoch !== chatEpoch) { try { if (res.body) res.body.cancel(); } catch (_) {} return; }   // the chat changed while waiting
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       if (res.status === 401) { window.location.href = '/'; return; }
@@ -2125,7 +2136,6 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
     }
 
     let msgEl = null, bubble = null, gotFirst = false;
-    const myEpoch = chatEpoch;
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, pendingWarnings = null, streamCharCount = 0;
@@ -2180,7 +2190,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
     }
     clearTimeout(streamTimeout);
     drainTypewriter(() => {
-      if (msgEl && streamSig) msgEl.dataset.sig = streamSig;
+      if (msgEl) { if (streamSig) msgEl.dataset.sig = streamSig; else delete msgEl.dataset.sig; }
       if (msgEl) stopStreamStats(msgEl, streamRealTokens);
       isStreaming = false;
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
@@ -2198,6 +2208,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
     });
   } catch (err) {
     clearTimeout(streamTimeout);
+    if (myEpoch !== chatEpoch) return;   // an old request failing must not touch the chat that is open now
     flushTypewriter();
     showTyping(false);
     isStreaming = false;
@@ -3116,6 +3127,7 @@ function copyMsgText(btn) {
 }
 
 function editMsgText(btn) {
+  if (isStreaming) { showWarning('Wait for the reply to finish first.'); return; }
   const msgEl = btn.closest('.msg');
   const isAi = msgEl.classList.contains('ai');
   const bubble = msgEl.querySelector('.bubble');
@@ -3149,6 +3161,7 @@ function saveAiEdit(btn) {
   const origHtml = ctrl.dataset.origHtml;
   ctrl.remove();
   if (newText) setBubbleRaw(bubble, newText); else bubble.innerHTML = origHtml;
+  { const mEl = bubble.closest('.msg'); if (mEl && newText) delete mEl.dataset.sig; }   // an edited reply no longer matches the server's signature
   saveHistoryLocal();
 }
 
@@ -3275,7 +3288,7 @@ const liteObserver = (typeof IntersectionObserver !== 'undefined')
         liteObserver.unobserve(b);
         if (b.dataset.lite) { delete b.dataset.lite; if (typeof b.dataset.raw === 'string') b.innerHTML = renderMarkdown(b.dataset.raw); }
       }
-    }, { rootMargin: '400px' })
+    }, { root: document.getElementById('chatBody'), rootMargin: '400px' })
   : null;
 function appendHistoryItem(m, lite) {
   if (m && m.card === 'nsfw') { appendNsfwCard(m.variant); return; }
@@ -3381,7 +3394,7 @@ function startTypewriter(bubble, msgEl) {
   if (twInterval) clearInterval(twInterval);
   // Opis (opus) model uses faster streaming — bump speed one level up
   const effortKey = selectedModelTier === 'opus'
-    ? (selectedEffort === 'extra' ? 'max' : selectedEffort === 'high' ? 'extra' : selectedEffort === 'medium' ? 'high' : 'medium')
+    ? (selectedEffort === 'max' || selectedEffort === 'extra' ? 'max' : selectedEffort === 'high' ? 'extra' : selectedEffort === 'medium' ? 'high' : 'medium')
     : selectedEffort;
   const spd = TW_SPEED[effortKey] || TW_SPEED.high;
   twSpd = spd;
@@ -3406,7 +3419,8 @@ function startTypewriter(bubble, msgEl) {
     twRevealed += chunk;
     if (twBubble && now - twLastRender >= 33) {
       // drawing is the slow part, so it happens at most about 30 times a second
-      setBubbleRaw(twBubble, twRevealed); twLastRender = now;
+      setBubbleRaw(twBubble, twRevealed, twRevealed.length > 900);   // a long reply is drawn lightly while it types, in full at the end
+      twLastRender = now;
       scrollToBottom();
     }
     updateStreamTokens(twMsgEl, twRevealed.length);
@@ -3420,8 +3434,9 @@ function feedTypewriter(chunk) {
 
 // Let the queue drain at normal speed, then call cb. Use for stream-end cleanup.
 function drainTypewriter(cb) {
-  if (!twInterval || !twQueue.length) { if (cb) cb(); flushTypewriter(); return; }
-  twOnDrain = () => { if (cb) cb(); flushTypewriter(); };
+  // draw the complete text BEFORE the callback saves it (the drawing is throttled, so the saved copy would lag behind)
+  if (!twInterval || !twQueue.length) { flushTypewriter(); if (cb) cb(); return; }
+  twOnDrain = () => { flushTypewriter(); if (cb) cb(); };
 }
 
 function flushTypewriter() {
@@ -3520,6 +3535,7 @@ function regenNavStep(id, dir) {
   if (!msgEl) return;
   const bubble = msgEl.querySelector('.bubble');
   if (bubble) setBubbleRaw(bubble, store.texts[store.idx]);
+  if (store.sigs && store.sigs[store.idx]) msgEl.dataset.sig = store.sigs[store.idx]; else delete msgEl.dataset.sig;   // the signature of the version shown
   regenNavUpdate(msgEl);
   scrollToBottom();
 }
@@ -3864,6 +3880,7 @@ async function viewPastChat(archiveId, src, localIdx) {
 
 function resumePastChat(msgs) {
   if (!currentChar || !msgs || !msgs.length) return;
+  if (isStreaming) { showWarning('Wait for the reply to finish first.'); return; }
   const current = loadHistoryLocal(currentChar.id);
   if (current.length > 0) {
     savePastChatLocal(currentChar.id, current);
@@ -3873,7 +3890,7 @@ function resumePastChat(msgs) {
   if (messagesEl) messagesEl.innerHTML = '';
   const welcome = document.getElementById('chatWelcome');
   if (welcome) welcome.innerHTML = '';
-  msgs.forEach(appendHistoryItem);
+  msgs.forEach((m, i) => appendHistoryItem(m, i < msgs.length - LIVE_COLOUR_MESSAGES));
   const normalized = msgs.map(m => (m.card === 'nsfw')
     ? { role: 'ai', content: '', card: 'nsfw', variant: m.variant }
     : {
@@ -4466,6 +4483,7 @@ function toggleMsgDislike(btn) {
 // ── Regenerate ─────────────────────────────────────────────────────────────────
 async function regenerate() {
   if (isStreaming || !currentChar) return;
+  const myEpoch = chatEpoch;   // taken BEFORE any waiting, so a chat switch during the request is noticed
   isStreaming = true;
   document.getElementById('sendBtn').disabled = true;
 
@@ -4479,7 +4497,7 @@ async function regenerate() {
 
   // Snapshot current text into history on first regen
   if (!regenStore.has(id)) {
-    regenStore.set(id, { texts: [bubble ? bubbleToRaw(bubble) : ''], idx: 0 });
+    regenStore.set(id, { texts: [bubble ? bubbleToRaw(bubble) : ''], sigs: [msgEl.dataset.sig || ''], idx: 0 });
   }
 
   flushTypewriter();
@@ -4498,6 +4516,7 @@ async function regenerate() {
       body: JSON.stringify({ modelTier: selectedModelTier, effort: selectedEffort })
     });
 
+    if (myEpoch !== chatEpoch) { try { if (res.body) res.body.cancel(); } catch (_) {} return; }   // the chat changed while waiting
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       if (res.status === 401) { isStreaming = false; window.location.href = '/'; return; }
@@ -4517,8 +4536,6 @@ async function regenerate() {
       }
       throw new Error(err.error || 'Server error');
     }
-
-    const myEpoch = chatEpoch;
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -4546,7 +4563,7 @@ async function regenerate() {
     }
 
     drainTypewriter(() => {
-      if (msgEl && streamSig) msgEl.dataset.sig = streamSig;
+      if (msgEl) { if (streamSig) msgEl.dataset.sig = streamSig; else delete msgEl.dataset.sig; }
       stopStreamStats(msgEl, streamRealTokens);
       isStreaming = false;
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
@@ -4557,6 +4574,7 @@ async function regenerate() {
       if (streamText) {
         const store = regenStore.get(id);
         store.texts.push(streamText);
+        (store.sigs = store.sigs || []).push(streamSig || '');
         store.idx = store.texts.length - 1;
         regenNavUpdate(msgEl);
         playSound('done');
@@ -4565,6 +4583,7 @@ async function regenerate() {
     });
 
   } catch (err) {
+    if (myEpoch !== chatEpoch) return;   // an old request failing must not touch the chat that is open now
     flushTypewriter();
     showTyping(false);
     isStreaming = false;
@@ -4576,7 +4595,7 @@ async function regenerate() {
       if (store?.texts?.length) setBubbleRaw(bubble, store.texts[store.idx]); else { delete bubble.dataset.raw; bubble.innerHTML = `<p>⚠️ ${escHtml(err.message)}</p>`; }
     }
   } finally {
-    showTyping(false);
+    if (myEpoch === chatEpoch) showTyping(false);
   }
 }
 
@@ -4602,17 +4621,17 @@ function mixHex(h, toward, t) {
 function pal(entries, weights) { const pick = []; weights.forEach((w, i) => { for (let k = 0; k < w; k++) pick.push(i); }); return { colors: entries, pick }; }
 function charTheme(ch) {
   const name = String((ch && ch.name) || '').toLowerCase();
-  if (/lily/.test(name)) return {
+  if (/\blily\b/.test(name)) return {
     // black, gold and purple: speech is gold-led and bold, narration is purple-led and italic
     sp: pal([{ c: '#f4c542' }, { c: '#b794ff' }, { c: BLACK_TEXT, g: '1px 0 0 #f4c542, -1px 0 0 #f4c542, 0 1px 0 #f4c542, 0 -1px 0 #f4c542, 0 0 6px rgba(244,197,66,.65)' }], [3, 2, 2]),
     nr: pal([{ c: '#9a6bff' }, { c: BLACK_TEXT, g: '1px 0 0 #b794ff, -1px 0 0 #b794ff, 0 1px 0 #b794ff, 0 -1px 0 #b794ff, 0 0 6px rgba(154,107,255,.65)' }, { c: '#d4a82f' }], [3, 2, 1])
   };
-  if (/poppy/.test(name)) return {
+  if (/\bpoppy\b/.test(name)) return {
     // blue dress, red hair
     sp: pal([{ c: '#4da3ff' }, { c: '#ff4d57' }], [3, 2]),
     nr: pal([{ c: '#5b8de6' }, { c: '#d9505a' }], [3, 2])
   };
-  if (/doey/.test(name)) return {
+  if (/\bdoey\b/.test(name)) return {
     // blue, red, orange and yellow, in a random pattern
     sp: pal([{ c: '#4da3ff' }, { c: '#ff4d57' }, { c: '#ff9f43' }, { c: '#ffd93d' }], [1, 1, 1, 1]),
     nr: pal([{ c: '#3b82f6' }, { c: '#e0343f' }, { c: '#f97316' }, { c: '#eab308' }], [1, 1, 1, 1])
@@ -4704,10 +4723,10 @@ function renderMarkdown(text, theme, opts) {
   }).filter(Boolean).join('');
 }
 // Sets a reply's text and remembers the exact original, so saving/syncing never depends on what is displayed
-function setBubbleRaw(bubble, raw) {
+function setBubbleRaw(bubble, raw, lite) {
   if (!bubble) return;
   bubble.dataset.raw = raw;
-  bubble.innerHTML = renderMarkdown(raw);
+  bubble.innerHTML = renderMarkdown(raw, undefined, lite ? { lite: true } : undefined);
 }
 
 // Rebuild the original markup (*narration*, **bold**) from a rendered bubble so reloads keep the styling.
