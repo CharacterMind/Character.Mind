@@ -39,9 +39,9 @@ for (const b of BASE_TIERS) for (const v of VERSIONS) MODEL_LABELS[b + v] = MODE
 const OPAS_COST = { low: 220, medium: 350, high: 540, extra: 800, max: 1200 };
 const OPES_COST = { low: 700, medium: 1200, high: 1800, extra: 2600, max: 4000 };
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3 };
-// Must match the server: versions 2 to 5 cost 1.5x, 3x, 6x and 16x their base model, with an extra 1.25x, 2.5x, 4x and 5x on Max effort
-const VERSION_FACTOR = { 2: 1.5, 3: 3, 4: 6, 5: 16 };
-const VERSION_MAX_BOOST = { 2: 1.25, 3: 2.5, 4: 4, 5: 5 };
+// Must match the server: versions 2 to 5 cost 1.5x, 3x, 6x and 10x their base model, with an extra 1.25x, 2x, 2.5x and 3x on Max effort
+const VERSION_FACTOR = { 2: 1.5, 3: 3, 4: 6, 5: 10 };
+const VERSION_MAX_BOOST = { 2: 1.25, 3: 2, 4: 2.5, 5: 3 };
 const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1, opus: 2, opys: 3 };
 const PLAN_RANK = { free: 0, advanced: 1, x20: 2, x50: 3 };
 function tierVersion(t) {
@@ -96,7 +96,7 @@ const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', 
 
 // Token usage multiplier shown on Max effort warning per tier
 const MAX_EFFORT_MULTIPLIERS = {};
-{ // Max effort vs Medium: 3.3x on a base model, then 4.2x, 8.3x, 13.3x and 16.7x on versions 2 to 5
+{ // Max effort vs Medium: 3.3x on a base model, then 4.2x, 6.7x, 8.3x and 10x on versions 2 to 5
   const baseRatio = OPES_COST.max / OPES_COST.medium;
   const fmt = (x) => (Math.round(x * 10) / 10) + '×';
   for (const b of BASE_TIERS) { MAX_EFFORT_MULTIPLIERS[b] = fmt(baseRatio); for (const v of VERSIONS) MAX_EFFORT_MULTIPLIERS[b + v] = fmt(baseRatio * VERSION_MAX_BOOST[v]); }
@@ -3198,17 +3198,35 @@ function editMsgText(btn) {
   bubble.after(ctrl);
 }
 
-function saveAiEdit(btn) {
+async function saveAiEdit(btn) {
   const ctrl = btn.closest('.msg-edit-ctrl');
   const bubble = ctrl.closest('.msg').querySelector('.bubble');
+  const origRaw = bubble.dataset.raw || '';   // the reply as it was before this edit
   const newText = bubble.innerText.trim();
   bubble.contentEditable = 'false';
   bubble.classList.remove('editing');
   const origHtml = ctrl.dataset.origHtml;
   ctrl.remove();
   if (newText) setBubbleRaw(bubble, newText); else bubble.innerHTML = origHtml;
-  { const mEl = bubble.closest('.msg'); if (mEl && newText) delete mEl.dataset.sig; }   // an edited reply no longer matches the server's signature
+  const mEl = bubble.closest('.msg');
+  if (mEl && newText) delete mEl.dataset.sig;   // an edited reply no longer matches the server's signature until the server signs the new text
   saveHistoryLocal();
+  // Tell the server, so the AI sees the edited reply from now on (it only trusts replies it has signed)
+  if (newText && origRaw && newText !== origRaw && currentChar) {
+    const cid = currentChar.id;
+    try {
+      const r = await fetch('/api/conversations/' + cid + '/edit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from: origRaw, to: newText }) });
+      const j = r.ok ? await r.json().catch(() => null) : null;
+      if (j && j.sig && currentChar && currentChar.id === cid && mEl && mEl.isConnected && bubble.dataset.raw === newText) {
+        mEl.dataset.sig = j.sig;
+        const rid = mEl.dataset.regenId, store = rid ? regenStore.get(rid) : null;
+        if (store) { store.texts[store.idx] = newText; (store.sigs = store.sigs || [])[store.idx] = j.sig; }
+        saveHistoryLocal();
+      } else if (r.status === 400) {
+        showWarning('That edit goes against our Terms of Service, so the AI will not see it.');
+      }
+    } catch (_) {}
+  }
 }
 
 function saveEdit(btn) {

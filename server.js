@@ -535,8 +535,8 @@ const VERSIONS = [2, 3, 4, 5];
 const MODEL_TOKEN_MULT = { opas: 1, opes: 3, opis: 4, opos: 5, opus: 6, opys: 8 };
 for (const b of BASE_TIERS) for (const v of VERSIONS) MODEL_TOKEN_MULT[b + v] = MODEL_TOKEN_MULT[b] * v;
 // What a version costs compared with its base model, and the extra multiplier it adds on Max effort
-const VERSION_FACTOR    = { 2: 1.5, 3: 3, 4: 6, 5: 16 };
-const VERSION_MAX_BOOST = { 2: 1.25, 3: 2.5, 4: 4, 5: 5 };
+const VERSION_FACTOR    = { 2: 1.5, 3: 3, 4: 6, 5: 10 };
+const VERSION_MAX_BOOST = { 2: 1.25, 3: 2, 4: 2.5, 5: 3 };
 // Reply room (relative to the base model) and the most tokens a reply may use, per version
 const VERSION_ROOM = { 2: 1.5, 3: 1.75, 4: 2.25, 5: 2.75 };
 const VERSION_CAP  = { 2: 2800, 3: 3300, 4: 3900, 5: 4500 };
@@ -576,8 +576,9 @@ function effortMultFor(effort) { return Object.hasOwn(EFFORT_TOKEN_MULT, effort)
 const OPAS_COST = { low: 220, medium: 350, high: 540, extra: 800, max: 1200 };
 const OPES_COST = { low: 700, medium: 1200, high: 1800, extra: 2600, max: 4000 }; // effort ramps gently: Low 0.6x, Medium 1x, High 1.5x, Extra 2.2x, Max 3.3x a Medium message
 // Base models step up gently: Opes 1x, Opis 1.25x, Opos 1.5x, Opus 2x, Opys 3x (of Opes).
-// Versions 2 to 5 cost 1.5x, 3x, 6x and 16x their base model, and on Max effort they add 1.25x, 2.5x, 4x and 5x on top.
-// So Max effort costs about 3.3x a Medium reply on a base model, and 4.2x, 8.3x, 13.3x and 16.7x on versions 2, 3, 4 and 5.
+// Versions 2 to 5 cost 1.5x, 3x, 6x and 10x their base model, and on Max effort they add 1.25x, 2x, 2.5x and 3x on top.
+// So Max effort costs about 3.3x a Medium reply on a base model, and 4.2x, 6.7x, 8.3x and 10x on versions 2, 3, 4 and 5.
+// On an X50 session (3,600,000) that is about 160, 50, 20 and 10 Opys Max replies on versions 2, 3, 4 and 5.
 // Versions 4 and 5 are meant to make even an X50 plan think twice: use them only when you really need to.
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3 };
 function messageCost(modelTier, effort) {
@@ -2832,6 +2833,31 @@ app.post('/api/conversations/:charId/sync', requireAuth, async (req, res) => {
   conversations[key] = accepted.slice(-CONV_MAX_MESSAGES);
   persistConv(key);
   res.json({ ok: true });
+});
+
+// Editing one of the AI's own replies. The server only trusts assistant lines it has signed (so nobody can write the AI's side of the
+// chat to get around the rules), which meant an edited reply was dropped on the next sync and the AI never saw the change. An edit now
+// comes through here: the old text must be in this chat, the new text must pass the same safety check as a person's own message, and
+// the new text is signed so it is trusted from then on.
+app.post('/api/conversations/:charId/edit', requireAuth, async (req, res) => {
+  const cid = req.params.charId;
+  if (!VALID_ID.test(cid)) return res.status(400).json({ error: 'Invalid charId' });
+  const from = typeof (req.body && req.body.from) === 'string' ? req.body.from : '';
+  const to = typeof (req.body && req.body.to) === 'string' ? req.body.to.trim() : '';
+  if (!from || !to || to.length > 10000) return res.status(400).json({ error: 'Invalid edit' });
+  if (redactIfUnsafe(to) !== to) return res.status(400).json({ error: 'That edit goes against our Terms of Service.' });
+  if (!(await characterExists(cid))) return res.status(404).json({ error: 'Character not found' });
+  const uid = req.user.googleId;
+  const key = uid + ':' + cid;
+  if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
+  const hist = conversations[key] || [];
+  let at = -1;
+  for (let k = hist.length - 1; k >= 0; k--) { if (hist[k].role === 'assistant' && !hist[k].card && hist[k].content === from) { at = k; break; } }
+  if (at < 0) return res.status(404).json({ error: 'Reply not found' });
+  hist[at].content = to;
+  convLastUsed[key] = Date.now();
+  persistConv(key);
+  res.json({ ok: true, sig: signReply(uid, cid, to) });
 });
 
 app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
