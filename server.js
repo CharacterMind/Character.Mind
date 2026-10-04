@@ -375,8 +375,8 @@ const LIMITS = {
 };
 
 // Token limits per plan. Free and Advanced are set by hand; X20 and X50 are multiples of Advanced.
-const X20_MULT = 3;
-const X50_MULT = 6;
+const X20_MULT = 20;
+const X50_MULT = 50;
 const TIER_TOKEN_LIMITS = {
   free:     { session: 20000, weekly: 100000 },
   advanced: { session: 40000, weekly: 250000 },
