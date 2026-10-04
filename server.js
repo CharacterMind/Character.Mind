@@ -493,7 +493,25 @@ function tokenLimitsFor(u) {
   return TIER_TOKEN_LIMITS[u.subscriptionTier || 'free'] || TIER_TOKEN_LIMITS.free;
 }
 // How fast each model tier burns your token allowance (top tiers cost far more).
-const MODEL_TOKEN_MULT = { opas: 1, opes: 3, opis: 4, opos: 5, opus: 6, opys: 8, opas2: 2, opes2: 6, opis2: 8, opos2: 10, opus2: 12, opys2: 16 };
+// Six model families, each with versions 2, 3, 4 and 5. A higher version thinks harder, writes more, and costs a lot more.
+const BASE_TIERS = ['opas', 'opes', 'opis', 'opos', 'opus', 'opys'];
+const VERSIONS = [2, 3, 4, 5];
+const MODEL_TOKEN_MULT = { opas: 1, opes: 3, opis: 4, opos: 5, opus: 6, opys: 8 };
+for (const b of BASE_TIERS) for (const v of VERSIONS) MODEL_TOKEN_MULT[b + v] = MODEL_TOKEN_MULT[b] * v;
+// What a version costs compared with its base model, and the extra multiplier it adds on Max effort
+const VERSION_FACTOR    = { 2: 1.5, 3: 2.5, 4: 4, 5: 8 };
+const VERSION_MAX_BOOST = { 2: 1.25, 3: 2, 4: 3, 5: 5 };
+// Reply room (relative to the base model) and the most tokens a reply may use, per version
+const VERSION_ROOM = { 2: 1.5, 3: 1.75, 4: 2, 5: 2.25 };
+const VERSION_CAP  = { 2: 2800, 3: 3000, 4: 3200, 5: 3500 };
+// Which plan first unlocks each base model, and the plan ranks
+const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1, opus: 2, opys: 3 };
+const PLAN_RANK = { free: 0, advanced: 1, x20: 2, x50: 3 };
+function tierVersion(t) {
+  const m = /^(opas|opes|opis|opos|opus|opys)([2-5])$/.exec(typeof t === 'string' ? t : '');
+  return m ? { base: m[1], v: Number(m[2]) } : null;
+}
+const isVersionedTier = (t) => !!tierVersion(t);
 // Extra cost for the higher effort levels, on top of the model multiplier (they also write longer replies).
 const EFFORT_TOKEN_MULT = { low: 1, medium: 1, high: 1, extra: 1.5, max: 2 };
 function effortMultFor(effort) { return Object.hasOwn(EFFORT_TOKEN_MULT, effort) ? EFFORT_TOKEN_MULT[effort] : 1; }
@@ -503,30 +521,30 @@ function effortMultFor(effort) { return Object.hasOwn(EFFORT_TOKEN_MULT, effort)
 // Opes costs about 3x Opas at every effort. Higher models are multiples of Opes.
 const OPAS_COST = { low: 220, medium: 350, high: 540, extra: 800, max: 1200 };
 const OPES_COST = { low: 700, medium: 1200, high: 1800, extra: 2600, max: 4000 }; // effort ramps gently: Low 0.6x, Medium 1x, High 1.5x, Extra 2.2x, Max 3.3x a Medium message
-// Low tier: Opas, Opes. Mid tier: Opis (1.5x), Opos (2.5x). High tier: Opus (6x), Opys (15x), Opys 2 (45x = 3x Opys, the most advanced) - these drain even an X50 allowance fast.
-// Every model has a "2" version: smarter (full reasoning, more room per reply, an extra quality instruction, always the
-// strongest model) and priced at 2x to 3x its base model, and Max effort on a "2" model costs 1.25x more again.
-// Every "2" model costs 1.5x its base model. Base models step up gently: Opes 1x, Opis 1.25x, Opos 1.5x, Opus 2x, Opys 3x (of Opes).
-const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3, opes2: 1.5, opis2: 1.875, opos2: 2.25, opus2: 3, opys2: 4.5 };
-const MAX_EFFORT_BOOST_V2 = 1.25;
-const isTwoTier = (t) => typeof t === 'string' && t.length > 1 && t.endsWith('2');
+// Base models step up gently: Opes 1x, Opis 1.25x, Opos 1.5x, Opus 2x, Opys 3x (of Opes).
+// Versions 2 to 5 cost 1.5x, 2.5x, 4x and 8x their base model, and on Max effort they add 1.25x, 2x, 3x and 5x on top.
+// So Max effort costs about 3.3x a Medium reply on a base model, and 4.2x, 6.7x, 10x and 16.7x on versions 2, 3, 4 and 5.
+const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3 };
 function messageCost(modelTier, effort) {
   const e = (typeof effort === 'string' && Object.hasOwn(OPES_COST, effort)) ? effort : 'medium';
-  const boost = (isTwoTier(modelTier) && e === 'max') ? MAX_EFFORT_BOOST_V2 : 1;
-  if (modelTier === 'opas2') return Math.round(OPAS_COST[e] * 1.5 * boost);
+  const tv = tierVersion(modelTier);
+  if (tv) {
+    const mult = VERSION_FACTOR[tv.v] * (e === 'max' ? VERSION_MAX_BOOST[tv.v] : 1);
+    if (tv.base === 'opas') return Math.round(OPAS_COST[e] * mult);
+    return Math.round(OPES_COST[e] * COST_FACTOR_VS_OPES[tv.base] * mult);
+  }
   if (modelTier === 'opas' || !Object.hasOwn(COST_FACTOR_VS_OPES, modelTier)) return OPAS_COST[e];
-  return Math.round(OPES_COST[e] * COST_FACTOR_VS_OPES[modelTier] * boost);
+  return Math.round(OPES_COST[e] * COST_FACTOR_VS_OPES[modelTier]);
 }
 function tokenMultFor(tier) { return Object.hasOwn(MODEL_TOKEN_MULT, tier) ? MODEL_TOKEN_MULT[tier] : MODEL_TOKEN_MULT.opas; }
 
-// Which model tiers each plan may use (matches the plan cards and the model picker):
-// Free = Opas, Opes; Advanced adds Opis, Opos, Opas 2, Opes 2; X20 adds Opus, Opis 2, Opos 2; X50 adds Opys, Opus 2, Opys 2.
-const PLAN_MODEL_TIERS = {
-  free:     ['opas', 'opes'],
-  advanced: ['opas', 'opes', 'opis', 'opos', 'opas2', 'opes2'],
-  x20:      ['opas', 'opes', 'opis', 'opos', 'opus', 'opas2', 'opes2', 'opis2', 'opos2'],
-  x50:      ['opas', 'opes', 'opis', 'opos', 'opus', 'opys', 'opas2', 'opes2', 'opis2', 'opos2', 'opus2', 'opys2'],
-};
+// Which model tiers each plan may use (matches the plan cards and the model picker).
+// A base model needs the plan that unlocks it. Version N needs that plan plus (N - 1) levels, up to X50.
+const PLAN_MODEL_TIERS = {};
+for (const [plan, rank] of Object.entries(PLAN_RANK)) {
+  PLAN_MODEL_TIERS[plan] = BASE_TIERS.filter(b => BASE_PLAN_RANK[b] <= rank);
+  for (const v of VERSIONS) for (const b of BASE_TIERS) if (Math.min(3, BASE_PLAN_RANK[b] + v - 1) <= rank) PLAN_MODEL_TIERS[plan].push(b + v);
+}
 function resolveModelTier(userId, requested) {
   if (typeof requested !== 'string' || !Object.hasOwn(MODEL_TOKEN_MULT, requested)) return 'opas';
   const plan = getLimits(userId).subscriptionTier || 'free';
@@ -674,11 +692,16 @@ const EFFORT_DIRECTIVES = {
   max:    'RESPONSE LENGTH: Write the longest, most elaborate reply you can — 10 to 16 paragraphs. Leave nothing out: every sensation, thought, gesture, line of dialogue and shift in the scene. It should read like a full chapter.',
 };
 
-const OPYS2_DIRECTIVE = 'QUALITY: You are an advanced "version 2" model. Write with exceptional depth and craft: stay perfectly consistent with the character\'s voice, history and the details already established; add layered emotion, subtext and vivid specific detail; move the scene forward with a meaningful choice or twist instead of repeating what was said. Never pad, never repeat earlier phrasing.';
+const OPYS2_DIRECTIVE = 'QUALITY: You are an advanced, higher-version model. Write with exceptional depth and craft: stay perfectly consistent with the character\'s voice, history and the details already established; add layered emotion, subtext and vivid specific detail; move the scene forward with a meaningful choice or twist instead of repeating what was said. Never pad, never repeat earlier phrasing.';
 // Higher models write more: each step up the ladder adds a little more length and detail on top of the effort level.
-const MODEL_DEPTH_RANK = { opas: 0, opes: 0, opis: 1, opos: 2, opus: 3, opys: 4, opas2: 1, opes2: 1, opis2: 2, opos2: 3, opus2: 4, opys2: 5 };
+const BASE_DEPTH_RANK = { opas: 0, opes: 0, opis: 1, opos: 2, opus: 3, opys: 4 };
+function depthRankFor(t) {
+  const tv = tierVersion(t);
+  if (tv) return BASE_DEPTH_RANK[tv.base] + 2 * (tv.v - 1) - 1;   // v2 = base + 1, v3 = base + 3, v4 = base + 5, v5 = base + 7
+  return Object.hasOwn(BASE_DEPTH_RANK, t) ? BASE_DEPTH_RANK[t] : 0;
+}
 function modelDepthNote(modelTier, effort) {
-  const rank = Object.hasOwn(MODEL_DEPTH_RANK, modelTier) ? MODEL_DEPTH_RANK[modelTier] : 0;
+  const rank = depthRankFor(modelTier);
   if (!rank) return '';
   if (effort === 'low' || effort === 'medium') {
     return 'MODEL DEPTH: As a higher-tier model, write about ' + rank + ' more sentence' + (rank > 1 ? 's' : '') + ' than the length above, with extra vivid detail.';
@@ -689,7 +712,7 @@ function modelDepthNote(modelTier, effort) {
 function applyEffortDirective(prompt, effort, modelTier) {
   const directive = (typeof effort === 'string' && Object.hasOwn(EFFORT_DIRECTIVES, effort)) ? EFFORT_DIRECTIVES[effort] : EFFORT_DIRECTIVES['high'];
   const depth = modelDepthNote(modelTier, effort);
-  return prompt + '\n\n' + directive + (depth ? '\n\n' + depth : '') + (isTwoTier(modelTier) ? '\n\n' + OPYS2_DIRECTIVE : '');
+  return prompt + '\n\n' + directive + (depth ? '\n\n' + depth : '') + (isVersionedTier(modelTier) ? '\n\n' + OPYS2_DIRECTIVE : '');
 }
 
 // ── RP quality wrapper injected into every system prompt ─────────────────────
@@ -1384,7 +1407,7 @@ const GROQ_FAST_MODELS  = ['openai/gpt-oss-20b',  'openai/gpt-oss-120b', ...GROQ
 const GROQ_MODELS       = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b',  ...GROQ_FALLBACKS];
 const GROQ_PRO_MODELS   = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b',  ...GROQ_FALLBACKS];
 const GROQ_OPUS_MODELS  = ['openai/gpt-oss-120b', GROQ_FALLBACKS[0]];
-// Every "2" model only ever runs on the strongest model: a 45x price must not quietly be served by a weaker overflow model.
+// Every versioned model (2 to 5) only ever runs on the strongest model: a 45x price must not quietly be served by a weaker overflow model.
 const GROQ_OPYS2_MODELS = ['openai/gpt-oss-120b'];
 
 // Per-tier effort configs — max effort uses highest reasoning + tokens
@@ -1433,7 +1456,7 @@ const EFFORT_CONFIG = {
   },
 };
 
-for (const k of ['opas', 'opes', 'opis', 'opos', 'opus', 'opys']) EFFORT_CONFIG[k + '2'] = EFFORT_CONFIG[k]; // a "2" model starts from its base settings, then gets the upgrades in getEffortCfg
+for (const k of BASE_TIERS) for (const v of VERSIONS) EFFORT_CONFIG[k + v] = EFFORT_CONFIG[k]; // a "2" model starts from its base settings, then gets the upgrades in getEffortCfg
 
 // Groq's free plan allows only 8,000 tokens per minute per model, and a request counts its input PLUS its
 // max_tokens against that. The big caps above could never fit, so Extra/Max always failed. Until the Groq plan
@@ -1441,7 +1464,6 @@ for (const k of ['opas', 'opes', 'opis', 'opos', 'opus', 'opys']) EFFORT_CONFIG[
 // After upgrading Groq, set GROQ_OUTPUT_CAP (e.g. 16000) and GROQ_ALLOW_HIGH_REASONING=1 on Render.
 const GROQ_OUTPUT_CAP = Number(process.env.GROQ_OUTPUT_CAP) || 2200;
 // The model's hidden thinking counts against max_tokens, so a small cap cuts the visible reply off mid-sentence.
-const OPYS2_OUTPUT_CAP = Number(process.env.OPYS2_OUTPUT_CAP) || 2800;
 const GROQ_OUTPUT_MIN = Math.min(1400, GROQ_OUTPUT_CAP);
 // Keeps what we send as chat history small, newest messages first, so one request doesn't eat the whole minute's allowance.
 const HISTORY_CHAR_BUDGET = Number(process.env.HISTORY_CHAR_BUDGET) || 7000;
@@ -1463,12 +1485,12 @@ function getEffortCfg(effort, tier) {
   const t = EFFORT_CONFIG[tier] ? tier : 'opas';
   const cfg = EFFORT_CONFIG[t];
   const base = (typeof effort === 'string' && Object.hasOwn(cfg, effort)) ? cfg[effort] : cfg.medium;
-  // A "2" model gets more room per reply and a notch more reasoning; everything else is held to the free-plan limits.
-  const two = isTwoTier(t);
-  const cap = two ? Math.max(GROQ_OUTPUT_CAP, OPYS2_OUTPUT_CAP) : GROQ_OUTPUT_CAP;
-  const room = Math.max(base.maxOutputTokens, GROQ_OUTPUT_MIN) * (two ? 1.5 : 1); // a "2" model gets 50% more room, up to its cap
+  // A versioned model (2 to 5) gets more room per reply and more reasoning; everything else is held to the free-plan limits.
+  const tv = tierVersion(t);
+  const cap = tv ? Math.max(GROQ_OUTPUT_CAP, VERSION_CAP[tv.v]) : GROQ_OUTPUT_CAP;
+  const room = Math.max(base.maxOutputTokens, GROQ_OUTPUT_MIN) * (tv ? VERSION_ROOM[tv.v] : 1);
   const out = { ...base, maxOutputTokens: Math.min(Math.round(room), cap) };
-  if (two) out.reasoningEffort = ({ low: 'medium', medium: 'high', high: 'high' })[out.reasoningEffort] || out.reasoningEffort;
+  if (tv) out.reasoningEffort = tv.v >= 4 ? 'high' : (({ low: 'medium', medium: 'high', high: 'high' })[out.reasoningEffort] || out.reasoningEffort);
   else if (!GROQ_ALLOW_HIGH_REASONING && out.reasoningEffort === 'high') out.reasoningEffort = 'medium';
   return out;
 }
@@ -1548,7 +1570,7 @@ function aiErrorMessage(err) {
 
 function getModelList(tier) {
   if (tier === 'opis' || tier === 'opos' || tier === 'opus' || tier === 'opys') return GROQ_OPUS_MODELS;
-  if (isTwoTier(tier)) return GROQ_OPYS2_MODELS;
+  if (isVersionedTier(tier)) return GROQ_OPYS2_MODELS;
   if (tier === 'opes') return GROQ_PRO_MODELS;
   return GROQ_FAST_MODELS;
 }

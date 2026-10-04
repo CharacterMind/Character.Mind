@@ -10,9 +10,11 @@ let currentFilter = 'all';
 let lastUserMessage = '';
 // ── Model & Effort state ───────────────────────────────────────────────────────
 const EFFORT_LEVELS = ['low','medium','high','extra','max'];
-const ALL_TIERS = ['opas','opes','opis','opos','opus','opys','opas2','opes2','opis2','opos2','opus2','opys2'];
+const BASE_TIERS = ['opas','opes','opis','opos','opus','opys'];
+const VERSIONS = [2, 3, 4, 5];
+const ALL_TIERS = [...BASE_TIERS, ...VERSIONS.flatMap(v => BASE_TIERS.map(b => b + v))];
 // Models tucked into the "More models" submenu of the picker
-const MORE_MODEL_TIERS = ['opus','opys','opas2','opes2','opis2','opos2','opus2','opys2'];
+const MORE_MODEL_TIERS = ALL_TIERS.filter(t => !['opas', 'opes', 'opis', 'opos'].includes(t));
 // The chosen model and effort are remembered per account (see loadAccountPrefs), never shared between accounts
 let selectedModelTier = 'opas';
 let selectedEffort = 'medium';
@@ -31,27 +33,39 @@ function loadAccountPrefs() {
   updateModelBarLabel();
 }
 
-const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys', opas2:'Opas 2', opes2:'Opes 2', opis2:'Opis 2', opos2:'Opos 2', opus2:'Opus 2', opys2:'Opys 2' };
+const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys' };
+for (const b of BASE_TIERS) for (const v of VERSIONS) MODEL_LABELS[b + v] = MODEL_LABELS[b] + ' ' + v;
 // Must match OPAS_COST / OPES_COST / COST_FACTOR_VS_OPES in server.js — what one reply costs from the allowance.
 const OPAS_COST = { low: 220, medium: 350, high: 540, extra: 800, max: 1200 };
 const OPES_COST = { low: 700, medium: 1200, high: 1800, extra: 2600, max: 4000 };
-const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3, opes2: 1.5, opis2: 1.875, opos2: 2.25, opus2: 3, opys2: 4.5 };
-const MAX_EFFORT_BOOST_V2 = 1.25; // Max effort on a "2" model costs this much more again
+const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3 };
+// Must match the server: versions 2 to 5 cost 1.5x, 2.5x, 4x and 8x their base model, with an extra 1.25x, 2x, 3x and 5x on Max effort
+const VERSION_FACTOR = { 2: 1.5, 3: 2.5, 4: 4, 5: 8 };
+const VERSION_MAX_BOOST = { 2: 1.25, 3: 2, 4: 3, 5: 5 };
+const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1, opus: 2, opys: 3 };
+const PLAN_RANK = { free: 0, advanced: 1, x20: 2, x50: 3 };
+function tierVersion(t) {
+  const m = /^(opas|opes|opis|opos|opus|opys)([2-5])$/.exec(typeof t === 'string' ? t : '');
+  return m ? { base: m[1], v: Number(m[2]) } : null;
+}
 function clientMessageCost(tier, effort) {
-  const boost = (/2$/.test(tier) && effort === 'max') ? MAX_EFFORT_BOOST_V2 : 1;
-  if (tier === 'opas2') return Math.round(OPAS_COST[effort] * 1.5 * boost);
+  const tv = tierVersion(tier);
+  if (tv) {
+    const mult = VERSION_FACTOR[tv.v] * (effort === 'max' ? VERSION_MAX_BOOST[tv.v] : 1);
+    if (tv.base === 'opas') return Math.round(OPAS_COST[effort] * mult);
+    return Math.round(OPES_COST[effort] * COST_FACTOR_VS_OPES[tv.base] * mult);
+  }
   if (tier === 'opas' || !(tier in COST_FACTOR_VS_OPES)) return OPAS_COST[effort];
-  return Math.round(OPES_COST[effort] * COST_FACTOR_VS_OPES[tier] * boost);
+  return Math.round(OPES_COST[effort] * COST_FACTOR_VS_OPES[tier]);
 }
 // Roughly how many visible characters a full reply has at each effort (used to ramp the live counter up to the cost)
 const EXPECTED_REPLY_CHARS = { low: 250, medium: 500, high: 1200, extra: 2500, max: 4000 };
 // Model tiers each plan may use — must match PLAN_MODEL_TIERS in server.js.
-const PLAN_MODEL_TIERS = {
-  free:     ['opas', 'opes'],
-  advanced: ['opas', 'opes', 'opis', 'opos', 'opas2', 'opes2'],
-  x20:      ['opas', 'opes', 'opis', 'opos', 'opus', 'opas2', 'opes2', 'opis2', 'opos2'],
-  x50:      ['opas', 'opes', 'opis', 'opos', 'opus', 'opys', 'opas2', 'opes2', 'opis2', 'opos2', 'opus2', 'opys2'],
-};
+const PLAN_MODEL_TIERS = {};
+for (const [plan, rank] of Object.entries(PLAN_RANK)) {
+  PLAN_MODEL_TIERS[plan] = BASE_TIERS.filter(b => BASE_PLAN_RANK[b] <= rank);
+  for (const v of VERSIONS) for (const b of BASE_TIERS) if (Math.min(3, BASE_PLAN_RANK[b] + v - 1) <= rank) PLAN_MODEL_TIERS[plan].push(b + v);
+}
 // The total cost of the reply being written, and how much of it to show so far (ramps up as the text types)
 function liveReplyCost() {
   let tier = callModeActive ? 'opas' : selectedModelTier;
@@ -67,7 +81,12 @@ function liveCostSoFar(chars) {
 const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', max:'Max' };
 
 // Token usage multiplier shown on Max effort warning per tier
-const MAX_EFFORT_MULTIPLIERS = { opas:'3.3×', opes:'3.3×', opis:'3.3×', opos:'3.3×', opus:'3.3×', opys:'3.3×', opas2:'4.2×', opes2:'4.2×', opis2:'4.2×', opos2:'4.2×', opus2:'4.2×', opys2:'4.2×' };
+const MAX_EFFORT_MULTIPLIERS = {};
+{ // Max effort vs Medium: 3.3x on a base model, then 4.2x, 6.7x, 10x and 16.7x on versions 2 to 5
+  const baseRatio = OPES_COST.max / OPES_COST.medium;
+  const fmt = (x) => (Math.round(x * 10) / 10) + '×';
+  for (const b of BASE_TIERS) { MAX_EFFORT_MULTIPLIERS[b] = fmt(baseRatio); for (const v of VERSIONS) MAX_EFFORT_MULTIPLIERS[b + v] = fmt(baseRatio * VERSION_MAX_BOOST[v]); }
+}
 
 function currentPlanKey() {
   return (typeof lastKnownUsage !== 'undefined' && lastKnownUsage && lastKnownUsage.subscriptionTier) || 'free';
@@ -102,12 +121,15 @@ const MODEL_ICONS = {
   opus: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
   opys: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
   opys2: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
+  opas3: '', opes3: '', opis3: '', opos3: '', opus3: '', opys3: '', opas4: '', opes4: '', opis4: '', opos4: '', opus4: '', opys4: '', opas5: '', opes5: '', opis5: '', opos5: '', opus5: '', opys5: '',
   opas2: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
   opes2: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
   opis2: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
   opos2: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
   opus2: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
 };
+
+for (const k of Object.keys(MODEL_ICONS)) if (!MODEL_ICONS[k]) MODEL_ICONS[k] = MODEL_ICONS.opys;
 
 function updateModelBarLabel() {
   const modelEl = document.getElementById('mbModelLabel');
@@ -160,17 +182,17 @@ const PLAN_DATA = [
   {
     key: 'advanced', name: 'Advanced', monthly: 4.99, annual: 44.99,
     callsPerDay: 5, memosPerDay: 50,
-    features: ['Opis, Opos, Opas 2 & Opes 2 models unlocked', 'Everything in Free'],
+    features: ['Opis & Opos models', 'Opas 2 & Opes 2', 'Everything in Free'],
   },
   {
     key: 'x20', name: 'X20', badge: 'Recommended', monthly: 12.99, annual: 109.99,
     callsPerDay: 100, memosPerDay: 1000,
-    features: ['Opus, Opis 2 & Opos 2 models unlocked', 'Everything in Advanced'],
+    features: ['Opus model', 'Opis 2, Opos 2, Opas 3 & Opes 3', 'Everything in Advanced'],
   },
   {
     key: 'x50', name: 'X50', badge: 'Best Value', monthly: 24.99, annual: 199.99,
     callsPerDay: 250, memosPerDay: 2500,
-    features: ['Opys, Opus 2 & Opys 2 models unlocked', 'Everything in X20'],
+    features: ['Opys model', 'Every Version 2 to 5 model', 'Everything in X20'],
   },
 ];
 
