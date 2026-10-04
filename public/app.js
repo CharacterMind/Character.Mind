@@ -1545,7 +1545,8 @@ function saveHistoryLocal() {
       ? { role: 'ai', content: '', card: 'nsfw', variant: Number(el.dataset.nsfwVariant) || 0 }
       : {
           role: el.classList.contains('user') ? 'user' : 'ai',
-          content: bubbleToRaw(el.querySelector('.bubble'))
+          content: bubbleToRaw(el.querySelector('.bubble')),
+          ...(el.dataset.sig ? { sig: el.dataset.sig } : {})
         }).filter(m => (m.content || m.card) && !(m.role === 'ai' && /^\s*⚠️/.test(m.content)));
     const all = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}');
     all[currentChar.id] = items.slice(-150);
@@ -1786,7 +1787,7 @@ async function generateGreeting() {
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = '', streamText = '', streamRealTokens = null, pendingUsage = null, pendingWarnings = null, streamCharCount = 0;
+    let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, pendingWarnings = null, streamCharCount = 0;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -1798,7 +1799,7 @@ async function generateGreeting() {
         if (!line.startsWith('data: ')) continue;
         const data = JSON.parse(line.slice(6));
         if (data.error) throw new Error(data.error);
-        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
+        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
         if (data.text) {
           if (!gotFirst) {
             gotFirst = true;
@@ -1817,6 +1818,7 @@ async function generateGreeting() {
       }
     }
     drainTypewriter(() => {
+      if (msgEl && streamSig) msgEl.dataset.sig = streamSig;
       if (msgEl) stopStreamStats(msgEl, streamRealTokens);
       isStreaming = false;
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
@@ -1961,7 +1963,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
     let msgEl = null, bubble = null, gotFirst = false;
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = '', streamText = '', streamRealTokens = null, pendingUsage = null, pendingWarnings = null, streamCharCount = 0;
+    let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, pendingWarnings = null, streamCharCount = 0;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -1991,7 +1993,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
           }
           break;
         }
-        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
+        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
         if (data.text) {
           if (!gotFirst) {
             gotFirst = true;
@@ -2012,6 +2014,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
     }
     clearTimeout(streamTimeout);
     drainTypewriter(() => {
+      if (msgEl && streamSig) msgEl.dataset.sig = streamSig;
       if (msgEl) stopStreamStats(msgEl, streamRealTokens);
       isStreaming = false;
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
@@ -3094,7 +3097,8 @@ function appendNsfwCard(variant) {
 function appendHistoryItem(m) {
   if (m && m.card === 'nsfw') { appendNsfwCard(m.variant); return; }
   const isAi = m.role === 'assistant' || m.role === 'ai';
-  appendMessage(isAi ? 'ai' : 'user', m.content);
+  const el = appendMessage(isAi ? 'ai' : 'user', m.content);
+  if (isAi && m.sig && el) el.dataset.sig = m.sig;
 }
 
 function appendMessage(role, text, imgB64) {
@@ -3670,7 +3674,8 @@ function resumePastChat(msgs) {
     ? { role: 'ai', content: '', card: 'nsfw', variant: m.variant }
     : {
         role: (m.role === 'assistant' || m.role === 'ai') ? 'ai' : 'user',
-        content: m.content
+        content: m.content,
+        ...(m.sig ? { sig: m.sig } : {})
       });
   try { localStorage.setItem(userKey(`cm_history_${currentChar.id}`), JSON.stringify(normalized)); } catch (_) {}
   closeHistoryPanel();
@@ -4306,7 +4311,7 @@ async function regenerate() {
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = '', streamRealTokens = null, pendingUsage = null, pendingWarnings = null, streamCharCount = 0;
+    let buffer = '', streamRealTokens = null, streamSig = null, pendingUsage = null, pendingWarnings = null, streamCharCount = 0;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -4318,7 +4323,7 @@ async function regenerate() {
         if (!line.startsWith('data: ')) continue;
         const data = JSON.parse(line.slice(6));
         if (data.error) throw new Error(data.error);
-        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
+        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
         if (data.text) {
           streamText += data.text;
           feedTypewriter(data.text);
@@ -4329,6 +4334,7 @@ async function regenerate() {
     }
 
     drainTypewriter(() => {
+      if (msgEl && streamSig) msgEl.dataset.sig = streamSig;
       stopStreamStats(msgEl, streamRealTokens);
       isStreaming = false;
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';

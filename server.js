@@ -1055,7 +1055,7 @@ async function setModStatus(userId, charId, strikes, locked) {
 const SLUR_WARNING_1 = "Nope — that word doesn't fly here. Keep it out. [⚠ Strike 1 of 3 — three strikes ends this chat]";
 const SLUR_WARNING_2 = "Still a hard no on that. Last warning. [⚠ Strike 2 of 3 — one more and this chat is over]";
 
-function slurDeflect(res, warning, usage) {
+function slurDeflect(res, warning, usage, sig) {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -1065,7 +1065,7 @@ function slurDeflect(res, warning, usage) {
   words.forEach((w, i) => {
     res.write(`data: ${JSON.stringify({ text: (i === 0 ? '' : ' ') + w })}\n\n`);
   });
-  res.write(`data: ${JSON.stringify({ done: true, usage: usage || {}, responseTokens: 0, warnings: (usage && usage.warnings) || [] })}\n\n`);
+  res.write(`data: ${JSON.stringify({ done: true, usage: usage || {}, responseTokens: 0, warnings: (usage && usage.warnings) || [], ...(sig ? { sig } : {}) })}\n\n`);
   res.end();
 }
 
@@ -1389,12 +1389,22 @@ function getEffortCfg(effort, tier) {
   return out;
 }
 
+// Every AI reply the server writes is signed, so a chat synced back from a browser can't smuggle in
+// fake "assistant" lines. The signature covers the account, the character and the exact text.
+const REPLY_SIGN_KEY = process.env.REPLY_SIGN_KEY || process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+function signReply(userId, charId, content) {
+  return crypto.createHmac('sha256', REPLY_SIGN_KEY).update(userId + '|' + charId + '|' + content).digest('base64url').slice(0, 24);
+}
+function withSigs(userId, charId, msgs) {
+  return (Array.isArray(msgs) ? msgs : []).map(m => (m && m.role === 'assistant' && !m.card && m.content) ? { ...m, sig: signReply(userId, charId, m.content) } : m);
+}
+
 // Streams one AI reply to the client with all the safety plumbing in one place:
 // reserves the cost up front (so parallel requests can't overshoot), refunds it if the reply fails or is empty,
 // stops the upstream request if the client leaves, swaps a bare canned refusal for an explanation, and never
 // lets an exception leave the response hanging.
 function startReplyStream(o) {
-  const { res, apiKey, system, messages, effortCfg, modelList, userId, modelTier, effort, releaseSlot, onComplete, onFail, logLabel } = o;
+  const { res, apiKey, system, messages, effortCfg, modelList, userId, charId, modelTier, effort, releaseSlot, onComplete, onFail, logLabel } = o;
   const ctx = { aborted: false, req: null };
   res.on('close', () => {
     if (!res.writableEnded) { ctx.aborted = true; if (ctx.req) ctx.req.destroy(new Error('client aborted')); }
@@ -1436,7 +1446,7 @@ function startReplyStream(o) {
         }
         onComplete(fullResponse);
         const usage = Object.assign({}, buildUsagePayload(getLimits(userId), userId));
-        send({ done: true, usage, responseTokens: cost, warnings: reservation.warnings });
+        send({ done: true, usage, responseTokens: cost, warnings: reservation.warnings, sig: signReply(userId, charId, fullResponse) });
         close();
       } catch (e) { finished = false; fail(e); }
     },
@@ -1806,7 +1816,7 @@ app.get('/api/conversations/:charId/history/:archiveId', requireAuth, async (req
     [parseInt(archiveId), uid, charId]
   ).catch(() => ({ rows: [] }));
   if (!result.rows[0]) return res.status(404).json({ error: 'Not found' });
-  res.json(result.rows[0]);
+  res.json({ ...result.rows[0], messages: withSigs(uid, charId, result.rows[0].messages) });
 });
 
 // Delete one archived conversation
@@ -2199,7 +2209,7 @@ app.get('/api/conversations/:charId', requireAuth, async (req, res) => {
   if (!(await characterExists(req.params.charId))) return res.json([]);
   const key = `${req.user.googleId}:${req.params.charId}`;
   if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
-  res.json(conversations[key] || []);
+  res.json(withSigs(req.user.googleId, req.params.charId, conversations[key] || []));
 });
 
 app.delete('/api/conversations/:charId', requireAuth, async (req, res) => {
@@ -2223,12 +2233,30 @@ app.post('/api/conversations/:charId/sync', requireAuth, async (req, res) => {
     return res.status(429).json({ error: 'Too many active conversations' });
   }
   convLastUsed[key] = Date.now();
-  conversations[key] = history.map(m => (m && m.card === 'nsfw')
-    ? { role: 'assistant', content: '', card: 'nsfw', variant: (Number.isInteger(m.variant) && m.variant >= 0 && m.variant < NSFW_CARD_VARIANTS) ? m.variant : 0 }
-    : {
-        role: m && m.role === 'user' ? 'user' : 'assistant',
-        content: (m && m.role === 'user') ? redactIfUnsafe(String((m && m.content) || '').slice(0, 10000)) : String((m && m.content) || '').slice(0, 10000)
-      }).filter(m => m.card || m.content).slice(-CONV_MAX_MESSAGES);
+  if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
+  const uid = req.user.googleId, cid = req.params.charId;
+  // Assistant lines are accepted only if they are signed by this server, already in this chat, or the character's greeting
+  const knownAssistant = new Set((conversations[key] || []).filter(m => m.role === 'assistant' && m.content).map(m => m.content));
+  let greetingText = '';
+  try { const dc = await getCharPrompt(cid); greetingText = (dc && dc.greeting) || ''; }
+  catch (_) { return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' }); }
+  const accepted = [];
+  for (const m of history) {
+    if (m && m.card === 'nsfw') {
+      accepted.push({ role: 'assistant', content: '', card: 'nsfw', variant: (Number.isInteger(m.variant) && m.variant >= 0 && m.variant < NSFW_CARD_VARIANTS) ? m.variant : 0 });
+      continue;
+    }
+    const role = (m && m.role === 'user') ? 'user' : 'assistant';
+    let content = String((m && m.content) || '').slice(0, 10000);
+    if (!content) continue;
+    if (role === 'user') content = redactIfUnsafe(content);
+    else {
+      const verified = (typeof m.sig === 'string' && m.sig === signReply(uid, cid, content)) || knownAssistant.has(content) || (greetingText && content === greetingText);
+      if (!verified) continue;
+    }
+    accepted.push({ role, content });
+  }
+  conversations[key] = accepted.slice(-CONV_MAX_MESSAGES);
   persistConv(key);
   res.json({ ok: true });
 });
@@ -2301,7 +2329,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
     res, apiKey,
     system: applyEffortDirective(wrapPrompt(systemPrompt), effort),
     messages: aiHistory(hist).slice(-12), effortCfg: regenEffortCfg, modelList: regenModelList,
-    userId, modelTier, effort, releaseSlot,
+    userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => {
       hist.push({ role: 'assistant', content: text }); persistConv(key);
       u.regenCount = (u.regenCount || 0) + 1; saveLimitsToDB(userId);
@@ -2404,7 +2432,7 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
     res, apiKey,
     system: applyEffortDirective(wrapPrompt(systemPrompt), effort),
     messages: trigger, effortCfg: greetEffortCfg, modelList: greetModelList,
-    userId, modelTier, effort, releaseSlot,
+    userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => { conversations[key].push({ role: 'assistant', content: text }); persistConv(key); },
     logLabel: 'Greet'
   });
@@ -2552,7 +2580,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     conversations[key].push({ role: 'user', content: redactIfUnsafe(message) }, { role: 'assistant', content: explanation });
     persistConv(key);
     const usage = addTokens(userId, Math.round(explanation.length / 3.5));
-    return slurDeflect(res, explanation, usage);
+    return slurDeflect(res, explanation, usage, signReply(userId, charId, explanation));
   }
 
   // ── Asked for the Terms of Service and/or Privacy Policy — reply with clickable links ──
@@ -2562,7 +2590,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       conversations[key].push({ role: 'user', content: message }, { role: 'assistant', content: docsReply });
       persistConv(key);
       const usage = addTokens(userId, Math.round(docsReply.length / 3.5));
-      return slurDeflect(res, docsReply, usage);
+      return slurDeflect(res, docsReply, usage, signReply(userId, charId, docsReply));
     }
   }
 
@@ -2624,7 +2652,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   startReplyStream({
     res, apiKey,
     system: applyEffortDirective(wrapPrompt(char.systemPrompt) + crisisContext + callModeDirective, effort),
-    messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot,
+    messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => { conversations[key].push({ role: 'assistant', content: text }); persistConv(key); },
     logLabel: 'Chat'
   });
