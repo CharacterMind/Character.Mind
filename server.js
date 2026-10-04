@@ -225,6 +225,8 @@ app.use(['/api/chat', '/api/regenerate', '/api/greet'], chatBurstLimiter);
 const webhookLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => ipKeyGenerator(visitorIp(req)) });
 const paypalVerifyLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 15, standardHeaders: true, legacyHeaders: false, keyGenerator: perUserKey, message: { error: 'Too many attempts. Please try again later.' } });
 const charWriteLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false, keyGenerator: perUserKey, message: { error: 'Too many character changes. Please try again later.' } });
+// Pictures are cheap and a page of characters loads dozens at once, so they get a much higher allowance than the list itself
+const charImageLimiter = rateLimit({ windowMs: 60 * 1000, max: 2000, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => ipKeyGenerator(visitorIp(req)) });
 const charReadLimiter = rateLimit({ windowMs: 60 * 1000, max: 240, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => ipKeyGenerator(visitorIp(req)) });
 const convLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false, keyGenerator: perUserKey, message: { error: 'Too many requests. Please slow down.' } });
 app.use('/api/webhooks/paypal', webhookLimiter);
@@ -2152,7 +2154,7 @@ app.get('/api/characters', charReadLimiter, async (req, res) => {
 });
 
 // Character picture as a real image (cacheable), instead of a huge base64 string inside the character list
-app.get('/api/characters/:id/image', charReadLimiter, async (req, res) => {
+app.get('/api/characters/:id/image', charImageLimiter, async (req, res) => {
   if (!VALID_ID.test(req.params.id)) return res.status(400).end();
   if (!db) return res.status(404).end();
   try {
