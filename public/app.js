@@ -3579,6 +3579,48 @@ function callModeTTS(bubble) {
   resetCallInactivityTimer();
   setCallState('responding');
   window.speechSynthesis.cancel();
+  stopCallAudio();
+  if (elevenTTSOk) { callModeElevenTTS(text); return; }
+  callModeBrowserTTS(text);
+}
+
+let elevenTTSOk = true;
+let callAudio = null;
+
+function stopCallAudio() {
+  if (callAudio) { try { callAudio.pause(); } catch (_) {} callAudio = null; }
+}
+
+async function callModeElevenTTS(text) {
+  try {
+    const r = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, charId: currentChar?.id })
+    });
+    if (!r.ok) {
+      if (r.status === 501) elevenTTSOk = false;
+      throw new Error('tts ' + r.status);
+    }
+    const blob = await r.blob();
+    if (!callModeActive) return;
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    callAudio = audio;
+    const finish = () => {
+      URL.revokeObjectURL(url);
+      if (callAudio === audio) callAudio = null;
+      if (callModeActive) listenForSpeech();
+    };
+    audio.onended = finish;
+    audio.onerror = finish;
+    await audio.play();
+  } catch (_) {
+    if (callModeActive) callModeBrowserTTS(text);
+  }
+}
+
+function callModeBrowserTTS(text) {
   const utterance = new SpeechSynthesisUtterance(text);
   applyVoice(utterance);
   let done = false;
@@ -3799,6 +3841,7 @@ function endCallMode() {
   callStarting = false;
   callMuted = false;
   clearCallInactivityTimer();
+  stopCallAudio();
   if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
   if (activeTTSUtterance) { window.speechSynthesis.cancel(); if (activeTTSBtn) activeTTSBtn.classList.remove('playing'); activeTTSUtterance = null; activeTTSBtn = null; }
   document.getElementById('callBtn')?.classList.remove('active');
@@ -3847,6 +3890,7 @@ function toggleCallMute() {
 
 function interruptCall() {
   window.speechSynthesis.cancel();
+  if (callAudio) { const a = callAudio; stopCallAudio(); a.onended && a.onended(); return; }
   activeTTSUtterance = null;
   if (callModeActive) listenForSpeech();
 }

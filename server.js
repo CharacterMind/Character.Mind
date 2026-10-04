@@ -1176,6 +1176,52 @@ app.post('/api/call/start', requireAuth, (req, res) => {
   res.json({ allowed: true, callsToday: u.callsToday, callsLimit: callLimit === Infinity ? 9999 : callLimit, callsRemaining: remaining, resetsAt });
 });
 
+const ELEVEN_KEY = process.env.ELEVENLABS_API_KEY || '';
+const ELEVEN_DEFAULT_VOICE = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM';
+let ELEVEN_VOICE_MAP = {
+  custom_1790776698867: 'EXAVITQu4vr4xnSDxMaL',      // Poppy — Sarah: soft, gentle, doll-like
+  custom_1790897425575_lily: 'cgSgspJ2msm6clMCkdW9'  // Lily — Jessica: bright, playful, expressive
+};
+try { Object.assign(ELEVEN_VOICE_MAP, JSON.parse(process.env.ELEVENLABS_VOICES || '{}')); } catch (_) {}
+const TTS_DAILY_CHARS = 2000;
+const ttsUsage = new Map();
+
+app.get('/api/tts/status', requireAuth, (req, res) => res.json({ enabled: !!ELEVEN_KEY }));
+
+app.post('/api/tts', requireAuth, async (req, res) => {
+  if (!ELEVEN_KEY) return res.status(501).json({ error: 'tts_disabled' });
+  const text = String(req.body?.text || '').replace(/[*_`#]/g, '').trim().slice(0, 400);
+  const charId = String(req.body?.charId || '');
+  if (!text) return res.status(400).json({ error: 'no_text' });
+
+  const userId = req.user.googleId;
+  const day = new Date().toISOString().slice(0, 10);
+  let use = ttsUsage.get(userId);
+  if (!use || use.day !== day) use = { day, chars: 0 };
+  if (use.chars + text.length > TTS_DAILY_CHARS) return res.status(429).json({ error: 'tts_limit' });
+  use.chars += text.length;
+  ttsUsage.set(userId, use);
+
+  const voiceId = (VALID_ID.test(charId) && ELEVEN_VOICE_MAP[charId]) || ELEVEN_DEFAULT_VOICE;
+  try {
+    const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}/stream?output_format=mp3_44100_64`, {
+      method: 'POST',
+      headers: { 'xi-api-key': ELEVEN_KEY, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
+      body: JSON.stringify({ text, model_id: 'eleven_flash_v2_5' })
+    });
+    if (!r.ok || !r.body) {
+      console.warn('[tts] ElevenLabs error', r.status);
+      return res.status(502).json({ error: 'tts_failed' });
+    }
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(Buffer.from(await r.arrayBuffer()));
+  } catch (e) {
+    console.warn('[tts] request failed', e.message);
+    res.status(502).json({ error: 'tts_failed' });
+  }
+});
+
 app.post('/api/memo/use', requireAuth, (req, res) => {
   const userId = req.user.googleId;
   const u = getLimits(userId);
