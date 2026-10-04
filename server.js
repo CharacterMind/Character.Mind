@@ -166,8 +166,11 @@ app.use((req, res, next) => {
 
 // Rate-limit OAuth entry point to prevent abuse
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
-const perUserKey = (req) => req.user?.googleId || ipKeyGenerator(req.ip);
-const authLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
+// Behind Cloudflare the real visitor address arrives in CF-Connecting-IP (Cloudflare sets it itself). Without it, req.ip can be a
+// Cloudflare address shared by thousands of visitors, which would make per-address limits block real people.
+const visitorIp = (req) => { const h = req.headers['cf-connecting-ip']; return (typeof h === 'string' && /^[0-9a-fA-F:.]{3,45}$/.test(h)) ? h : req.ip; };
+const perUserKey = (req) => req.user?.googleId || ipKeyGenerator(visitorIp(req));
+const authLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => ipKeyGenerator(visitorIp(req)) });
 app.use('/auth/google', authLimiter);
 const resetModLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false, keyGenerator: perUserKey });
 // Cheap protection for the endpoints that cost AI or outside-API calls
@@ -219,10 +222,10 @@ app.use('/api/chat/reset-mod', resetModLimiter);
 app.use('/api/generate-persona', personaLimiter);
 app.use('/api/crisis-resources', geoLimiter);
 app.use(['/api/chat', '/api/regenerate', '/api/greet'], chatBurstLimiter);
-const webhookLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => ipKeyGenerator(req.ip) });
+const webhookLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => ipKeyGenerator(visitorIp(req)) });
 const paypalVerifyLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 15, standardHeaders: true, legacyHeaders: false, keyGenerator: perUserKey, message: { error: 'Too many attempts. Please try again later.' } });
 const charWriteLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false, keyGenerator: perUserKey, message: { error: 'Too many character changes. Please try again later.' } });
-const charReadLimiter = rateLimit({ windowMs: 60 * 1000, max: 240, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => ipKeyGenerator(req.ip) });
+const charReadLimiter = rateLimit({ windowMs: 60 * 1000, max: 240, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => ipKeyGenerator(visitorIp(req)) });
 const convLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false, keyGenerator: perUserKey, message: { error: 'Too many requests. Please slow down.' } });
 app.use('/api/webhooks/paypal', webhookLimiter);
 app.use('/api/conversations', convLimiter);
@@ -496,19 +499,19 @@ function effortMultFor(effort) { return Object.hasOwn(EFFORT_TOKEN_MULT, effort)
 // What ONE reply costs from the allowance, by model and effort. Fixed per message (not the AI's raw token
 // count, which swings a lot because of hidden thinking), so message counts are predictable.
 // Opes costs about 3x Opas at every effort. Higher models are multiples of Opes.
-const OPAS_COST = { low: 220, medium: 350, high: 650, extra: 1300, max: 5200 };
-const OPES_COST = { low: 700, medium: 1200, high: 2000, extra: 4000, max: 16000 }; // Max is deliberately extreme: about 13x a Medium message
+const OPAS_COST = { low: 220, medium: 350, high: 540, extra: 800, max: 1200 };
+const OPES_COST = { low: 700, medium: 1200, high: 1800, extra: 2600, max: 4000 }; // effort ramps gently: Low 0.6x, Medium 1x, High 1.5x, Extra 2.2x, Max 3.3x a Medium message
 // Low tier: Opas, Opes. Mid tier: Opis (1.5x), Opos (2.5x). High tier: Opus (6x), Opys (15x), Opys 2 (45x = 3x Opys, the most advanced) - these drain even an X50 allowance fast.
 // Every model has a "2" version: smarter (full reasoning, more room per reply, an extra quality instruction, always the
-// strongest model) and priced at 2x to 3x its base model, and Max effort on a "2" model costs 1.5x more again.
-// Opas 2 = 2x Opas; Opes 2 = 2x Opes; Opis 2 = 2.5x Opis; Opos 2 = 2.5x Opos; Opus 2 = 3x Opus; Opys 2 = 3x Opys.
-const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.5, opos: 2.5, opus: 6, opys: 15, opes2: 2, opis2: 3.75, opos2: 6.25, opus2: 18, opys2: 45 };
-const MAX_EFFORT_BOOST_V2 = 1.5;
+// strongest model) and priced at 2x to 3x its base model, and Max effort on a "2" model costs 1.25x more again.
+// Every "2" model costs 1.5x its base model. Base models step up gently: Opes 1x, Opis 1.25x, Opos 1.5x, Opus 2x, Opys 3x (of Opes).
+const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3, opes2: 1.5, opis2: 1.875, opos2: 2.25, opus2: 3, opys2: 4.5 };
+const MAX_EFFORT_BOOST_V2 = 1.25;
 const isTwoTier = (t) => typeof t === 'string' && t.length > 1 && t.endsWith('2');
 function messageCost(modelTier, effort) {
   const e = (typeof effort === 'string' && Object.hasOwn(OPES_COST, effort)) ? effort : 'medium';
   const boost = (isTwoTier(modelTier) && e === 'max') ? MAX_EFFORT_BOOST_V2 : 1;
-  if (modelTier === 'opas2') return Math.round(OPAS_COST[e] * 2 * boost);
+  if (modelTier === 'opas2') return Math.round(OPAS_COST[e] * 1.5 * boost);
   if (modelTier === 'opas' || !Object.hasOwn(COST_FACTOR_VS_OPES, modelTier)) return OPAS_COST[e];
   return Math.round(OPES_COST[e] * COST_FACTOR_VS_OPES[modelTier] * boost);
 }
@@ -1802,7 +1805,7 @@ async function crisisResourcesHandler(req, res) {
   if (!isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
     geo = await reverseGeocode(lat, lon);
   }
-  if (!geo) geo = await getGeoForIp(req.ip);
+  if (!geo) geo = await getGeoForIp(visitorIp(req));
   const info = getCrisisInfo(geo);
   const locationStr = geo ? [geo.city, geo.regionName, geo.countryName].filter(Boolean).join(', ') : null;
   if (!info) return res.json({ location: locationStr, resources: null });
@@ -2838,7 +2841,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   // ── Crisis keyword detection ───────────────────────────────────────────────
   let crisisContext = '';
   if (!isContinuation && message && CRISIS_RE.test(msgNorm)) {
-    const clientIp = req.ip;
+    const clientIp = visitorIp(req);
     const geo = await getGeoForIp(clientIp);
     const info = getCrisisInfo(geo);
     if (info) {
@@ -3331,6 +3334,9 @@ app.post('/api/webhooks/paypal', async (req, res) => {
 
 app.get('/terms', (req, res) => res.sendFile(path.join(__dirname, 'public', 'terms.html')));
 app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy.html')));
+
+// A mistyped API address should say so, not answer with the home page
+app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

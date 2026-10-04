@@ -33,13 +33,13 @@ function loadAccountPrefs() {
 
 const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys', opas2:'Opas 2', opes2:'Opes 2', opis2:'Opis 2', opos2:'Opos 2', opus2:'Opus 2', opys2:'Opys 2' };
 // Must match OPAS_COST / OPES_COST / COST_FACTOR_VS_OPES in server.js — what one reply costs from the allowance.
-const OPAS_COST = { low: 220, medium: 350, high: 650, extra: 1300, max: 5200 };
-const OPES_COST = { low: 700, medium: 1200, high: 2000, extra: 4000, max: 16000 };
-const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.5, opos: 2.5, opus: 6, opys: 15, opes2: 2, opis2: 3.75, opos2: 6.25, opus2: 18, opys2: 45 };
-const MAX_EFFORT_BOOST_V2 = 1.5; // Max effort on a "2" model costs this much more again
+const OPAS_COST = { low: 220, medium: 350, high: 540, extra: 800, max: 1200 };
+const OPES_COST = { low: 700, medium: 1200, high: 1800, extra: 2600, max: 4000 };
+const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3, opes2: 1.5, opis2: 1.875, opos2: 2.25, opus2: 3, opys2: 4.5 };
+const MAX_EFFORT_BOOST_V2 = 1.25; // Max effort on a "2" model costs this much more again
 function clientMessageCost(tier, effort) {
   const boost = (/2$/.test(tier) && effort === 'max') ? MAX_EFFORT_BOOST_V2 : 1;
-  if (tier === 'opas2') return Math.round(OPAS_COST[effort] * 2 * boost);
+  if (tier === 'opas2') return Math.round(OPAS_COST[effort] * 1.5 * boost);
   if (tier === 'opas' || !(tier in COST_FACTOR_VS_OPES)) return OPAS_COST[effort];
   return Math.round(OPES_COST[effort] * COST_FACTOR_VS_OPES[tier] * boost);
 }
@@ -67,7 +67,7 @@ function liveCostSoFar(chars) {
 const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', max:'Max' };
 
 // Token usage multiplier shown on Max effort warning per tier
-const MAX_EFFORT_MULTIPLIERS = { opas:'13×', opes:'13×', opis:'13×', opos:'13×', opus:'13×', opys:'13×', opas2:'20×', opes2:'20×', opis2:'20×', opos2:'20×', opus2:'20×', opys2:'20×' };
+const MAX_EFFORT_MULTIPLIERS = { opas:'3.3×', opes:'3.3×', opis:'3.3×', opos:'3.3×', opus:'3.3×', opys:'3.3×', opas2:'4.2×', opes2:'4.2×', opis2:'4.2×', opos2:'4.2×', opus2:'4.2×', opys2:'4.2×' };
 
 function currentPlanKey() {
   return (typeof lastKnownUsage !== 'undefined' && lastKnownUsage && lastKnownUsage.subscriptionTier) || 'free';
@@ -133,7 +133,7 @@ function updateModelBarLabel() {
     if (el) el.classList.toggle('active', e === selectedEffort);
   });
   const maxWarn = document.getElementById('effortMaxWarn');
-  if (maxWarn) maxWarn.textContent = '⚠ ' + (MAX_EFFORT_MULTIPLIERS[selectedModelTier] || '13×') + ' or more usage';
+  if (maxWarn) maxWarn.textContent = '⚠ ' + (MAX_EFFORT_MULTIPLIERS[selectedModelTier] || '3.3×') + ' or more usage';
 }
 
 function setModelTier(tier) {
@@ -160,17 +160,17 @@ const PLAN_DATA = [
   {
     key: 'advanced', name: 'Advanced', monthly: 4.99, annual: 44.99,
     callsPerDay: 5, memosPerDay: 50,
-    features: ['Opis & Opos models unlocked', 'Everything in Free'],
+    features: ['Opis, Opos, Opas 2 & Opes 2 models unlocked', 'Everything in Free'],
   },
   {
     key: 'x20', name: 'X20', badge: 'Recommended', monthly: 12.99, annual: 109.99,
     callsPerDay: 100, memosPerDay: 1000,
-    features: ['Opus model unlocked', 'Everything in Advanced'],
+    features: ['Opus, Opis 2 & Opos 2 models unlocked', 'Everything in Advanced'],
   },
   {
     key: 'x50', name: 'X50', badge: 'Best Value', monthly: 24.99, annual: 199.99,
     callsPerDay: 250, memosPerDay: 2500,
-    features: ['Opys model unlocked', 'Everything in X20'],
+    features: ['Opys, Opus 2 & Opys 2 models unlocked', 'Everything in X20'],
   },
 ];
 
