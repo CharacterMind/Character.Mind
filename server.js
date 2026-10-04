@@ -1389,7 +1389,21 @@ const EFFORT_CONFIG = {
 // max_tokens against that. The big caps above could never fit, so Extra/Max always failed. Until the Groq plan
 // is upgraded, cap each reply and avoid "high" reasoning (which can burn the whole budget thinking).
 // After upgrading Groq, set GROQ_OUTPUT_CAP (e.g. 16000) and GROQ_ALLOW_HIGH_REASONING=1 on Render.
-const GROQ_OUTPUT_CAP = Number(process.env.GROQ_OUTPUT_CAP) || 3000;
+const GROQ_OUTPUT_CAP = Number(process.env.GROQ_OUTPUT_CAP) || 2200;
+// Keeps what we send as chat history small, newest messages first, so one request doesn't eat the whole minute's allowance.
+const HISTORY_CHAR_BUDGET = Number(process.env.HISTORY_CHAR_BUDGET) || 7000;
+function fitHistory(msgs) {
+  const kept = [];
+  let used = 0;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    let c = String(msgs[i].content || '');
+    if (c.length > 3000) c = c.slice(0, 3000) + '…';
+    if (kept.length && used + c.length > HISTORY_CHAR_BUDGET) break;
+    used += c.length;
+    kept.unshift({ ...msgs[i], content: c });
+  }
+  return kept;
+}
 const GROQ_ALLOW_HIGH_REASONING = process.env.GROQ_ALLOW_HIGH_REASONING === '1';
 
 function getEffortCfg(effort, tier) {
@@ -2368,7 +2382,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   startReplyStream({
     res, apiKey,
     system: applyEffortDirective(wrapPrompt(systemPrompt), effort),
-    messages: aiHistory(hist).slice(-12), effortCfg: regenEffortCfg, modelList: regenModelList,
+    messages: fitHistory(aiHistory(hist).slice(-12)), effortCfg: regenEffortCfg, modelList: regenModelList,
     userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => {
       hist.push({ role: 'assistant', content: text }); persistConv(key);
@@ -2661,7 +2675,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   }
 
   // Chat APIs require the last turn to be a user turn — inject a hidden continuation trigger if needed
-  const history = aiHistory(conversations[key]).slice(-12);
+  const history = fitHistory(aiHistory(conversations[key]).slice(-12));
   const lastRole = history[history.length - 1]?.role;
   let messagesForGroq = (isContinuation && lastRole !== 'user')
     ? [...history, { role: 'user', content: '...' }]
