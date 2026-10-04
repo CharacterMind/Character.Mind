@@ -2753,3 +2753,6 @@ body:not(.voice-on) .tts-btn::after { content: "Soon"; font-size: 9px; font-weig
 }
 
 .md-sub-label { font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text3); padding: 6px 12px 4px; }
+
+.welcome-features--solo { max-width: 460px; margin: 4px auto 0; }
+.welcome-soon-tag { display: inline-block; vertical-align: middle; margin-left: 6px; font-size: 9.5px; font-weight: 700; letter-spacing: .03em; color: #fff; background: #7c3aed; padding: 1px 7px; border-radius: 8px; line-height: 1.6; }
