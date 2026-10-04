@@ -415,7 +415,10 @@ function tokenLimitsFor(u) {
   return TIER_TOKEN_LIMITS[u.subscriptionTier || 'free'] || TIER_TOKEN_LIMITS.free;
 }
 // How fast each model tier burns your token allowance (top tiers cost far more).
-const MODEL_TOKEN_MULT = { opas: 0.25, opes: 0.5, opis: 1, opos: 2, opus: 4, opys: 8 };
+const MODEL_TOKEN_MULT = { opas: 1, opes: 4, opis: 8, opos: 12, opus: 20, opys: 32 };
+// Extra cost for the higher effort levels, on top of the model multiplier (they also write longer replies).
+const EFFORT_TOKEN_MULT = { low: 1, medium: 1, high: 1, extra: 2, max: 4 };
+function effortMultFor(effort) { return Object.hasOwn(EFFORT_TOKEN_MULT, effort) ? EFFORT_TOKEN_MULT[effort] : 1; }
 function tokenMultFor(tier) { return Object.hasOwn(MODEL_TOKEN_MULT, tier) ? MODEL_TOKEN_MULT[tier] : MODEL_TOKEN_MULT.opas; }
 
 // Which model tiers each plan may use (matches the plan cards: X20 unlocks Opis/Opos, X50 unlocks Opus/Opys).
@@ -2019,7 +2022,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
       hist.push({ role: 'assistant', content: fullResponse });
       persistConv(key);
       const rawTokens = tokensUsed || Math.round(fullResponse.length / 3.5);
-      const regenMult = tokenMultFor(modelTier);
+      const regenMult = tokenMultFor(modelTier) * effortMultFor(effort);
       const tokens = Math.round(rawTokens * regenMult);
       const usage = addTokens(userId, tokens);
       res.write(`data: ${JSON.stringify({ done: true, usage, responseTokens: tokens, warnings: usage.warnings })}\n\n`); res.end();
@@ -2123,7 +2126,7 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
       conversations[key].push({ role: 'assistant', content: fullResponse });
       persistConv(key);
       const rawTokens = tokensUsed || Math.round(fullResponse.length / 3.5);
-      const greetMult = tokenMultFor(modelTier);
+      const greetMult = tokenMultFor(modelTier) * effortMultFor(effort);
       const tokens = Math.round(rawTokens * greetMult);
       const usage = addTokens(userId, tokens);
       res.write(`data: ${JSON.stringify({ done: true, usage, responseTokens: tokens, warnings: usage.warnings })}\n\n`); res.end();
@@ -2347,7 +2350,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       conversations[key].push({ role: 'assistant', content: fullResponse });
       persistConv(key);
       const rawTokens = tokensUsed || Math.round(fullResponse.length / 3.5);
-      const tierMult = tokenMultFor(modelTier);
+      const tierMult = tokenMultFor(modelTier) * effortMultFor(effort);
       const tokens = Math.round(rawTokens * tierMult);
       const usage = addTokens(userId, tokens);
       res.write(`data: ${JSON.stringify({ done: true, usage, responseTokens: tokens, warnings: usage.warnings })}\n\n`);

@@ -27,7 +27,8 @@ let selectedEffort = (() => {
 
 const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys' };
 // Must match MODEL_TOKEN_MULT in server.js — how fast each tier uses up the token allowance.
-const MODEL_TOKEN_MULT = { opas: 0.25, opes: 0.5, opis: 1, opos: 2, opus: 4, opys: 8 };
+const MODEL_TOKEN_MULT = { opas: 1, opes: 4, opis: 8, opos: 12, opus: 20, opys: 32 };
+const EFFORT_TOKEN_MULT = { low: 1, medium: 1, high: 1, extra: 2, max: 4 }; // matches server.js
 // Model tiers each plan may use — must match PLAN_MODEL_TIERS in server.js.
 const PLAN_MODEL_TIERS = {
   free:     ['opas', 'opes'],
@@ -39,12 +40,13 @@ function liveTokenMult() {
   let tier = callModeActive ? 'opas' : selectedModelTier;
   const plan = (typeof lastKnownUsage !== 'undefined' && lastKnownUsage && lastKnownUsage.subscriptionTier) || 'free';
   if (!(PLAN_MODEL_TIERS[plan] || PLAN_MODEL_TIERS.free).includes(tier)) tier = 'opes';
-  return MODEL_TOKEN_MULT[tier] ?? MODEL_TOKEN_MULT.opas;
+  const effort = callModeActive ? 'low' : selectedEffort;
+  return (MODEL_TOKEN_MULT[tier] ?? MODEL_TOKEN_MULT.opas) * (EFFORT_TOKEN_MULT[effort] ?? 1);
 }
 const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', max:'Max' };
 
 // Token usage multiplier shown on Max effort warning per tier
-const MAX_EFFORT_MULTIPLIERS = { opas:'2×', opes:'2.5×', opis:'3×', opos:'4×', opus:'5×', opys:'5×+' };
+const MAX_EFFORT_MULTIPLIERS = { opas:'4×', opes:'4×', opis:'4×', opos:'4×', opus:'4×', opys:'4×' };
 
 // Tiers locked behind subscription (null = free, 'adv' = Advanced plan, 'max' = Advanced or Max)
 const TIER_SUBSCRIPTION = { opas: null, opes: null, opis: 'adv', opos: 'adv', opus: 'max', opys: 'max' };
@@ -78,7 +80,7 @@ function updateModelBarLabel() {
     if (el) el.classList.toggle('active', e === selectedEffort);
   });
   const maxWarn = document.getElementById('effortMaxWarn');
-  if (maxWarn) maxWarn.textContent = '⚠ ' + (MAX_EFFORT_MULTIPLIERS[selectedModelTier] || '5×+') + ' or more usage';
+  if (maxWarn) maxWarn.textContent = '⚠ ' + (MAX_EFFORT_MULTIPLIERS[selectedModelTier] || '4×') + ' or more usage';
 }
 
 function setModelTier(tier) {
