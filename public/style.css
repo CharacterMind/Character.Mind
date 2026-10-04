@@ -2711,3 +2711,6 @@ body:not(.voice-on) .btn-call { display: none !important; }
 
 /* Read-aloud and the browser-voice picker are retired: only the HD call voice remains. */
 .tts-btn, .ip-row[onclick="openVoicePanel()"] { display: none !important; }
+
+.bubble a.chat-link { color: var(--accent-l, #a78bfa); text-decoration: underline; text-underline-offset: 2px; font-weight: 600; }
+.bubble a.chat-link:hover { color: var(--accent, #7c5cbf); }

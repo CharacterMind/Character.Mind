@@ -566,9 +566,10 @@ Stay in character as described above at all times — never break character to l
 
 ONE EXCEPTION — GENUINE DISTRESS: If a user's message suggests they may be personally struggling — real suicidal thoughts, self-harm, or severe emotional pain (not a fictional character speaking, not the plot of a story, but the actual human behind the screen hurting right now) — step out of character briefly. Speak as yourself, warmly and simply. Something like: "Hey — stepping out of the story for a second. Are you doing okay?" Then follow their lead entirely. If they say they're fine or want to keep the roleplay going, go straight back into character without making it a big deal. If they want to talk, listen with real warmth. If they seem to be in serious crisis, gently suggest they reach out to a local crisis line or someone they trust. No lectures, no forced endings — just genuine care.
 
-TWO MORE EXCEPTIONS — PLATFORM RULES AND SUPPORT:
+THREE MORE EXCEPTIONS — PLATFORM RULES, LINKS AND SUPPORT:
 1. If the user asks why you can't do anything sexual or explicit, step out of the scene briefly and explain kindly that Character.Mind has Terms of Service and a Privacy Policy that do not allow sexual or explicit content, and that you have to follow them. Say "Character.Mind" or "Character Mind" — vary it naturally. Mention that they can contact the support team if they disagree or think something was flagged by mistake. Do not lecture, do not be cold, and never write anything sexual.
 2. If the user asks how to contact support, the team, or for the support email, give them this address exactly: ${SUPPORT_EMAIL}
+3. Whenever you mention the Terms of Service or the Privacy Policy, write them as clickable links in exactly this form: [Terms of Service](/terms) and [Privacy Policy](/privacy). Only link the one(s) they asked about.
 
 [WRITING CRAFT — follow this precisely]
 Write like a skilled author, not a chatbot. These rules are non-negotiable:
@@ -963,13 +964,47 @@ function buildPolicyExplanation() {
   const pick = a => a[Math.floor(Math.random() * a.length)];
   const brand = pick(['Character.Mind', 'Character Mind']);
   const brand2 = pick(['Character.Mind', 'Character Mind']);
+  const tos = '[Terms of Service](/terms)';
+  const pp = '[Privacy Policy](/privacy)';
   const templates = [
-    `Good question. Sexual and explicit content isn't allowed under the ${brand} Terms of Service, and every character here has to follow them. It's a platform rule, not something personal. If you think a message was flagged by mistake, you can contact our support team. Just ask me and I'll give you the email.`,
-    `I can't do anything sexual or explicit because ${brand}'s Terms of Service and Privacy Policy don't permit it, and I have to stay within them. That goes for every character on ${brand2}, not just me. If you'd like to talk to a real person about it, ask me for the support email.`,
-    `That's just how ${brand} works. Our Terms of Service rule out sexual and explicit content, so I'm not able to go there, no matter the story. You can read the Terms of Service and Privacy Policy on ${brand2}. And if you have questions or feel something was blocked unfairly, reach out to support. I'm happy to share the email if you ask.`,
-    `It comes down to the ${brand} Terms of Service. They don't allow sexual or explicit content, and I'm required to follow them, along with the Privacy Policy. It isn't a judgment on you. If you'd like to take it up with the team, you can contact support, and I can give you the address if you ask.`
+    `Good question. Sexual and explicit content isn't allowed under the ${brand} ${tos}, and every character here has to follow them. It's a platform rule, not something personal. If you think a message was flagged by mistake, you can contact our support team. Just ask me and I'll give you the email.`,
+    `I can't do anything sexual or explicit because ${brand}'s ${tos} and ${pp} don't permit it, and I have to stay within them. That goes for every character on ${brand2}, not just me. If you'd like to talk to a real person about it, ask me for the support email.`,
+    `That's just how ${brand} works. Our ${tos} rule out sexual and explicit content, so I'm not able to go there, no matter the story. You can read the ${tos} and ${pp} on ${brand2}. And if you have questions or feel something was blocked unfairly, reach out to support. I'm happy to share the email if you ask.`,
+    `It comes down to the ${brand} ${tos}. They don't allow sexual or explicit content, and I'm required to follow them, along with the ${pp}. It isn't a judgment on you. If you'd like to take it up with the team, you can contact support, and I can give you the address if you ask.`
   ];
   return pick(templates);
+}
+
+// "What are your terms of service / privacy policy?" — reply with clickable links to just what was asked for.
+const DOC_TOS_RE = /\b(terms\s+of\s+(service|use)|terms\s*(and|&)\s*conditions|tos)\b/i;
+const DOC_PRIVACY_RE = /\b(privacy\s+polic(y|ies))\b/i;
+const DOC_ASK_RE = /\b(what|where|show|link|links|read|give|send|see|view|find|share|tell|check|can\s+i|could\s+i|how\s+do\s+i)\b/i;
+
+function buildDocsReply(msg) {
+  if (!msg || msg.length > 300 || !DOC_ASK_RE.test(msg)) return null;
+  const wantTos = DOC_TOS_RE.test(msg);
+  const wantPrivacy = DOC_PRIVACY_RE.test(msg);
+  if (!wantTos && !wantPrivacy) return null;
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  const brand = pick(['Character.Mind', 'Character Mind']);
+  const tos = '[Terms of Service](/terms)';
+  const pp = '[Privacy Policy](/privacy)';
+  if (wantTos && wantPrivacy) {
+    return pick([
+      `Of course! You can read the ${brand} ${tos} and the ${pp} any time. If you have questions about either, ask me for the support email.`,
+      `Sure thing. Here are both: the ${tos} and the ${pp}. If anything is unclear, you can contact our support team, and I'll give you the email if you ask.`
+    ]);
+  }
+  if (wantTos) {
+    return pick([
+      `You can read the ${brand} ${tos} any time. It covers what's allowed here, plans and billing, and usage limits. Questions? Ask me for the support email.`,
+      `Here you go: the ${tos}. It explains the rules for using ${brand}. If you'd like to ask the team something, I can give you the support email.`
+    ]);
+  }
+  return pick([
+    `Here's the ${brand} ${pp}. It explains what we collect, how it's used, and the choices you have. Questions? Ask me for the support email.`,
+    `You can read our ${pp} any time. It covers the data we collect and how it's handled. If you'd like to contact the team about it, I can give you the support email.`
+  ]);
 }
 
 const NSFW_CARD_VARIANTS = 4;
@@ -2076,6 +2111,16 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     return slurDeflect(res, explanation, usage);
   }
 
+  // ── Asked for the Terms of Service and/or Privacy Policy — reply with clickable links ──
+  if (!isContinuation && message) {
+    const docsReply = buildDocsReply(msgNorm);
+    if (docsReply) {
+      conversations[key].push({ role: 'user', content: message }, { role: 'assistant', content: docsReply });
+      const usage = addTokens(userId, Math.round(docsReply.length / 3.5));
+      return slurDeflect(res, docsReply, usage);
+    }
+  }
+
   // ── NSFW detection — return a random deflection, no Gemini call needed ───────
   if (!isContinuation && message && NSFW_RE.test(msgNorm)) {
     const variant = recordNsfwBlock(key, message);
@@ -2531,6 +2576,9 @@ app.post('/api/webhooks/paypal', express.raw({ type: 'application/json' }), asyn
   }
   res.sendStatus(200);
 });
+
+app.get('/terms', (req, res) => res.sendFile(path.join(__dirname, 'public', 'terms.html')));
+app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy.html')));
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

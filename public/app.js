@@ -4288,6 +4288,8 @@ function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replac
 function renderMarkdown(text) {
   let s = escHtml(text);
   s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  // Only the site's own Terms and Privacy pages can become links (nothing the AI writes can point elsewhere)
+  s = s.replace(/\[([^\]\n]{1,40})\]\((\/terms|\/privacy)\)/g, '<a class="chat-link" href="$2" target="_blank" rel="noopener">$1</a>');
   const paras = s.split(/\n\n+/);
   return paras.map(p => {
     if (!p.trim()) return '';
@@ -4322,6 +4324,10 @@ function bubbleToRaw(bubble) {
     const inner = [...n.childNodes].map(walk).join('');
     if (n.classList && n.classList.contains('narration')) return `*${inner}*`;
     if (n.nodeName === 'STRONG') return `**${inner}**`;
+    if (n.nodeName === 'A') {
+      const h = n.getAttribute('href');
+      return (h === '/terms' || h === '/privacy') ? `[${inner}](${h})` : inner;
+    }
     return inner;
   };
   return [...paras].map(p => [...p.childNodes].map(walk).join('')).join('\n\n');
