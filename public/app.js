@@ -10,20 +10,23 @@ let lastUserMessage = '';
 // ── Model & Effort state ───────────────────────────────────────────────────────
 const EFFORT_LEVELS = ['low','medium','high','extra','max'];
 const ALL_TIERS = ['opas','opes','opis','opos','opus','opys'];
-let selectedModelTier = (() => {
+// The chosen model and effort are remembered per account (see loadAccountPrefs), never shared between accounts
+let selectedModelTier = 'opas';
+let selectedEffort = 'medium';
+let prefsLoadedFor = null;
+function loadAccountPrefs() {
+  if (!currentUser || prefsLoadedFor === currentUser.googleId) return;
+  prefsLoadedFor = currentUser.googleId;
+  selectedModelTier = 'opas';
+  selectedEffort = 'medium';
   try {
-    const s = localStorage.getItem('cm_model_tier') || 'opas';
-    const migrate = { standard:'opas', flash:'opas', pro:'opes', ultra:'opes' };
-    return ALL_TIERS.includes(s) ? s : (migrate[s] || 'opas');
-  } catch(_){ return 'opas'; }
-})();
-let selectedEffort = (() => {
-  try {
-    const s = localStorage.getItem('cm_effort') || 'medium';
-    const migrate = { quick:'low', standard:'medium', deep:'high' };
-    return EFFORT_LEVELS.includes(s) ? s : (migrate[s] || 'medium');
-  } catch(_){ return 'medium'; }
-})();
+    const t = localStorage.getItem(userKey('cm_model_tier'));
+    if (ALL_TIERS.includes(t)) selectedModelTier = t;
+    const e = localStorage.getItem(userKey('cm_effort'));
+    if (EFFORT_LEVELS.includes(e)) selectedEffort = e;
+  } catch (_) {}
+  updateModelBarLabel();
+}
 
 const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys' };
 // Must match OPAS_COST / OPES_COST / COST_FACTOR_VS_OPES in server.js — what one reply costs from the allowance.
@@ -77,7 +80,7 @@ function updateModelPickerLocks() {
   // If the saved model isn't part of this account's plan (e.g. after switching accounts), fall back to Opes
   if (!modelAllowedForPlan(selectedModelTier)) {
     selectedModelTier = 'opes';
-    try { localStorage.setItem('cm_model_tier', 'opes'); } catch (_) {}
+    try { localStorage.setItem(userKey('cm_model_tier'), 'opes'); } catch (_) {}
     updateModelBarLabel();
   }
 }
@@ -116,7 +119,7 @@ function updateModelBarLabel() {
 
 function setModelTier(tier) {
   selectedModelTier = tier;
-  try { localStorage.setItem('cm_model_tier', tier); } catch(_) {}
+  try { localStorage.setItem(userKey('cm_model_tier'), tier); } catch(_) {}
   updateModelBarLabel();
   closeAllPickers();
 }
@@ -430,7 +433,7 @@ function setSettingsPeriod(period) {
 
 function setEffort(effort) {
   selectedEffort = effort;
-  try { localStorage.setItem('cm_effort', effort); } catch(_) {}
+  try { localStorage.setItem(userKey('cm_effort'), effort); } catch(_) {}
   updateModelBarLabel();
 }
 
@@ -2589,6 +2592,8 @@ async function loadUsage() {
     if (!res.ok) return;
     const usage = await res.json();
     lastUsageFetch = Date.now();
+    lastKnownUsage = usage;
+    loadAccountPrefs();
     updateUsageBars(usage);
     updateUsageTimestamp();
     restoreWarningBanners(usage);
