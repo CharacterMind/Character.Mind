@@ -2821,3 +2821,9 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
   .pc-period { white-space: nowrap; }
   .pc-per-month { flex-wrap: wrap; }
 }
+
+/* Clean, Character.AI-style reading: speech in near-white, narration in softer italic grey, same for every character */
+.bubble .sp { color: #f3f3f6; font-weight: 400; }
+.bubble .nr { color: #aeb0c0; font-style: italic; font-weight: 400; }
+.bubble p { margin: 0 0 12px; line-height: 1.7; }
+.bubble p:last-child { margin-bottom: 0; }
