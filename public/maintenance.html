@@ -91,6 +91,11 @@
   @media (max-height: 560px) { .pal { --size: 70px; } .pal.d { --size: 84px; } }
 
 
+
+  /* once the rig is loaded the CSS dance is replaced */
+  .pal.rigged { animation: none !important; }
+  .rig-canvas { image-rendering: high-quality; }
+
   /* ---------- the characters themselves (cut out, no circles), and the RGB logo ---------- */
   .page { gap: clamp(8px, 2vh, 22px); }
   .logo { margin: 0; font-size: clamp(44px, 10.5vw, 108px); font-weight: 900; letter-spacing: -.02em; line-height: 1.05; padding: 0 .06em;
@@ -195,9 +200,9 @@
 <main class="page">
   <div class="head"><h2 class="logo" aria-label="character.mind">character.mind</h2><div class="logo-bar" aria-hidden="true"></div></div>
   <div class="trio" aria-hidden="true">
-    <div class="pal l"><img src="/maintenance/lily.webp" alt=""></div>
-    <div class="pal d"><img src="/maintenance/doey.webp" alt=""></div>
-    <div class="pal p"><img src="/maintenance/poppy.webp" alt=""></div>
+    <div class="pal l" data-rig="lily"><img src="/maintenance/lily.webp" alt=""></div>
+    <div class="pal d" data-rig="doey"><img src="/maintenance/doey.webp" alt=""></div>
+    <div class="pal p" data-rig="poppy"><img src="/maintenance/poppy.webp" alt=""></div>
     <div class="ball"></div>
   </div>
 
@@ -250,5 +255,6 @@
   setInterval(check, 12000);
 })();
 </script>
+  <script src="/maintenance/rig.js"></script>
 </body>
 </html>
