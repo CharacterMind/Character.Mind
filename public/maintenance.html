@@ -186,7 +186,8 @@
   @media (max-height: 560px) { .trio { height: 110px; } .pal { --size: 74px; } .pal.d { --size: 88px; } }
 
   /* ---------- epilepsy warning overlay ---------- */
-  .ep-overlay { position: fixed; inset: 0; z-index: 900; background: rgba(0,0,0,.94); display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .ep-overlay { position: fixed; inset: 0; z-index: 900; background: rgba(0,0,0,.94); display: none; align-items: center; justify-content: center; padding: 20px; }
+  .ep-overlay.ep-open { display: flex; }
   .ep-box { max-width: 440px; width: 100%; background: #12081f; border: 1px solid rgba(255,255,255,.22); border-radius: 22px; padding: 28px 28px 24px; text-align: center; box-shadow: 0 0 60px rgba(139,92,246,.45); }
   .ep-icon { font-size: 2.6rem; margin-bottom: 10px; line-height: 1; }
   .ep-box h2 { margin: 0 0 10px; font-size: 1.2rem; font-weight: 700; color: #fff; }
@@ -233,7 +234,7 @@
   <div class="sparks" id="sparks"></div>
 </div>
 
-<div class="ep-overlay" id="epOverlay" hidden aria-modal="true" role="dialog" aria-labelledby="epTitle">
+<div class="ep-overlay" id="epOverlay" aria-modal="true" role="dialog" aria-labelledby="epTitle">
   <div class="ep-box">
     <div class="ep-icon" aria-hidden="true">⚠️</div>
     <h2 id="epTitle">Flashing light show ahead</h2>
@@ -274,13 +275,13 @@
     if (pill) pill.textContent = m === 'calm' ? '🎆 Full concert show' : '🔅 Calm lights';
     try { localStorage.setItem('cm_lightMode', m); } catch(e) {}
     var ov = document.getElementById('epOverlay');
-    if (ov) ov.hidden = true;
+    if (ov) ov.classList.remove('ep-open');
   }
   window.toggleLightMode = function toggleLightMode() {
     setLightMode(document.body.classList.contains('calm') ? 'full' : 'calm');
   }
   if (_stored) { setLightMode(_stored); }
-  else { var _ov = document.getElementById('epOverlay'); if (_ov) _ov.hidden = false; }
+  else { var _ov = document.getElementById('epOverlay'); if (_ov) _ov.classList.add('ep-open'); }
 
   // spotlights: every colour, each swinging at its own speed
   var colours = ['#ff2d2d', '#ff8a00', '#ffe14d', '#7CFF4F', '#1fe0a0', '#22d3ee', '#3b82f6', '#7c3aed', '#e11dd4', '#ff5fa2', '#8b0000', '#ffb3b3', '#00ffcc', '#ff00aa', '#aaff00', '#00aaff', '#ff6600', '#cc00ff'];
