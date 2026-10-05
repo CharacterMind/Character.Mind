@@ -73,6 +73,23 @@
   @keyframes pulse { 50% { transform: scale(1.5); opacity: .55; } }
   .care { margin-top: 14px; font-size: 12.5px; color: rgba(255,255,255,.7); }
 
+  /* each one has its own dance, all on the same beat (2.4 s) */
+  .pal { --size: clamp(92px, 19vw, 170px); }
+  .pal.d { --size: clamp(112px, 23vw, 200px); }
+  .pal.l { animation: dance-l 2.4s ease-in-out infinite; animation-delay: 0s; }
+  .pal.d { animation: dance-d 2.4s ease-in-out infinite; animation-delay: 0s; }
+  .pal.p { animation: dance-p 2.4s ease-in-out infinite; animation-delay: 0s; }
+  /* Lily: sways, hops, then twirls all the way round */
+  @keyframes dance-l { 0%, 100% { transform: translateY(0) rotate(-8deg); } 20% { transform: translateY(-28px) rotate(0deg) scale(1.05); } 40% { transform: translateY(0) rotate(8deg); } 60% { transform: translateY(-34px) rotate(180deg) scale(1.06); } 80% { transform: translateY(-10px) rotate(360deg); } }
+  /* Doey: squishes down, springs up, wobbles from side to side */
+  @keyframes dance-d { 0%, 100% { transform: translateY(0) scale(1.1, .88) rotate(0deg); } 25% { transform: translateY(-46px) scale(.94, 1.1) rotate(-7deg); } 50% { transform: translateY(0) scale(1.1, .88) rotate(0deg); } 75% { transform: translateY(-46px) scale(.94, 1.1) rotate(7deg); } }
+  /* Poppy: swings like a pendulum and bounces at each end */
+  @keyframes dance-p { 0%, 100% { transform: translateX(-16px) translateY(0) rotate(-12deg); } 25% { transform: translateX(0) translateY(-30px) rotate(0deg); } 50% { transform: translateX(16px) translateY(0) rotate(12deg); } 75% { transform: translateX(0) translateY(-30px) rotate(0deg); } }
+  /* a soft glow on the floor that pulses with the beat */
+  .trio::after { content: ""; position: absolute; left: 10%; right: 10%; bottom: -10px; height: 18px; border-radius: 50%; background: radial-gradient(ellipse at center, rgba(255,255,255,.55), rgba(255,255,255,0) 70%); animation: floor 1.2s ease-in-out infinite; }
+  @keyframes floor { 50% { transform: scaleX(1.12); opacity: .55; } }
+  @media (max-height: 560px) { .pal { --size: 70px; } .pal.d { --size: 84px; } }
+
   @media (prefers-reduced-motion: reduce) {
     .band, .scan, .beam, .spark, .pal, .ball, .brand span, .pal::before, .dot { animation-duration: 60s !important; }
     .spark, .ball { display: none; }
