@@ -268,7 +268,7 @@
   // ---- light mode: 'full' (concert) or 'calm' (epilepsy-friendly) ----
   var _stored = null;
   try { _stored = localStorage.getItem('cm_lightMode'); } catch(e) {}
-  function setLightMode(m) {
+  window.setLightMode = function setLightMode(m) {
     document.body.classList.toggle('calm', m === 'calm');
     var pill = document.getElementById('modePill');
     if (pill) pill.textContent = m === 'calm' ? '🎆 Full concert show' : '🔅 Calm lights';
@@ -276,7 +276,7 @@
     var ov = document.getElementById('epOverlay');
     if (ov) ov.hidden = true;
   }
-  function toggleLightMode() {
+  window.toggleLightMode = function toggleLightMode() {
     setLightMode(document.body.classList.contains('calm') ? 'full' : 'calm');
   }
   if (_stored) { setLightMode(_stored); }
