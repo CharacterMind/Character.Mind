@@ -780,6 +780,22 @@ const MODEL_STYLE = {
   opus: 'WRITING STYLE: emotionally deep. Write subtext, inner conflict and layered feelings, let the character react to earlier events in the chat, and show what they leave unsaid.',
   opys: 'WRITING STYLE: a master storyteller. Cinematic pacing, vivid imagery, deliberate tension and surprise, memorable lines, and a plot that keeps moving without ever breaking the character.'
 };
+// What each family can DO on request, on top of how it writes. The user asks for it; chat stays chat otherwise.
+const ABILITY_CODE = 'LIGHT CODING AND PUZZLES: when the user asks for code or a small program, write short, working code (HTML, CSS, JavaScript or Python, about 60 lines at most) inside a fenced code block that names the language, then explain in two or three plain sentences what it does, in the character\'s own voice. Keep puzzles, riddles and mysteries perfectly logical, with clues that all agree. Never write malware, hacking tools, cheats or anything harmful.';
+const ABILITY_GM = 'GAME MASTER: when the user wants an adventure, game or quest, run it as a game master: keep track of the place, health, items and goals and never contradict them, show them in one short line at the end like [Place: ... | Health: ... | Items: ...], and finish each turn with 2 to 4 numbered choices plus the option to try something else.';
+const ABILITY_CHAPTER = 'CHAPTER WRITER: when the user asks for a story, chapter or scene, write it as a real chapter: a title line ("Chapter N: Title", continuing the numbering of earlier chapters in this chat), a strong opening hook, scenes with rising tension, real dialogue, and a closing beat that makes the reader want the next chapter. Write the full length asked for; never summarise a scene you were asked to write.';
+const ABILITY_AUTHOR = 'MASTER AUTHOR: you plan the whole story arc ahead, plant foreshadowing and pay it off later, keep every name, thread and promise consistent, and write with the polish of a published novel.';
+const MODEL_ABILITY = {
+  opis: ABILITY_CODE,
+  opos: ABILITY_GM,
+  opus: ABILITY_CHAPTER,
+  opys: 'MASTER TOOLKIT: you can do all of these on request. ' + ABILITY_CHAPTER + ' ' + ABILITY_GM + ' ' + ABILITY_CODE + ' ' + ABILITY_AUTHOR
+};
+function modelAbilityNote(modelTier) {
+  const tv = tierVersion(modelTier);
+  const base = tv ? tv.base : modelTier;
+  return Object.hasOwn(MODEL_ABILITY, base) ? 'ABILITY - ' + MODEL_ABILITY[base] : '';
+}
 function modelStyleNote(modelTier) {
   const tv = tierVersion(modelTier);
   const base = tv ? tv.base : modelTier;
@@ -923,7 +939,8 @@ function applyEffortDirective(prompt, effort, modelTier) {
   const depth = modelDepthNote(modelTier, effort);
   const style = modelStyleNote(modelTier);
   const target = lengthTargetNote(modelTier, effort);
-  return prompt + '\n\n' + directive + (depth ? '\n\n' + depth : '') + (target ? '\n\n' + target : '') + (style ? '\n\n' + style : '') + (isVersionedTier(modelTier) ? '\n\n' + OPYS2_DIRECTIVE : '');
+  const ability = modelAbilityNote(modelTier);
+  return prompt + '\n\n' + directive + (depth ? '\n\n' + depth : '') + (target ? '\n\n' + target : '') + (style ? '\n\n' + style : '') + (ability ? '\n\n' + ability : '') + (isVersionedTier(modelTier) ? '\n\n' + OPYS2_DIRECTIVE : '');
 }
 
 // ── RP quality wrapper injected into every system prompt ─────────────────────
@@ -3314,9 +3331,9 @@ async function sendReceiptEmail(userName, email, planKey, subscriptionId, period
   const transporter = getMailTransporter();
   if (!transporter || !email) return;
   const planNames  = { advanced: 'Advanced Plan', x20: 'X20 Plan', x50: 'X50 Plan' };
-  const planPrices = { advanced: '$4.99/month', x20: '$12.99/month', x50: '$24.99/month' };
+  const planPrices = { advanced: '$4.99/month', x20: '$24.99/month', x50: '$49.99/month' };
   const planName  = planNames[planKey]  || planKey;
-  const planPrice = period === 'annual' ? (({ advanced: '$44.99/year', x20: '$109.99/year', x50: '$199.99/year' })[planKey] || '') : (planPrices[planKey] || '');
+  const planPrice = period === 'annual' ? (({ advanced: '$44.99/year', x20: '$199.99/year', x50: '$399.99/year' })[planKey] || '') : (planPrices[planKey] || '');
   const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   const firstName = (userName || 'there').split(' ')[0];
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');

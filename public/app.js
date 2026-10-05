@@ -192,17 +192,17 @@ const PLAN_DATA = [
   {
     key: 'advanced', name: 'Advanced', monthly: 4.99, annual: 44.99,
     callsPerDay: 5, memosPerDay: 50,
-    features: ['Opis & Opos models', 'Opas 2 & Opes 2', 'Everything in Free'],
+    features: ['Opis: light coding and puzzles', 'Opos: game master roleplay', 'Opas 2 & Opes 2', 'Everything in Free'],
   },
   {
-    key: 'x20', name: 'X20', badge: 'Recommended', monthly: 12.99, annual: 109.99,
+    key: 'x20', name: 'X20', badge: 'Recommended', monthly: 24.99, annual: 199.99,
     callsPerDay: 100, memosPerDay: 1000,
-    features: ['Opus model', 'Opis 2, Opos 2, Opas 3 & Opes 3', 'Everything in Advanced'],
+    features: ['Opus: chapter writer with deep emotion', 'Opis 2, Opos 2, Opas 3 & Opes 3', 'Version 3 remembers how your story began', 'Everything in Advanced'],
   },
   {
-    key: 'x50', name: 'X50', badge: 'Best Value', monthly: 24.99, annual: 199.99,
+    key: 'x50', name: 'X50', badge: 'Best Value', monthly: 49.99, annual: 399.99,
     callsPerDay: 250, memosPerDay: 2500,
-    features: ['Opys model', 'Every Version 2 to 5 model', 'Everything in X20'],
+    features: ['Opys: master author with every ability', 'Every Version 2 to 5 model', 'Scene planning and long-term story memory', 'Everything in X20'],
   },
 ];
 
@@ -4784,20 +4784,45 @@ function splitSpeechNarration(para) {
 }
 
 function renderMarkdown(text, theme, opts) {
-  theme = theme || activeTheme;
-  const lite = !!(opts && opts.lite);
+  const full = String(text == null ? '' : text);
+  // Code (written between three backticks) is shown as a code block with a Copy button, never as story text. An unfinished block
+  // (the reply is still typing) runs to the end.
+  if (full.indexOf('```') !== -1) {
+    const FENCE = /```([\w+#.-]*)[^\S\n]*\n?([\s\S]*?)(?:```|$)/g;
+    let out = '', last = 0, m;
+    while ((m = FENCE.exec(full)) !== null) {
+      if (m.index > last) out += renderStoryText(full.slice(last, m.index));
+      const lang = (m[1] || '').slice(0, 20);
+      out += '<pre class="code-block"><div class="code-head"><span class="code-lang">' + escHtml(lang || 'code') + '</span><button type="button" class="code-copy" onclick="copyCodeBlock(this)">Copy</button></div><code>' + escHtml(String(m[2]).replace(/\n$/, '')) + '</code></pre>';
+      last = FENCE.lastIndex;
+      if (m[0] === '') FENCE.lastIndex++;
+    }
+    if (last < full.length) out += renderStoryText(full.slice(last));
+    return out;
+  }
+  return renderStoryText(full);
+}
+function copyCodeBlock(btn) {
+  const block = btn && btn.closest('.code-block');
+  const code = block && block.querySelector('code');
+  if (!code) return;
+  const text = code.textContent;
+  const done = () => { btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy'; }, 1500); };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(done, () => {}); return; }
+  } catch (_) {}
+  try { const r = document.createRange(); r.selectNodeContents(code); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); document.execCommand('copy'); sel.removeAllRanges(); done(); } catch (_) {}
+}
+function renderStoryText(text) {
   const raw = String(text == null ? '' : text).replace(/\*\*/g, '');
   const paras = raw.split(/\n\n+/);
-  let letterNo = 0;
   const emit = (kind, str) => {
     // links to the site's own Terms/Privacy pages stay clickable; everything else is just text
     const parts = str.split(/(\[[^\]\n]{1,40}\]\((?:\/terms|\/privacy)\))/g);
-    // plain text: each speech or narration run is ONE solid colour (set in CSS), never a colour per letter
-    const letters = (chunk) => escHtml(chunk);
     return parts.map(part => {
       const lm = /^\[([^\]\n]{1,40})\]\((\/terms|\/privacy)\)$/.exec(part);
       if (lm) return '<a class="chat-link" href="' + lm[2] + '" target="_blank" rel="noopener">' + escHtml(lm[1]) + '</a>';
-      return letters(part);
+      return escHtml(part);
     }).join('');
   };
   return paras.map(p => {
