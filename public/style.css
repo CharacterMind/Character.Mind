@@ -2809,3 +2809,15 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
 /* One solid colour per speech / narration run (no per-letter colours) */
 .bubble .sp { color: var(--sp0, var(--text)); font-weight: 500; }
 .bubble .nr { color: var(--nr0, var(--narration)); font-style: italic; }
+
+/* Phone: settings sections use the full width (the desktop rule centres them to their content), pricing prices never wrap */
+@media (max-width: 768px) {
+  .settings-tab-content > * { align-self: stretch; }
+  .settings-usage-block, .settings-usage-section, #settingsTiersSection { width: 100%; }
+  .st2-header { flex-wrap: wrap; gap: 10px; }
+}
+@media (max-width: 700px) {
+  .pc-price { font-size: 22px; white-space: nowrap; }
+  .pc-period { white-space: nowrap; }
+  .pc-per-month { flex-wrap: wrap; }
+}
