@@ -2842,3 +2842,14 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
 #effortOptMax { flex-wrap: wrap; }
 #effortOptMax .epp-item-name { flex: 1 1 60%; min-width: 0; }
 #effortOptMax .epp-max-warn { flex: 1 0 100%; order: 5; }
+
+/* X100 plan and the Opys 5 flagship: five plan cards, gold flagship badge */
+.pricing-modal { width: min(1120px, 96vw); }
+.pricing-cards { grid-template-columns: repeat(5, 1fr); }
+@media (max-width: 1000px) { .pricing-cards { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 700px) { .pricing-cards { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 420px) { .pricing-cards { grid-template-columns: 1fr; } }
+.st2-cards-wrap { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 768px) { .st2-cards-wrap { grid-template-columns: 1fr; } }
+.md-tier-badge-flagship { color: #f4c542; border-color: rgba(244,197,66,.55); background: rgba(244,197,66,.1); }
+.md-item-flagship .md-item-name { color: #f4e2a0; }
