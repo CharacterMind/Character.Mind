@@ -499,254 +499,46 @@
               <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
             <div class="md-divider"></div>
-            <div class="md-more" id="mdMore">
-              <button class="md-item md-more-btn" id="mdMoreBtn" onclick="toggleMoreModels(event)">
-                <div class="md-item-body"><div class="md-item-name">More models</div></div>
-                <svg class="md-chev" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <div class="md-submenu" id="mdSubmenu">
-              <button class="md-item md-item-locked md-item-premium" id="optOpus" onclick="selectOrUpgrade('opus')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opus <span class="md-tier-badge md-tier-badge-max">X20</span></div>
-                  <div class="md-item-sub">Chapter writer with deep emotion</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpys" onclick="selectOrUpgrade('opys')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opys <span class="md-tier-badge md-tier-badge-max">X50</span></div>
-                  <div class="md-item-sub">Master author with every ability</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <div class="md-divider"></div>
-              <div class="md-sub-label">Version 2 &middot; thinks much deeper &middot; 1.5x the cost</div>
-              <button class="md-item md-item-locked md-item-premium" id="optOpas2" onclick="selectOrUpgrade('opas2')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opas 2 <span class="md-tier-badge md-tier-badge-max">ADV</span></div>
-                  <div class="md-item-sub">Faster and sharper. Costs 1.5x Opas</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpes2" onclick="selectOrUpgrade('opes2')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opes 2 <span class="md-tier-badge md-tier-badge-max">ADV</span></div>
-                  <div class="md-item-sub">Deeper everyday chats. Costs 1.5x Opes</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpis2" onclick="selectOrUpgrade('opis2')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opis 2 <span class="md-tier-badge md-tier-badge-max">X20</span></div>
-                  <div class="md-item-sub">Complex stories, richer detail. Costs 1.5x Opis</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpos2" onclick="selectOrUpgrade('opos2')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opos 2 <span class="md-tier-badge md-tier-badge-max">X20</span></div>
-                  <div class="md-item-sub">Long immersive roleplay. Costs 1.5x Opos</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpus2" onclick="selectOrUpgrade('opus2')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opus 2 <span class="md-tier-badge md-tier-badge-max">X50</span></div>
-                  <div class="md-item-sub">Top-tier depth. Costs 1.5x Opus</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpys2" onclick="selectOrUpgrade('opys2')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opys 2 <span class="md-tier-badge md-tier-badge-max">X50</span></div>
-                  <div class="md-item-sub">Our most advanced model of this version. Costs 1.5x Opys</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <div class="md-divider"></div>
-              <div class="md-sub-label">Version 3 &middot; also remembers how your story began and never repeats itself &middot; 3x the cost</div>
-              <button class="md-item md-item-locked md-item-premium" id="optOpas3" onclick="selectOrUpgrade('opas3')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opas 3 <span class="md-tier-badge md-tier-badge-max">X20</span></div>
-                  <div class="md-item-sub">Costs 3x Opas</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpes3" onclick="selectOrUpgrade('opes3')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opes 3 <span class="md-tier-badge md-tier-badge-max">X20</span></div>
-                  <div class="md-item-sub">Costs 3x Opes</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpis3" onclick="selectOrUpgrade('opis3')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opis 3 <span class="md-tier-badge md-tier-badge-max">X50</span></div>
-                  <div class="md-item-sub">Costs 3x Opis</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpos3" onclick="selectOrUpgrade('opos3')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opos 3 <span class="md-tier-badge md-tier-badge-max">X50</span></div>
-                  <div class="md-item-sub">Costs 3x Opos</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpus3" onclick="selectOrUpgrade('opus3')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opus 3 <span class="md-tier-badge md-tier-badge-max">X50</span></div>
-                  <div class="md-item-sub">Costs 3x Opus</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpys3" onclick="selectOrUpgrade('opys3')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opys 3 <span class="md-tier-badge md-tier-badge-max">X50</span></div>
-                  <div class="md-item-sub">Costs 3x Opys</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <div class="md-divider"></div>
-              <div class="md-sub-label">Version 4 &middot; also plans each scene and tracks who, where and what &middot; 6x the cost</div>
-              <button class="md-item md-item-locked md-item-premium" id="optOpas4" onclick="selectOrUpgrade('opas4')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opas 4 <span class="md-tier-badge md-tier-badge-max">X50</span></div>
-                  <div class="md-item-sub">Costs 6x Opas</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpes4" onclick="selectOrUpgrade('opes4')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opes 4 <span class="md-tier-badge md-tier-badge-max">X50</span></div>
-                  <div class="md-item-sub">Costs 6x Opes</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpis4" onclick="selectOrUpgrade('opis4')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opis 4 <span class="md-tier-badge md-tier-badge-max">X50</span></div>
-                  <div class="md-item-sub">Costs 6x Opis</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpos4" onclick="selectOrUpgrade('opos4')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opos 4 <span class="md-tier-badge md-tier-badge-max">X50</span></div>
-                  <div class="md-item-sub">Costs 6x Opos</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpus4" onclick="selectOrUpgrade('opus4')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opus 4 <span class="md-tier-badge md-tier-badge-max">X50</span></div>
-                  <div class="md-item-sub">Costs 6x Opus</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpys4" onclick="selectOrUpgrade('opys4')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opys 4 <span class="md-tier-badge md-tier-badge-max">X50</span></div>
-                  <div class="md-item-sub">Costs 6x Opys</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <div class="md-divider"></div>
-              <div class="md-sub-label">Version 5 &middot; also keeps long-term memory of the whole chat &middot; 10x the cost. Only when you really need it</div>
-              <button class="md-item md-item-locked md-item-premium" id="optOpas5" onclick="selectOrUpgrade('opas5')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opas 5 <span class="md-tier-badge md-tier-badge-max">X50</span></div>
-                  <div class="md-item-sub">Costs 10x Opas</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpes5" onclick="selectOrUpgrade('opes5')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opes 5 <span class="md-tier-badge md-tier-badge-max">X50</span></div>
-                  <div class="md-item-sub">Costs 10x Opes</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpis5" onclick="selectOrUpgrade('opis5')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opis 5 <span class="md-tier-badge md-tier-badge-max">X50</span></div>
-                  <div class="md-item-sub">Costs 10x Opis</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpos5" onclick="selectOrUpgrade('opos5')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opos 5 <span class="md-tier-badge md-tier-badge-max">X50</span></div>
-                  <div class="md-item-sub">Costs 10x Opos</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpus5" onclick="selectOrUpgrade('opus5')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opus 5 <span class="md-tier-badge md-tier-badge-max">X50</span></div>
-                  <div class="md-item-sub">Costs 10x Opus</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="md-item md-item-locked md-item-premium" id="optOpys5" onclick="selectOrUpgrade('opys5')">
-                <div class="md-item-body">
-                  <div class="md-item-name">Opys 5 <span class="md-tier-badge md-tier-badge-max">X50</span></div>
-                  <div class="md-item-sub">Costs 10x Opys</div>
-                </div>
-                <span class="md-upgrade-btn">Upgrade</span>
-                <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
+            <button class="md-item md-item-locked md-item-premium" id="optOpus" onclick="selectOrUpgrade('opus')">
+              <div class="md-item-body">
+                <div class="md-item-name">Opus <span class="md-tier-badge md-tier-badge-max">X20</span></div>
+                <div class="md-item-sub">Chapter writer with deep emotion</div>
               </div>
-            </div>
+              <span class="md-upgrade-btn">Upgrade</span>
+              <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="md-item md-item-locked md-item-premium" id="optOpys" onclick="selectOrUpgrade('opys')">
+              <div class="md-item-body">
+                <div class="md-item-name">Opys <span class="md-tier-badge md-tier-badge-max">X50</span></div>
+                <div class="md-item-sub">Master author with every ability</div>
+              </div>
+              <span class="md-upgrade-btn">Upgrade</span>
+              <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
           </div>
           <!-- Effort picker panel -->
           <div class="effort-panel-popup" id="effortPanelPopup" style="display:none">
-            <div class="epp-desc">Higher effort means more thorough responses, but takes longer and uses your limits faster.</div>
+            <div class="epp-desc">Effort sets how long and how careful each reply is. Higher effort takes longer and uses your limits faster.</div>
             <div class="epp-list">
               <button class="epp-item" id="effortOptLow" onclick="setEffort('low');closeAllPickers()">
-                <span class="epp-item-name">Low</span>
+                <span class="epp-item-name">Low<span class="epp-item-sub">A few quick sentences</span></span>
                 <svg class="epp-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
               <button class="epp-item" id="effortOptMedium" onclick="setEffort('medium');closeAllPickers()">
-                <span class="epp-item-name">Medium</span>
+                <span class="epp-item-name">Medium<span class="epp-item-sub">One or two paragraphs</span></span>
                 <span class="epp-recommended-tag">Recommended</span>
                 <svg class="epp-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
               <button class="epp-item" id="effortOptHigh" onclick="setEffort('high');closeAllPickers()">
-                <span class="epp-item-name">High</span>
+                <span class="epp-item-name">High<span class="epp-item-sub">A full scene, three to five paragraphs</span></span>
                 <svg class="epp-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
               <button class="epp-item" id="effortOptExtra" onclick="setEffort('extra');closeAllPickers()">
-                <span class="epp-item-name">Extra</span>
+                <span class="epp-item-name">Extra<span class="epp-item-sub">Long and detailed, planned before it is written</span></span>
                 <svg class="epp-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
               <button class="epp-item" id="effortOptMax" onclick="setEffort('max');closeAllPickers()">
-                <span class="epp-item-name">Max</span>
+                <span class="epp-item-name">Max<span class="epp-item-sub">Chapter-length: planned, written and checked</span></span>
                 <span class="epp-max-warn" id="effortMaxWarn">⚠ 3.3× or more usage</span>
                 <svg class="epp-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
@@ -1406,6 +1198,6 @@
 }
 </style>
 
-<script src="app.js?v=209"></script>
+<script src="app.js?v=210"></script>
 </body>
 </html>

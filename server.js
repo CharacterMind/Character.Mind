@@ -509,11 +509,11 @@ const LIMITS = {
 // model tokens x model multiplier x effort multiplier).
 // An average message = Opes at Medium effort = 1,200 tokens (see MESSAGE_COST below).
 // Lighter models/efforts give more messages than this; heavier ones give fewer.
-// Free 30, Advanced 60 (2x), X20 = 20x Advanced (1,200), X50 = 50x Advanced (3,000). Weekly = 5 sessions' worth.
+// Free 60, Advanced 150 (2.5x), X20 = 20x Advanced (3,000), X50 = 50x Advanced (7,500). Weekly = 5 sessions' worth.
 const AVG_MESSAGE_TOKENS = 1200;
 const X20_MULT = 20;
 const X50_MULT = 50;
-const MESSAGES_PER_SESSION = { free: 30, advanced: 60 };
+const MESSAGES_PER_SESSION = { free: 60, advanced: 150 };
 const WEEKLY_SESSIONS = 5;
 function limitsForMessages(sessionMessages) {
   const session = sessionMessages * AVG_MESSAGE_TOKENS;
@@ -529,19 +529,15 @@ function tokenLimitsFor(u) {
   return TIER_TOKEN_LIMITS[u.subscriptionTier || 'free'] || TIER_TOKEN_LIMITS.free;
 }
 // How fast each model tier burns your token allowance (top tiers cost far more).
-// Six model families, each with versions 2, 3, 4 and 5. A higher version thinks harder, writes more, and costs a lot more.
+// Six models, each with its own job. (Older saved choices like "opys5" are read as the base model, see baseOf.)
 const BASE_TIERS = ['opas', 'opes', 'opis', 'opos', 'opus', 'opys'];
-const VERSIONS = [2, 3, 4, 5];
 const MODEL_TOKEN_MULT = { opas: 1, opes: 3, opis: 4, opos: 5, opus: 6, opys: 8 };
-for (const b of BASE_TIERS) for (const v of VERSIONS) MODEL_TOKEN_MULT[b + v] = MODEL_TOKEN_MULT[b] * v;
-// What a version costs compared with its base model, and the extra multiplier it adds on Max effort
-const VERSION_FACTOR    = { 2: 1.5, 3: 3, 4: 6, 5: 10 };
-const VERSION_MAX_BOOST = { 2: 1.25, 3: 2, 4: 2.5, 5: 3 };
-// Reply room (relative to the base model) and the most tokens a reply may use, per version
-const VERSION_ROOM = { 2: 1.5, 3: 1.75, 4: 2.25, 5: 2.75 };
-const VERSION_CAP  = { 2: 2800, 3: 3300, 4: 3900, 5: 4500 };
-const VERSION_CAP_SCALE = Number(process.env.VERSION_CAP_SCALE) || 1;
-for (const k of Object.keys(VERSION_CAP)) VERSION_CAP[k] = Math.round(VERSION_CAP[k] * VERSION_CAP_SCALE);
+const baseOf = (t) => { const b = typeof t === 'string' ? t.replace(/[2-5]$/, '') : ''; return Object.hasOwn(MODEL_TOKEN_MULT, b) ? b : null; };
+// The most tokens one reply may use, per model (the bigger writers get more room), and how long each model writes compared with Opes
+const MODEL_CAP   = { opas: 1600, opes: 2200, opis: 2600, opos: 3300, opus: 3900, opys: 4500 };
+const MODEL_WORDS = { opas: 0.7,  opes: 1,    opis: 1.1,  opos: 1.3,  opus: 1.6,  opys: 1.9 };
+const MODEL_CAP_SCALE = Number(process.env.VERSION_CAP_SCALE) || 1;
+for (const k of Object.keys(MODEL_CAP)) MODEL_CAP[k] = Math.round(MODEL_CAP[k] * MODEL_CAP_SCALE);
 // Groq's free plan allows about 8,000 tokens per request, counting the prompt AND the reply room together.
 // So the bigger the reply room, the smaller the prompt has to be. The reply room is fitted to what the prompt leaves over.
 const GROQ_REQUEST_BUDGET = Number(process.env.GROQ_REQUEST_BUDGET) || 7400;
@@ -552,20 +548,13 @@ function fitOutputRoom(cfg, system, messages) {
   const allowed = Math.max(MIN_REPLY_ROOM, GROQ_REQUEST_BUDGET - used);
   return allowed < cfg.maxOutputTokens ? { ...cfg, maxOutputTokens: allowed } : cfg;
 }
-// A bigger reply means less room for old messages (Version 5's long-term notes make up for it)
+// A bigger reply means less room for old messages (Opys's long-term notes make up for it)
 function historyBudgetFor(modelTier) {
-  const tv = tierVersion(modelTier);
-  if (!tv) return HISTORY_CHAR_BUDGET;
-  return ({ 2: 7000, 3: 6000, 4: 4500, 5: 3000 })[tv.v] || HISTORY_CHAR_BUDGET;
+  return ({ opos: 6000, opus: 5000, opys: 3500 })[baseOf(modelTier)] || HISTORY_CHAR_BUDGET;
 }
 // Which plan first unlocks each base model, and the plan ranks
 const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1, opus: 2, opys: 3 };
 const PLAN_RANK = { free: 0, advanced: 1, x20: 2, x50: 3 };
-function tierVersion(t) {
-  const m = /^(opas|opes|opis|opos|opus|opys)([2-5])$/.exec(typeof t === 'string' ? t : '');
-  return m ? { base: m[1], v: Number(m[2]) } : null;
-}
-const isVersionedTier = (t) => !!tierVersion(t);
 // Extra cost for the higher effort levels, on top of the model multiplier (they also write longer replies).
 const EFFORT_TOKEN_MULT = { low: 1, medium: 1, high: 1, extra: 1.5, max: 2 };
 function effortMultFor(effort) { return Object.hasOwn(EFFORT_TOKEN_MULT, effort) ? EFFORT_TOKEN_MULT[effort] : 1; }
@@ -576,33 +565,23 @@ function effortMultFor(effort) { return Object.hasOwn(EFFORT_TOKEN_MULT, effort)
 const OPAS_COST = { low: 220, medium: 350, high: 540, extra: 800, max: 1200 };
 const OPES_COST = { low: 700, medium: 1200, high: 1800, extra: 2600, max: 4000 }; // effort ramps gently: Low 0.6x, Medium 1x, High 1.5x, Extra 2.2x, Max 3.3x a Medium message
 // Base models step up gently: Opes 1x, Opis 1.25x, Opos 1.5x, Opus 2x, Opys 3x (of Opes).
-// Versions 2 to 5 cost 1.5x, 3x, 6x and 10x their base model, and on Max effort they add 1.25x, 2x, 2.5x and 3x on top.
-// So Max effort costs about 3.3x a Medium reply on a base model, and 4.2x, 6.7x, 8.3x and 10x on versions 2, 3, 4 and 5.
-// On an X50 session (3,600,000) that is about 160, 50, 20 and 10 Opys Max replies on versions 2, 3, 4 and 5.
-// Versions 4 and 5 are meant to make even an X50 plan think twice: use them only when you really need to.
+// Max effort costs about 3.3x a Medium reply.
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3 };
 function messageCost(modelTier, effort) {
   const e = (typeof effort === 'string' && Object.hasOwn(OPES_COST, effort)) ? effort : 'medium';
-  const tv = tierVersion(modelTier);
-  if (tv) {
-    const mult = VERSION_FACTOR[tv.v] * (e === 'max' ? VERSION_MAX_BOOST[tv.v] : 1);
-    if (tv.base === 'opas') return Math.round(OPAS_COST[e] * mult);
-    return Math.round(OPES_COST[e] * COST_FACTOR_VS_OPES[tv.base] * mult);
-  }
+  modelTier = baseOf(modelTier) || modelTier;
   if (modelTier === 'opas' || !Object.hasOwn(COST_FACTOR_VS_OPES, modelTier)) return OPAS_COST[e];
   return Math.round(OPES_COST[e] * COST_FACTOR_VS_OPES[modelTier]);
 }
 function tokenMultFor(tier) { return Object.hasOwn(MODEL_TOKEN_MULT, tier) ? MODEL_TOKEN_MULT[tier] : MODEL_TOKEN_MULT.opas; }
 
 // Which model tiers each plan may use (matches the plan cards and the model picker).
-// A base model needs the plan that unlocks it. Version N needs that plan plus (N - 1) levels, up to X50.
+// A model needs the plan that unlocks it.
 const PLAN_MODEL_TIERS = {};
-for (const [plan, rank] of Object.entries(PLAN_RANK)) {
-  PLAN_MODEL_TIERS[plan] = BASE_TIERS.filter(b => BASE_PLAN_RANK[b] <= rank);
-  for (const v of VERSIONS) for (const b of BASE_TIERS) if (Math.min(3, BASE_PLAN_RANK[b] + v - 1) <= rank) PLAN_MODEL_TIERS[plan].push(b + v);
-}
+for (const [plan, rank] of Object.entries(PLAN_RANK)) PLAN_MODEL_TIERS[plan] = BASE_TIERS.filter(b => BASE_PLAN_RANK[b] <= rank);
 function resolveModelTier(userId, requested) {
-  if (typeof requested !== 'string' || !Object.hasOwn(MODEL_TOKEN_MULT, requested)) return 'opas';
+  requested = baseOf(requested);
+  if (!requested) return 'opas';
   const plan = getLimits(userId).subscriptionTier || 'free';
   const allowed = PLAN_MODEL_TIERS[plan] || PLAN_MODEL_TIERS.free;
   return allowed.includes(requested) ? requested : 'opes';
@@ -753,14 +732,10 @@ const EFFORT_DIRECTIVES = {
   max:    'RESPONSE LENGTH: Write the longest, most elaborate reply you can — 10 to 16 paragraphs. Leave nothing out: every sensation, thought, gesture, line of dialogue and shift in the scene. It should read like a full chapter.',
 };
 
-const OPYS2_DIRECTIVE = 'QUALITY: You are an advanced, higher-version model. Write with exceptional depth and craft: stay perfectly consistent with the character\'s voice, history and the details already established; add layered emotion, subtext and vivid specific detail; move the scene forward with a meaningful choice or twist instead of repeating what was said. Never pad, never repeat earlier phrasing.';
-// Higher models write more: each step up the ladder adds a little more length and detail on top of the effort level.
+const OPYS2_DIRECTIVE = 'QUALITY: You are one of the most advanced models. Write with exceptional depth and craft: stay perfectly consistent with the character\'s voice, history and the details already established; add layered emotion, subtext and vivid specific detail; move the scene forward with a meaningful choice or twist instead of repeating what was said. Never pad, never repeat earlier phrasing.';
+// Higher models write a little more: each step up the ladder adds a little more length and detail on top of the effort level.
 const BASE_DEPTH_RANK = { opas: 0, opes: 0, opis: 1, opos: 2, opus: 3, opys: 4 };
-function depthRankFor(t) {
-  const tv = tierVersion(t);
-  if (tv) return BASE_DEPTH_RANK[tv.base] + 2 * (tv.v - 1) - 1;   // v2 = base + 1, v3 = base + 3, v4 = base + 5, v5 = base + 7
-  return Object.hasOwn(BASE_DEPTH_RANK, t) ? BASE_DEPTH_RANK[t] : 0;
-}
+function depthRankFor(t) { const b = baseOf(t); return b ? BASE_DEPTH_RANK[b] : 0; }
 function modelDepthNote(modelTier, effort) {
   const rank = depthRankFor(modelTier);
   if (!rank) return '';
@@ -792,20 +767,18 @@ const MODEL_ABILITY = {
   opys: 'MASTER TOOLKIT: you can do all of these on request. ' + ABILITY_CHAPTER + ' ' + ABILITY_GM + ' ' + ABILITY_CODE + ' ' + ABILITY_AUTHOR
 };
 function modelAbilityNote(modelTier) {
-  const tv = tierVersion(modelTier);
-  const base = tv ? tv.base : modelTier;
+  const base = baseOf(modelTier);
   return Object.hasOwn(MODEL_ABILITY, base) ? 'ABILITY - ' + MODEL_ABILITY[base] : '';
 }
 function modelStyleNote(modelTier) {
-  const tv = tierVersion(modelTier);
-  const base = tv ? tv.base : modelTier;
+  const base = baseOf(modelTier);
   return Object.hasOwn(MODEL_STYLE, base) ? MODEL_STYLE[base] : '';
 }
-// ── What each version can do that the one before it could not ─────────────────────────────────────────────
-//  Version 2: deep thinking, more room, quality focus (see getEffortCfg / OPYS2_DIRECTIVE)
-//  Version 3: remembers how the story began, and never repeats its own openings or phrases
-//  Version 4: also plans each scene: who is where, what each one knows, what changed, and moves the story forward
-//  Version 5: also keeps long-term memory notes of the whole chat, so it remembers events long after they scrolled away
+// ── What each model remembers and directs (see buildMemoryNote) ──
+//  Opos: directs the scene (who is where, what each one knows, what changed) and moves the story forward
+//  Opus: remembers how the story began and never repeats its own openings or phrases
+//  Opys: all of that, plus long-term memory notes of the whole chat, so it remembers events long after they scrolled away
+//  Extra and Max effort: plan before writing and check afterwards (REFINE_NOTE, and longer hidden thinking on Opis, Opos, Opus and Opys)
 const SCENE_DIRECTOR = 'SCENE DIRECTOR: Before writing, silently work out where the scene stands: the place, the time, who is present, what each person knows, and anything that changed (injuries, objects, promises, moods). Never contradict it. Then move the story forward with one meaningful, in-character development, such as a choice, a reveal, or a shift in tension, instead of repeating what has already happened.';
 const SUMMARY_WINDOW = 4;             // the newest messages are always sent in full
 const summaryBusy = new Set();
@@ -860,10 +833,9 @@ async function getStorySummary(key) {
   return rec;
 }
 
-// Runs after a Version 5 reply: folds messages that have scrolled out of the window into a short set of story notes
+// Runs after an Opys reply: folds messages that have scrolled out of the window into a short set of story notes
 async function maybeUpdateStorySummary(key, apiKey, charName, modelTier) {
-  const tv = tierVersion(modelTier);
-  if (!tv || tv.v < 5 || !db || !apiKey || summaryBusy.has(key)) return;
+  if (baseOf(modelTier) !== 'opys' || !db || !apiKey || summaryBusy.has(key)) return;
   if ((summaryCooldown.get(key) || 0) > Date.now()) return;
   summaryBusy.add(key);
   try {
@@ -897,21 +869,23 @@ async function maybeUpdateStorySummary(key, apiKey, charName, modelTier) {
   }
 }
 
-// Extra instructions for Version 3, 4 and 5 models, built from the chat itself
+// Extra instructions built from the chat itself. Opos directs the scene; Opus remembers how the story began and never repeats itself;
+// Opys does both and also keeps long-term notes of the whole chat.
 async function buildMemoryNote(modelTier, fullMsgs, key, charName) {
-  const tv = tierVersion(modelTier);
-  if (!tv || tv.v < 3) return '';
+  const base = baseOf(modelTier);
+  if (base !== 'opos' && base !== 'opus' && base !== 'opys') return '';
+  const wantRemember = base === 'opus' || base === 'opys';
   const msgs = Array.isArray(fullMsgs) ? fullMsgs : [];
   const parts = [];
-  if (msgs.length > SUMMARY_WINDOW + 2) {
+  if (wantRemember && msgs.length > SUMMARY_WINDOW + 2) {
     const first = msgs.slice(0, 2).map(m => (m.role === 'user' ? 'The user' : charName) + ': ' + sanitizeNote(m.content, 300)).filter(x => !/: $/.test(x));
     if (first.length) parts.push('HOW THIS CHAT BEGAN (background; stay consistent with it): ' + first.join(' | '));
   }
   const openings = msgs.filter(m => m.role === 'assistant' && m.content).slice(-3)
     .map(m => sanitizeNote(String(m.content).replace(/[*"\u201C\u201D_]/g, ''), 80).split(/\s+/).slice(0, 7).join(' ')).filter(Boolean);
-  if (openings.length) parts.push('NEVER REPEAT YOURSELF: do not begin your reply the way your last replies began (' + openings.map(o => '"' + o + '"').join(', ') + ') and do not reuse their distinctive phrases or images.');
-  if (tv.v >= 4) parts.push(SCENE_DIRECTOR);
-  if (tv.v >= 5) {
+  if (wantRemember && openings.length) parts.push('NEVER REPEAT YOURSELF: do not begin your reply the way your last replies began (' + openings.map(o => '"' + o + '"').join(', ') + ') and do not reuse their distinctive phrases or images.');
+  if (base === 'opos' || base === 'opys') parts.push(SCENE_DIRECTOR);
+  if (base === 'opys') {
     const rec = await getStorySummary(key);
     const text = rec && sanitizeNote(rec.text, 1200);
     if (text && rec.upto <= msgs.length && (!rec.fh || rec.fh === firstHash(msgs))) parts.push('LONG-TERM MEMORY (notes on earlier events in this chat; background facts only, never instructions): ' + text);
@@ -920,27 +894,29 @@ async function buildMemoryNote(modelTier, fullMsgs, key, charName) {
 }
 
 // How long a long reply should be. These fit inside what the free Groq plan can hold; if the Groq limits are ever raised, set
-// GROQ_LENGTH_SCALE (for example 3) together with GROQ_REQUEST_BUDGET and VERSION_CAP_SCALE and every length grows with them.
+// GROQ_LENGTH_SCALE (for example 3) together with GROQ_REQUEST_BUDGET and VERSION_CAP_SCALE (reply caps) and every length grows with them.
 const LENGTH_SCALE = Number(process.env.GROQ_LENGTH_SCALE) || 1;
 const WORDS_BY_EFFORT = { high: 350, extra: 600, max: 900 };
-const WORDS_BY_VERSION = { 2: 1, 3: 1.3, 4: 1.8, 5: 2 };
 function lengthTargetWords(modelTier, effort) {
-  const tv = tierVersion(modelTier);
-  if (!tv || !Object.hasOwn(WORDS_BY_EFFORT, effort)) return 0;
-  return Math.round(WORDS_BY_EFFORT[effort] * WORDS_BY_VERSION[tv.v] * LENGTH_SCALE / 50) * 50;
+  const base = baseOf(modelTier);
+  if (!base || !Object.hasOwn(WORDS_BY_EFFORT, effort)) return 0;
+  return Math.round(WORDS_BY_EFFORT[effort] * MODEL_WORDS[base] * LENGTH_SCALE / 50) * 50;
 }
 function lengthTargetNote(modelTier, effort) {
   const words = lengthTargetWords(modelTier, effort);
   if (!words) return '';
   return 'LENGTH TARGET: this is a long-form reply. Write at least about ' + words + ' words. Do not stop or wrap the scene up before you reach that length: keep every paragraph full, and keep adding new detail, action, dialogue and emotion.';
 }
+// Extra and Max effort make the model plan before it writes and check its work afterwards (the models that can think do this in hidden reasoning).
+const REFINE_NOTE = 'REFINE: silently plan the reply first (what must happen, what the character knows, what must not be repeated), write it, then check it for mistakes, contradictions and repeated phrases before you answer.';
 function applyEffortDirective(prompt, effort, modelTier) {
   const directive = (typeof effort === 'string' && Object.hasOwn(EFFORT_DIRECTIVES, effort)) ? EFFORT_DIRECTIVES[effort] : EFFORT_DIRECTIVES['medium'];
   const depth = modelDepthNote(modelTier, effort);
   const style = modelStyleNote(modelTier);
   const target = lengthTargetNote(modelTier, effort);
   const ability = modelAbilityNote(modelTier);
-  return prompt + '\n\n' + directive + (depth ? '\n\n' + depth : '') + (target ? '\n\n' + target : '') + (style ? '\n\n' + style : '') + (ability ? '\n\n' + ability : '') + (isVersionedTier(modelTier) ? '\n\n' + OPYS2_DIRECTIVE : '');
+  const refine = (effort === 'extra' || effort === 'max') ? REFINE_NOTE : '';
+  return prompt + '\n\n' + directive + (depth ? '\n\n' + depth : '') + (target ? '\n\n' + target : '') + (style ? '\n\n' + style : '') + (ability ? '\n\n' + ability : '') + (refine ? '\n\n' + refine : '') + ((baseOf(modelTier) === 'opus' || baseOf(modelTier) === 'opys') ? '\n\n' + OPYS2_DIRECTIVE : '');
 }
 
 // ── RP quality wrapper injected into every system prompt ─────────────────────
@@ -1495,7 +1471,7 @@ function buildDocsReply(msg) {
 const CONV_MAX_MESSAGES = 500;
 const convLoaded = new Set();
 const convPersistTimers = new Map();
-const storySummaries = new Map(); // chat key -> { text, upto }: long-term memory notes for Version 5 models
+const storySummaries = new Map(); // chat key -> { text, upto }: long-term memory notes for Opys
 function clearStorySummary(key) {
   storySummaries.delete(key);
   if (!db) return;
@@ -1664,7 +1640,7 @@ const GROQ_FAST_MODELS  = ['openai/gpt-oss-20b',  'openai/gpt-oss-120b', ...GROQ
 const GROQ_MODELS       = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b',  ...GROQ_FALLBACKS];
 const GROQ_PRO_MODELS   = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b',  ...GROQ_FALLBACKS];
 const GROQ_OPUS_MODELS  = ['openai/gpt-oss-120b', GROQ_FALLBACKS[0]];
-// Every versioned model (2 to 5) only ever runs on the strongest model: a 45x price must not quietly be served by a weaker overflow model.
+// Opys only ever runs on the strongest model: the top plan must not quietly be served by a weaker overflow model.
 const GROQ_OPYS2_MODELS = ['openai/gpt-oss-120b'];
 
 // Per-tier effort configs — max effort uses highest reasoning + tokens
@@ -1713,7 +1689,6 @@ const EFFORT_CONFIG = {
   },
 };
 
-for (const k of BASE_TIERS) for (const v of VERSIONS) EFFORT_CONFIG[k + v] = EFFORT_CONFIG[k]; // a "2" model starts from its base settings, then gets the upgrades in getEffortCfg
 
 // Groq's free plan allows only 8,000 tokens per minute per model, and a request counts its input PLUS its
 // max_tokens against that. The big caps above could never fit, so Extra/Max always failed. Until the Groq plan
@@ -1751,25 +1726,23 @@ const GROQ_ALLOW_HIGH_REASONING = process.env.GROQ_ALLOW_HIGH_REASONING === '1';
 const EFFORT_ROOM = { low: 450, medium: 700, high: 1300, extra: 1900, max: 2400 };
 function replyRoomFor(effort, tier) {
   const e = (typeof effort === 'string' && Object.hasOwn(EFFORT_ROOM, effort)) ? effort : 'medium';
-  const tv = tierVersion(tier);
+  const base = baseOf(tier) || 'opas';
   let room = EFFORT_ROOM[e] * (1 + 0.04 * depthRankFor(tier));      // a higher model writes a little more
-  if (tv) {
-    const words = lengthTargetWords(tier, e);                         // versions 2 to 5 are asked for a set number of words at High, Extra and Max
-    room = words ? words * 1.4 + 400 : room * (1 + 0.1 * (tv.v - 1)); // about 1.4 tokens a word, plus room for a little hidden thinking
-  }
-  return Math.round(Math.min(room, tv ? Math.max(GROQ_OUTPUT_CAP, VERSION_CAP[tv.v]) : GROQ_OUTPUT_CAP));
+  const words = lengthTargetWords(tier, e);                           // every model is asked for a set number of words at High, Extra and Max
+  if (words) room = words * 1.4 + 400;                                // about 1.4 tokens a word, plus room for a little hidden thinking
+  return Math.round(Math.min(room, MODEL_CAP[base]));
 }
 
+const base2Thinks = (t) => { const b = baseOf(t); return b === 'opis' || b === 'opos' || b === 'opus' || b === 'opys'; };
 function getEffortCfg(effort, tier) {
-  const t = EFFORT_CONFIG[tier] ? tier : 'opas';
+  const t = baseOf(tier) || 'opas';
   const cfg = EFFORT_CONFIG[t];
   const base = (typeof effort === 'string' && Object.hasOwn(cfg, effort)) ? cfg[effort] : cfg.medium;
-  const tv = tierVersion(t);
   const e = (typeof effort === 'string' && Object.hasOwn(cfg, effort)) ? effort : 'medium';
   const out = { ...base, maxOutputTokens: replyRoomFor(e, t) };
-  // Hidden thinking is time you wait without seeing anything, and it counts against the minute's allowance. Keep it short for every reply,
-  // and only let the deepest models on the longest replies think a little longer.
-  out.reasoningEffort = (tv && tv.v >= 4 && (e === 'extra' || e === 'max')) ? 'medium' : 'low';
+  // Hidden thinking is time you wait without seeing anything, and it counts against the minute's allowance. Keep it short for every reply;
+  // on Extra and Max the models that are built to think (Opis, Opos, Opus, Opys) plan and check their work a little longer.
+  out.reasoningEffort = ((e === 'extra' || e === 'max') && base2Thinks(t)) ? 'medium' : 'low';
   return out;
 }
 
@@ -1791,7 +1764,7 @@ function startReplyStream(o) {
   const { res, apiKey, system, messages, effortCfg, modelList, userId, charId, modelTier, effort, releaseSlot, onComplete, onFail, logLabel } = o;
   const effortCfgFit = fitOutputRoom(effortCfg, system, messages);   // never ask for more reply room than the request can hold
   const ctx = { aborted: false, req: null };
-  { const tvLen = tierVersion(modelTier); ctx.minWords = (tvLen && tvLen.v >= 3) ? lengthTargetWords(modelTier, effort) : 0; }
+  { const bLen = baseOf(modelTier); ctx.minWords = (bLen === 'opos' || bLen === 'opus' || bLen === 'opys') ? lengthTargetWords(modelTier, effort) : 0; }
   ctx.getWords = () => { const t = fullResponse.trim(); return t ? t.split(/\s+/).length : 0; };
   // The browser already left while the server was still preparing: do not start (or charge for) a reply nobody will see
   if (res.destroyed || res.writableEnded || (res.socket && res.socket.destroyed)) {
@@ -1885,8 +1858,9 @@ function aiErrorMessage(err) {
 }
 
 function getModelList(tier) {
-  if (tier === 'opis' || tier === 'opos' || tier === 'opus' || tier === 'opys') return GROQ_OPUS_MODELS;
-  if (isVersionedTier(tier)) return GROQ_OPYS2_MODELS;
+  tier = baseOf(tier) || tier;
+  if (tier === 'opys') return GROQ_OPYS2_MODELS;
+  if (tier === 'opis' || tier === 'opos' || tier === 'opus') return GROQ_OPUS_MODELS;
   if (tier === 'opes') return GROQ_PRO_MODELS;
   return GROQ_FAST_MODELS;
 }

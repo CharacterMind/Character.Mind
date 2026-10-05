@@ -11,10 +11,9 @@ let lastUserMessage = '';
 // ── Model & Effort state ───────────────────────────────────────────────────────
 const EFFORT_LEVELS = ['low','medium','high','extra','max'];
 const BASE_TIERS = ['opas','opes','opis','opos','opus','opys'];
-const VERSIONS = [2, 3, 4, 5];
-const ALL_TIERS = [...BASE_TIERS, ...VERSIONS.flatMap(v => BASE_TIERS.map(b => b + v))];
-// Models tucked into the "More models" submenu of the picker
-const MORE_MODEL_TIERS = ALL_TIERS.filter(t => !['opas', 'opes', 'opis', 'opos'].includes(t));
+const ALL_TIERS = BASE_TIERS;
+// Older saved choices such as "opys5" mean the base model
+const baseTierOf = (t) => { const b = typeof t === 'string' ? t.replace(/[2-5]$/, '') : ''; return BASE_TIERS.includes(b) ? b : null; };
 // The chosen model and effort are remembered per account (see loadAccountPrefs), never shared between accounts
 let selectedModelTier = 'opas';
 let selectedEffort = 'medium';
@@ -26,7 +25,7 @@ function loadAccountPrefs() {
   selectedEffort = 'medium';
   try {
     const t = localStorage.getItem(userKey('cm_model_tier'));
-    if (ALL_TIERS.includes(t)) selectedModelTier = t;
+    if (baseTierOf(t)) selectedModelTier = baseTierOf(t);
     const e = localStorage.getItem(userKey('cm_effort'));
     if (EFFORT_LEVELS.includes(e)) selectedEffort = e;
   } catch (_) {}
@@ -34,45 +33,31 @@ function loadAccountPrefs() {
 }
 
 const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys' };
-for (const b of BASE_TIERS) for (const v of VERSIONS) MODEL_LABELS[b + v] = MODEL_LABELS[b] + ' ' + v;
 // Must match OPAS_COST / OPES_COST / COST_FACTOR_VS_OPES in server.js — what one reply costs from the allowance.
 const OPAS_COST = { low: 220, medium: 350, high: 540, extra: 800, max: 1200 };
 const OPES_COST = { low: 700, medium: 1200, high: 1800, extra: 2600, max: 4000 };
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3 };
-// Must match the server: versions 2 to 5 cost 1.5x, 3x, 6x and 10x their base model, with an extra 1.25x, 2x, 2.5x and 3x on Max effort
-const VERSION_FACTOR = { 2: 1.5, 3: 3, 4: 6, 5: 10 };
-const VERSION_MAX_BOOST = { 2: 1.25, 3: 2, 4: 2.5, 5: 3 };
 const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1, opus: 2, opys: 3 };
 const PLAN_RANK = { free: 0, advanced: 1, x20: 2, x50: 3 };
-function tierVersion(t) {
-  const m = /^(opas|opes|opis|opos|opus|opys)([2-5])$/.exec(typeof t === 'string' ? t : '');
-  return m ? { base: m[1], v: Number(m[2]) } : null;
-}
 function clientMessageCost(tier, effort) {
-  const tv = tierVersion(tier);
-  if (tv) {
-    const mult = VERSION_FACTOR[tv.v] * (effort === 'max' ? VERSION_MAX_BOOST[tv.v] : 1);
-    if (tv.base === 'opas') return Math.round(OPAS_COST[effort] * mult);
-    return Math.round(OPES_COST[effort] * COST_FACTOR_VS_OPES[tv.base] * mult);
-  }
+  tier = baseTierOf(tier) || tier;
   if (tier === 'opas' || !(tier in COST_FACTOR_VS_OPES)) return OPAS_COST[effort];
   return Math.round(OPES_COST[effort] * COST_FACTOR_VS_OPES[tier]);
 }
 // Roughly how many visible characters a full reply has at each effort (used to ramp the live counter up to the cost)
 const EXPECTED_REPLY_CHARS = { low: 250, medium: 500, high: 1200, extra: 2500, max: 4000 };
-// Versions 2 to 5 are asked for a set number of words at High, Extra and Max (must match WORDS_BY_EFFORT / WORDS_BY_VERSION in server.js)
+// Every model is asked for a set number of words at High, Extra and Max (must match WORDS_BY_EFFORT / MODEL_WORDS in server.js)
 const WORDS_BY_EFFORT = { high: 350, extra: 600, max: 900 };
-const WORDS_BY_VERSION = { 2: 1, 3: 1.3, 4: 1.8, 5: 2 };
+const MODEL_WORDS = { opas: 0.7, opes: 1, opis: 1.1, opos: 1.3, opus: 1.6, opys: 1.9 };
 function expectedReplyChars(tier, effort) {
-  const tv = tierVersion(tier);
-  if (tv && WORDS_BY_EFFORT[effort]) return Math.round(WORDS_BY_EFFORT[effort] * WORDS_BY_VERSION[tv.v] / 50) * 50 * 6;   // about 6 characters a word
+  const b = baseTierOf(tier);
+  if (b && WORDS_BY_EFFORT[effort]) return Math.round(WORDS_BY_EFFORT[effort] * MODEL_WORDS[b] / 50) * 50 * 6;   // about 6 characters a word
   return EXPECTED_REPLY_CHARS[effort] || 1200;
 }
 // Model tiers each plan may use — must match PLAN_MODEL_TIERS in server.js.
 const PLAN_MODEL_TIERS = {};
 for (const [plan, rank] of Object.entries(PLAN_RANK)) {
   PLAN_MODEL_TIERS[plan] = BASE_TIERS.filter(b => BASE_PLAN_RANK[b] <= rank);
-  for (const v of VERSIONS) for (const b of BASE_TIERS) if (Math.min(3, BASE_PLAN_RANK[b] + v - 1) <= rank) PLAN_MODEL_TIERS[plan].push(b + v);
 }
 // The total cost of the reply being written, and how much of it to show so far (ramps up as the text types)
 function liveReplyCost() {
@@ -92,10 +77,10 @@ const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', 
 
 // Token usage multiplier shown on Max effort warning per tier
 const MAX_EFFORT_MULTIPLIERS = {};
-{ // Max effort vs Medium: 3.3x on a base model, then 4.2x, 6.7x, 8.3x and 10x on versions 2 to 5
+{ // Max effort vs Medium: about 3.3x
   const baseRatio = OPES_COST.max / OPES_COST.medium;
   const fmt = (x) => (Math.round(x * 10) / 10) + '×';
-  for (const b of BASE_TIERS) { MAX_EFFORT_MULTIPLIERS[b] = fmt(baseRatio); for (const v of VERSIONS) MAX_EFFORT_MULTIPLIERS[b + v] = fmt(baseRatio * VERSION_MAX_BOOST[v]); }
+  for (const b of BASE_TIERS) MAX_EFFORT_MULTIPLIERS[b] = fmt(baseRatio);
 }
 
 function currentPlanKey() {
@@ -130,13 +115,6 @@ const MODEL_ICONS = {
   opos: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
   opus: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
   opys: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
-  opys2: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
-  opas3: '', opes3: '', opis3: '', opos3: '', opus3: '', opys3: '', opas4: '', opes4: '', opis4: '', opos4: '', opus4: '', opys4: '', opas5: '', opes5: '', opis5: '', opos5: '', opus5: '', opys5: '',
-  opas2: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
-  opes2: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
-  opis2: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
-  opos2: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
-  opus2: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
 };
 
 for (const k of Object.keys(MODEL_ICONS)) if (!MODEL_ICONS[k]) MODEL_ICONS[k] = MODEL_ICONS.opys;
@@ -155,8 +133,6 @@ function updateModelBarLabel() {
     if (el) el.classList.toggle('active', t === selectedModelTier);
   });
 
-  const moreBtn = document.getElementById('mdMoreBtn');
-  if (moreBtn) moreBtn.classList.toggle('has-active', MORE_MODEL_TIERS.includes(selectedModelTier));
   const moreEl = document.getElementById('mdMore');
 
   // Update effort picker checks and max multiplier label
@@ -169,6 +145,7 @@ function updateModelBarLabel() {
 }
 
 function setModelTier(tier) {
+  tier = baseTierOf(tier) || 'opas';
   selectedModelTier = tier;
   try { localStorage.setItem(userKey('cm_model_tier'), tier); } catch(_) {}
   updateModelBarLabel();
@@ -192,17 +169,17 @@ const PLAN_DATA = [
   {
     key: 'advanced', name: 'Advanced', monthly: 4.99, annual: 44.99,
     callsPerDay: 5, memosPerDay: 50,
-    features: ['Opis: light coding and puzzles', 'Opos: game master roleplay', 'Opas 2 & Opes 2', 'Everything in Free'],
+    features: ['Opis: light coding and puzzles', 'Opos: game master and scene director', 'More messages every session', 'Everything in Free'],
   },
   {
     key: 'x20', name: 'X20', badge: 'Recommended', monthly: 24.99, annual: 199.99,
     callsPerDay: 100, memosPerDay: 1000,
-    features: ['Opus: chapter writer with deep emotion', 'Opis 2, Opos 2, Opas 3 & Opes 3', 'Version 3 remembers how your story began', 'Everything in Advanced'],
+    features: ['Opus: chapter writer with deep emotion', 'Remembers how your story began and never repeats itself', 'Longer, more detailed replies', 'Everything in Advanced'],
   },
   {
     key: 'x50', name: 'X50', badge: 'Best Value', monthly: 49.99, annual: 399.99,
     callsPerDay: 250, memosPerDay: 2500,
-    features: ['Opys: master author with every ability', 'Every Version 2 to 5 model', 'Scene planning and long-term story memory', 'Everything in X20'],
+    features: ['Opys: master author with every ability', 'Long-term memory of your whole story', 'Plans scenes and whole story arcs', 'Everything in X20'],
   },
 ];
 
