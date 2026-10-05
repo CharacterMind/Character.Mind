@@ -217,6 +217,7 @@ const PLAN_SUBS = {
 let pricingPeriod = 'monthly';
 
 function openPricingModal() {
+  loadPaypalConfig().then(() => { setPricingPeriod(pricingPeriod); });
   renderPricingCards();
   document.getElementById('pricingModal').style.display = 'flex';
 }
@@ -224,9 +225,8 @@ function closePricingModal() {
   document.getElementById('pricingModal').style.display = 'none';
 }
 function setPricingPeriod(period) {
-  // Checkout only has monthly PayPal plans, so a yearly price must never be shown (the person would be charged the monthly one).
-  // Put the yearly toggle back, and remove this line, when yearly PayPal plans exist.
-  period = 'monthly';
+  // Yearly prices are only shown when yearly PayPal plans really exist (otherwise the person would be charged the monthly price).
+  if (!yearlyAvailable) period = 'monthly';
   pricingPeriod = period;
   document.getElementById('pricingBtnMonthly').classList.toggle('pt-active', period === 'monthly');
   document.getElementById('pricingBtnAnnual').classList.toggle('pt-active', period === 'annual');
@@ -269,6 +269,25 @@ const PAYPAL_PLAN_IDS = {
   x50:      'P-2S0314407M902330FNLAKWSQ',
 };
 
+// Yearly plans exist only once their PayPal plans are set up on the server (it tells us in /api/paypal/config)
+let yearlyAvailable = false;
+let paypalConfigLoaded = null;
+function loadPaypalConfig() {
+  if (!paypalConfigLoaded) {
+    paypalConfigLoaded = fetch('/api/paypal/config').then(r => r.json()).then(cfg => {
+      if (cfg && cfg.planIds) Object.assign(PAYPAL_PLAN_IDS, cfg.planIds);
+      if (cfg && cfg.yearlyPlanIds) Object.assign(PAYPAL_PLAN_IDS_YEARLY, cfg.yearlyPlanIds);
+      yearlyAvailable = !!(cfg && cfg.yearlyAvailable);
+      if (!yearlyAvailable) pricingPeriod = 'monthly';
+      document.body.classList.toggle('yearly-on', yearlyAvailable);
+      return cfg;
+    }).catch(() => { paypalConfigLoaded = null; return null; });
+  }
+  return paypalConfigLoaded;
+}
+const PAYPAL_PLAN_IDS_YEARLY = {};
+let currentCheckoutPeriod = 'monthly';
+
 let paypalSdkLoaded = false;
 let paypalSdkLoading = false;
 let currentCheckoutPlan = null;
@@ -276,19 +295,23 @@ let paypalCardFields = null;
 
 function handleUpgradeCta(planKey) {
   if (planKey === 'free') return;
-  openPaypalCheckout(planKey);
+  openPaypalCheckout(planKey, yearlyAvailable && pricingPeriod === 'annual' ? 'annual' : 'monthly');
 }
 
-async function openPaypalCheckout(planKey) {
+async function openPaypalCheckout(planKey, period) {
   const plan = PLAN_DATA.find(p => p.key === planKey);
   if (!plan) return;
   currentCheckoutPlan = planKey;
+  await loadPaypalConfig();
+  currentCheckoutPeriod = (period === 'annual' && yearlyAvailable) ? 'annual' : 'monthly';
+  const yearly = currentCheckoutPeriod === 'annual';
 
-  document.getElementById('paypalCheckoutTitle').textContent = `${plan.name} Plan`;
-  const priceStr = `$${plan.monthly.toFixed(2)} / mo`;
+  document.getElementById('paypalCheckoutTitle').textContent = `${plan.name} Plan${yearly ? ' (yearly)' : ''}`;
+  const price = yearly ? plan.annual : plan.monthly;
+  const priceStr = `$${price.toFixed(2)} / ${yearly ? 'yr' : 'mo'}`;
   document.getElementById('paypalCheckoutPrice').textContent = priceStr;
   const tot = document.getElementById('co-total-display');
-  if (tot) tot.textContent = `$${plan.monthly.toFixed(2)}`;
+  if (tot) tot.textContent = `$${price.toFixed(2)}`;
   document.getElementById('paypal-checkout-status').textContent = '';
   document.getElementById('paypal-checkout-status').style.color = '';
   document.getElementById('paypalCheckoutModal').style.display = 'flex';
@@ -320,7 +343,7 @@ async function openPaypalCheckout(planKey) {
 }
 
 function initPayPalWidgets(planKey) {
-  const planId = PAYPAL_PLAN_IDS[planKey];
+  const planId = (currentCheckoutPeriod === 'annual' ? PAYPAL_PLAN_IDS_YEARLY : PAYPAL_PLAN_IDS)[planKey];
   if (!planId || typeof paypal === 'undefined') return;
 
   // PayPal wallet button
@@ -400,7 +423,7 @@ async function verifyAndActivateSubscription(subscriptionId, planKey) {
     const resp = await fetch('/api/paypal/verify-subscription', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subscriptionId, planKey })
+      body: JSON.stringify({ subscriptionId, planKey, period: currentCheckoutPeriod })
     });
     const data = await resp.json();
     if (data.ok) {
@@ -443,6 +466,7 @@ function updateSettingsPlanCard(tier) {
 }
 
 function renderSettingsTiers(currentTier) {
+  if (!paypalConfigLoaded) loadPaypalConfig().then(() => renderSettingsTiers(currentTier));
   const el = document.getElementById('settingsTiersSection');
   if (!el) return;
   const t = currentTier || lastKnownUsage?.subscriptionTier || 'free';
@@ -456,6 +480,7 @@ function renderSettingsTiers(currentTier) {
   el.innerHTML = `
     <div class="st2-header">
       <span class="st2-title">Plans</span>
+      ${yearlyAvailable ? `<div class="st2-toggle"><button class="st2-toggle-btn${period === 'monthly' ? ' st2-toggle-active' : ''}" onclick="setSettingsPeriod('monthly')">Monthly</button><button class="st2-toggle-btn${period === 'annual' ? ' st2-toggle-active' : ''}" onclick="setSettingsPeriod('annual')">Yearly</button></div>` : ''}
     </div>
     <div class="st2-cards-wrap">
       ${plans.map(p => {
@@ -478,7 +503,7 @@ function renderSettingsTiers(currentTier) {
 }
 
 function setSettingsPeriod(period) {
-  pricingPeriod = 'monthly';   // monthly only for now (see setPricingPeriod)
+  pricingPeriod = (yearlyAvailable && period === 'annual') ? 'annual' : 'monthly';
   renderSettingsTiers();
 }
 

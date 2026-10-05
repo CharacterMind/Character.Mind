@@ -2789,8 +2789,8 @@ body:not(.voice-on) .tts-btn::after { content: "Soon"; font-size: 9px; font-weig
 
 .chat-loading { text-align: center; padding: 40px 0; font-size: 13px; color: var(--text3); }
 
-/* Monthly plans only for now: checkout has no yearly PayPal plans, so the Monthly/Annual toggle is hidden (see setPricingPeriod in app.js) */
-.pricing-toggle { display: none; }
+/* The Monthly/Annual toggle shows only when yearly PayPal plans are set up on the server (body gets the yearly-on class) */
+body:not(.yearly-on) .pricing-toggle { display: none; }
 
 /* History panel: "13 days ago" as the heading, with a snippet of the last message (like Character.AI) */
 .past-chat-date { font-size: 15px; font-weight: 600; color: var(--text1, var(--text)); }

@@ -3310,13 +3310,13 @@ function getMailTransporter() {
   });
 }
 
-async function sendReceiptEmail(userName, email, planKey, subscriptionId) {
+async function sendReceiptEmail(userName, email, planKey, subscriptionId, period) {
   const transporter = getMailTransporter();
   if (!transporter || !email) return;
   const planNames  = { advanced: 'Advanced Plan', x20: 'X20 Plan', x50: 'X50 Plan' };
   const planPrices = { advanced: '$4.99/month', x20: '$12.99/month', x50: '$24.99/month' };
   const planName  = planNames[planKey]  || planKey;
-  const planPrice = planPrices[planKey] || '';
+  const planPrice = period === 'annual' ? (({ advanced: '$44.99/year', x20: '$109.99/year', x50: '$199.99/year' })[planKey] || '') : (planPrices[planKey] || '');
   const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   const firstName = (userName || 'there').split(' ')[0];
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -3559,6 +3559,24 @@ const PAYPAL_PLAN_IDS = {
   x20:      process.env.PAYPAL_PLAN_X20,
   x50:      process.env.PAYPAL_PLAN_X50,
 };
+// Yearly plans: create them in PayPal, then set these three in the Render environment. Until all three exist, yearly is not offered at all.
+const PAYPAL_PLAN_IDS_YEARLY = {
+  advanced: process.env.PAYPAL_PLAN_ADVANCED_YEARLY,
+  x20:      process.env.PAYPAL_PLAN_X20_YEARLY,
+  x50:      process.env.PAYPAL_PLAN_X50_YEARLY,
+};
+const yearlyAvailable = () => Object.values(PAYPAL_PLAN_IDS_YEARLY).every(Boolean);
+// the PayPal plan to charge for a plan and period (monthly or annual)
+function paypalPlanIdFor(planKey, period) { return (period === 'annual' ? PAYPAL_PLAN_IDS_YEARLY : PAYPAL_PLAN_IDS)[planKey]; }
+// which of our plans a PayPal plan id belongs to, and for which period
+function paypalPlanFromId(planId) {
+  if (!planId) return null;
+  for (const [period, map] of [['monthly', PAYPAL_PLAN_IDS], ['annual', PAYPAL_PLAN_IDS_YEARLY]]) {
+    const tier = Object.keys(map).find(k => map[k] && map[k] === planId);
+    if (tier) return { tier, period };
+  }
+  return null;
+}
 
 async function getPayPalToken() {
   const creds = Buffer.from(`${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_SECRET}`).toString('base64');
@@ -3575,7 +3593,9 @@ async function getPayPalToken() {
 app.get('/api/paypal/config', (req, res) => {
   const planIds = {};
   for (const [k, v] of Object.entries(PAYPAL_PLAN_IDS)) if (v) planIds[k] = v;
-  res.json({ clientId: process.env.PAYPAL_CLIENT_ID || '', env: process.env.PAYPAL_ENV || 'sandbox', planIds });
+  const yearlyPlanIds = {};
+  if (yearlyAvailable()) for (const [k, v] of Object.entries(PAYPAL_PLAN_IDS_YEARLY)) yearlyPlanIds[k] = v;
+  res.json({ clientId: process.env.PAYPAL_CLIENT_ID || '', env: process.env.PAYPAL_ENV || 'sandbox', planIds, yearlyAvailable: yearlyAvailable(), yearlyPlanIds });
 });
 
 async function cancelPayPalSubscription(subId, reason) {
@@ -3593,6 +3613,8 @@ async function cancelPayPalSubscription(subId, reason) {
 app.post('/api/paypal/verify-subscription', paypalVerifyLimiter, async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not logged in' });
   const { subscriptionId, planKey } = req.body;
+  const period = (req.body && req.body.period === 'annual') ? 'annual' : 'monthly';
+  if (period === 'annual' && !yearlyAvailable()) return res.status(400).json({ error: 'Yearly plans are not available right now' });
   const validPlans = { advanced: true, x20: true, x50: true };
   if (typeof planKey !== 'string' || !Object.hasOwn(validPlans, planKey)) return res.status(400).json({ error: 'Invalid request' });
   if (typeof subscriptionId !== 'string' || !/^I-[A-Z0-9]{6,40}$/.test(subscriptionId)) return res.status(400).json({ error: 'Invalid request' });
@@ -3618,7 +3640,7 @@ app.post('/api/paypal/verify-subscription', paypalVerifyLimiter, async (req, res
       return res.status(400).json({ error: 'Subscription not active', status: sub.status });
     }
     // Verify the subscription's plan matches what the client claims
-    const expectedPlanId = PAYPAL_PLAN_IDS[planKey];
+    const expectedPlanId = paypalPlanIdFor(planKey, period);
     if (!expectedPlanId) {
       console.error(`PayPal plan ID for "${planKey}" is not configured — refusing to activate`);
       return res.status(503).json({ error: 'This plan is not available right now' });
@@ -3651,7 +3673,7 @@ app.post('/api/paypal/verify-subscription', paypalVerifyLimiter, async (req, res
     paidLimits.sessionTokens = 0; paidLimits.sessionStartedAt = null; paidLimits.cooldownUntil = null; // fresh session on the new plan
     paidLimits.warned = {};   // the new plan has different limits, so usage warnings start again
     saveLimitsToDB(req.user.googleId);
-    sendReceiptEmail(req.user.name, req.user.email, planKey, subscriptionId).catch(() => {});
+    sendReceiptEmail(req.user.name, req.user.email, planKey, subscriptionId, period).catch(() => {});
     sendPlanWelcomeEmail(req.user.name, req.user.email, planKey).catch(() => {});
     res.json({ ok: true, tier: planKey });
   } catch (err) {
@@ -3704,7 +3726,8 @@ app.post('/api/webhooks/paypal', async (req, res) => {
   if ((eventType === 'BILLING.SUBSCRIPTION.ACTIVATED' || eventType === 'BILLING.SUBSCRIPTION.RE-ACTIVATED') && subId && db) {
     const customId = String((event.resource && event.resource.custom_id) || '');
     const planId = event.resource && event.resource.plan_id;
-    const tier = Object.keys(PAYPAL_PLAN_IDS).find(k => PAYPAL_PLAN_IDS[k] && PAYPAL_PLAN_IDS[k] === planId);
+    const found = paypalPlanFromId(planId);
+    const tier = found && found.tier;
     if (tier && /^[0-9]{5,40}$/.test(customId)) {
       try {
         // What the account has now: if it is already on this exact subscription and plan, the browser call got there first and there is
