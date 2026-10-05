@@ -4725,8 +4725,8 @@ function charTheme(ch) {
   const name = String((ch && ch.name) || '').toLowerCase();
   if (/\blily\b/.test(name)) return {
     // black, gold and purple: speech is gold-led and bold, narration is purple-led and italic
-    sp: pal([{ c: '#f4c542' }, { c: '#b794ff' }, { c: BLACK_TEXT, g: '1px 0 0 #f4c542, -1px 0 0 #f4c542, 0 1px 0 #f4c542, 0 -1px 0 #f4c542, 0 0 6px rgba(244,197,66,.65)' }], [3, 2, 2]),
-    nr: pal([{ c: '#9a6bff' }, { c: BLACK_TEXT, g: '1px 0 0 #b794ff, -1px 0 0 #b794ff, 0 1px 0 #b794ff, 0 -1px 0 #b794ff, 0 0 6px rgba(154,107,255,.65)' }, { c: '#d4a82f' }], [3, 2, 1])
+    sp: pal([{ c: '#f4c542' }, { c: '#b794ff' }, { c: '#efe6d2' }], [3, 2, 2]),
+    nr: pal([{ c: '#b79cff' }, { c: '#c9b2ff' }, { c: '#d4a82f' }], [3, 2, 1])
   };
   if (/\bpoppy\b/.test(name)) return {
     // blue dress, red hair
@@ -4792,23 +4792,8 @@ function renderMarkdown(text, theme, opts) {
   const emit = (kind, str) => {
     // links to the site's own Terms/Privacy pages stay clickable; everything else is just text
     const parts = str.split(/(\[[^\]\n]{1,40}\]\((?:\/terms|\/privacy)\))/g);
-    const n = theme[kind].pick.length;
-    const letters = (chunk) => {
-      let out = '';
-      if (lite) {
-        // one colour per word: far fewer elements for a long chat history
-        chunk.split(/([\p{L}\p{N}]+)/u).forEach((piece, idx) => {
-          if (idx % 2 === 1) out += '<span class="k' + theme[kind].pick[letterPick(letterNo++, n)] + '">' + escHtml(piece) + '</span>';
-          else out += escHtml(piece);
-        });
-        return out;
-      }
-      for (const ch of chunk) {
-        if (LETTER_RE.test(ch)) { out += '<span class="k' + theme[kind].pick[letterPick(letterNo++, n)] + '">' + escHtml(ch) + '</span>'; }
-        else out += escHtml(ch);
-      }
-      return out;
-    };
+    // plain text: each speech or narration run is ONE solid colour (set in CSS), never a colour per letter
+    const letters = (chunk) => escHtml(chunk);
     return parts.map(part => {
       const lm = /^\[([^\]\n]{1,40})\]\((\/terms|\/privacy)\)$/.exec(part);
       if (lm) return '<a class="chat-link" href="' + lm[2] + '" target="_blank" rel="noopener">' + escHtml(lm[1]) + '</a>';
