@@ -273,7 +273,7 @@
   window.setLightMode = function setLightMode(m) {
     document.body.classList.toggle('calm', m === 'calm');
     var pill = document.getElementById('modePill');
-    if (pill) pill.textContent = m === 'calm' ? '🎆 Full concert show' : '🔅 Calm lights';
+    if (pill) pill.textContent = m === 'calm' ? '🔅 Calm mode — tap to go wild' : '🎆 Full concert show — tap for calm';
     try { localStorage.setItem('cm_lightMode', m); } catch(e) {}
     var ov = document.getElementById('epOverlay');
     if (ov) ov.classList.remove('ep-open');

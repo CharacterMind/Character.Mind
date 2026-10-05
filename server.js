@@ -202,9 +202,11 @@ const personaLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 20, standardHe
 const geoLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, keyGenerator: perUserKey, message: { error: 'Too many requests. Please try again in a minute.' } });
 const chatBurstLimiter = rateLimit({ windowMs: 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false, keyGenerator: perUserKey, message: { error: 'You are sending messages too fast. Please slow down a little.' } });
 // ── Maintenance mode ─────────────────────────────────────────────────────────
-// Set MAINTENANCE=1 (or "true") in the Render environment and everyone sees the maintenance page until it is removed.
-// The page checks /api/maintenance-status every few seconds and sends people back to the site by itself once it is off.
-const maintenanceOn = () => /^(1|true|on)$/i.test(String(process.env.MAINTENANCE || '').trim());
+// Auto-activates while the server is starting up (serverReady=false) and deactivates once fully initialized.
+// Set MAINTENANCE=1 in Render env vars to force maintenance mode for planned work; remove to lift it.
+// The page checks /api/maintenance-status every 12 s and redirects users back automatically once off.
+let serverReady = false;
+const maintenanceOn = () => !serverReady || /^(1|true|on)$/i.test(String(process.env.MAINTENANCE || '').trim());
 app.get('/api/maintenance-status', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.json({ maintenance: maintenanceOn() });
@@ -3895,6 +3897,7 @@ app.use((err, req, res, next) => {
 
 function startListening() {
   app.listen(PORT, () => {
+    serverReady = true;
     loadOwnerIds();
     console.log(`\nAI Character Site running at http://localhost:${PORT}\n`);
   });
