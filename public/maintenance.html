@@ -141,6 +141,37 @@
     60%, 78%  { transform: translateY(-30px) rotate(0deg); }
     80%, 100% { transform: translateY(-10px) rotate(-10deg); }
   }
+  /* ---------- final layout: one centred stack, built for phones first, then scaled up for desktop ---------- */
+  .page { height: 100dvh; min-height: 100svh; justify-content: center; gap: clamp(10px, 2.4svh, 26px); padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
+  .head { display: flex; flex-direction: column; align-items: center; gap: clamp(6px, 1.2svh, 12px); width: 100%; }
+  .logo { font-size: clamp(38px, min(11.6vw, 11.5svh), 108px); max-width: 100%; white-space: nowrap; }
+  .logo-bar { width: min(62%, 520px); height: 4px; border-radius: 4px; background: linear-gradient(90deg, #ff2d2d, #ff8a00, #ffe14d, #7CFF4F, #1fe0a0, #22d3ee, #3b82f6, #8b5cf6, #e11dd4, #ff5fa2, #ff2d2d); background-size: 600px 100%; animation: barflow 2.6s linear infinite; box-shadow: 0 0 14px rgba(255,255,255,.55), 0 0 34px rgba(139,92,246,.7); }
+  @keyframes barflow { to { background-position: 600px 0; } }
+  .trio { --dh: min(37svh, 27vw); flex: 0 0 auto; width: 100%; max-width: 1100px; height: calc(var(--dh) + 46px); align-items: flex-end; justify-content: center; gap: 0; }
+  .pal, .pal.l, .pal.d, .pal.p { width: auto; height: auto; padding: 0; margin: 0 clamp(-30px, -2.4vw, -6px); --size: auto; }
+  .pal img { width: auto; height: var(--ph); max-width: none; display: block; }
+  .pal.l { --ph: calc(var(--dh) * .86); }
+  .pal.d { --ph: var(--dh); z-index: 2; }
+  .pal.p { --ph: calc(var(--dh) * .74); }
+  .trio::after { left: 8%; right: 8%; bottom: 2px; }
+  .card { width: min(580px, 100%); padding: clamp(14px, 2.6svh, 28px) clamp(16px, 4vw, 32px); border-radius: 20px; }
+  h1 { margin: 0 0 8px; font-size: clamp(22px, 5.6vw, 40px); }
+  .card p { font-size: clamp(13px, 3.5vw, 16.5px); line-height: 1.5; }
+  .status { margin-top: 12px; padding: 7px 13px; font-size: 12.5px; }
+  .care { margin-top: 12px; font-size: 11.5px; line-height: 1.45; opacity: .8; }
+  @media (min-width: 701px) {
+    .pal, .pal.l, .pal.d, .pal.p { margin: 0 clamp(6px, 1.8vw, 40px); }
+    .card { width: min(740px, 100%); }
+    .card p { font-size: clamp(14px, .6vw + 9px, 16.5px); max-width: none; }
+    .care { max-width: none; }
+  }
+  @media (max-width: 700px) {
+    .trio { --dh: min(36svh, 50vw); }
+    .pal, .pal.l, .pal.d, .pal.p { margin: 0 -9px; }
+  }
+  @media (max-height: 700px) { .care { display: none; } }
+  @media (max-height: 640px) { .trio { --dh: min(32svh, 26vw); } }
+
   @media (prefers-reduced-motion: reduce) { .logo { animation-duration: 40s; } }
 
   @media (prefers-reduced-motion: reduce) {
@@ -162,7 +193,7 @@
 </div>
 
 <main class="page">
-  <h2 class="logo" aria-label="character.mind">character.mind</h2>
+  <div class="head"><h2 class="logo" aria-label="character.mind">character.mind</h2><div class="logo-bar" aria-hidden="true"></div></div>
   <div class="trio" aria-hidden="true">
     <div class="pal l"><img src="/maintenance/lily.webp" alt=""></div>
     <div class="pal d"><img src="/maintenance/doey.webp" alt=""></div>
