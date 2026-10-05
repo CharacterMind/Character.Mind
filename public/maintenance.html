@@ -94,6 +94,7 @@
 
   /* once the rig is loaded the CSS dance is replaced */
   .pal.rigged { animation: none !important; }
+  .pal.rigged img { visibility: hidden; }
   .rig-canvas { image-rendering: high-quality; }
 
   /* ---------- the characters themselves (cut out, no circles), and the RGB logo ---------- */
@@ -240,12 +241,12 @@
     <h2 id="epTitle">Flashing light show ahead</h2>
     <p>The background has moving colours and light effects. If you have epilepsy or are sensitive to flashing lights, choose calm lighting — it's just as fun.</p>
     <div class="ep-btns">
-      <button class="ep-btn calm" onclick="setLightMode('calm')">🔅 Use calm lighting</button>
-      <button class="ep-btn full" onclick="setLightMode('full')">🎆 Full concert show</button>
+      <button class="ep-btn calm" id="btnCalm">🔅 Use calm lighting</button>
+      <button class="ep-btn full" id="btnFull">🎆 Full concert show</button>
     </div>
   </div>
 </div>
-<button class="mode-pill" id="modePill" aria-label="Toggle light mode" onclick="toggleLightMode()"></button>
+<button class="mode-pill" id="modePill" aria-label="Toggle light mode"></button>
 
 <main class="page">
   <div class="head"><h2 class="logo" aria-label="character.mind">character.mind</h2><div class="logo-bar" aria-hidden="true"></div></div>
@@ -280,6 +281,15 @@
   window.toggleLightMode = function toggleLightMode() {
     setLightMode(document.body.classList.contains('calm') ? 'full' : 'calm');
   }
+  // wire buttons without relying on onclick=
+  document.addEventListener('DOMContentLoaded', function() {
+    var bc = document.getElementById('btnCalm');
+    var bf = document.getElementById('btnFull');
+    var mp = document.getElementById('modePill');
+    if (bc) bc.addEventListener('click', function() { window.setLightMode('calm'); });
+    if (bf) bf.addEventListener('click', function() { window.setLightMode('full'); });
+    if (mp) mp.addEventListener('click', function() { window.toggleLightMode(); });
+  });
   if (_stored) { setLightMode(_stored); }
   else { var _ov = document.getElementById('epOverlay'); if (_ov) _ov.classList.add('ep-open'); }
 
