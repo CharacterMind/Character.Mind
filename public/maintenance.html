@@ -281,15 +281,13 @@
   window.toggleLightMode = function toggleLightMode() {
     setLightMode(document.body.classList.contains('calm') ? 'full' : 'calm');
   }
-  // wire buttons without relying on onclick=
-  document.addEventListener('DOMContentLoaded', function() {
-    var bc = document.getElementById('btnCalm');
-    var bf = document.getElementById('btnFull');
-    var mp = document.getElementById('modePill');
-    if (bc) bc.addEventListener('click', function() { window.setLightMode('calm'); });
-    if (bf) bf.addEventListener('click', function() { window.setLightMode('full'); });
-    if (mp) mp.addEventListener('click', function() { window.toggleLightMode(); });
-  });
+  // wire buttons — DOM is ready here (script is at bottom of body)
+  var _bc = document.getElementById('btnCalm');
+  var _bf = document.getElementById('btnFull');
+  var _mp = document.getElementById('modePill');
+  if (_bc) _bc.addEventListener('click', function() { window.setLightMode('calm'); });
+  if (_bf) _bf.addEventListener('click', function() { window.setLightMode('full'); });
+  if (_mp) _mp.addEventListener('click', function() { window.toggleLightMode(); });
   if (_stored) { setLightMode(_stored); }
   else { var _ov = document.getElementById('epOverlay'); if (_ov) _ov.classList.add('ep-open'); }
 
