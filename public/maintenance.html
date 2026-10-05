@@ -110,6 +110,37 @@
   .pal.d img { -webkit-mask-image: linear-gradient(180deg, #000 82%, transparent 100%); mask-image: linear-gradient(180deg, #000 82%, transparent 100%); }
   .trio::after { left: 12%; right: 12%; }
   @media (max-height: 640px) { .trio { height: 140px; } .pal { --size: 110px; } .pal.d { --size: 130px; } .logo { font-size: clamp(34px, 8vw, 64px); } }
+  /* three completely different dances, each on its own beat */
+  .pal.l { animation: spin-l 3.4s ease-in-out infinite; animation-delay: 0s; transform-origin: 50% 100%; }
+  .pal.d { animation: jelly-d 1.3s ease-in-out infinite; animation-delay: 0s; transform-origin: 50% 100%; }
+  .pal.p { animation: tick-p 2.8s cubic-bezier(.7, 0, .3, 1) infinite; animation-delay: 0s; transform-origin: 50% 0%; }
+  /* Lily: hops, then glides across and spins all the way round like a turntable, hops again, and skips back */
+  @keyframes spin-l {
+    0%   { transform: translateX(-30px) translateY(0) perspective(700px) rotateY(0deg); }
+    10%  { transform: translateX(-30px) translateY(-36px) perspective(700px) rotateY(0deg); }
+    20%  { transform: translateX(-30px) translateY(0) perspective(700px) rotateY(0deg); }
+    50%  { transform: translateX(30px) translateY(-20px) perspective(700px) rotateY(180deg); }
+    72%  { transform: translateX(30px) translateY(0) perspective(700px) rotateY(360deg); }
+    84%  { transform: translateX(30px) translateY(-36px) perspective(700px) rotateY(360deg); }
+    100% { transform: translateX(-30px) translateY(0) perspective(700px) rotateY(360deg); }
+  }
+  /* Doey: a blob of jelly: squashes, springs up, wobbles and settles (no turning at all) */
+  @keyframes jelly-d {
+    0%, 100% { transform: scale(1, 1) skewX(0deg); }
+    12% { transform: scale(1.24, .76) skewX(0deg); }
+    28% { transform: translateY(-30px) scale(.84, 1.22) skewX(-7deg); }
+    44% { transform: translateY(0) scale(1.15, .87) skewX(6deg); }
+    60% { transform: scale(.94, 1.07) skewX(-4deg); }
+    78% { transform: scale(1.04, .97) skewX(2deg); }
+  }
+  /* Poppy: a marionette hanging from strings: floats up and down and ticks from side to side in stiff little steps, then pauses */
+  @keyframes tick-p {
+    0%, 18%   { transform: translateY(-10px) rotate(-10deg); }
+    20%, 38%  { transform: translateY(-30px) rotate(0deg); }
+    40%, 58%  { transform: translateY(-10px) rotate(10deg); }
+    60%, 78%  { transform: translateY(-30px) rotate(0deg); }
+    80%, 100% { transform: translateY(-10px) rotate(-10deg); }
+  }
   @media (prefers-reduced-motion: reduce) { .logo { animation-duration: 40s; } }
 
   @media (prefers-reduced-motion: reduce) {
