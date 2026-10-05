@@ -356,6 +356,7 @@
       </div>
       <div class="chat-body" id="chatBody">
         <div class="chat-welcome" id="chatWelcome"></div>
+        <div id="bookBar" class="book-bar" style="display:none"></div>
         <div id="messages"></div>
         <div id="typingIndicator" class="typing-indicator hidden">
           <div class="typing-header">
@@ -561,6 +562,8 @@
             <button class="mb-effort-btn" id="mbEffortBtn" onclick="toggleEffortPanel()">
               <span id="mbEffortLabel">Medium</span>
             </button>
+            <span class="mb-sep" id="bookSep" style="display:none">·</span>
+            <button class="mb-effort-btn mb-book-btn" id="bookModeBtn" style="display:none" onclick="openBookModal()">Write a book</button>
           </div>
         </div>
         <div class="disclaimer">This is A.I. and not a real person. Treat everything it says as fiction ▾</div>
@@ -972,6 +975,21 @@
   </div>
 </div>
 
+<!-- Book mode (Opys 5, X100) -->
+<div id="bookModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeBookModal()">
+  <div class="book-modal">
+    <h2 class="book-title">Write a book</h2>
+    <p class="book-sub">Opys 5 plans the whole book first, then writes it one chapter at a time. Each chapter is a long reply that streams into this chat.</p>
+    <label class="book-label" for="bookPremise">What is the book about?</label>
+    <textarea id="bookPremise" class="book-input" rows="5" maxlength="1200" placeholder="A cursed toy factory, a night-shift worker who can hear the toys whisper, and a secret buried under the assembly line..."></textarea>
+    <label class="book-label" for="bookChapters">How many chapters? (3 to 40)</label>
+    <input id="bookChapters" class="book-input book-num" type="number" min="3" max="40" value="12" oninput="updateBookEstimate()">
+    <p class="book-est" id="bookEstimate"></p>
+    <p class="book-note">Keep this tab open while it writes. You can stop at any time and resume later, and download what is written. Use High, Extra or Max effort for the longest chapters.</p>
+    <div class="book-actions"><button class="book-btn" onclick="closeBookModal()">Cancel</button><button class="book-btn book-btn-main" onclick="startBook()">Plan my book</button></div>
+  </div>
+</div>
+
 <!-- Pricing / Upgrade Modal -->
 <div id="pricingModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closePricingModal()">
   <div class="pricing-modal">
@@ -1206,6 +1224,6 @@
 }
 </style>
 
-<script src="app.js?v=211"></script>
+<script src="app.js?v=212"></script>
 </body>
 </html>

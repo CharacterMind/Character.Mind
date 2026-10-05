@@ -147,6 +147,17 @@ if (db) {
       PRIMARY KEY (user_id, char_id)
     )
   `).then(() => db.query('ALTER TABLE story_summaries ADD COLUMN IF NOT EXISTS first_hash TEXT')).catch(err => console.error('story_summaries table init error:', err));
+  db.query(`
+    CREATE TABLE IF NOT EXISTS book_states (
+      user_id TEXT NOT NULL,
+      char_id TEXT NOT NULL,
+      premise TEXT NOT NULL DEFAULT '',
+      total INT NOT NULL DEFAULT 0,
+      outline TEXT NOT NULL DEFAULT '',
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (user_id, char_id)
+    )
+  `).catch(err => console.error('book_states table init error:', err));
 } else {
   console.warn('No DATABASE_URL — characters will not be persisted');
 }
@@ -880,6 +891,43 @@ async function maybeUpdateStorySummary(key, apiKey, charName, modelTier) {
   }
 }
 
+// ── Book mode (Opys 5, X100 only) ─────────────────────────────────────────────────────────────────────────
+// A book is planned first (title, characters, one beat per chapter). The plan is kept on the server, and every chapter is then written as
+// its own normal reply that is shown the plan, so a long book stays on course even after the early messages have scrolled out of reach.
+const bookStates = new Map();   // chat key -> { premise, total, outline }
+const BOOK_MIN_CHAPTERS = 3, BOOK_MAX_CHAPTERS = 40;
+async function getBookState(key) {
+  if (bookStates.has(key)) return bookStates.get(key);
+  let rec = null;
+  if (db) {
+    try {
+      const [uid, charId] = splitConvKey(key);
+      const r = await db.query('SELECT premise, total, outline FROM book_states WHERE user_id=$1 AND char_id=$2', [uid, charId]);
+      if (r.rows[0]) rec = { premise: r.rows[0].premise, total: r.rows[0].total, outline: r.rows[0].outline };
+    } catch (_) { /* no plan is better than a failed reply */ }
+  }
+  if (bookStates.size > 2000) bookStates.clear();
+  bookStates.set(key, rec);
+  return rec;
+}
+async function saveBookState(key, st) {
+  bookStates.set(key, st);
+  if (!db) return;
+  try {
+    const [uid, charId] = splitConvKey(key);
+    await db.query('INSERT INTO book_states (user_id, char_id, premise, total, outline, updated_at) VALUES ($1,$2,$3,$4,$5,NOW()) ON CONFLICT (user_id, char_id) DO UPDATE SET premise=$3, total=$4, outline=$5, updated_at=NOW()', [uid, charId, st.premise, st.total, st.outline]);
+  } catch (e) { console.warn('[book] could not save the plan:', e.message); }
+}
+function bookPlanNote(total) {
+  return 'BOOK MODE (PLANNING): the user wants a full-length book of ' + total + ' chapters, based on their message. Do NOT write any chapter yet. Reply with plain text only: a title; a two-sentence premise; the main characters (name and one line each); then a numbered list of exactly ' + total + ' chapter beats, one or two sentences each, with rising tension, a midpoint turn, a crisis near the end and a satisfying ending. Keep it under 700 words and do not use asterisks.';
+}
+function bookChapterNote(st, n, total) {
+  const last = n >= total;
+  return 'BOOK MODE (CHAPTER ' + n + ' OF ' + total + '). THE BOOK PLAN (follow it): ' + sanitizeNote(st.outline, 3600) +
+    ' Write ONLY Chapter ' + n + ' now, as one complete chapter. The first line is "Chapter ' + n + ': <title>". Follow beat ' + n + ' of the plan, continue seamlessly from where the previous chapter ended (never recap it), and develop every beat with scene, dialogue, detail and feeling at the full length asked for. ' +
+    (last ? 'This is the final chapter: resolve every thread and give the book a real ending.' : 'End on a hook that leads into Chapter ' + (n + 1) + '.') + ' Never write beyond this chapter.';
+}
+
 // Extra instructions built from the chat itself. Opos directs the scene; Opus remembers how the story began and never repeats itself;
 // Opys does both and also keeps long-term notes of the whole chat.
 async function buildMemoryNote(modelTier, fullMsgs, key, charName) {
@@ -1488,6 +1536,8 @@ function clearStorySummary(key) {
   if (!db) return;
   const [uid, charId] = splitConvKey(key);
   db.query('DELETE FROM story_summaries WHERE user_id=$1 AND char_id=$2', [uid, charId]).catch(() => {});
+  db.query('DELETE FROM book_states WHERE user_id=$1 AND char_id=$2', [uid, charId]).catch(() => {});
+  bookStates.delete(key);
 }
 
 function splitConvKey(key) {
@@ -2464,6 +2514,7 @@ app.post('/api/admin/wipe-my-data', requireAuth, async (req, res) => {
     await Promise.all([
       db.query('DELETE FROM chat_current WHERE user_id = $1', [uid]),
       db.query('DELETE FROM story_summaries WHERE user_id = $1', [uid]),
+      db.query('DELETE FROM book_states WHERE user_id = $1', [uid]),
       db.query('DELETE FROM user_limits WHERE user_id = $1', [uid]),
       db.query('UPDATE users SET recent_chats = $1, hidden_recents = $2 WHERE google_id = $3', ['{}', '{}', uid])
     ]).catch(() => {});
@@ -2802,6 +2853,7 @@ app.delete('/api/characters/:id', requireAuth, async (req, res) => {
     if (check.rows[0].device_id !== userId) return res.status(403).json({ error: 'Not your character' });
     await db.query('DELETE FROM characters WHERE id = $1', [req.params.id]);
     db.query('DELETE FROM story_summaries WHERE char_id = $1', [req.params.id]).catch(() => {});
+    db.query('DELETE FROM book_states WHERE char_id = $1', [req.params.id]).catch(() => {});
     // The character is gone: forget it everywhere, so nobody can keep chatting with (or syncing chats into) a character that no longer exists
     knownCharIds.delete(req.params.id);
     db.query('DELETE FROM chat_current WHERE char_id = $1', [req.params.id]).catch(() => {});
@@ -3121,6 +3173,16 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   const { charId, message, modelTier: reqModelTier, effort, image, callMode } = req.body;
   const modelTier = resolveModelTier(req.user.googleId, reqModelTier);
   if (message !== undefined && typeof message !== 'string') return res.status(400).json({ error: 'Invalid request' });
+  // Book mode: a book is planned, then written one chapter per reply. Only Opys 5 (X100) can do it.
+  let bookReq = null;
+  if (req.body.book !== undefined) {
+    if (modelTier !== 'opys5') return res.status(403).json({ error: 'Book mode needs Opys 5, which comes with the X100 plan.' });
+    const b = req.body.book;
+    const total = b && Number.isInteger(b.total) ? b.total : 0;
+    const n = b && Number.isInteger(b.n) ? b.n : 0;
+    if (!b || (b.kind !== 'plan' && b.kind !== 'chapter') || total < BOOK_MIN_CHAPTERS || total > BOOK_MAX_CHAPTERS || (b.kind === 'chapter' && (n < 1 || n > total))) return res.status(400).json({ error: 'Invalid book request' });
+    bookReq = { kind: b.kind, total, n };
+  }
   if (image !== undefined) {
     if (typeof image !== 'string') return res.status(400).json({ error: 'Invalid image' });
     const ALLOWED_IMG = ['data:image/jpeg;base64,','data:image/jpg;base64,','data:image/png;base64,','data:image/webp;base64,','data:image/gif;base64,'];
@@ -3253,6 +3315,18 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     }
   }
 
+  let bookNote = '', bookPlanState = null;
+  if (bookReq) {
+    if (bookReq.kind === 'plan') {
+      bookPlanState = { premise: String(message || '').slice(0, 1500), total: bookReq.total, outline: '' };
+      bookNote = '\n\n' + bookPlanNote(bookReq.total);
+    } else {
+      const st = await getBookState(key);
+      if (!st || !st.outline) return res.status(409).json({ error: 'Plan the book first, then write the chapters.' });
+      bookNote = '\n\n' + bookChapterNote(st, bookReq.n, st.total || bookReq.total);
+    }
+  }
+
   if (!isContinuation) {
     // History stores text only — images are not persisted (too large, one-shot vision)
     conversations[key].push({ role: 'user', content: message || '[image]' });
@@ -3292,10 +3366,11 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(wrapPrompt(char.systemPrompt + memNote) + crisisContext + callModeDirective, effort, modelTier),
+    system: applyEffortDirective(wrapPrompt(char.systemPrompt + memNote + bookNote) + crisisContext + callModeDirective, effort, modelTier),
     messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
+      if (bookPlanState) saveBookState(key, { ...bookPlanState, outline: String(text || '').slice(0, 4000) });
       maybeUpdateStorySummary(key, apiKey, (dbChar && dbChar.name) || charId, modelTier);
     },
     logLabel: 'Chat'

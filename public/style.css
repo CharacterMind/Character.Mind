@@ -2853,3 +2853,23 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
 @media (max-width: 768px) { .st2-cards-wrap { grid-template-columns: 1fr; } }
 .md-tier-badge-flagship { color: #f4c542; border-color: rgba(244,197,66,.55); background: rgba(244,197,66,.1); }
 .md-item-flagship .md-item-name { color: #f4e2a0; }
+
+/* Book mode */
+.mb-book-btn { color: #f4c542; }
+.book-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 16px; margin: 0 16px 6px; border-radius: 12px; background: rgba(244,197,66,.08); border: 1px solid rgba(244,197,66,.3); color: var(--text1); font-size: 14px; }
+.book-bar-text { flex: 1 1 220px; min-width: 0; }
+.book-bar-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.book-btn { background: var(--bg3); color: var(--text1); border: 1px solid var(--border2, rgba(255,255,255,.12)); border-radius: 9px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.book-btn:hover { background: var(--bg4); }
+.book-btn-main { background: #f4c542; color: #1a1500; border-color: #f4c542; }
+.book-btn-main:hover { background: #ffd45c; }
+.book-modal { background: var(--bg2); border-radius: 18px; padding: 28px 26px 22px; width: min(560px, 94vw); max-height: 92vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.book-title { margin: 0; font-size: 22px; font-weight: 700; color: var(--text1); }
+.book-sub { margin: 0 0 6px; font-size: 14px; color: var(--text3); line-height: 1.5; }
+.book-label { font-size: 13px; font-weight: 600; color: var(--text2); margin-top: 6px; }
+.book-input { width: 100%; box-sizing: border-box; background: var(--bg3); color: var(--text1); border: 1px solid var(--border2, rgba(255,255,255,.12)); border-radius: 10px; padding: 10px 12px; font-size: 15px; font-family: inherit; resize: vertical; }
+.book-num { width: 120px; }
+.book-est { margin: 4px 0 0; font-size: 13px; color: #f4c542; line-height: 1.5; }
+.book-note { margin: 0; font-size: 12.5px; color: var(--text3); line-height: 1.5; }
+.book-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+@media (max-width: 600px) { .book-bar { margin: 0 8px 6px; } .book-modal { padding: 22px 18px 18px; } }

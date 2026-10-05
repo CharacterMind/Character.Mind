@@ -130,6 +130,7 @@ function updateModelBarLabel() {
   if (modelEl) modelEl.textContent = MODEL_LABELS[selectedModelTier] || selectedModelTier;
   const effortEl = document.getElementById('mbEffortLabel');
   if (effortEl) effortEl.textContent = EFFORT_LABELS[selectedEffort] || selectedEffort;
+  if (typeof updateBookButton === 'function') updateBookButton();
   const icon = document.getElementById('modelBarIcon');
   if (icon) icon.innerHTML = MODEL_ICONS[selectedModelTier] || MODEL_ICONS.opas;
 
@@ -2146,6 +2147,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
     return;
   }
   if (isStreaming) return;
+  if (bookRun && (bookRun.phase === 'planning' || bookRun.phase === 'writing') && !bookExtra) return;   // the book is being written: stop it first to chat
   flushTypewriter(); // dump any still-running typewriter before starting new message
   const input = document.getElementById('messageInput');
   const text = overrideText !== undefined ? overrideText : input.value.trim();
@@ -2194,7 +2196,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ charId: currentChar.id, message: text, modelTier: callModeActive ? 'opas' : selectedModelTier, effort: callModeActive ? 'low' : selectedEffort, ...(imgB64 ? { image: imgB64 } : {}), ...(callModeActive ? { callMode: true } : {}) }),
+      body: JSON.stringify({ charId: currentChar.id, message: text, modelTier: callModeActive ? 'opas' : selectedModelTier, effort: callModeActive ? 'low' : selectedEffort, ...(imgB64 ? { image: imgB64 } : {}), ...(callModeActive ? { callMode: true } : {}), ...(bookExtra ? { book: bookExtra } : {}) }),
       signal: streamAbortCtrl.signal
     });
 
@@ -4692,6 +4694,131 @@ async function regenerate() {
   } finally {
     if (myEpoch === chatEpoch) showTyping(false);
   }
+}
+
+
+// ── Book mode (Opys 5, X100) ─────────────────────────────────────────────────────────────────────────────────
+// A book is planned first, then written one chapter per reply. Each chapter is a normal reply (it streams into the chat and costs
+// like any other reply), the server keeps the plan so every chapter can see it. The tab has to stay open while the book is written.
+let bookExtra = null;     // the "book" field attached to the next /api/chat request
+let bookRun = null;       // { total, premise, next, phase, stop, words, chapters: [], epoch }
+const BOOK_DEFAULT_CHAPTERS = 12;
+
+function bookWordsPerChapter() {
+  return Math.round(expectedReplyChars('opys5', selectedEffort) / 6);
+}
+function wordCount(t) { const m = String(t || '').trim().match(/\S+/g); return m ? m.length : 0; }
+function fmtNum(n) { return Math.round(n).toLocaleString('en-US'); }
+
+function updateBookButton() {
+  const on = selectedModelTier === 'opys5' && modelAllowedForPlan('opys5');
+  const btn = document.getElementById('bookModeBtn'), sep = document.getElementById('bookSep');
+  if (btn) btn.style.display = on ? '' : 'none';
+  if (sep) sep.style.display = on ? '' : 'none';
+}
+function updateBookEstimate() {
+  const n = Math.max(3, Math.min(40, parseInt(document.getElementById('bookChapters').value, 10) || BOOK_DEFAULT_CHAPTERS));
+  const per = bookWordsPerChapter();
+  const tokens = clientMessageCost('opys5', selectedEffort === 'low' || selectedEffort === 'medium' ? 'high' : selectedEffort) * (n + 1);
+  const el = document.getElementById('bookEstimate');
+  if (el) el.textContent = 'About ' + fmtNum(per * n) + ' words in ' + n + ' chapters (about ' + fmtNum(per) + ' words each at ' + (EFFORT_LABELS[selectedEffort] || selectedEffort) + ' effort). Uses about ' + fmtNum(tokens) + ' tokens of your allowance.';
+}
+function openBookModal() {
+  if (selectedModelTier !== 'opys5' || !modelAllowedForPlan('opys5')) { openPricingModal(); return; }
+  if (bookRun && (bookRun.phase === 'writing' || bookRun.phase === 'planning')) return;
+  if (!selectedEffort || selectedEffort === 'low' || selectedEffort === 'medium') setEffort('high');   // chapters need room: High or above
+  document.getElementById('bookModal').style.display = 'flex';
+  const ch = document.getElementById('bookChapters'); if (!ch.value) ch.value = BOOK_DEFAULT_CHAPTERS;
+  updateBookEstimate();
+  setTimeout(() => { try { document.getElementById('bookPremise').focus(); } catch (_) {} }, 50);
+}
+function closeBookModal() { document.getElementById('bookModal').style.display = 'none'; }
+
+function renderBookBar() {
+  const bar = document.getElementById('bookBar');
+  if (!bar) return;
+  if (!bookRun) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+  const r = bookRun;
+  const words = fmtNum(r.words) + ' words so far';
+  let text = '', btns = '';
+  if (r.phase === 'planning') { text = 'Planning your book...'; btns = '<button class="book-btn" onclick="bookStop()">Cancel</button>'; }
+  else if (r.phase === 'planned') { text = 'Your plan is ready. Read it above, then start writing.'; btns = '<button class="book-btn book-btn-main" onclick="bookWrite()">Write the book</button><button class="book-btn" onclick="bookReplan()">Plan again</button><button class="book-btn" onclick="bookClose()">Cancel</button>'; }
+  else if (r.phase === 'writing') { text = 'Writing Chapter ' + r.next + ' of ' + r.total + ' · ' + words; btns = '<button class="book-btn" onclick="bookStop()">Stop after this chapter</button>'; }
+  else if (r.phase === 'paused') { text = (r.note || 'Stopped.') + ' ' + (r.next <= r.total ? 'Next is Chapter ' + r.next + ' of ' + r.total + '. ' : '') + words; btns = (r.next <= r.total ? '<button class="book-btn book-btn-main" onclick="bookWrite()">Resume at Chapter ' + r.next + '</button>' : '') + (r.chapters.length ? '<button class="book-btn" onclick="bookDownload()">Download what is written</button>' : '') + '<button class="book-btn" onclick="bookClose()">Close</button>'; }
+  else if (r.phase === 'done') { text = 'Your book is finished: ' + r.total + ' chapters, ' + words.replace(' so far', '') + '.'; btns = '<button class="book-btn book-btn-main" onclick="bookDownload()">Download as text</button><button class="book-btn" onclick="bookClose()">Close</button>'; }
+  bar.innerHTML = '<div class="book-bar-text">' + escHtml(text) + '</div><div class="book-bar-btns">' + btns + '</div>';
+  bar.style.display = 'flex';
+}
+
+// Sends one book request and waits until its reply has finished. Returns the reply text, or null if it failed.
+async function bookSend(text, book) {
+  const before = document.querySelectorAll('#messages .msg.ai').length;
+  bookExtra = book;
+  await sendMessage(text);
+  bookExtra = null;
+  // sendMessage returns when the stream has been read; the reply is finished when streaming has ended
+  const t0 = Date.now();
+  while (isStreaming && Date.now() - t0 < 8 * 60 * 1000) await new Promise(r => setTimeout(r, 250));
+  if (!bookRun || bookRun.epoch !== chatEpoch) return null;
+  const msgs = [...document.querySelectorAll('#messages .msg.ai')];
+  if (msgs.length <= before) return null;
+  const last = msgs[msgs.length - 1].querySelector('.bubble');
+  const raw = last ? (last.dataset.raw || last.innerText || '') : '';
+  if (!raw || /^⚠️/.test(raw.trim())) return null;
+  return raw;
+}
+
+async function startBook() {
+  const premise = document.getElementById('bookPremise').value.trim();
+  const total = Math.max(3, Math.min(40, parseInt(document.getElementById('bookChapters').value, 10) || BOOK_DEFAULT_CHAPTERS));
+  if (premise.length < 10) { document.getElementById('bookPremise').focus(); return; }
+  if (isStreaming || !currentChar) return;
+  closeBookModal();
+  bookRun = { total, premise, next: 1, phase: 'planning', stop: false, words: 0, chapters: [], epoch: chatEpoch };
+  renderBookBar();
+  const plan = await bookSend('I want a full book. Idea: ' + premise + '\n\nPlan it as ' + total + ' chapters.', { kind: 'plan', total });
+  if (!bookRun) return;
+  if (!plan) { bookRun.phase = 'paused'; bookRun.note = 'The plan could not be written.'; bookRun.next = 99; bookRun.total = 0; bookRun.chapters = []; renderBookBar(); setTimeout(bookClose, 6000); return; }
+  bookRun.phase = 'planned';
+  renderBookBar();
+}
+function bookReplan() { const r = bookRun; bookClose(); if (r) { document.getElementById('bookPremise').value = r.premise; document.getElementById('bookChapters').value = r.total; } openBookModal(); }
+function bookClose() { bookRun = null; bookExtra = null; renderBookBar(); }
+function bookStop() {
+  if (!bookRun) return;
+  if (bookRun.phase === 'planning') { bookClose(); return; }
+  bookRun.stop = true;
+  bookRun.note = 'Stopped.';
+}
+async function bookWrite() {
+  const r = bookRun;
+  if (!r || (r.phase !== 'planned' && r.phase !== 'paused') || isStreaming) return;
+  r.phase = 'writing'; r.stop = false; r.note = '';
+  renderBookBar();
+  while (r.next <= r.total) {
+    if (r.stop || bookRun !== r || r.epoch !== chatEpoch) break;
+    renderBookBar();
+    const text = await bookSend('Write Chapter ' + r.next + '.', { kind: 'chapter', n: r.next, total: r.total });
+    if (bookRun !== r || r.epoch !== chatEpoch) return;
+    if (!text) { r.phase = 'paused'; r.note = 'Chapter ' + r.next + ' could not be written (a limit was reached or the connection dropped).'; renderBookBar(); return; }
+    r.chapters.push(text.trim());
+    r.words += wordCount(text);
+    r.next++;
+  }
+  if (bookRun !== r) return;
+  if (r.next > r.total) r.phase = 'done'; else { r.phase = 'paused'; r.note = r.note || 'Stopped.'; }
+  renderBookBar();
+}
+function bookDownload() {
+  if (!bookRun || !bookRun.chapters.length) return;
+  const title = ((currentChar && currentChar.name) || 'character.mind') + ' - book';
+  const body = bookRun.chapters.map(c => c.replace(/\*/g, '')).join('\n\n\n');
+  const blob = new Blob([body], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = title.replace(/[^\w .-]+/g, '') + '.txt';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
