@@ -22,16 +22,16 @@
       #38bdf8, #2563eb, #1e3a8a, #312e81, #4f46e5, #8b5cf6, #c4b5fd, #a21caf,
       #e879f9, #ec4899, #fbcfe8, #be123c, #7f0000);
     background-size: 2400px 100%;
-    animation: slide 14s linear infinite;
+    animation: slide 9s linear infinite;
   }
   @keyframes slide { to { background-position: 2400px 0; } }
   .band.b1 { opacity: .9; }
   /* a second band, tilted and sliding the other way, blended in so the colours mix like stage lights */
-  .band.b2 { transform: scale(1.8) rotate(-24deg); animation: slide-back 19s linear infinite; mix-blend-mode: overlay; opacity: .95; }
+  .band.b2 { transform: scale(1.8) rotate(-24deg); animation: slide-back 12s linear infinite; mix-blend-mode: overlay; opacity: .95; }
   @keyframes slide-back { from { background-position: 2400px 0; } to { background-position: 0 0; } }
-  .band.b3 { transform: scale(1.8) rotate(63deg); animation: slide 27s linear infinite; mix-blend-mode: soft-light; opacity: .8; }
+  .band.b3 { transform: scale(1.8) rotate(63deg); animation: slide 16s linear infinite; mix-blend-mode: soft-light; opacity: .8; }
   /* dark stripes that sweep across like stage-light cutouts */
-  .scan { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, rgba(8,3,18,.55) 0 46px, rgba(8,3,18,0) 46px 120px); animation: scan 7s linear infinite; mix-blend-mode: multiply; }
+  .scan { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, rgba(8,3,18,.55) 0 46px, rgba(8,3,18,0) 46px 120px); animation: scan 4s linear infinite; mix-blend-mode: multiply; }
   @keyframes scan { to { background-position: 120px 0; } }
   /* concert spotlights swinging from the top edge */
   .beams { position: absolute; inset: 0; mix-blend-mode: screen; pointer-events: none; }
@@ -184,6 +184,40 @@
     .spark, .ball { display: none; }
   }
   @media (max-height: 560px) { .trio { height: 110px; } .pal { --size: 74px; } .pal.d { --size: 88px; } }
+
+  /* ---------- epilepsy warning overlay ---------- */
+  .ep-overlay { position: fixed; inset: 0; z-index: 900; background: rgba(0,0,0,.94); display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .ep-box { max-width: 440px; width: 100%; background: #12081f; border: 1px solid rgba(255,255,255,.22); border-radius: 22px; padding: 28px 28px 24px; text-align: center; box-shadow: 0 0 60px rgba(139,92,246,.45); }
+  .ep-icon { font-size: 2.6rem; margin-bottom: 10px; line-height: 1; }
+  .ep-box h2 { margin: 0 0 10px; font-size: 1.2rem; font-weight: 700; color: #fff; }
+  .ep-box p { margin: 0 0 22px; font-size: 13.5px; color: rgba(255,255,255,.78); line-height: 1.6; }
+  .ep-btns { display: flex; flex-direction: column; gap: 10px; }
+  .ep-btn { padding: 12px 16px; border-radius: 12px; border: none; cursor: pointer; font-size: 13.5px; font-weight: 600; transition: opacity .15s; }
+  .ep-btn:hover { opacity: .82; }
+  .ep-btn.calm { background: rgba(255,255,255,.11); color: #fff; border: 1px solid rgba(255,255,255,.26); }
+  .ep-btn.full { background: linear-gradient(90deg,#8b5cf6,#e11dd4); color: #fff; }
+
+  /* ---------- mode toggle pill (bottom-right) ---------- */
+  .mode-pill { position: fixed; bottom: 16px; right: 16px; z-index: 30; padding: 7px 14px; border-radius: 999px; background: rgba(12,6,24,.78); border: 1px solid rgba(255,255,255,.2); color: rgba(255,255,255,.82); font-size: 12px; cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); transition: background .2s; font-family: inherit; }
+  .mode-pill:hover { background: rgba(28,10,48,.92); }
+
+  /* ---------- calm mode (body.calm) ---------- */
+  body.calm .band { animation-duration: 60s !important; }
+  body.calm .band.b2 { animation-duration: 88s !important; }
+  body.calm .band.b3 { animation-duration: 120s !important; }
+  body.calm .band.b4 { display: none; }
+  body.calm .scan { display: none !important; }
+  body.calm .beam { animation-duration: 28s !important; opacity: .18 !important; filter: blur(26px) !important; }
+  body.calm .spark { display: none !important; }
+  body.calm .show { filter: saturate(.7) brightness(.75) !important; }
+
+  /* ---------- 4th band: wide horizontal stripe for extra concert chaos ---------- */
+  .band.b4 { transform: scale(2.2) rotate(14deg); animation: slide 22s linear infinite; mix-blend-mode: color-dodge; opacity: .18; }
+
+  /* ---------- slow background pulse (NOT a strobe — 4 s period) ---------- */
+  .pulse-layer { position: absolute; inset: 0; background: radial-gradient(ellipse 80% 60% at 50% 60%, rgba(139,92,246,.25), transparent 70%); animation: bgpulse 4s ease-in-out infinite; }
+  @keyframes bgpulse { 0%,100% { opacity: .4; } 50% { opacity: 1; } }
+
 </style>
 </head>
 <body>
@@ -191,11 +225,26 @@
   <div class="band b1"></div>
   <div class="band b2"></div>
   <div class="band b3"></div>
+  <div class="band b4"></div>
+  <div class="pulse-layer"></div>
   <div class="scan"></div>
   <div class="beams" id="beams"></div>
   <div class="vignette"></div>
   <div class="sparks" id="sparks"></div>
 </div>
+
+<div class="ep-overlay" id="epOverlay" hidden aria-modal="true" role="dialog" aria-labelledby="epTitle">
+  <div class="ep-box">
+    <div class="ep-icon" aria-hidden="true">⚠️</div>
+    <h2 id="epTitle">Flashing light show ahead</h2>
+    <p>The background has moving colours and light effects. If you have epilepsy or are sensitive to flashing lights, choose calm lighting — it's just as fun.</p>
+    <div class="ep-btns">
+      <button class="ep-btn calm" onclick="setLightMode('calm')">🔅 Use calm lighting</button>
+      <button class="ep-btn full" onclick="setLightMode('full')">🎆 Full concert show</button>
+    </div>
+  </div>
+</div>
+<button class="mode-pill" id="modePill" aria-label="Toggle light mode" onclick="toggleLightMode()"></button>
 
 <main class="page">
   <div class="head"><h2 class="logo" aria-label="character.mind">character.mind</h2><div class="logo-bar" aria-hidden="true"></div></div>
@@ -216,15 +265,32 @@
 
 <script>
 (function () {
+  // ---- light mode: 'full' (concert) or 'calm' (epilepsy-friendly) ----
+  var _stored = null;
+  try { _stored = localStorage.getItem('cm_lightMode'); } catch(e) {}
+  function setLightMode(m) {
+    document.body.classList.toggle('calm', m === 'calm');
+    var pill = document.getElementById('modePill');
+    if (pill) pill.textContent = m === 'calm' ? '🎆 Full concert show' : '🔅 Calm lights';
+    try { localStorage.setItem('cm_lightMode', m); } catch(e) {}
+    var ov = document.getElementById('epOverlay');
+    if (ov) ov.hidden = true;
+  }
+  function toggleLightMode() {
+    setLightMode(document.body.classList.contains('calm') ? 'full' : 'calm');
+  }
+  if (_stored) { setLightMode(_stored); }
+  else { var _ov = document.getElementById('epOverlay'); if (_ov) _ov.hidden = false; }
+
   // spotlights: every colour, each swinging at its own speed
-  var colours = ['#ff2d2d', '#ff8a00', '#ffe14d', '#7CFF4F', '#1fe0a0', '#22d3ee', '#3b82f6', '#7c3aed', '#e11dd4', '#ff5fa2', '#8b0000', '#ffb3b3'];
+  var colours = ['#ff2d2d', '#ff8a00', '#ffe14d', '#7CFF4F', '#1fe0a0', '#22d3ee', '#3b82f6', '#7c3aed', '#e11dd4', '#ff5fa2', '#8b0000', '#ffb3b3', '#00ffcc', '#ff00aa', '#aaff00', '#00aaff', '#ff6600', '#cc00ff'];
   var beams = document.getElementById('beams');
   colours.forEach(function (c, i) {
     var b = document.createElement('div');
     b.className = 'beam';
     b.style.left = (i * (100 / colours.length) - 2) + '%';
     b.style.color = c;
-    b.style.setProperty('--t', (4.5 + (i % 5) * 1.3) + 's');
+    b.style.setProperty('--t', (2.4 + (i % 5) * .85) + 's');
     b.style.setProperty('--d', (-i * 0.7) + 's');
     b.style.setProperty('--a', (-34 + (i % 4) * 6) + 'deg');
     b.style.setProperty('--b', (30 - (i % 3) * 8) + 'deg');
@@ -232,7 +298,7 @@
   });
   // floating sparkles
   var sparks = document.getElementById('sparks');
-  for (var i = 0; i < 46; i++) {
+  for (var i = 0; i < 80; i++) {
     var s = document.createElement('i');
     s.className = 'spark';
     var size = 5 + Math.random() * 11;
