@@ -235,12 +235,16 @@ app.use((req, res, next) => {
   const p = req.path;
   // the maintenance page itself and its pictures, payment webhooks (PayPal retries later if we are down), and the host's health checks
   if (p === '/maintenance.html' || p.startsWith('/maintenance/') || p.startsWith('/api/webhooks/') || p === '/robots.txt' || p === '/favicon.ico') return next();
-  res.setHeader('Retry-After', '120');
   res.setHeader('Cache-Control', 'no-store');
   // a person's browser opening a /auth/... address (the end of a sign-in, for instance) gets the maintenance page, not raw JSON
   const wantsPage = req.method === 'GET' && String(req.headers.accept || '').includes('text/html');
-  if (p.startsWith('/api/') || (p.startsWith('/auth/') && !wantsPage)) return res.status(503).json({ error: 'character.mind is under maintenance. Please try again in a few minutes.', maintenance: true });
-  return res.status(503).sendFile(path.join(__dirname, 'public', 'maintenance.html'));
+  if (p.startsWith('/api/') || (p.startsWith('/auth/') && !wantsPage)) {
+    res.setHeader('Retry-After', '120');
+    return res.status(503).json({ error: 'character.mind is under maintenance. Please try again in a few minutes.', maintenance: true });
+  }
+  // Return 200 for HTML pages so Render's health check passes and switches traffic
+  // to the new instance while the maintenance page is still showing to real users.
+  return res.status(200).sendFile(path.join(__dirname, 'public', 'maintenance.html'));
 });
 app.use(express.static(path.join(__dirname, 'public'), {
   etag: false,
