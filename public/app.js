@@ -691,6 +691,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     loadUsage();
     maybeShowWelcome();
     initSidebarState();
+    initRpMode();
     updateModelBarLabel();
   } else {
     document.getElementById('authLanding').style.display = 'flex';
@@ -1159,7 +1160,10 @@ function showView(id) {
   document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
   document.getElementById(id).classList.remove('hidden');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('infoPanel').style.display = 'none';
+  const _ip = document.getElementById('infoPanel');
+  _ip.style.display = 'none'; _ip.classList.remove('ip-collapsed');
+  const _ipExpand = document.getElementById('infoPanelExpandBtn');
+  if (_ipExpand) _ipExpand.style.display = 'none';
   const _bd = document.getElementById('info-backdrop');
   if (_bd) _bd.remove();
   // Hide mobile nav bar inside chatView (it has its own mob-chat-hdr)
@@ -1907,11 +1911,19 @@ async function openChat(charId) {
 
   showView('chatView');
   document.getElementById('chatView').classList.remove('hidden');
-  // On desktop always show info panel; on mobile start it closed
+  // On desktop show info panel (restoring any user-collapsed state); on mobile start it closed
+  const _panel = document.getElementById('infoPanel');
+  const _expandBtn = document.getElementById('infoPanelExpandBtn');
   if (window.innerWidth > 768) {
-    document.getElementById('infoPanel').style.display = 'flex';
+    _panel.style.display = 'flex';
+    let _panelCollapsed = false;
+    try { _panelCollapsed = localStorage.getItem('cm_infopanel_collapsed') === '1'; } catch (_) {}
+    _panel.classList.toggle('ip-collapsed', _panelCollapsed);
+    if (_expandBtn) _expandBtn.style.display = _panelCollapsed ? 'flex' : 'none';
   } else {
-    document.getElementById('infoPanel').style.display = 'none';
+    _panel.style.display = 'none';
+    _panel.classList.remove('ip-collapsed');
+    if (_expandBtn) _expandBtn.style.display = 'none';
   }
 
   // Populate mobile chat header
@@ -2226,6 +2238,33 @@ async function generateGreeting() {
 }
 
 // ── Image attachment ──────────────────────────────────────────────────────────
+let rpMode = true; // true = roleplay mode (default), false = normal chat mode
+
+function toggleRpMode() {
+  rpMode = !rpMode;
+  try { localStorage.setItem('cm_rp_mode', rpMode ? '1' : '0'); } catch (_) {}
+  updateRpModeUI();
+}
+
+function updateRpModeUI() {
+  const btn = document.getElementById('mbRpBtn');
+  if (!btn) return;
+  if (rpMode) {
+    btn.textContent = 'RP';
+    btn.title = 'Switch to normal chat mode';
+    btn.classList.remove('rp-off');
+  } else {
+    btn.textContent = 'Chat';
+    btn.title = 'Switch to roleplay mode';
+    btn.classList.add('rp-off');
+  }
+}
+
+function initRpMode() {
+  try { rpMode = localStorage.getItem('cm_rp_mode') !== '0'; } catch (_) {}
+  updateRpModeUI();
+}
+
 let pendingImageB64 = null;
 let imageUploadLimitReached = false;
 let imageUploadResetAt = null;
@@ -2385,7 +2424,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ charId: currentChar.id, message: text, modelTier: callModeActive ? 'opas' : selectedModelTier, effort: callModeActive ? 'low' : selectedEffort, ...(imgB64 ? { image: imgB64 } : {}), ...(callModeActive ? { callMode: true } : {}), ...(bookExtra ? { book: bookExtra } : {}) }),
+      body: JSON.stringify({ charId: currentChar.id, message: text, modelTier: callModeActive ? 'opas' : selectedModelTier, effort: callModeActive ? 'low' : selectedEffort, ...(imgB64 ? { image: imgB64 } : {}), ...(callModeActive ? { callMode: true } : {}), ...(bookExtra ? { book: bookExtra } : {}), chatMode: rpMode ? 'rp' : 'chat' }),
       signal: streamAbortCtrl.signal
     });
 
@@ -5240,9 +5279,11 @@ async function newChat() {
 
 function toggleInfoPanel() {
   const panel = document.getElementById('infoPanel');
-  const opening = panel.style.display === 'none' || panel.style.display === '';
-  panel.style.display = opening ? 'flex' : 'none';
+  const expandBtn = document.getElementById('infoPanelExpandBtn');
   if (window.innerWidth <= 768) {
+    // Mobile: full show/hide with backdrop
+    const opening = panel.style.display === 'none' || panel.style.display === '';
+    panel.style.display = opening ? 'flex' : 'none';
     let bd = document.getElementById('info-backdrop');
     if (opening) {
       if (!bd) {
@@ -5256,7 +5297,12 @@ function toggleInfoPanel() {
     } else if (bd) {
       bd.style.display = 'none';
     }
+    return;
   }
+  // Desktop: class-based collapse (smooth width transition)
+  const collapsed = panel.classList.toggle('ip-collapsed');
+  if (expandBtn) expandBtn.style.display = collapsed ? 'flex' : 'none';
+  try { localStorage.setItem('cm_infopanel_collapsed', collapsed ? '1' : '0'); } catch (_) {}
 }
 
 function editCurrentChar() {

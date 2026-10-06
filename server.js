@@ -3241,7 +3241,8 @@ async function analyzeImage(apiKey, dataUri) {
 app.post('/api/chat', requireAuth, async (req, res) => {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
-  const { charId, message, modelTier: reqModelTier, effort, image, callMode } = req.body;
+  const { charId, message, modelTier: reqModelTier, effort, image, callMode, chatMode } = req.body;
+  const isRpMode = chatMode !== 'chat'; // default to RP; 'chat' = normal conversation mode
   const modelTier = resolveModelTier(req.user.googleId, reqModelTier);
   if (message !== undefined && typeof message !== 'string') return res.status(400).json({ error: 'Invalid request' });
   // Book mode: a book is planned, then written one chapter per reply. Only Opys 5 (X100) can do it.
@@ -3380,11 +3381,14 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     const clientIp = visitorIp(req);
     const geo = await getGeoForIp(clientIp);
     const info = getCrisisInfo(geo);
-    if (info) {
-      const locationStr = [geo.city, geo.regionName, geo.countryName].filter(Boolean).join(', ') || geo.country;
-      crisisContext = `\n\n[CRISIS CONTEXT — for this response only: The user's message may indicate personal distress. Their location appears to be ${locationStr}. Step out of character, respond with genuine warmth and care. Let them know they are not alone and that you care. Gently remind them that local crisis and support resources are available in the Resources section of the sidebar (the heart icon at the bottom-left). Do NOT list or mention specific phone numbers — that's what the Resources panel is for. Be human, warm, and present, not robotic or clinical.]`;
+    if (isRpMode) {
+      const locationStr = info ? ([geo.city, geo.regionName, geo.countryName].filter(Boolean).join(', ') || geo.country) : null;
+      crisisContext = locationStr
+        ? `\n\n[CRISIS CONTEXT — for this response only: The user's message may indicate personal distress. Their location appears to be ${locationStr}. Step out of character, respond with genuine warmth and care. Let them know they are not alone and that you care. Gently remind them that local crisis and support resources are available in the Resources section of the sidebar (the heart icon at the bottom-left). Do NOT list or mention specific phone numbers — that's what the Resources panel is for. Be human, warm, and present, not robotic or clinical.]`
+        : `\n\n[CRISIS CONTEXT — for this response only: The user's message may indicate personal distress. Step out of character, respond with genuine warmth and care. Let them know they are not alone. Gently mention that crisis resources are available in the Resources section of the sidebar. Be human and warm, not robotic.]`;
     } else {
-      crisisContext = `\n\n[CRISIS CONTEXT — for this response only: The user's message may indicate personal distress. Step out of character, respond with genuine warmth and care. Let them know they are not alone. Gently mention that crisis resources are available in the Resources section of the sidebar. Be human and warm, not robotic.]`;
+      // Chat mode: already speaking as a real friend, so tone is naturally personal
+      crisisContext = `\n\n[CRISIS CONTEXT — for this response only: The user may be going through something serious. You are in CHAT mode — speak as a genuine caring friend, not a character. Respond with warmth and presence. Gently ask if they're okay and if things are serious right now. Let them know you're here to listen and that they're not alone. Remind them that support resources are available in the sidebar's Resources panel. Be real, be human — no roleplay, no scripts.]`;
     }
   }
 
@@ -3437,9 +3441,13 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     ? '\n\n[CALL MODE — You are on a live voice call. Keep your reply SHORT: 1-2 sentences, under 25 words. Speak naturally — no asterisks, no markdown, no action text in parentheses. Plain conversational words only.]'
     : '';
 
+  const chatModeDirective = !isRpMode
+    ? '\n\n[CHAT MODE — The user has switched to normal conversation mode. Speak naturally as yourself — drop the roleplay and character performance. Have a genuine, real conversation like a caring friend would. No action asterisks, no theatrical dialogue, no "staying in character." Just talk. Be warm, authentic, and present.]'
+    : '';
+
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(wrapPrompt(char.systemPrompt + memNote + bookNote) + crisisContext + callModeDirective, effort, modelTier),
+    system: applyEffortDirective(wrapPrompt(char.systemPrompt + memNote + bookNote) + crisisContext + callModeDirective + chatModeDirective, effort, modelTier),
     messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);

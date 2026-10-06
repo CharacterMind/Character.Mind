@@ -565,6 +565,8 @@
             </button>
             <span class="mb-sep" id="bookSep" style="display:none">·</span>
             <button class="mb-effort-btn mb-book-btn" id="bookModeBtn" style="display:none" onclick="openBookModal()">Write a book</button>
+            <span class="mb-sep">·</span>
+            <button class="mb-effort-btn mb-rp-btn" id="mbRpBtn" onclick="toggleRpMode()" title="Switch to normal chat mode">RP</button>
           </div>
         </div>
         <div class="disclaimer">
@@ -582,6 +584,11 @@
 
   <!-- Right Info Panel -->
   <aside class="info-panel" id="infoPanel" style="display:none">
+
+    <!-- Collapse button (desktop only) -->
+    <button class="ip-collapse-btn" onclick="toggleInfoPanel()" title="Collapse panel">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+    </button>
 
     <!-- Header: avatar + name/meta side by side -->
     <div class="ip-header">
@@ -681,6 +688,11 @@
 
     </nav>
   </aside>
+
+  <!-- Info panel expand button — visible only when panel is collapsed on desktop -->
+  <button class="info-panel-expand-btn" id="infoPanelExpandBtn" onclick="toggleInfoPanel()" title="Show panel" style="display:none">
+    <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+  </button>
 
 </div>
 

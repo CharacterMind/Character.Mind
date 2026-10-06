@@ -1333,9 +1333,29 @@ html, body {
   width: var(--panel-w); background: var(--bg2); border-left: 1px solid var(--border);
   display: flex; flex-direction: column;
   padding: 0; overflow-y: auto; flex-shrink: 0;
+  transition: width 0.25s ease; position: relative;
 }
+.info-panel.ip-collapsed { width: 0; border-left: none; overflow: hidden; }
 .info-panel::-webkit-scrollbar { width: 3px; }
 .info-panel::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 4px; }
+
+/* Collapse button inside panel (desktop only) */
+.ip-collapse-btn {
+  position: absolute; top: 12px; left: 8px; z-index: 2;
+  background: none; border: none; color: var(--text2); cursor: pointer;
+  padding: 4px 5px; border-radius: 6px; display: flex; align-items: center; opacity: 0.45;
+  transition: opacity 0.15s, background 0.15s;
+}
+.ip-collapse-btn:hover { opacity: 1; background: var(--bg3); }
+
+/* Expand button — fixed to the right edge, shown when panel is collapsed */
+.info-panel-expand-btn {
+  display: none; position: fixed; top: 14px; right: 12px; z-index: 50;
+  background: none; border: none; color: var(--text2); cursor: pointer;
+  padding: 6px 8px; border-radius: 8px; opacity: 0.6;
+  transition: opacity 0.15s, background 0.15s;
+}
+.info-panel-expand-btn:hover { opacity: 1; background: var(--bg3); }
 
 /* Header: avatar + text side by side */
 .ip-header {
@@ -2261,6 +2281,8 @@ html, body {
 .mb-model-btn:hover, .mb-effort-btn:hover { color: var(--text1); background: var(--bg3); }
 .mb-model-icon { opacity: .55; }
 .mb-sep { color: var(--text4); font-size: 12px; line-height: 1; user-select: none; }
+.mb-rp-btn { color: var(--accent-l) !important; font-weight: 600; }
+.mb-rp-btn.rp-off { color: var(--text3) !important; font-weight: 400; }
 
 /* Model dropdown */
 .model-dropdown {
