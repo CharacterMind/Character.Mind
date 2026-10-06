@@ -600,8 +600,8 @@ const MODEL_CAP_SCALE = Number(process.env.VERSION_CAP_SCALE) || 1;
 for (const k of Object.keys(MODEL_CAP)) MODEL_CAP[k] = Math.round(MODEL_CAP[k] * MODEL_CAP_SCALE);
 // Groq's free plan allows about 8,000 tokens per request, counting the prompt AND the reply room together.
 // So the bigger the reply room, the smaller the prompt has to be. The reply room is fitted to what the prompt leaves over.
-const GROQ_REQUEST_BUDGET = Number(process.env.GROQ_REQUEST_BUDGET) || 7400;
-const MIN_REPLY_ROOM = 1200;
+const GROQ_REQUEST_BUDGET = Number(process.env.GROQ_REQUEST_BUDGET) || 8000;
+const MIN_REPLY_ROOM = 1400;
 function estimateTokens(str) { return Math.ceil(String(str || '').length / 3.4); }
 function fitOutputRoom(cfg, system, messages) {
   const used = estimateTokens(system) + (messages || []).reduce((n, m) => n + estimateTokens(m && m.content) + 6, 0) + 40;
@@ -1931,7 +1931,7 @@ const GROQ_ALLOW_HIGH_REASONING = process.env.GROQ_ALLOW_HIGH_REASONING === '1';
 // How much room (in tokens, hidden thinking included) a reply is given. It follows the EFFORT first, then the model: a Low reply asks for a
 // few hundred tokens, Max for a couple of thousand, and a higher model gets a little more. Asking for less is also faster, and it leaves more
 // of Groq's per-minute allowance for the next reply (a request counts its whole room against that allowance, used or not).
-const EFFORT_ROOM = { low: 450, medium: 700, high: 1300, extra: 1900, max: 2400 };
+const EFFORT_ROOM = { low: 600, medium: 1400, high: 2200, extra: 3000, max: 4000 };
 function replyRoomFor(effort, tier) {
   const e = (typeof effort === 'string' && Object.hasOwn(EFFORT_ROOM, effort)) ? effort : 'medium';
   const base = baseOf(tier) || 'opas';
@@ -2228,12 +2228,12 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
         }
         return onDone(0);
       }
-      if ((ctx.continuations || 0) < 2) {
+      if ((ctx.continuations || 0) < 3) {
         ctx.continuations = (ctx.continuations || 0) + 1;
         const next = [...messages, { role: 'assistant', content: collected },
           { role: 'user', content: '[Continue your previous reply from exactly where it was cut off. Do not repeat anything already written and do not add any introduction or comment about continuing.]' }];
         const cfgNext = fitOutputRoom(effortCfg, systemPrompt, next);
-        if (cfgNext.maxOutputTokens < Math.min(800, effortCfg.maxOutputTokens)) return finishWithWhatWeHave();
+        if (cfgNext.maxOutputTokens < Math.min(300, Math.floor(effortCfg.maxOutputTokens / 3))) return finishWithWhatWeHave();
         return callGroqStream(apiKey, systemPrompt, next, onChunk, onDone, keepOnError, modelIndex, cfgNext, modelList, ctx);
       }
       onDone(usageTokens || Math.ceil(responseTextLen / 4));
