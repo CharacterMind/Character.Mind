@@ -186,6 +186,66 @@
   }
   @media (max-height: 560px) { .trio { height: 110px; } .pal { --size: 74px; } .pal.d { --size: 88px; } }
 
+  /* ---------- mobile: toned-down blast so it doesn't murder the GPU ---------- */
+  @media (max-width: 700px) {
+    /* no full-screen flash on small screens — looks glitchy */
+    .flash-layer { display: none !important; }
+
+    /* lighter filter — mobile GPUs choke on saturate(3.5) */
+    body:not(.calm) .show { filter: saturate(2.2) brightness(1.12) !important; }
+    body.calm .show { filter: saturate(2.0) brightness(1.05) !important; }
+
+    /* bands/scan/beams: slower so the GPU can breathe */
+    body:not(.calm) .band.b1 { animation-duration: 3.5s !important; }
+    body:not(.calm) .band.b2 { animation-duration: 5s !important; }
+    body:not(.calm) .band.b3 { animation-duration: 7s !important; }
+    body:not(.calm) .band.b4 { animation-duration: 8s !important; }
+    body:not(.calm) .scan { animation-duration: 1.4s !important; }
+    body:not(.calm) .beam { animation-duration: 0.8s !important; filter: blur(6px) !important; }
+    body:not(.calm) .logo { animation: logowave 1.2s linear infinite, logorgb 0.5s steps(1) infinite; }
+
+    /* smaller dances: keep the energy, stop characters flying off-screen */
+    body:not(.calm) .pal.l img,
+    body:not(.calm) .pal.l .rig-canvas {
+      animation: charglow 0.4s steps(1) infinite, lily-rave-mob 0.65s ease-in-out infinite !important;
+    }
+    body:not(.calm) .pal.d img,
+    body:not(.calm) .pal.d .rig-canvas {
+      animation: charglow 0.4s steps(1) infinite, doey-rave-mob 0.42s ease-in-out infinite !important;
+    }
+    body:not(.calm) .pal.p img,
+    body:not(.calm) .pal.p .rig-canvas {
+      animation: charglow 0.4s steps(1) infinite, poppy-rave-mob 0.55s ease-in-out infinite !important;
+    }
+    @keyframes lily-rave-mob {
+      0%   { transform: translate(0,0) rotate(0deg) scale(1); }
+      20%  { transform: translate(-18px,-28px) rotate(90deg) scale(1.12); }
+      40%  { transform: translate(16px,-8px) rotate(0deg) scale(0.86); }
+      60%  { transform: translate(0,-34px) rotate(180deg) scale(1.15); }
+      80%  { transform: translate(-16px,-6px) rotate(270deg) scale(1); }
+      100% { transform: translate(0,0) rotate(360deg) scale(1); }
+    }
+    @keyframes doey-rave-mob {
+      0%   { transform: scale(1,1) skewX(0deg) translateY(0); }
+      20%  { transform: scale(1.8,0.56) skewX(0deg) translateY(4px); }
+      40%  { transform: scale(0.6,1.8) skewX(-9deg) translateY(-32px); }
+      60%  { transform: scale(1.6,0.64) skewX(9deg) translateY(0); }
+      80%  { transform: scale(0.7,1.5) skewX(-6deg) translateY(-22px); }
+      100% { transform: scale(1,1) skewX(0deg) translateY(0); }
+    }
+    @keyframes poppy-rave-mob {
+      0%,100% { transform: translate(0,0) rotate(0deg) scale(1); }
+      20%  { transform: translate(-14px,-24px) rotate(-18deg) scale(1.18); }
+      40%  { transform: translate(16px,-6px) rotate(180deg) scale(0.78); }
+      60%  { transform: translate(-14px,0) rotate(180deg) scale(1.22); }
+      80%  { transform: translate(16px,-26px) rotate(20deg) scale(0.88); }
+    }
+
+    /* calm: bands & beams also lighter on mobile */
+    body.calm .beam { filter: blur(8px) !important; opacity: .8 !important; }
+    body.calm .vignette { opacity: .55 !important; }
+  }
+
   /* ---------- epilepsy warning overlay ---------- */
   .ep-overlay { position: fixed; inset: 0; z-index: 900; background: rgba(0,0,0,.94); display: none; align-items: center; justify-content: center; padding: 20px; }
   .ep-overlay.ep-open { display: flex; }
