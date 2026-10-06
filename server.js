@@ -673,8 +673,12 @@ function getLimits(sid) {
   if (u.subscriptionTier === undefined) u.subscriptionTier = 'free';
   if (u.memosToday === undefined) u.memosToday = 0;
   // Session window expired (time-based, like Anthropic) → reset for next message
-  if (u.sessionStartedAt && now > u.sessionStartedAt + LIMITS.SESSION_COOLDOWN_MS) {
+  // Use >= to match client's `Date.now() >= cooldownUntil` trigger (cooldownUntil === sessionStartedAt + SESSION_COOLDOWN_MS)
+  // Also reset if cooldownUntil itself has passed (covers edge case where sessionStartedAt is null but cooldownUntil is stale)
+  if ((u.sessionStartedAt && now >= u.sessionStartedAt + LIMITS.SESSION_COOLDOWN_MS) ||
+      (u.cooldownUntil && now >= u.cooldownUntil)) {
     u.sessionTokens = 0; u.cooldownUntil = null; u.sessionStartedAt = null; u.warned.session90 = false;
+    saveLimitsToDB(sid);
   }
   // Weekly window expired → reset weekly, it starts fresh on next message
   if (u.weeklyStart && (now - u.weeklyStart) > LIMITS.WEEKLY_MS) {
