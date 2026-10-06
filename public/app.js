@@ -2039,8 +2039,11 @@ function showLockedBar() {
   lockBar.innerHTML = `
     <span>🚫</span>
     <div class="locked-bar-body">
-      <span>This chat was permanently ended due to repeated policy violations. You cannot send messages here.</span>
-      <button class="locked-delete-btn" onclick="deleteLockedChat()">Delete chat</button>
+      <span>This chat was permanently ended due to repeated policy violations. You cannot send messages here anymore.</span>
+      <div class="locked-bar-actions">
+        <button class="locked-new-btn" onclick="newChat()">Start new chat</button>
+        <button class="locked-delete-btn" onclick="deleteLockedChat()">Delete chat</button>
+      </div>
     </div>
   `;
   if (messagesDiv) messagesDiv.appendChild(lockBar);
@@ -4136,7 +4139,7 @@ function exportHistory() {
 function clearHistoryFromPanel() {
   if (currentChatLocked) {
     closeHistoryPanel();
-    showWarning('This chat is permanently closed. Use "Delete chat" inside the chat to remove it entirely.');
+    showWarning('This chat is permanently closed. Use "Start new chat" or "Delete chat" inside the chat.');
     return;
   }
   if (!confirm('Clear all messages in this conversation? The current chat is saved to your past chats, and the character starts fresh.')) return;
@@ -5136,6 +5139,11 @@ async function newChat() {
     return;
   }
   savePastChatLocal(currentChar.id, loadHistoryLocal(currentChar.id));
+  // If this chat was permanently banned, unlock it so the new conversation can proceed
+  if (currentChatLocked) {
+    await fetch(`/api/chat/unlock/${currentChar.id}`, { method: 'POST' }).catch(() => {});
+    currentChatLocked = false;
+  }
   // Await the DELETE so the server clears history before we try to greet
   await fetch(`/api/conversations/${currentChar.id}`, { method: 'DELETE' }).catch(() => {});
   // Clear stale local history so reload starts fresh

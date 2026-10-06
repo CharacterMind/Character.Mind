@@ -2357,8 +2357,20 @@ app.delete('/api/chat/delete-locked/:charId', requireAuth, async (req, res) => {
   const uid = req.user.googleId;
   const mod = await getModStatus(uid, charId);
   if (!mod.locked) return res.status(400).json({ error: 'Chat is not locked' });
-  await db.run('DELETE FROM conversations WHERE userId = ? AND charId = ?', [uid, charId]);
+  const key = `${uid}:${charId}`;
+  conversations[key] = [];
+  persistConv(key);
   await setModStatus(uid, charId, 0, false);
+  res.json({ ok: true });
+});
+
+// Unlock a banned chat so the user can start a fresh conversation with the same character.
+// Called by newChat() when the current chat is locked — the old conversation is archived by
+// the frontend before this is called, so the ban history is preserved in past chats.
+app.post('/api/chat/unlock/:charId', requireAuth, async (req, res) => {
+  const { charId } = req.params;
+  if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
+  await setModStatus(req.user.googleId, charId, 0, false);
   res.json({ ok: true });
 });
 
