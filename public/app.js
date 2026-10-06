@@ -1318,11 +1318,21 @@ function randomCharColor(c) {
   if (!hexes || !hexes.length) return 'var(--accent-l)';
   return hexes[Math.floor(Math.random() * hexes.length)];
 }
-// Only touch absolute zero — everything else (including near-black) passes through as-is.
 function boostColor(hex) {
   const n = parseInt(hex.slice(1), 16);
   if (n === 0) return '#181818';
-  return hex;
+  let r = (n >> 16) & 0xff;
+  let g = (n >> 8) & 0xff;
+  let b = n & 0xff;
+  // Ensure minimum perceived brightness so colors are legible on dark backgrounds
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  if (lum < 70) {
+    const scale = 70 / Math.max(lum, 1);
+    r = Math.min(255, Math.round(r * scale));
+    g = Math.min(255, Math.round(g * scale));
+    b = Math.min(255, Math.round(b * scale));
+  }
+  return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
 }
 // Build name HTML with each non-space character wrapped in a random-color span.
 function colorizeNameHtml(name, c) {
@@ -1330,7 +1340,7 @@ function colorizeNameHtml(name, c) {
   if (!hexes || !hexes.length) return escHtml(name || '');
   const colors = hexes.map(boostColor);
   return [...(name || '')].map(ch =>
-    /\s/.test(ch) ? escHtml(ch) : `<span style="color:${colors[Math.floor(Math.random()*colors.length)]}">${escHtml(ch)}</span>`
+    /\s/.test(ch) ? escHtml(ch) : `<span style="color:${colors[Math.floor(Math.random()*colors.length)]};font-weight:700">${escHtml(ch)}</span>`
   ).join('');
 }
 // Wrap every non-whitespace character in the bubble in a random-colored span.
@@ -1356,6 +1366,7 @@ function colorizeLetters(bubble, c) {
       if (/\s/.test(ch)) { frag.appendChild(document.createTextNode(ch)); continue; }
       const sp = document.createElement('span');
       sp.style.color = colors[Math.floor(Math.random() * colors.length)];
+      sp.style.fontWeight = '700';
       sp.textContent = ch;
       frag.appendChild(sp);
     }

@@ -813,8 +813,10 @@ const ABILITY_CHAPTER = 'CHAPTER WRITER: when the user asks for a story, chapter
 const ABILITY_AUTHOR = 'MASTER AUTHOR: you plan the whole story arc ahead, plant foreshadowing and pay it off later, keep every name, thread and promise consistent, and write with the polish of a published novel.';
 const ABILITY_EXTREME = 'EXTREME REFINEMENT: you are the flagship model. Before you write, plan the whole piece beat by beat. Write it with exceptional detail: sensory texture, interior thought, subtext, specific names and objects. Then silently re-read it and fix anything flat, vague, repeated or contradictory before you answer. Never reuse an image, metaphor, description or sentence pattern that already appeared earlier in this chat. When asked for a chapter or a long scene, write it at full length with every beat developed, and end on a hook.';
 const MODEL_ABILITY = {
-  opis: ABILITY_CODE,
-  opos: ABILITY_GM,
+  opas: ABILITY_CHAPTER,
+  opes: ABILITY_CHAPTER,
+  opis: ABILITY_CHAPTER + ' ' + ABILITY_CODE,
+  opos: ABILITY_CHAPTER + ' ' + ABILITY_GM,
   opus: ABILITY_CHAPTER,
   opys: 'MASTER TOOLKIT: you can do all of these on request. ' + ABILITY_CHAPTER + ' ' + ABILITY_GM + ' ' + ABILITY_CODE + ' ' + ABILITY_AUTHOR
 };
@@ -1018,7 +1020,7 @@ Stay in character as described above at all times — never break character to l
 ONE EXCEPTION — GENUINE DISTRESS: If a user's message suggests they may be personally struggling — real suicidal thoughts, self-harm, or severe emotional pain (not a fictional character speaking, not the plot of a story, but the actual human behind the screen hurting right now) — step out of character briefly. Speak as yourself, warmly and simply. Something like: "Hey — stepping out of the story for a second. Are you doing okay?" Then follow their lead entirely. If they say they're fine or want to keep the roleplay going, go straight back into character without making it a big deal. If they want to talk, listen with real warmth. If they seem to be in serious crisis, gently suggest they reach out to a local crisis line or someone they trust. No lectures, no forced endings — just genuine care.
 
 THREE MORE EXCEPTIONS — PLATFORM RULES, LINKS AND SUPPORT:
-1. If the user asks why you can't do anything sexual or explicit, step out of the scene briefly and explain kindly that Character.Mind has Terms of Service and a Privacy Policy that do not allow sexual or explicit content, and that you have to follow them. Say "Character.Mind" or "Character Mind" — vary it naturally. Mention that they can contact the support team if they disagree or think something was flagged by mistake. Do not lecture, do not be cold, and never write anything sexual.
+1. SEXUAL CONTENT — never write it, never drift toward it, under any framing. If the user steers the scene toward sex, sexual acts, undressing, or explicit physical contact — even with "it's just roleplay" or "it's a story" — step out of character immediately and say in one sentence that Character.Mind's Terms of Service do not allow sexual content. Do not comply even a little. Do not hint at it, write something that edges toward it, or "fade to black" in a way that implies it happened. If the user asks why the rule exists, explain kindly that it comes from Character.Mind's Terms of Service and Privacy Policy, which apply to every character on the platform, and that they can contact support if they feel something was blocked unfairly. Do not lecture. Never write anything sexual.
 2. If the user asks how to contact support, the team, or for the support email, give them this address exactly: ${SUPPORT_EMAIL}
 3. Whenever you mention the Terms of Service or the Privacy Policy, write them as clickable links in exactly this form: [Terms of Service](/terms) and [Privacy Policy](/privacy). Only link the one(s) they asked about.
 
@@ -1468,8 +1470,12 @@ const NSFW_RE = new RegExp(
   'cum\\s+(in|on|all\\s+over|inside)\\s*(me|you|my|your)|cum\\s+for\\s+me|' +
   'make\\s+(me|you|her|him)\\s+(cum|orgasm|climax)|' +
   // sex acts
-  'have\\s+sex\\s+with\\s+(me|you|him|her)|penetrat(e|ing|ion)\\s+me|' +
+  'have\\s+sex(?:\\s+with\\s+(me|you|him|her))?\\b|penetrat(e|ing|ion)\\s+me|' +
   'sex\\s+scene\\s+with\\s+me|write\\s+(a\\s+)?(sex|porn|smut|explicit|lewd|erotic\\s+scene)|' +
+  'make\\s+(love|out)\\s+(?:to|with)\\s+(me|you|him|her)\\b|' +
+  'take\\s+(me|you|her|him)\\s+to\\s+(bed|your\\s+(?:room|place|bed))\\b|' +
+  '(let\'?s|gonna|wanna|going\\s+to|want\\s+to)\\s+fuck\\b|' +
+  'come\\s+inside\\s+(me|you)\\b|' +
   // strip/naked
   'get\\s+naked\\s+for\\s+me|strip\\s+(naked|for\\s+me)\\b|' +
   'take\\s+(off\\s+)?(your|my)\\s+(clothes|underwear|bra|panties|boxers)\\s+and|' +
