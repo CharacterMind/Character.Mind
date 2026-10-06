@@ -3387,8 +3387,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       return res.status(503).json({ error: "We couldn't check that image right now. Please try again in a moment or send your message without it." });
     }
     if (explicit) {
-      const variant = recordNsfwBlock(key, (message && message.trim()) ? message : '[image]');
-      return nsfwDeflect(res, addTokens(userId, NSFW_BLOCK_TOKENS), variant);
+      return res.status(451).json({ error: 'explicit_image' });
     }
   }
 

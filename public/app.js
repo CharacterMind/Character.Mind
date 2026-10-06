@@ -2461,6 +2461,15 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
         document.getElementById('sendBtn').disabled = false;
         return;
       }
+      if (err.error === 'explicit_image') {
+        const msgs = document.getElementById('messages');
+        const lastUserMsg = [...msgs.querySelectorAll('.msg.user')].at(-1);
+        if (lastUserMsg) lastUserMsg.remove();
+        showTosModal();
+        showTyping(false); isStreaming = false;
+        document.getElementById('sendBtn').disabled = false;
+        return;
+      }
       throw new Error(err.error || `Request failed (${res.status})`);
     }
 
@@ -2932,6 +2941,15 @@ function showLimitModal(type, displayStr) {
 
 function closeLimitModal() {
   const modal = document.getElementById('limitModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function showTosModal() {
+  const modal = document.getElementById('tosModal');
+  if (modal) modal.style.display = 'flex';
+}
+function closeTosModal() {
+  const modal = document.getElementById('tosModal');
   if (modal) modal.style.display = 'none';
 }
 
