@@ -1930,39 +1930,46 @@ function startReplyStream(o) {
     close();
     console.error(logLabel + ' error:', err && err.message);
   };
-  callGroqStream(apiKey, system, messages,
-    (text) => {
-      if (finished) return;
-      try {
-        fullResponse += text;
-        if (released) { send({ text }); return; }
-        held += text;
-        if (held.length >= 220) { released = true; send({ text: held }); held = ''; }
-      } catch (e) { fail(e); }
-    },
-    () => {
-      if (finished) return;
-      try {
-        if (!fullResponse.trim()) { fail(new Error('empty reply')); return; }
-        finished = true;
-        if (!released) {
-          if (isBareRefusal(fullResponse)) fullResponse = buildRefusalExplanation();
-          released = true;
-          send({ text: fullResponse });
-          held = '';
+  const handleChunk = (text) => {
+    if (finished) return;
+    try {
+      fullResponse += text;
+      if (released) { send({ text }); return; }
+      held += text;
+      if (held.length >= 220) { released = true; send({ text: held }); held = ''; }
+    } catch (e) { fail(e); }
+  };
+  const handleDone = () => {
+    if (finished) return;
+    try {
+      if (!fullResponse.trim()) {
+        if (!ctx.emptyRetried && !ctx.aborted) {
+          ctx.emptyRetried = true; ctx.extended = false; ctx.boosted = false;
+          fullResponse = ''; held = '';
+          console.log(logLabel + ' empty reply, retrying once...');
+          callGroqStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), 0, effortCfgFit, modelList, ctx);
+          return;
         }
-        onComplete(fullResponse);
-        const usage = Object.assign({}, buildUsagePayload(getLimits(userId), userId));
-        send({ done: true, usage, responseTokens: cost, warnings: reservation.warnings, sig: signReply(userId, charId, fullResponse) });
-        close();
-      } catch (e) {
-        // onComplete may have already persisted the message — don't reset finished or refund tokens
-        console.error(logLabel + ' post-complete error:', e && e.message);
-        try { close(); } catch (_) {}
+        fail(new Error('empty reply')); return;
       }
-    },
-    (err) => fail(err),
-    undefined, effortCfgFit, modelList, ctx);
+      finished = true;
+      if (!released) {
+        if (isBareRefusal(fullResponse)) fullResponse = buildRefusalExplanation();
+        released = true;
+        send({ text: fullResponse });
+        held = '';
+      }
+      onComplete(fullResponse);
+      const usage = Object.assign({}, buildUsagePayload(getLimits(userId), userId));
+      send({ done: true, usage, responseTokens: cost, warnings: reservation.warnings, sig: signReply(userId, charId, fullResponse) });
+      close();
+    } catch (e) {
+      // onComplete may have already persisted the message — don't reset finished or refund tokens
+      console.error(logLabel + ' post-complete error:', e && e.message);
+      try { close(); } catch (_) {}
+    }
+  };
+  callGroqStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), undefined, effortCfgFit, modelList, ctx);
 }
 
 // A clear message when the AI provider is rate-limiting us (instead of a generic error)
