@@ -1296,6 +1296,16 @@ function safeColor(c) {
   if (/^linear-gradient\(\s*(?:\d+deg\s*,\s*)?(?:#[0-9a-fA-F]{6}(?:\s+\d+(?:\.\d+)?%)?\s*,\s*){1,3}#[0-9a-fA-F]{6}(?:\s+\d+(?:\.\d+)?)?\s*\)$/i.test(c)) return c;
   return '#7c3aed';
 }
+// Pick the most visible (brightest) hex color from a gradient or solid color string.
+// Used for text labels so they're readable on a dark background.
+function brightestHex(c) {
+  const hexes = String(c || '').match(/#[0-9a-fA-F]{6}/gi);
+  if (!hexes || !hexes.length) return 'var(--accent-l)';
+  return hexes.reduce((best, h) => {
+    const lum = (x) => { const n = parseInt(x, 16); return 0.299*(n>>16&255) + 0.587*(n>>8&255) + 0.114*(n&255); };
+    return lum(h.slice(1)) > lum(best.slice(1)) ? h : best;
+  });
+}
 
 // ── Custom hue-strip color picker ─────────────────────────────────────────────
 // Color stops shown on the hue slider per vision type.
@@ -1517,7 +1527,7 @@ function charRow(c) {
   return `<div class="char-row" data-id="${safeId}" onclick="openChat(this.dataset.id)">
     ${av}
     <div class="char-row-info">
-      <div class="char-row-name" style="color:${String(c.color||'').match(/#[0-9a-fA-F]{6}/)?.[0]||'var(--accent-l)'}">${escHtml(c.name)}</div>
+      <div class="char-row-name" style="color:${brightestHex(c.color)}">${escHtml(c.name)}</div>
       <div class="char-row-tagline">${escHtml(c.tagline || '')}</div>
       <div class="char-row-meta">${c.isOfficial ? '<span class="hc-creator-official">By Character Mind Playtime Co</span>' : escHtml('By ' + (c.creator || 'a community creator'))} · ${formatCount(c.interactions||0)} chats</div>
     </div>
@@ -1528,7 +1538,7 @@ function charRow(c) {
 function charCard(c) {
   return `<div class="char-card" data-id="${escHtml(c.id)}" onclick="openChat(this.dataset.id)">
     ${charAvatarHtml(c, 'card-avatar')}
-    <div class="card-name" style="color:${String(c.color||'').match(/#[0-9a-fA-F]{6}/)?.[0]||'var(--accent-l)'}">${escHtml(c.name)}</div>
+    <div class="card-name" style="color:${brightestHex(c.color)}">${escHtml(c.name)}</div>
     <div class="card-tagline">${escHtml(c.tagline || '')}</div>
     <div class="card-meta">
       <span class="card-creator">${c.isOfficial ? '<span class="hc-creator-official">By Character Mind Playtime Co</span>' : escHtml('By ' + (c.creator || 'a community creator'))}</span>
@@ -1573,7 +1583,7 @@ function renderFeed() {
     return `<div class="feed-card">
       <div class="feed-card-header">
         ${av}
-        <div><div class="feed-char-name" style="color:${String(c.color||'').match(/#[0-9a-fA-F]{6}/)?.[0]||'var(--accent-l)'}">${escHtml(c.name)}</div><div class="feed-char-sub">${escHtml(c.creator||'@you')} · ${formatCount(c.interactions||0)} chats</div></div>
+        <div><div class="feed-char-name" style="color:${brightestHex(c.color)}">${escHtml(c.name)}</div><div class="feed-char-sub">${escHtml(c.creator||'@you')} · ${formatCount(c.interactions||0)} chats</div></div>
       </div>
       <div class="feed-preview">${escHtml(c.description || c.tagline || '')}</div>
       <div class="feed-footer">
@@ -3380,7 +3390,7 @@ function appendNsfwCard(variant) {
   div.innerHTML = `
     <div class="msg-header">
       ${msgAvatarHtml('msg-avatar')}
-      <span class="msg-name" style="color:${String(currentChar?.color||'').match(/#[0-9a-fA-F]{6}/)?.[0]||'var(--accent-l)'}">${escHtml(currentChar?.name || 'AI')}</span>
+      <span class="msg-name" style="color:${brightestHex(currentChar?.color)}">${escHtml(currentChar?.name || 'AI')}</span>
       <span class="msg-badge">C.M</span>
     </div>
     <div class="nsfw-block-card">
@@ -3422,7 +3432,7 @@ function appendMessage(role, text, imgB64, lite) {
     div.innerHTML = `
       <div class="msg-header">
         ${msgAvatarHtml('msg-avatar')}
-        <span class="msg-name" style="color:${String(currentChar?.color||'').match(/#[0-9a-fA-F]{6}/)?.[0]||'var(--accent-l)'}">${escHtml(currentChar?.name || 'AI')}</span>
+        <span class="msg-name" style="color:${brightestHex(currentChar?.color)}">${escHtml(currentChar?.name || 'AI')}</span>
         <span class="msg-badge">C.M</span>
         <button class="tts-btn" onclick="toggleTTS(this)" title="Read aloud (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
         ${msgMenuHtml('ai')}
@@ -3453,7 +3463,7 @@ function createAiMessage() {
   div.innerHTML = `
     <div class="msg-header">
       ${msgAvatarHtml('msg-avatar')}
-      <span class="msg-name" style="color:${String(currentChar?.color||'').match(/#[0-9a-fA-F]{6}/)?.[0]||'var(--accent-l)'}">${escHtml(currentChar?.name || 'AI')}</span>
+      <span class="msg-name" style="color:${brightestHex(currentChar?.color)}">${escHtml(currentChar?.name || 'AI')}</span>
       <span class="msg-badge">C.M</span>
       <button class="tts-btn" onclick="toggleTTS(this)" title="Read aloud (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
       ${msgMenuHtml('ai')}
