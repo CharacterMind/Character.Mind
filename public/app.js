@@ -1860,7 +1860,7 @@ async function openChat(charId) {
       mobAvEl.innerHTML = `<span style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:14px;font-weight:700;color:#fff">${escHtml(currentChar.name[0]||'?')}</span>`;
     }
   }
-  if (mobNmEl) mobNmEl.textContent = currentChar.name;
+  if (mobNmEl) { mobNmEl.textContent = currentChar.name; mobNmEl.style.color = brightestHex(currentChar.color); }
 
   // Update info panel
   const ia = document.getElementById('infoAvatar');
@@ -1869,7 +1869,7 @@ async function openChat(charId) {
     else { ia.style.background = safeColor(currentChar.color); ia.style.borderRadius = '12px'; ia.textContent = currentChar.name[0]||'?'; }
   }
   const infoName = document.getElementById('infoName');
-  if (infoName) infoName.textContent = currentChar.name;
+  if (infoName) { infoName.textContent = currentChar.name; infoName.style.color = brightestHex(currentChar.color); }
   const infoCreator = document.getElementById('infoCreator');
   if (infoCreator) infoCreator.textContent = currentChar.creator || '@you';
   const infoInteractions = document.getElementById('infoInteractions');
@@ -2060,7 +2060,7 @@ async function generateGreeting() {
       document.getElementById('sendBtn').disabled = false;
       if (err.error !== 'Already started') {
         document.getElementById('chatWelcome').innerHTML = `
-          <div class="chat-welcome-name">${escHtml(currentChar.name)}</div>
+          <div class="chat-welcome-name" style="color:${brightestHex(currentChar.color)}">${escHtml(currentChar.name)}</div>
           <div style="color:var(--text3);font-size:14px;margin-top:8px">${escHtml(err.error || 'Could not start conversation.')}</div>`;
       }
       return;
@@ -4259,7 +4259,7 @@ async function startCallMode() {
       }
     }
     const nameEl = document.getElementById('callCharName');
-    if (nameEl) nameEl.textContent = currentChar.name || '';
+    if (nameEl) { nameEl.textContent = currentChar.name || ''; nameEl.style.color = brightestHex(currentChar.color); }
     overlay.style.display = 'flex';
     const vob = document.getElementById('callVoiceOnBadge');
     if (vob) { vob.style.display = ''; setTimeout(() => { if (callModeActive) vob.style.display = 'none'; }, 5000); }
