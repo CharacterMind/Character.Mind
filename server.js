@@ -499,10 +499,17 @@ async function loadLimitsFromDB() {
     const now = Date.now();
     for (const row of rows) {
       const d = row.data || {};
-      // Skip entries whose weekly window and session have both fully expired
+      // Skip entries whose weekly window, session, AND daily counters have all fully expired
       const weeklyGone = !d.weeklyStart || (now - d.weeklyStart) > (7 * 24 * 60 * 60 * 1000);
       const sessionGone = !d.sessionStartedAt || (now > (d.sessionStartedAt + LIMITS.SESSION_COOLDOWN_MS));
-      if (weeklyGone && sessionGone) continue;
+      if (weeklyGone && sessionGone) {
+        // Also skip if there's no active daily data worth preserving
+        const cw = getCallWindowStart();
+        const dailyActive = (d.callDayStart >= cw && (d.callsToday > 0 || d.memosToday > 0)) ||
+                            (d.imageDayStart >= cw && d.imagesDay > 0) ||
+                            (d.ttsDayStart   >= cw && d.ttsCharsToday > 0);
+        if (!dailyActive) continue;
+      }
       userLimits[row.user_id] = {
         sessionTokens: d.sessionTokens || 0,
         sessionStartedAt: d.sessionStartedAt || null,
@@ -687,6 +694,7 @@ function getLimits(sid) {
   // Weekly window expired → reset weekly, it starts fresh on next message
   if (u.weeklyStart && (now - u.weeklyStart) > LIMITS.WEEKLY_MS) {
     u.weeklyTokens = 0; u.weeklyStart = null; u.warned = {};
+    saveLimitsToDB(sid);
   }
   // Daily window resets at 8 AM UTC (calls + memos)
   const callWindow = getCallWindowStart();
