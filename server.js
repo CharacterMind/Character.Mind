@@ -558,11 +558,12 @@ const LIMITS = {
 // model tokens x model multiplier x effort multiplier).
 // An average message = Opes at Medium effort = 1,200 tokens (see MESSAGE_COST below).
 // Lighter models/efforts give more messages than this; heavier ones give fewer.
-// Free 60, Advanced 150 (2.5x), X20 = 20x Advanced (3,000), X50 = 50x Advanced (7,500), X100 = 100x Advanced (15,000). Weekly = 5 sessions' worth.
+// Free 60, Advanced 150 (2.5x), X20 = 20x Advanced (3,000), X50 = 50x Advanced (7,500), X100 = 100x Advanced (15,000), X200 = 200x (30,000). Weekly = 5 sessions' worth.
 const AVG_MESSAGE_TOKENS = 1200;
 const X20_MULT = 20;
 const X50_MULT = 50;
 const X100_MULT = 100;
+const X200_MULT = 200;
 const MESSAGES_PER_SESSION = { free: 60, advanced: 150 };
 const WEEKLY_SESSIONS = 5;
 function limitsForMessages(sessionMessages) {
@@ -575,25 +576,26 @@ const TIER_TOKEN_LIMITS = {
   x20:      limitsForMessages(MESSAGES_PER_SESSION.advanced * X20_MULT),
   x50:      limitsForMessages(MESSAGES_PER_SESSION.advanced * X50_MULT),
   x100:     limitsForMessages(MESSAGES_PER_SESSION.advanced * X100_MULT),
+  x200:     limitsForMessages(MESSAGES_PER_SESSION.advanced * X200_MULT),
 };
 function tokenLimitsFor(u) {
   return TIER_TOKEN_LIMITS[u.subscriptionTier || 'free'] || TIER_TOKEN_LIMITS.free;
 }
 // How fast each model tier burns your token allowance (top tiers cost far more).
 // Six models, each with its own job. (Older saved choices like "opys5" are read as the base model, see baseOf.)
-const BASE_TIERS = ['opas', 'opes', 'opis', 'opos', 'opus', 'opys', 'opys5'];
-const MODEL_TOKEN_MULT = { opas: 1, opes: 3, opis: 4, opos: 5, opus: 6, opys: 8, opys5: 24 };
-// Opys 5 is the flagship (X100 only). Any other old name with a 2-5 on the end ("opas3") means the plain model.
+const BASE_TIERS = ['opas', 'opes', 'opis', 'opos', 'opus', 'opys', 'opys5', 'opys6'];
+const MODEL_TOKEN_MULT = { opas: 1, opes: 3, opis: 4, opos: 5, opus: 6, opys: 8, opys5: 24, opys6: 48 };
+// Opys 5/6 are the flagships. Any other old name with a 2-6 on the end ("opas3") means the plain model.
 const baseOf = (t) => {
   if (typeof t !== 'string') return null;
   if (Object.hasOwn(MODEL_TOKEN_MULT, t)) return t;
-  const b = t.replace(/[2-5]$/, '');
-  return (b !== 'opys5' && Object.hasOwn(MODEL_TOKEN_MULT, b)) ? b : null;
+  const b = t.replace(/[2-6]$/, '');
+  return (b !== 'opys5' && b !== 'opys6' && Object.hasOwn(MODEL_TOKEN_MULT, b)) ? b : null;
 };
 // The most tokens one reply may use, per model (the bigger writers get more room), and how long each model writes compared with Opes
 // (Opys 5's cap is high on purpose: what it can really write at once depends on the Groq plan, see GROQ_REQUEST_BUDGET and GROQ_LENGTH_SCALE.)
-const MODEL_CAP   = { opas: 1600, opes: 2200, opis: 2600, opos: 3300, opus: 3900, opys: 4500, opys5: 40000 };
-const MODEL_WORDS = { opas: 0.7,  opes: 1,    opis: 1.1,  opos: 1.3,  opus: 1.6,  opys: 1.9,  opys5: 3.5 };
+const MODEL_CAP   = { opas: 1600, opes: 2200, opis: 2600, opos: 3300, opus: 3900, opys: 4500, opys5: 40000, opys6: 40000 };
+const MODEL_WORDS = { opas: 0.7,  opes: 1,    opis: 1.1,  opos: 1.3,  opus: 1.6,  opys: 1.9,  opys5: 3.5,  opys6: 5.0 };
 const MODEL_CAP_SCALE = Number(process.env.VERSION_CAP_SCALE) || 1;
 for (const k of Object.keys(MODEL_CAP)) MODEL_CAP[k] = Math.round(MODEL_CAP[k] * MODEL_CAP_SCALE);
 // Groq's free plan allows about 8,000 tokens per request, counting the prompt AND the reply room together.
@@ -608,11 +610,11 @@ function fitOutputRoom(cfg, system, messages) {
 }
 // A bigger reply means less room for old messages (Opys's long-term notes make up for it)
 function historyBudgetFor(modelTier) {
-  return ({ opos: 6000, opus: 5000, opys: 3500, opys5: 3500 })[baseOf(modelTier)] || HISTORY_CHAR_BUDGET;
+  return ({ opos: 6000, opus: 5000, opys: 3500, opys5: 3500, opys6: 3500 })[baseOf(modelTier)] || HISTORY_CHAR_BUDGET;
 }
 // Which plan first unlocks each base model, and the plan ranks
-const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1, opus: 2, opys: 3, opys5: 4 };
-const PLAN_RANK = { free: 0, advanced: 1, x20: 2, x50: 3, x100: 4 };
+const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1, opus: 2, opys: 3, opys5: 4, opys6: 5 };
+const PLAN_RANK = { free: 0, advanced: 1, x20: 2, x50: 3, x100: 4, x200: 5 };
 // Extra cost for the higher effort levels, on top of the model multiplier (they also write longer replies).
 const EFFORT_TOKEN_MULT = { low: 1, medium: 1, high: 1, extra: 1.5, max: 2, ultracode: 4 };
 function effortMultFor(effort) { return Object.hasOwn(EFFORT_TOKEN_MULT, effort) ? EFFORT_TOKEN_MULT[effort] : 1; }
@@ -627,7 +629,7 @@ const OPAS_COST = { low: 220, medium: 350, high: 540, extra: 800, max: 1200, ult
 const OPES_COST = { low: 700, medium: 1200, high: 1800, extra: 2600, max: 4000, ultracode: 8000 }; // effort ramps gently: Low 0.6x, Medium 1x, High 1.5x, Extra 2.2x, Max 3.3x a Medium message
 // Base models step up gently: Opes 1x, Opis 1.25x, Opos 1.5x, Opus 2x, Opys 3x (of Opes).
 // Max effort costs about 3.3x a Medium reply.
-const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3, opys5: 10 };
+const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3, opys5: 10, opys6: 20 };
 function messageCost(modelTier, effort) {
   const e = (typeof effort === 'string' && Object.hasOwn(OPES_COST, effort)) ? effort : 'medium';
   modelTier = baseOf(modelTier) || modelTier;
@@ -651,9 +653,9 @@ function sessionLimitFor(u) { return tokenLimitsFor(u).session; }
 function weeklyLimitFor(u) { return tokenLimitsFor(u).weekly; }
 const NSFW_BLOCK_TOKENS = 200;
 
-const TIER_CALL_LIMITS  = { free: 3,   advanced: 5,   x20: 100,  x50: 250,  x100: 500  };
-const TIER_MEMO_LIMITS  = { free: 30,  advanced: 50,  x20: 1000, x50: 2500, x100: 5000 };
-const TIER_IMAGE_LIMITS = { free: 1,   advanced: 10,  x20: 200,  x50: 500,  x100: 1000 };
+const TIER_CALL_LIMITS  = { free: 3,   advanced: 5,   x20: 100,  x50: 250,  x100: 500,  x200: 1500  };
+const TIER_MEMO_LIMITS  = { free: 30,  advanced: 50,  x20: 1000, x50: 2500, x100: 5000, x200: 15000 };
+const TIER_IMAGE_LIMITS = { free: 1,   advanced: 10,  x20: 200,  x50: 500,  x100: 1000, x200: 3000  };
 
 function getCallLimitForUser(userId) {
   const tier = userLimits[userId]?.subscriptionTier || 'free';
@@ -806,7 +808,7 @@ const EFFORT_DIRECTIVES = {
 
 const OPYS2_DIRECTIVE = 'QUALITY: You are one of the most advanced models. Write with exceptional depth and craft: stay perfectly consistent with the character\'s voice, history and the details already established; add layered emotion, subtext and vivid specific detail; move the scene forward with a meaningful choice or twist instead of repeating what was said. Never pad, never repeat earlier phrasing.';
 // Higher models write a little more: each step up the ladder adds a little more length and detail on top of the effort level.
-const BASE_DEPTH_RANK = { opas: 0, opes: 0, opis: 1, opos: 2, opus: 3, opys: 4, opys5: 6 };
+const BASE_DEPTH_RANK = { opas: 0, opes: 0, opis: 1, opos: 2, opus: 3, opys: 4, opys5: 6, opys6: 8 };
 function depthRankFor(t) { const b = baseOf(t); return b ? BASE_DEPTH_RANK[b] : 0; }
 function modelDepthNote(modelTier, effort) {
   const rank = depthRankFor(modelTier);
@@ -852,6 +854,7 @@ const MODEL_ABILITY = {
   opys: 'MASTER TOOLKIT: you can do all of these on request. ' + ABILITY_CHAPTER + ' ' + ABILITY_GM + ' ' + ABILITY_AUTHOR + ' ' + CODE_OPYS,
 };
 MODEL_ABILITY.opys5 = 'MASTER TOOLKIT: you can do all of these on request. ' + ABILITY_CHAPTER + ' ' + ABILITY_GM + ' ' + ABILITY_AUTHOR + ' ' + ABILITY_EXTREME + ' ' + CODE_OPYS5;
+MODEL_ABILITY.opys6 = 'NEXT-GENERATION MASTER TOOLKIT: you can do all of these on request. ' + ABILITY_CHAPTER + ' ' + ABILITY_GM + ' ' + ABILITY_AUTHOR + ' ' + ABILITY_EXTREME + ' ' + CODE_OPYS5 + ' WORLD-BUILDING: maintain persistent lore, faction maps, and multi-chapter character arcs across the full conversation. Write with the highest possible depth, cinematic tension, and psychological complexity.';
 function modelAbilityNote(modelTier) {
   const base = baseOf(modelTier);
   return Object.hasOwn(MODEL_ABILITY, base) ? 'ABILITY - ' + MODEL_ABILITY[base] : '';
@@ -923,7 +926,7 @@ async function getStorySummary(key) {
 
 // Runs after an Opys reply: folds messages that have scrolled out of the window into a short set of story notes
 async function maybeUpdateStorySummary(key, apiKey, charName, modelTier) {
-  if ((baseOf(modelTier) !== 'opys' && baseOf(modelTier) !== 'opys5') || !db || !apiKey || summaryBusy.has(key)) return;
+  if ((baseOf(modelTier) !== 'opys' && baseOf(modelTier) !== 'opys5' && baseOf(modelTier) !== 'opys6') || !db || !apiKey || summaryBusy.has(key)) return;
   if ((summaryCooldown.get(key) || 0) > Date.now()) return;
   summaryBusy.add(key);
   try {
@@ -1894,6 +1897,7 @@ const EFFORT_CONFIG = {
 
 
 EFFORT_CONFIG.opys5 = EFFORT_CONFIG.opys;   // Opys 5 starts from Opys's settings, then getEffortCfg raises its thinking
+EFFORT_CONFIG.opys6 = EFFORT_CONFIG.opys5;  // Opys 6 uses the same model, differentiated by tier cost, depth rank, and world-building directives
 // Groq's free plan allows only 8,000 tokens per minute per model, and a request counts its input PLUS its
 // max_tokens against that. The big caps above could never fit, so Extra/Max always failed. Until the Groq plan
 // is upgraded, cap each reply and avoid "high" reasoning (which can burn the whole budget thinking).
@@ -2076,7 +2080,7 @@ function aiErrorMessage(err) {
 
 function getModelList(tier) {
   tier = baseOf(tier) || tier;
-  if (tier === 'opys' || tier === 'opys5') return GROQ_OPYS2_MODELS;
+  if (tier === 'opys' || tier === 'opys5' || tier === 'opys6') return GROQ_OPYS2_MODELS;
   if (tier === 'opis' || tier === 'opos' || tier === 'opus') return GROQ_OPUS_MODELS;
   if (tier === 'opes') return GROQ_PRO_MODELS;
   return GROQ_FAST_MODELS;

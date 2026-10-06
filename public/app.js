@@ -12,14 +12,14 @@ let currentFilter = 'all';
 let lastUserMessage = '';
 // ── Model & Effort state ───────────────────────────────────────────────────────
 const EFFORT_LEVELS = ['low','medium','high','extra','max','ultracode'];
-const BASE_TIERS = ['opas','opes','opis','opos','opus','opys','opys5'];
+const BASE_TIERS = ['opas','opes','opis','opos','opus','opys','opys5','opys6'];
 const ALL_TIERS = BASE_TIERS;
 // Older saved choices such as "opys5" mean the base model
 const baseTierOf = (t) => {
   if (typeof t !== 'string') return null;
-  if (BASE_TIERS.includes(t)) return t;                       // "opys5" is the flagship model itself
-  const b = t.replace(/[2-5]$/, '');
-  return (b !== 'opys5' && BASE_TIERS.includes(b)) ? b : null;
+  if (BASE_TIERS.includes(t)) return t;                       // "opys5" / "opys6" are flagship models themselves
+  const b = t.replace(/[2-6]$/, '');
+  return (b !== 'opys5' && b !== 'opys6' && BASE_TIERS.includes(b)) ? b : null;
 };
 // The chosen model and effort are remembered per account (see loadAccountPrefs), never shared between accounts
 let selectedModelTier = 'opas';
@@ -39,13 +39,13 @@ function loadAccountPrefs() {
   updateModelBarLabel();
 }
 
-const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys', opys5:'Opys 5' };
+const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys', opys5:'Opys 5', opys6:'Opys 6' };
 // Must match OPAS_COST / OPES_COST / COST_FACTOR_VS_OPES in server.js — what one reply costs from the allowance.
 const OPAS_COST = { low: 220, medium: 350, high: 540, extra: 800, max: 1200, ultracode: 2400 };
 const OPES_COST = { low: 700, medium: 1200, high: 1800, extra: 2600, max: 4000, ultracode: 8000 };
-const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3, opys5: 10 };
-const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1, opus: 2, opys: 3, opys5: 4 };
-const PLAN_RANK = { free: 0, advanced: 1, x20: 2, x50: 3, x100: 4 };
+const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3, opys5: 10, opys6: 20 };
+const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1, opus: 2, opys: 3, opys5: 4, opys6: 5 };
+const PLAN_RANK = { free: 0, advanced: 1, x20: 2, x50: 3, x100: 4, x200: 5 };
 function clientMessageCost(tier, effort) {
   tier = baseTierOf(tier) || tier;
   if (tier === 'opas' || !(tier in COST_FACTOR_VS_OPES)) return OPAS_COST[effort];
@@ -232,20 +232,35 @@ const PLAN_DATA = [
       'Everything in X50',
     ],
   },
+  {
+    key: 'x200', name: 'X200', badge: 'Legend', monthly: 249.99, annual: 1999.99,
+    callsPerDay: 1500, memosPerDay: 15000,
+    features: [
+      'Opys 6: next-generation model — exclusive to X200',
+      'Replies are 5× longer than baseline with cinematic depth & layered subtext',
+      '⚡ Ultra Code: enterprise-grade multi-system architecture, full pipelines',
+      'World-building mode: persistent lore, faction maps & character arcs across chapters',
+      '1,500 messages per day — built for power users, studios & professional writers',
+      '3,000 image uploads per day',
+      'Everything in X100',
+    ],
+  },
 ];
 
-const PLAN_LABELS = { free: 'Free', advanced: 'Advanced', x20: 'X20', x50: 'X50', x100: 'X100' };
+const PLAN_LABELS = { free: 'Free', advanced: 'Advanced', x20: 'X20', x50: 'X50', x100: 'X100', x200: 'X200' };
 const PLAN_SUBS = {
   free:     'Free plan',
   advanced: 'Advanced plan',
   x20:      'X20 plan',
   x50:      'X50 plan',
   x100:     'X100 plan',
+  x200:     'X200 plan',
 };
-// X100 is sold only once its own PayPal plans are set up on the server (until then its card says "Coming soon")
+// X100/X200 are sold only once their PayPal plans are set up on the server (until then their cards say "Coming soon")
 function planBuyable(key) {
-  if (key !== 'x100') return true;
-  return !!(PAYPAL_PLAN_IDS.x100 && (pricingPeriod !== 'annual' || PAYPAL_PLAN_IDS_YEARLY.x100));
+  if (key === 'x100') return !!(PAYPAL_PLAN_IDS.x100 && (pricingPeriod !== 'annual' || PAYPAL_PLAN_IDS_YEARLY.x100));
+  if (key === 'x200') return !!(PAYPAL_PLAN_IDS.x200 && (pricingPeriod !== 'annual' || PAYPAL_PLAN_IDS_YEARLY.x200));
+  return true;
 }
 
 let pricingPeriod = 'monthly';
@@ -285,8 +300,14 @@ let exchangeRatesPromise = null;
 
 function loadExchangeRates() {
   if (exchangeRatesPromise) return exchangeRatesPromise;
-  exchangeRatesPromise = fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.min.json')
-    .then(r => r.json()).then(d => { exchangeRates = d.usd; return d.usd; })
+  exchangeRatesPromise = fetch('https://api.frankfurter.app/latest?from=USD')
+    .then(r => r.json())
+    .then(d => {
+      const rates = { usd: 1 };
+      for (const [k, v] of Object.entries(d.rates || {})) rates[k.toLowerCase()] = v;
+      exchangeRates = rates;
+      return rates;
+    })
     .catch(() => { exchangeRatesPromise = null; return null; });
   return exchangeRatesPromise;
 }
