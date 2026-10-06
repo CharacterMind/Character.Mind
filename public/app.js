@@ -4,6 +4,7 @@ let templatesLoaded = false;
 let currentUser = null;
 let characters = [];
 let currentChar = null;
+let currentChatLocked = false;
 let isStreaming = false;
 let chatEpoch = 0; // bumps whenever the open chat changes, so an old reply can't land in the new chat
 let currentFilter = 'all';
@@ -1945,13 +1946,13 @@ async function openChat(charId) {
   updateTypingAvatar();
 
   // Check if this chat has been permanently locked by moderation
-  let chatIsLocked = false;
+  currentChatLocked = false;
   try {
     const lockRes = await fetch(`/api/chat/lock-status/${charId}`);
     if (chatEpoch !== openEpoch) return;
     if (lockRes.ok) {
       const { locked } = await lockRes.json();
-      chatIsLocked = !!locked;
+      currentChatLocked = !!locked;
     }
   } catch (_) {}
   if (chatEpoch !== openEpoch) return;
@@ -2015,7 +2016,7 @@ async function openChat(charId) {
   }
 
   renderSidebarChats();
-  if (chatIsLocked) {
+  if (currentChatLocked) {
     showLockedBar();
     return;
   }
@@ -2037,7 +2038,10 @@ function showLockedBar() {
   lockBar.className = 'chat-locked-bar';
   lockBar.innerHTML = `
     <span>🚫</span>
-    <span>This chat was permanently ended due to repeated policy violations. You cannot send messages here.</span>
+    <div class="locked-bar-body">
+      <span>This chat was permanently ended due to repeated policy violations. You cannot send messages here.</span>
+      <button class="locked-delete-btn" onclick="deleteLockedChat()">Delete chat</button>
+    </div>
   `;
   if (messagesDiv) messagesDiv.appendChild(lockBar);
   scrollToBottom();
@@ -2045,6 +2049,23 @@ function showLockedBar() {
 
 // Legacy alias kept for the in-stream conversationEnded path
 function showLockedChat() { showLockedBar(); }
+
+async function deleteLockedChat() {
+  if (!currentChar) return;
+  if (!confirm('Permanently delete this chat and all its messages? This cannot be undone.')) return;
+  try {
+    const res = await fetch(`/api/chat/delete-locked/${currentChar.id}`, { method: 'DELETE' });
+    if (!res.ok) { showWarning('Could not delete chat. Try again.'); return; }
+    try {
+      const all = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}');
+      delete all[currentChar.id];
+      localStorage.setItem(userKey('cm_history'), JSON.stringify(all));
+    } catch(_) {}
+    currentChatLocked = false;
+    currentChar = null;
+    showHome();
+  } catch(_) { showWarning('Could not delete chat. Try again.'); }
+}
 
 async function resetAndStartNewChat(charId) {
   // reset-mod endpoint archives the convo + resets strikes
@@ -4113,6 +4134,11 @@ function exportHistory() {
 }
 
 function clearHistoryFromPanel() {
+  if (currentChatLocked) {
+    closeHistoryPanel();
+    showWarning('This chat is permanently closed. Use "Delete chat" inside the chat to remove it entirely.');
+    return;
+  }
   if (!confirm('Clear all messages in this conversation? The current chat is saved to your past chats, and the character starts fresh.')) return;
   closeHistoryPanel();
   newChat();

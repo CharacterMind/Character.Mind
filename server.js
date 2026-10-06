@@ -2349,6 +2349,17 @@ app.get('/api/chat/lock-status/:charId', requireAuth, async (req, res) => {
   res.json({ locked: mod.locked, strikes: mod.strikes });
 });
 
+app.delete('/api/chat/delete-locked/:charId', requireAuth, async (req, res) => {
+  const { charId } = req.params;
+  if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
+  const uid = req.user.googleId;
+  const mod = await getModStatus(uid, charId);
+  if (!mod.locked) return res.status(400).json({ error: 'Chat is not locked' });
+  await db.run('DELETE FROM conversations WHERE userId = ? AND charId = ?', [uid, charId]);
+  await setModStatus(uid, charId, 0, false);
+  res.json({ ok: true });
+});
+
 const MAX_ARCHIVES_PER_CHAR = 200;
 // Save a conversation to the archive, deleting the oldest ones first when the limit is reached
 // (instead of silently dropping the new chat). Returns true when it was saved.

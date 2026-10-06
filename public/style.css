@@ -1253,12 +1253,20 @@ html, body {
   background: var(--bg2); max-width: 420px;
 }
 .chat-locked-bar {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: flex-start; gap: 10px;
   margin: 32px auto; padding: 16px 20px;
   background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.35);
   border-radius: 10px; color: #f87171; font-size: 14px; max-width: 460px;
-  text-align: left; line-height: 1.45; flex-wrap: wrap;
+  text-align: left; line-height: 1.45;
 }
+.locked-bar-body {
+  display: flex; flex-direction: column; gap: 10px;
+}
+.locked-delete-btn {
+  align-self: flex-start; padding: 5px 12px; border-radius: 6px; border: 1px solid rgba(239,68,68,0.4);
+  background: transparent; color: #f87171; font-size: 12px; cursor: pointer; opacity: 0.75;
+}
+.locked-delete-btn:hover { opacity: 1; background: rgba(239,68,68,0.15); }
 .new-chat-btn {
   margin-left: auto; padding: 6px 14px; border-radius: 6px; border: none;
   background: rgba(239,68,68,0.25); color: #f87171; font-size: 13px;
