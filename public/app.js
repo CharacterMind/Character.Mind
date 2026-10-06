@@ -80,12 +80,14 @@ function liveTokensShown(chars) {
 }
 const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', max:'Max' };
 
-// Token usage multiplier shown on Max effort warning per tier
+// Token usage multiplier shown on Max effort warning per tier.
+// Each value = max effort cost on that model ÷ OPAS medium (the cheapest baseline reply).
+// This shows the true usage escalation from OPAS → Opys 5 at Max effort.
 const MAX_EFFORT_MULTIPLIERS = {};
-{ // Max effort vs Medium: about 3.3x
-  const baseRatio = OPES_COST.max / OPES_COST.medium;
+{
+  const baseline = OPAS_COST.medium; // 350 tokens — cheapest normal reply
   const fmt = (x) => (Math.round(x * 10) / 10) + '×';
-  for (const b of BASE_TIERS) MAX_EFFORT_MULTIPLIERS[b] = fmt(baseRatio);
+  for (const b of BASE_TIERS) MAX_EFFORT_MULTIPLIERS[b] = fmt(clientMessageCost(b, 'max') / baseline);
 }
 
 function currentPlanKey() {
@@ -148,7 +150,7 @@ function updateModelBarLabel() {
     if (el) el.classList.toggle('active', e === selectedEffort);
   });
   const maxWarn = document.getElementById('effortMaxWarn');
-  if (maxWarn) maxWarn.textContent = '⚠ ' + (MAX_EFFORT_MULTIPLIERS[selectedModelTier] || '3.3×') + ' or more usage';
+  if (maxWarn) maxWarn.textContent = '⚠ ' + (MAX_EFFORT_MULTIPLIERS[selectedModelTier] || '3.4×') + ' vs baseline usage';
 }
 
 function setModelTier(tier) {
