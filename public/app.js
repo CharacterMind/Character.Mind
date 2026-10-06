@@ -211,7 +211,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'x100', name: 'X100', badge: 'Flagship', monthly: 99.99, annual: 799.99,
+    key: 'x100', name: 'X100', badge: 'Ultimate', monthly: 99.99, annual: 799.99,
     callsPerDay: 500, memosPerDay: 5000,
     features: [
       'Opys 5: the most powerful creative AI available — exclusive to X100',
@@ -3378,7 +3378,7 @@ function appendNsfwCard(variant) {
   div.innerHTML = `
     <div class="msg-header">
       ${msgAvatarHtml('msg-avatar')}
-      <span class="msg-name">${escHtml(currentChar?.name || 'AI')}</span>
+      <span class="msg-name" style="color:${String(currentChar?.color||'').match(/#[0-9a-fA-F]{6}/)?.[0]||'var(--accent-l)'}">${escHtml(currentChar?.name || 'AI')}</span>
       <span class="msg-badge">C.M</span>
     </div>
     <div class="nsfw-block-card">
@@ -3420,7 +3420,7 @@ function appendMessage(role, text, imgB64, lite) {
     div.innerHTML = `
       <div class="msg-header">
         ${msgAvatarHtml('msg-avatar')}
-        <span class="msg-name">${escHtml(currentChar?.name || 'AI')}</span>
+        <span class="msg-name" style="color:${String(currentChar?.color||'').match(/#[0-9a-fA-F]{6}/)?.[0]||'var(--accent-l)'}">${escHtml(currentChar?.name || 'AI')}</span>
         <span class="msg-badge">C.M</span>
         <button class="tts-btn" onclick="toggleTTS(this)" title="Read aloud (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
         ${msgMenuHtml('ai')}
@@ -3451,7 +3451,7 @@ function createAiMessage() {
   div.innerHTML = `
     <div class="msg-header">
       ${msgAvatarHtml('msg-avatar')}
-      <span class="msg-name">${escHtml(currentChar?.name || 'AI')}</span>
+      <span class="msg-name" style="color:${String(currentChar?.color||'').match(/#[0-9a-fA-F]{6}/)?.[0]||'var(--accent-l)'}">${escHtml(currentChar?.name || 'AI')}</span>
       <span class="msg-badge">C.M</span>
       <button class="tts-btn" onclick="toggleTTS(this)" title="Read aloud (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
       ${msgMenuHtml('ai')}
