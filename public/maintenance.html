@@ -8,7 +8,7 @@
 <style>
   :root { --ink: #fff; --panel: rgba(12, 6, 24, .72); }
   * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; }
+  html, body { height: 100%; margin: 0; overscroll-behavior: none; }
   body { background: #0b0614; color: var(--ink); font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; overflow: hidden; }
 
   /* ---------- the light show ---------- */
@@ -186,22 +186,40 @@
   }
   @media (max-height: 560px) { .trio { height: 110px; } .pal { --size: 74px; } .pal.d { --size: 88px; } }
 
-  /* ---------- mobile: toned-down blast so it doesn't murder the GPU ---------- */
+  /* ---------- mobile: GPU-safe, no-flicker version ---------- */
   @media (max-width: 700px) {
-    /* no full-screen flash on small screens — looks glitchy */
+    /* Lock to viewport — prevents iOS rubber-band overscroll which triggers
+       fixed-element repaints on every bounce, causing the flicker */
+    html, body { position: fixed; width: 100%; height: 100%; overflow: hidden; }
+    .page { position: fixed; inset: 0; overflow: hidden; }
+
+    /* Remove filter from .show entirely on mobile.
+       A filter on a parent forces ALL children into one shared GPU layer,
+       so every animated band invalidates the whole background on every frame. */
+    .show { filter: none !important; }
+
+    /* Disable mix-blend-mode on mobile — blending requires the GPU to read back
+       pixels on every frame, which causes stutter and flickering while scrolling */
+    .band.b2 { mix-blend-mode: normal !important; opacity: 0.22 !important; }
+    .band.b3 { mix-blend-mode: normal !important; opacity: 0.15 !important; }
+    .band.b4 { mix-blend-mode: normal !important; opacity: 0.10 !important; }
+    .scan    { display: none !important; }
     .flash-layer { display: none !important; }
+    .vignette { mix-blend-mode: normal !important; }
 
-    /* lighter filter — mobile GPUs choke on saturate(3.5) */
-    body:not(.calm) .show { filter: saturate(2.2) brightness(1.12) !important; }
-    body.calm .show { filter: saturate(2.0) brightness(1.05) !important; }
+    /* Promote each band to its own GPU compositing layer so they don't
+       share a surface and don't trigger repaints of each other */
+    .band { will-change: background-position; transform: translateZ(0); }
 
-    /* bands/scan/beams: slower so the GPU can breathe */
-    body:not(.calm) .band.b1 { animation-duration: 3.5s !important; }
-    body:not(.calm) .band.b2 { animation-duration: 5s !important; }
-    body:not(.calm) .band.b3 { animation-duration: 7s !important; }
-    body:not(.calm) .band.b4 { animation-duration: 8s !important; }
-    body:not(.calm) .scan { animation-duration: 1.4s !important; }
-    body:not(.calm) .beam { animation-duration: 0.8s !important; filter: blur(6px) !important; }
+    /* Beams and sparks are hidden (and not created) on mobile */
+    .beams { display: none !important; }
+    .sparks { display: none !important; }
+
+    /* bands slower on mobile so the GPU isn't overwhelmed */
+    body:not(.calm) .band.b1 { animation-duration: 4s !important; }
+    body:not(.calm) .band.b2 { animation-duration: 7s !important; }
+    body:not(.calm) .band.b3 { animation-duration: 10s !important; }
+    body:not(.calm) .band.b4 { animation-duration: 13s !important; }
     body:not(.calm) .logo { animation: logowave 1.2s linear infinite, logorgb 0.5s steps(1) infinite; }
 
     /* smaller dances: keep the energy, stop characters flying off-screen */
@@ -241,9 +259,8 @@
       80%  { transform: translate(16px,-26px) rotate(20deg) scale(0.88); }
     }
 
-    /* calm: bands & beams also lighter on mobile */
-    body.calm .beam { filter: blur(8px) !important; opacity: .8 !important; }
-    body.calm .vignette { opacity: .55 !important; }
+    /* calm on mobile: softer vignette */
+    body.calm .vignette { opacity: .4 !important; }
   }
 
   /* ---------- epilepsy warning overlay ---------- */
@@ -469,33 +486,36 @@
   if (_stored) { setLightMode(_stored); }
   else { var _ov = document.getElementById('epOverlay'); if (_ov) _ov.classList.add('ep-open'); }
 
-  // spotlights: every colour, each swinging at its own speed
+  var isMobile = window.innerWidth <= 700;
   var colours = ['#ff2d2d', '#ff8a00', '#ffe14d', '#7CFF4F', '#1fe0a0', '#22d3ee', '#3b82f6', '#7c3aed', '#e11dd4', '#ff5fa2', '#8b0000', '#ffb3b3', '#00ffcc', '#ff00aa', '#aaff00', '#00aaff', '#ff6600', '#cc00ff'];
-  var beams = document.getElementById('beams');
-  colours.forEach(function (c, i) {
-    var b = document.createElement('div');
-    b.className = 'beam';
-    b.style.left = (i * (100 / colours.length) - 2) + '%';
-    b.style.color = c;
-    b.style.setProperty('--t', (2.4 + (i % 5) * .85) + 's');
-    b.style.setProperty('--d', (-i * 0.7) + 's');
-    b.style.setProperty('--a', (-34 + (i % 4) * 6) + 'deg');
-    b.style.setProperty('--b', (30 - (i % 3) * 8) + 'deg');
-    beams.appendChild(b);
-  });
-  // floating sparkles
-  var sparks = document.getElementById('sparks');
-  for (var i = 0; i < 80; i++) {
-    var s = document.createElement('i');
-    s.className = 'spark';
-    var size = 5 + Math.random() * 11;
-    s.style.left = (Math.random() * 100) + '%';
-    s.style.setProperty('--s', size + 'px');
-    s.style.setProperty('--c', colours[i % colours.length]);
-    s.style.setProperty('--t', (7 + Math.random() * 9) + 's');
-    s.style.setProperty('--d', (-Math.random() * 14) + 's');
-    s.style.setProperty('--x', ((Math.random() - 0.5) * 160) + 'px');
-    sparks.appendChild(s);
+  // spotlights and sparks are skipped on mobile — hidden by CSS anyway, but
+  // creating 80+ animated DOM elements still drains CPU and causes jank
+  if (!isMobile) {
+    var beams = document.getElementById('beams');
+    colours.forEach(function (c, i) {
+      var b = document.createElement('div');
+      b.className = 'beam';
+      b.style.left = (i * (100 / colours.length) - 2) + '%';
+      b.style.color = c;
+      b.style.setProperty('--t', (2.4 + (i % 5) * .85) + 's');
+      b.style.setProperty('--d', (-i * 0.7) + 's');
+      b.style.setProperty('--a', (-34 + (i % 4) * 6) + 'deg');
+      b.style.setProperty('--b', (30 - (i % 3) * 8) + 'deg');
+      beams.appendChild(b);
+    });
+    var sparks = document.getElementById('sparks');
+    for (var i = 0; i < 80; i++) {
+      var s = document.createElement('i');
+      s.className = 'spark';
+      var size = 5 + Math.random() * 11;
+      s.style.left = (Math.random() * 100) + '%';
+      s.style.setProperty('--s', size + 'px');
+      s.style.setProperty('--c', colours[i % colours.length]);
+      s.style.setProperty('--t', (7 + Math.random() * 9) + 's');
+      s.style.setProperty('--d', (-Math.random() * 14) + 's');
+      s.style.setProperty('--x', ((Math.random() - 0.5) * 160) + 'px');
+      sparks.appendChild(s);
+    }
   }
   // when the site is back, go to it (add ?preview to the address to look at this page without being sent away)
   if (/[?&]preview\b/.test(location.search)) { document.getElementById('statusText').textContent = 'Preview mode: this page will not redirect'; return; }
