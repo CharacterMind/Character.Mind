@@ -2321,15 +2321,22 @@ function clearPendingImage() {
   if (thumb) thumb.src = '';
 }
 
+function getNextDailyResetAt() {
+  const d = new Date();
+  const today8am = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 8, 0, 0);
+  return Date.now() < today8am ? today8am : today8am + 86400000;
+}
+
 function formatImageResetTime(resetAt) {
   if (!resetAt) return '';
   const d = new Date(resetAt);
-  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  const day = d.getDate();
-  const suffix = day === 1 || day === 21 || day === 31 ? 'st' : day === 2 || day === 22 ? 'nd' : day === 3 || day === 23 ? 'rd' : 'th';
-  const h = d.getHours(); const m = String(d.getMinutes()).padStart(2,'0');
-  const ampm = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 || 12;
-  return `${months[d.getMonth()]} ${day}${suffix} at ${h12}:${m} ${ampm}`;
+  const timeStr = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+  const now = new Date();
+  const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+  const sameDay = (a, b) => a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+  if (sameDay(d, now)) return `at ${timeStr}`;
+  if (sameDay(d, tomorrow)) return `tomorrow at ${timeStr}`;
+  return `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} at ${timeStr}`;
 }
 
 function setImageLimitReached(resetAt) {
@@ -3026,7 +3033,7 @@ function renderUsageBanners(usage) {
   if (SESSION_BANNER_TEXT[sStep]) want.push({ kind: 'session', level: sStep, msg: SESSION_BANNER_TEXT[sStep], windowStart: usage.sessionStartedAt || 0, upgrade: false, persistent: false });
   const imgsLeft = (usage.imageLimit || 0) - (usage.imagesDay || 0);
   if (imgsLeft === 1 && (usage.imageLimit || 0) > 0) {
-    want.push({ kind: 'image', level: 1, msg: `One image remaining — ${usage.imageResetAt ? 'resets ' + formatImageResetTime(usage.imageResetAt) : 'resets at 8 AM UTC'}.`, windowStart: usage.imageResetAt || 0, upgrade: false, persistent: false });
+    want.push({ kind: 'image', level: 1, msg: `One image remaining — resets ${formatImageResetTime(usage.imageResetAt || getNextDailyResetAt())}.`, windowStart: usage.imageResetAt || 0, upgrade: false, persistent: false });
   }
   // take down any usage banner that no longer applies (a reset, a new week, a lower level...)
   [...container.querySelectorAll('.warning-banner[data-usage-kind]')].forEach(b => {
@@ -3177,8 +3184,8 @@ function formatResetTime(timestamp) {
     return 'Resetting now…';
   }
   const d = new Date(timestamp);
-  const day = d.toLocaleDateString('en-US', { weekday: 'long' });
-  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const day = d.toLocaleDateString(undefined, { weekday: 'long' });
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
   return `Resets ${day}, ${time}`;
 }
 
