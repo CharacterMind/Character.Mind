@@ -3822,7 +3822,7 @@ function regenNavStep(id, dir) {
   const msgEl = document.querySelector(`[data-regen-id="${id}"]`);
   if (!msgEl) return;
   const bubble = msgEl.querySelector('.bubble');
-  if (bubble) setBubbleRaw(bubble, store.texts[store.idx]);
+  if (bubble) { setBubbleRaw(bubble, store.texts[store.idx]); colorizeLetters(bubble, currentChar?.color); }
   if (store.sigs && store.sigs[store.idx]) msgEl.dataset.sig = store.sigs[store.idx]; else delete msgEl.dataset.sig;   // the signature of the version shown
   msgEl.querySelectorAll('.like-btn.active, .dislike-btn.active').forEach(b => b.classList.remove('active'));
   regenNavUpdate(msgEl);
