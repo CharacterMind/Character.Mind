@@ -1297,7 +1297,7 @@ function safeColor(c) {
   return '#7c3aed';
 }
 // Pick the most visible (brightest) hex color from a gradient or solid color string.
-// Used for text labels so they're readable on a dark background.
+// Used for card/feed/header labels so they're readable on a dark background.
 function brightestHex(c) {
   const hexes = String(c || '').match(/#[0-9a-fA-F]{6}/gi);
   if (!hexes || !hexes.length) return 'var(--accent-l)';
@@ -1305,6 +1305,20 @@ function brightestHex(c) {
     const lum = (x) => { const n = parseInt(x, 16); return 0.299*(n>>16&255) + 0.587*(n>>8&255) + 0.114*(n&255); };
     return lum(h.slice(1)) > lum(best.slice(1)) ? h : best;
   });
+}
+// Pick a random hex from a character's color palette (for chat message names).
+function randomCharColor(c) {
+  const hexes = String(c || '').match(/#[0-9a-fA-F]{6}/gi);
+  if (!hexes || !hexes.length) return 'var(--accent-l)';
+  return hexes[Math.floor(Math.random() * hexes.length)];
+}
+// Apply all character colors as gradient text on bubble (or solid if only one color).
+function charBubbleStyle(c) {
+  const hexes = String(c || '').match(/#[0-9a-fA-F]{6}/gi);
+  if (!hexes || !hexes.length) return 'color:var(--accent-l)';
+  if (hexes.length === 1) return `color:${hexes[0]}`;
+  const order = [...hexes].sort(() => Math.random() - 0.5);
+  return `background:linear-gradient(135deg,${order.join(',')});-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent`;
 }
 
 // ── Custom hue-strip color picker ─────────────────────────────────────────────
@@ -3390,7 +3404,7 @@ function appendNsfwCard(variant) {
   div.innerHTML = `
     <div class="msg-header">
       ${msgAvatarHtml('msg-avatar')}
-      <span class="msg-name" style="color:${brightestHex(currentChar?.color)}">${escHtml(currentChar?.name || 'AI')}</span>
+      <span class="msg-name" style="color:${randomCharColor(currentChar?.color)}">${escHtml(currentChar?.name || 'AI')}</span>
       <span class="msg-badge">C.M</span>
     </div>
     <div class="nsfw-block-card">
@@ -3432,12 +3446,12 @@ function appendMessage(role, text, imgB64, lite) {
     div.innerHTML = `
       <div class="msg-header">
         ${msgAvatarHtml('msg-avatar')}
-        <span class="msg-name" style="color:${brightestHex(currentChar?.color)}">${escHtml(currentChar?.name || 'AI')}</span>
+        <span class="msg-name" style="color:${randomCharColor(currentChar?.color)}">${escHtml(currentChar?.name || 'AI')}</span>
         <span class="msg-badge">C.M</span>
         <button class="tts-btn" onclick="toggleTTS(this)" title="Read aloud (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
         ${msgMenuHtml('ai')}
       </div>
-      <div class="bubble">${renderMarkdown(text, undefined, lite ? { lite: true } : undefined)}</div>
+      <div class="bubble" style="${charBubbleStyle(currentChar?.color)}">${renderMarkdown(text, undefined, lite ? { lite: true } : undefined)}</div>
       <div class="msg-footer">
         ${regenBtn()}${likeBtn()}${dislikeBtn()}
       </div>`;
@@ -3463,12 +3477,12 @@ function createAiMessage() {
   div.innerHTML = `
     <div class="msg-header">
       ${msgAvatarHtml('msg-avatar')}
-      <span class="msg-name" style="color:${brightestHex(currentChar?.color)}">${escHtml(currentChar?.name || 'AI')}</span>
+      <span class="msg-name" style="color:${randomCharColor(currentChar?.color)}">${escHtml(currentChar?.name || 'AI')}</span>
       <span class="msg-badge">C.M</span>
       <button class="tts-btn" onclick="toggleTTS(this)" title="Read aloud (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
       ${msgMenuHtml('ai')}
     </div>
-    <div class="bubble"></div>
+    <div class="bubble" style="${charBubbleStyle(currentChar?.color)}"></div>
     <div class="stream-stats">
       <span class="stream-spinner"></span>
       <span class="stream-time">0s</span>
