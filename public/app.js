@@ -171,27 +171,57 @@ const PLAN_DATA = [
   {
     key: 'free', name: 'Free', monthly: 0, annual: 0,
     callsPerDay: 3, memosPerDay: 30,
-    features: ['Opas & Opes AI models', 'All characters'],
+    features: [
+      'Opas & Opes: fast, capable AI for casual chats',
+      'Every character unlocked — no paywalled cast',
+      '3 messages per day to try it out',
+    ],
   },
   {
     key: 'advanced', name: 'Advanced', monthly: 4.99, annual: 44.99,
     callsPerDay: 5, memosPerDay: 50,
-    features: ['Opis: light coding and puzzles', 'Opos: game master and scene director', 'More messages every session', 'Everything in Free'],
+    features: [
+      'Opis: sharp at logic, riddles, and light banter',
+      'Opos: GM-mode — sets scenes, runs NPCs, drives drama',
+      '5 messages per day — enough for daily check-ins',
+      'Everything in Free',
+    ],
   },
   {
     key: 'x20', name: 'X20', badge: 'Recommended', monthly: 24.99, annual: 199.99,
     callsPerDay: 100, memosPerDay: 1000,
-    features: ['Opus: chapter writer with deep emotion', 'Remembers how your story began and never repeats itself', 'Longer, more detailed replies', 'Everything in Advanced'],
+    features: [
+      'Opus: writes full story chapters with real emotional depth',
+      'Tracks your story from the first message — no repetition, no forgetting',
+      'Replies are 3–5× longer and more immersive than free models',
+      '100 messages per day — enough for a serious writing session',
+      'Everything in Advanced',
+    ],
   },
   {
     key: 'x50', name: 'X50', badge: 'Best Value', monthly: 49.99, annual: 399.99,
     callsPerDay: 250, memosPerDay: 2500,
-    features: ['Opys: master author with every ability', 'Long-term memory of your whole story', 'Plans scenes and whole story arcs', 'Everything in X20'],
+    features: [
+      'Opys: the full novelist — handles multi-chapter arcs and complex casts',
+      'Remembers your entire story history across every session',
+      'Plans scenes before writing them: outlines, tension beats, payoffs',
+      'Builds full story arcs — not just replies, but structured narratives',
+      '250 messages per day — enough to write a novel chapter by chapter',
+      'Everything in X20',
+    ],
   },
   {
     key: 'x100', name: 'X100', badge: 'Flagship', monthly: 99.99, annual: 799.99,
     callsPerDay: 500, memosPerDay: 5000,
-    features: ['Opys 5: the flagship model, only here', 'Extreme refinement: plans, writes, then checks', 'The longest, most detailed chapters', 'Never repeats itself', 'Everything in X50'],
+    features: [
+      'Opys 5: the most powerful creative AI available — exclusive to X100',
+      'Writes full novel-length chapters: rich prose, deep character voice, layered subtext',
+      'Triple-pass refinement: outlines the scene, drafts it, then rewrites for quality',
+      'Zero repetition — tracks every plot point, line, and character detail ever written',
+      'Handles full novels, series arcs, and long-running collaborative stories',
+      '500 messages per day — built for dedicated writers and daily storytellers',
+      'Everything in X50',
+    ],
   },
 ];
 
