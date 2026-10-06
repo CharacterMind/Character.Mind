@@ -3026,7 +3026,7 @@ function renderUsageBanners(usage) {
   if (SESSION_BANNER_TEXT[sStep]) want.push({ kind: 'session', level: sStep, msg: SESSION_BANNER_TEXT[sStep], windowStart: usage.sessionStartedAt || 0, upgrade: false, persistent: false });
   const imgsLeft = (usage.imageLimit || 0) - (usage.imagesDay || 0);
   if (imgsLeft === 1 && (usage.imageLimit || 0) > 0) {
-    want.push({ kind: 'image', level: 1, msg: 'One image remaining — resets in 24 hours.', windowStart: usage.imageResetAt || 0, upgrade: false, persistent: false });
+    want.push({ kind: 'image', level: 1, msg: `One image remaining — ${usage.imageResetAt ? 'resets ' + formatImageResetTime(usage.imageResetAt) : 'resets at 8 AM UTC'}.`, windowStart: usage.imageResetAt || 0, upgrade: false, persistent: false });
   }
   // take down any usage banner that no longer applies (a reset, a new week, a lower level...)
   [...container.querySelectorAll('.warning-banner[data-usage-kind]')].forEach(b => {
