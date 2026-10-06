@@ -301,9 +301,11 @@ async function detectPricingCountry() {
 
 function populateCountrySelect() {
   const sel = document.getElementById('pricingCountrySelect');
-  if (!sel || sel.options.length > 1) return;
-  const sorted = Object.entries(COUNTRY_CURRENCY).sort((a, b) => a[1].n.localeCompare(b[1].n));
-  sel.innerHTML = sorted.map(([code, info]) => `<option value="${code}">${info.n} (${info.c})</option>`).join('');
+  if (!sel) return;
+  if (sel.options.length <= 1) {
+    const sorted = Object.entries(COUNTRY_CURRENCY).sort((a, b) => a[1].n.localeCompare(b[1].n));
+    sel.innerHTML = sorted.map(([code, info]) => `<option value="${code}">${info.n} (${info.c})</option>`).join('');
+  }
   sel.value = pricingCountryCode;
 }
 
@@ -329,17 +331,13 @@ function formatLocalPrice(usdPrice) {
 
 function openPricingModal() {
   loadPaypalConfig().then(() => { setPricingPeriod(pricingPeriod); });
-  populateCountrySelect();
-  loadExchangeRates().then(() => renderPricingCards());
-  if (!document.getElementById('pricingCountrySelect')?.value || document.getElementById('pricingCountrySelect').options.length <= 1) {
-    detectPricingCountry().then(code => {
-      pricingCountryCode = code;
-      populateCountrySelect();
-      renderPricingCards();
-    });
-  }
   renderPricingCards();
   document.getElementById('pricingModal').style.display = 'flex';
+  Promise.all([loadExchangeRates(), detectPricingCountry()]).then(([, code]) => {
+    pricingCountryCode = code;
+    populateCountrySelect();
+    renderPricingCards();
+  });
 }
 function closePricingModal() {
   document.getElementById('pricingModal').style.display = 'none';
