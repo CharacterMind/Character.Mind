@@ -2307,7 +2307,7 @@ function clearImageLimit() {
 
 function handleImageAttachClick() {
   if (imageUploadLimitReached) {
-    const resetStr = imageUploadResetAt ? ` Resets ${formatImageResetTime(imageUploadResetAt)}.` : '';
+    const resetStr = imageUploadResetAt ? ` Resets ${formatImageResetTime(imageUploadResetAt)}.` : ' Try again in 24 hours.';
     showWarning(`Image upload limit reached.${resetStr}`);
     return;
   }
@@ -2976,6 +2976,10 @@ function renderUsageBanners(usage) {
   if (wStep) want.push({ kind: 'weekly', level: wStep, msg: WEEKLY_BANNER_TEXT[wStep], windowStart: usage.weeklyStart || 0, upgrade: true, persistent: wStep === 90 });
   const sStep = usageStep(usagePctOf(usage.sessionTokens, usage.sessionLimit));
   if (SESSION_BANNER_TEXT[sStep]) want.push({ kind: 'session', level: sStep, msg: SESSION_BANNER_TEXT[sStep], windowStart: usage.sessionStartedAt || 0, upgrade: false, persistent: false });
+  const imgsLeft = (usage.imageLimit || 0) - (usage.imagesDay || 0);
+  if (imgsLeft === 1 && (usage.imageLimit || 0) > 0) {
+    want.push({ kind: 'image', level: 1, msg: 'One image remaining — resets in 24 hours.', windowStart: usage.imageResetAt || 0, upgrade: false, persistent: false });
+  }
   // take down any usage banner that no longer applies (a reset, a new week, a lower level...)
   [...container.querySelectorAll('.warning-banner[data-usage-kind]')].forEach(b => {
     if (!want.some(w => w.kind === b.dataset.usageKind && String(w.level) === b.dataset.usageLevel)) b.remove();

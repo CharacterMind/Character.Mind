@@ -727,7 +727,7 @@ function buildUsagePayload(u, userId) {
     memosRemaining,
     imagesDay: u.imagesDay || 0,
     imageLimit: imgLimit === Infinity ? 9999 : imgLimit,
-    imageResetAt: u.imageFirstUsedAt ? u.imageFirstUsedAt + 24 * 60 * 60 * 1000 : null,
+    imageResetAt: u.imageFirstUsedAt ? u.imageFirstUsedAt + 24 * 60 * 60 * 1000 : ((u.imagesDay || 0) > 0 ? Date.now() + 24 * 60 * 60 * 1000 : null),
     subscriptionTier: u.subscriptionTier || 'free',
     callWindowResetsAt: getCallWindowStart() + 24 * 60 * 60 * 1000
   };
@@ -3422,7 +3422,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       const base = (message && message.trim()) ? message : '';
       messagesForGroq = [
         ...messagesForGroq.slice(0, lastIdx),
-        { role: 'user', content: (base ? base + '\n\n' : '') + '[The user shared an image. What it shows: ' + imageDescription + ']' }
+        { role: 'user', content: (base ? base + '\n\n' : '') + '[The user sent an image. It shows: ' + imageDescription + '. Briefly step out of character for a moment — add a short parenthetical out-of-character reaction to the image, like (Oh wow, that looks...) — then continue your reply in character.]' }
       ];
     }
   }
