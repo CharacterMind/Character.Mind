@@ -2375,6 +2375,8 @@ app.post('/api/chat/reset-mod/:charId', requireAuth, async (req, res) => {
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
   if (!(await characterExists(charId))) return res.status(404).json({ error: 'Character not found' });
   const uid = req.user.googleId;
+  const modStatus = await getModStatus(uid, charId);
+  if (modStatus.locked) return res.status(403).json({ error: 'This chat has been permanently closed and cannot be reset.' });
   const key = `${uid}:${charId}`;
   // Archive current conversation before resetting if it has messages
   if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });

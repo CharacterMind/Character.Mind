@@ -1909,12 +1909,13 @@ async function openChat(charId) {
   updateTypingAvatar();
 
   // Check if this chat has been permanently locked by moderation
+  let chatIsLocked = false;
   try {
     const lockRes = await fetch(`/api/chat/lock-status/${charId}`);
     if (chatEpoch !== openEpoch) return;
     if (lockRes.ok) {
       const { locked } = await lockRes.json();
-      if (locked) { showLockedChat(); return; }
+      chatIsLocked = !!locked;
     }
   } catch (_) {}
   if (chatEpoch !== openEpoch) return;
@@ -1978,30 +1979,36 @@ async function openChat(charId) {
   }
 
   renderSidebarChats();
+  if (chatIsLocked) {
+    showLockedBar();
+    return;
+  }
   document.getElementById('messageInput').focus();
   scrollToBottom();
 }
 
-function showLockedChat() {
-  const wl = document.getElementById('chatWelcome'); if (wl) wl.innerHTML = '';
+function showLockedBar() {
   showView('chatView');
   document.getElementById('chatView').classList.remove('hidden');
-  const messagesDiv = document.getElementById('messages');
-  if (messagesDiv) messagesDiv.innerHTML = '';
   const inp = document.getElementById('messageInput');
   const btn = document.getElementById('sendBtn');
   if (inp) inp.disabled = true;
   if (btn) btn.disabled = true;
+  const messagesDiv = document.getElementById('messages');
+  // Remove any existing lock bar before appending
+  messagesDiv?.querySelector('.chat-locked-bar')?.remove();
   const lockBar = document.createElement('div');
   lockBar.className = 'chat-locked-bar';
   lockBar.innerHTML = `
     <span>🚫</span>
-    <span>This chat was permanently ended due to repeated policy violations.</span>
-    <button class="new-chat-btn" onclick="resetAndStartNewChat('${escHtml(currentChar.id)}')">Start new chat</button>
+    <span>This chat was permanently ended due to repeated policy violations. You cannot send messages here.</span>
   `;
   if (messagesDiv) messagesDiv.appendChild(lockBar);
   scrollToBottom();
 }
+
+// Legacy alias kept for the in-stream conversationEnded path
+function showLockedChat() { showLockedBar(); }
 
 async function resetAndStartNewChat(charId) {
   // reset-mod endpoint archives the convo + resets strikes
@@ -2293,7 +2300,8 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
           convEnded = true;
           showTyping(false);
           if (data.locked) {
-            showLockedChat();
+            saveHistoryLocal();
+            showLockedBar();
           } else {
             const endDiv = document.createElement('div');
             endDiv.className = 'conv-ended-msg';
