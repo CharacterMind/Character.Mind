@@ -1312,13 +1312,44 @@ function randomCharColor(c) {
   if (!hexes || !hexes.length) return 'var(--accent-l)';
   return hexes[Math.floor(Math.random() * hexes.length)];
 }
-// Apply all character colors as gradient text on bubble (or solid if only one color).
-function charBubbleStyle(c) {
+// Boost a hex color that's too dark to read on a dark background.
+function boostColor(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  let r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255;
+  const lum = 0.299*r + 0.587*g + 0.114*b;
+  if (lum >= 60) return hex;
+  if (lum === 0) return '#aaaaaa';
+  const s = 100 / lum;
+  return '#' + [Math.min(255,Math.round(r*s)), Math.min(255,Math.round(g*s)), Math.min(255,Math.round(b*s))].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+// Wrap every non-whitespace character in the bubble in a random-colored span.
+function colorizeLetters(bubble, c) {
+  if (!bubble) return;
   const hexes = String(c || '').match(/#[0-9a-fA-F]{6}/gi);
-  if (!hexes || !hexes.length) return 'color:var(--accent-l)';
-  if (hexes.length === 1) return `color:${hexes[0]}`;
-  const order = [...hexes].sort(() => Math.random() - 0.5);
-  return `background:linear-gradient(135deg,${order.join(',')});-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent`;
+  if (!hexes || !hexes.length) return;
+  const colors = hexes.map(boostColor);
+  // Clear any gradient text style so child span colors aren't swallowed
+  bubble.style.background = '';
+  bubble.style.webkitBackgroundClip = '';
+  bubble.style.backgroundClip = '';
+  bubble.style.webkitTextFillColor = '';
+  bubble.style.color = '';
+  const walker = document.createTreeWalker(bubble, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  let nd;
+  while (nd = walker.nextNode()) nodes.push(nd);
+  for (const tn of nodes) {
+    if (tn.parentNode.closest && tn.parentNode.closest('code, pre')) continue;
+    const frag = document.createDocumentFragment();
+    for (const ch of tn.textContent) {
+      if (/\s/.test(ch)) { frag.appendChild(document.createTextNode(ch)); continue; }
+      const sp = document.createElement('span');
+      sp.style.color = colors[Math.floor(Math.random() * colors.length)];
+      sp.textContent = ch;
+      frag.appendChild(sp);
+    }
+    tn.parentNode.replaceChild(frag, tn);
+  }
 }
 
 // ── Custom hue-strip color picker ─────────────────────────────────────────────
@@ -2129,7 +2160,7 @@ async function generateGreeting() {
       if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
       scrollToBottom();
       if (pendingUsage) { updateUsageBars(pendingUsage); }
-      if (bubble) bubble.classList.remove('streaming');
+      if (bubble) { bubble.classList.remove('streaming'); colorizeLetters(bubble, currentChar?.color); }
       if (streamText) saveHistoryLocal();
     });
   } catch (err) {
@@ -2342,6 +2373,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
       if (pendingUsage) { updateUsageBars(pendingUsage); }
       if (bubble) {
         bubble.classList.remove('streaming');
+        colorizeLetters(bubble, currentChar?.color);
         playSound('done');
         if (callModeActive) callModeTTS(bubble);
       } else if (callModeActive) {
@@ -3459,12 +3491,13 @@ function appendMessage(role, text, imgB64, lite) {
         <button class="tts-btn" onclick="toggleTTS(this)" title="Read aloud (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
         ${msgMenuHtml('ai')}
       </div>
-      <div class="bubble" style="${charBubbleStyle(currentChar?.color)}">${renderMarkdown(text, undefined, lite ? { lite: true } : undefined)}</div>
+      <div class="bubble">${renderMarkdown(text, undefined, lite ? { lite: true } : undefined)}</div>
       <div class="msg-footer">
         ${regenBtn()}${likeBtn()}${dislikeBtn()}
       </div>`;
     const ab = div.querySelector('.bubble');
     ab.dataset.raw = String(text == null ? '' : text);
+    colorizeLetters(ab, currentChar?.color);
     if (lite && liteObserver) { ab.dataset.lite = '1'; liteObserver.observe(ab); }
   } else {
     div.innerHTML = `
@@ -3490,7 +3523,7 @@ function createAiMessage() {
       <button class="tts-btn" onclick="toggleTTS(this)" title="Read aloud (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
       ${msgMenuHtml('ai')}
     </div>
-    <div class="bubble" style="${charBubbleStyle(currentChar?.color)}"></div>
+    <div class="bubble"></div>
     <div class="stream-stats">
       <span class="stream-spinner"></span>
       <span class="stream-time">0s</span>
@@ -4729,7 +4762,7 @@ async function regenerate() {
       if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
       scrollToBottom();
       if (pendingUsage) { updateUsageBars(pendingUsage); }
-      if (bubble) bubble.classList.remove('streaming');
+      if (bubble) { bubble.classList.remove('streaming'); colorizeLetters(bubble, currentChar?.color); }
       if (streamText) {
         const store = regenStore.get(id);
         store.texts.push(streamText);
