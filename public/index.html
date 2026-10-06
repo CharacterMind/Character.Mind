@@ -552,6 +552,11 @@
                 <span class="epp-max-warn" id="effortMaxWarn">⚠ 3.3× or more usage</span>
                 <svg class="epp-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
+              <button class="epp-item epp-item-ultracode" id="effortOptUltracode" onclick="setEffort('ultracode');closeAllPickers()">
+                <span class="epp-item-name">⚡ Ultra Code<span class="epp-item-sub">Full production code: analyze, architect, write, test, optimize</span></span>
+                <span class="epp-max-warn epp-ultra-warn" id="effortUltracodeWarn">⚠ high token usage</span>
+                <svg class="epp-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
             </div>
           </div>
           <div class="model-bar">
@@ -1049,8 +1054,12 @@
       <button id="pricingBtnMonthly" class="pt-btn pt-active" onclick="setPricingPeriod('monthly')">Monthly</button>
       <button id="pricingBtnAnnual" class="pt-btn" onclick="setPricingPeriod('annual')">Annual <span class="pt-save-label">Up to 33% off</span></button>
     </div>
+    <div class="pricing-country-row">
+      <span class="pricing-country-label">Show prices in:</span>
+      <select id="pricingCountrySelect" class="pricing-country-select" onchange="setPricingCountry(this.value)"></select>
+    </div>
     <div class="pricing-cards" id="pricingCards"></div>
-    <p class="pricing-footer">Payments processed securely via PayPal. Cancel anytime.</p>
+    <p class="pricing-footer">Payments processed securely via PayPal. Cancel anytime. Prices shown in estimated local currency — billed in USD.</p>
   </div>
 </div>
 
@@ -1069,53 +1078,6 @@
         <div class="co-express-label">Express Checkout</div>
         <div id="paypal-button-container" class="co-express-btns"></div>
       </div>
-
-      <div class="co-or"><span>Or Choose Payment Method</span></div>
-
-      <div class="co-card-label">
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
-        Credit Card
-      </div>
-
-      <!-- Credit Card panel -->
-      <div id="payment-panel-card">
-        <div class="card-field-group">
-          <label class="card-field-label">Card Number</label>
-          <div id="card-number-field-container" class="card-field-input"></div>
-        </div>
-        <div class="card-field-row">
-          <div class="card-field-group">
-            <label class="card-field-label">Expiration Date</label>
-            <div id="card-expiry-field-container" class="card-field-input"></div>
-          </div>
-          <div class="card-field-group">
-            <label class="card-field-label">CVV</label>
-            <div id="card-cvv-field-container" class="card-field-input"></div>
-          </div>
-        </div>
-        <div class="card-field-group">
-          <label class="card-field-label">Cardholder Name</label>
-          <div id="card-name-field-container" class="card-field-input"></div>
-        </div>
-        <div class="card-field-group">
-          <label class="card-field-label">Country</label>
-          <select class="card-field-input card-country-select" id="card-country-select">
-            <option value="CA">Canada</option>
-            <option value="US">United States</option>
-            <option value="GB">United Kingdom</option>
-            <option value="AU">Australia</option>
-            <option value="DE">Germany</option>
-            <option value="FR">France</option>
-            <option value="JP">Japan</option>
-            <option value="OTHER">Other</option>
-          </select>
-        </div>
-        <button id="card-submit-btn" class="card-submit-btn" onclick="submitCardPayment()">Subscribe Now</button>
-        <div id="card-not-eligible" class="card-not-eligible" style="display:none">
-          Card payments not available in your region — please use PayPal.
-        </div>
-      </div>
-
 
       <div id="paypal-checkout-status" class="paypal-checkout-status"></div>
       <p class="paypal-checkout-footer">Secured by PayPal &middot; Cancel anytime &middot; No hidden fees</p>
@@ -1175,6 +1137,7 @@
   color: var(--text2); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: background .15s;
+  z-index: 100;
 }
 .co-close:hover { background: var(--bg4); color: var(--text1); }
 

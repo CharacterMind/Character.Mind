@@ -11,7 +11,7 @@ let chatEpoch = 0; // bumps whenever the open chat changes, so an old reply can'
 let currentFilter = 'all';
 let lastUserMessage = '';
 // ── Model & Effort state ───────────────────────────────────────────────────────
-const EFFORT_LEVELS = ['low','medium','high','extra','max'];
+const EFFORT_LEVELS = ['low','medium','high','extra','max','ultracode'];
 const BASE_TIERS = ['opas','opes','opis','opos','opus','opys','opys5'];
 const ALL_TIERS = BASE_TIERS;
 // Older saved choices such as "opys5" mean the base model
@@ -41,8 +41,8 @@ function loadAccountPrefs() {
 
 const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys', opys5:'Opys 5' };
 // Must match OPAS_COST / OPES_COST / COST_FACTOR_VS_OPES in server.js — what one reply costs from the allowance.
-const OPAS_COST = { low: 220, medium: 350, high: 540, extra: 800, max: 1200 };
-const OPES_COST = { low: 700, medium: 1200, high: 1800, extra: 2600, max: 4000 };
+const OPAS_COST = { low: 220, medium: 350, high: 540, extra: 800, max: 1200, ultracode: 2400 };
+const OPES_COST = { low: 700, medium: 1200, high: 1800, extra: 2600, max: 4000, ultracode: 8000 };
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3, opys5: 10 };
 const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1, opus: 2, opys: 3, opys5: 4 };
 const PLAN_RANK = { free: 0, advanced: 1, x20: 2, x50: 3, x100: 4 };
@@ -52,9 +52,9 @@ function clientMessageCost(tier, effort) {
   return Math.round(OPES_COST[effort] * COST_FACTOR_VS_OPES[tier]);
 }
 // Roughly how many visible characters a full reply has at each effort (used to ramp the live counter up to the cost)
-const EXPECTED_REPLY_CHARS = { low: 250, medium: 500, high: 1200, extra: 2500, max: 4000 };
+const EXPECTED_REPLY_CHARS = { low: 250, medium: 500, high: 1200, extra: 2500, max: 4000, ultracode: 12000 };
 // Every model is asked for a set number of words at High, Extra and Max (must match WORDS_BY_EFFORT / MODEL_WORDS in server.js)
-const WORDS_BY_EFFORT = { high: 350, extra: 600, max: 900 };
+const WORDS_BY_EFFORT = { high: 350, extra: 600, max: 900, ultracode: 2500 };
 const MODEL_WORDS = { opas: 0.7, opes: 1, opis: 1.1, opos: 1.3, opus: 1.6, opys: 1.9, opys5: 3.5 };
 function expectedReplyChars(tier, effort) {
   const b = baseTierOf(tier);
@@ -80,7 +80,7 @@ function liveTokensShown(chars) {
   const { cost, effort, tier } = liveReplyCost();
   return Math.round(cost * chars / expectedReplyChars(tier, effort));
 }
-const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', max:'Max' };
+const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', max:'Max', ultracode:'⚡ Ultra Code' };
 
 // Token usage multiplier shown on Max effort warning per tier.
 // Each value = max effort cost on that model ÷ OPAS medium (the cheapest baseline reply).
@@ -144,13 +144,19 @@ function updateModelBarLabel() {
     if (el) el.classList.toggle('active', t === selectedModelTier);
   });
 
-  // Update effort picker checks and max multiplier label
+  // Update effort picker checks and multiplier labels
   EFFORT_LEVELS.forEach(e => {
     const el = document.getElementById('effortOpt' + e.charAt(0).toUpperCase() + e.slice(1));
-    if (el) el.classList.toggle('active', e === selectedEffort);
+    if (!el) return;
+    el.classList.toggle('active', e === selectedEffort);
   });
   const maxWarn = document.getElementById('effortMaxWarn');
   if (maxWarn) maxWarn.textContent = '⚠ ' + (MAX_EFFORT_MULTIPLIERS[selectedModelTier] || '3.4×') + ' vs baseline usage';
+  const ultraWarn = document.getElementById('effortUltracodeWarn');
+  if (ultraWarn) {
+    const mult = Math.round(clientMessageCost(selectedModelTier, 'ultracode') / (OPAS_COST.medium));
+    ultraWarn.textContent = '⚠ ' + mult + '× more tokens';
+  }
 }
 
 function setModelTier(tier) {
@@ -176,7 +182,7 @@ const PLAN_DATA = [
     features: [
       'Opas & Opes: fast, capable AI for casual chats',
       'Every character unlocked — no paywalled cast',
-      '3 messages per day to try it out',
+      '3 messages per day (hard daily limit)',
       '1 image upload per day',
     ],
   },
@@ -184,9 +190,9 @@ const PLAN_DATA = [
     key: 'advanced', name: 'Advanced', monthly: 4.99, annual: 44.99,
     callsPerDay: 5, memosPerDay: 50,
     features: [
-      'Opis: sharp at logic, riddles, and light banter',
+      'Opis: precise logic, riddles, mysteries and continuity',
       'Opos: GM-mode — sets scenes, runs NPCs, drives drama',
-      '5 messages per day — enough for daily check-ins',
+      '5 messages per day (hard daily limit)',
       '10 image uploads per day',
       'Everything in Free',
     ],
@@ -195,10 +201,9 @@ const PLAN_DATA = [
     key: 'x20', name: 'X20', badge: 'Recommended', monthly: 24.99, annual: 199.99,
     callsPerDay: 100, memosPerDay: 1000,
     features: [
-      'Opus: writes full story chapters with real emotional depth',
-      'Tracks your story from the first message — no repetition, no forgetting',
-      'Replies are 3–5× longer and more immersive than free models',
-      '100 messages per day — enough for a serious writing session',
+      'Opus: deep emotional storytelling, inner conflict, layered subtext',
+      'Replies are 1.6× longer than Opes at the same effort level',
+      '100 messages per day — serious writing sessions',
       '200 image uploads per day',
       'Everything in Advanced',
     ],
@@ -207,11 +212,10 @@ const PLAN_DATA = [
     key: 'x50', name: 'X50', badge: 'Best Value', monthly: 49.99, annual: 399.99,
     callsPerDay: 250, memosPerDay: 2500,
     features: [
-      'Opys: the full novelist — handles multi-chapter arcs and complex casts',
-      'Remembers your entire story history across every session',
-      'Plans scenes before writing them: outlines, tension beats, payoffs',
-      'Builds full story arcs — not just replies, but structured narratives',
-      '250 messages per day — enough to write a novel chapter by chapter',
+      'Opys: master storyteller — cinematic pacing, vivid imagery, deliberate tension',
+      'Plans scenes before writing: outlines, tension beats, structured arcs',
+      'Replies are 1.9× longer than Opes; handles multi-chapter story arcs',
+      '250 messages per day — write a novel chapter by chapter',
       '500 image uploads per day',
       'Everything in X20',
     ],
@@ -220,12 +224,10 @@ const PLAN_DATA = [
     key: 'x100', name: 'X100', badge: 'Ultimate', monthly: 99.99, annual: 799.99,
     callsPerDay: 500, memosPerDay: 5000,
     features: [
-      'Opys 5: the most powerful creative AI available — exclusive to X100',
-      'Writes full novel-length chapters: rich prose, deep character voice, layered subtext',
-      'Triple-pass refinement: outlines the scene, drafts it, then rewrites for quality',
-      'Zero repetition — tracks every plot point, line, and character detail ever written',
-      'Handles full novels, series arcs, and long-running collaborative stories',
-      '500 messages per day — built for dedicated writers and daily storytellers',
+      'Opys 5: the flagship model — exclusive to X100',
+      'Replies are 3.5× longer than Opes with multi-pass refinement',
+      '⚡ Ultra Code mode: production-ready Unity, Roblox, game & web code',
+      '500 messages per day — built for dedicated writers and developers',
       '1,000 image uploads per day',
       'Everything in X50',
     ],
@@ -248,8 +250,94 @@ function planBuyable(key) {
 
 let pricingPeriod = 'monthly';
 
+// ── Country / currency data for pricing display ────────────────────────────
+const COUNTRY_CURRENCY = {
+  AD:{n:'Andorra',c:'EUR',s:'€'},AE:{n:'United Arab Emirates',c:'AED',s:'د.إ'},AF:{n:'Afghanistan',c:'AFN',s:'؋'},AG:{n:'Antigua and Barbuda',c:'XCD',s:'$'},AL:{n:'Albania',c:'ALL',s:'L'},AM:{n:'Armenia',c:'AMD',s:'֏'},AO:{n:'Angola',c:'AOA',s:'Kz'},AR:{n:'Argentina',c:'ARS',s:'$'},AT:{n:'Austria',c:'EUR',s:'€'},AU:{n:'Australia',c:'AUD',s:'A$'},AZ:{n:'Azerbaijan',c:'AZN',s:'₼'},
+  BA:{n:'Bosnia and Herzegovina',c:'BAM',s:'KM'},BB:{n:'Barbados',c:'BBD',s:'$'},BD:{n:'Bangladesh',c:'BDT',s:'৳'},BE:{n:'Belgium',c:'EUR',s:'€'},BF:{n:'Burkina Faso',c:'XOF',s:'Fr'},BG:{n:'Bulgaria',c:'BGN',s:'лв'},BH:{n:'Bahrain',c:'BHD',s:'BD'},BI:{n:'Burundi',c:'BIF',s:'Fr'},BJ:{n:'Benin',c:'XOF',s:'Fr'},BN:{n:'Brunei',c:'BND',s:'$'},BO:{n:'Bolivia',c:'BOB',s:'Bs.'},BR:{n:'Brazil',c:'BRL',s:'R$'},BS:{n:'Bahamas',c:'BSD',s:'$'},BT:{n:'Bhutan',c:'BTN',s:'Nu'},BW:{n:'Botswana',c:'BWP',s:'P'},BY:{n:'Belarus',c:'BYN',s:'Br'},BZ:{n:'Belize',c:'BZD',s:'$'},
+  CA:{n:'Canada',c:'CAD',s:'C$'},CD:{n:'Congo (DRC)',c:'CDF',s:'Fr'},CF:{n:'Central African Republic',c:'XAF',s:'Fr'},CG:{n:'Congo (Republic)',c:'XAF',s:'Fr'},CH:{n:'Switzerland',c:'CHF',s:'Fr'},CI:{n:"Côte d'Ivoire",c:'XOF',s:'Fr'},CL:{n:'Chile',c:'CLP',s:'$'},CM:{n:'Cameroon',c:'XAF',s:'Fr'},CN:{n:'China',c:'CNY',s:'¥'},CO:{n:'Colombia',c:'COP',s:'$'},CR:{n:'Costa Rica',c:'CRC',s:'₡'},CU:{n:'Cuba',c:'CUP',s:'$'},CV:{n:'Cabo Verde',c:'CVE',s:'$'},CY:{n:'Cyprus',c:'EUR',s:'€'},CZ:{n:'Czech Republic',c:'CZK',s:'Kč'},
+  DE:{n:'Germany',c:'EUR',s:'€'},DJ:{n:'Djibouti',c:'DJF',s:'Fr'},DK:{n:'Denmark',c:'DKK',s:'kr'},DM:{n:'Dominica',c:'XCD',s:'$'},DO:{n:'Dominican Republic',c:'DOP',s:'$'},DZ:{n:'Algeria',c:'DZD',s:'د.ج'},
+  EC:{n:'Ecuador',c:'USD',s:'$'},EE:{n:'Estonia',c:'EUR',s:'€'},EG:{n:'Egypt',c:'EGP',s:'£'},ER:{n:'Eritrea',c:'ERN',s:'Nfk'},ES:{n:'Spain',c:'EUR',s:'€'},ET:{n:'Ethiopia',c:'ETB',s:'Br'},
+  FI:{n:'Finland',c:'EUR',s:'€'},FJ:{n:'Fiji',c:'FJD',s:'$'},FM:{n:'Micronesia',c:'USD',s:'$'},FR:{n:'France',c:'EUR',s:'€'},
+  GA:{n:'Gabon',c:'XAF',s:'Fr'},GB:{n:'United Kingdom',c:'GBP',s:'£'},GD:{n:'Grenada',c:'XCD',s:'$'},GE:{n:'Georgia',c:'GEL',s:'₾'},GH:{n:'Ghana',c:'GHS',s:'₵'},GM:{n:'Gambia',c:'GMD',s:'D'},GN:{n:'Guinea',c:'GNF',s:'Fr'},GQ:{n:'Equatorial Guinea',c:'XAF',s:'Fr'},GR:{n:'Greece',c:'EUR',s:'€'},GT:{n:'Guatemala',c:'GTQ',s:'Q'},GW:{n:'Guinea-Bissau',c:'XOF',s:'Fr'},GY:{n:'Guyana',c:'GYD',s:'$'},
+  HN:{n:'Honduras',c:'HNL',s:'L'},HR:{n:'Croatia',c:'EUR',s:'€'},HT:{n:'Haiti',c:'HTG',s:'G'},HU:{n:'Hungary',c:'HUF',s:'Ft'},
+  ID:{n:'Indonesia',c:'IDR',s:'Rp'},IE:{n:'Ireland',c:'EUR',s:'€'},IL:{n:'Israel',c:'ILS',s:'₪'},IN:{n:'India',c:'INR',s:'₹'},IQ:{n:'Iraq',c:'IQD',s:'ع.د'},IR:{n:'Iran',c:'IRR',s:'﷼'},IS:{n:'Iceland',c:'ISK',s:'kr'},IT:{n:'Italy',c:'EUR',s:'€'},
+  JM:{n:'Jamaica',c:'JMD',s:'$'},JO:{n:'Jordan',c:'JOD',s:'JD'},JP:{n:'Japan',c:'JPY',s:'¥'},
+  KE:{n:'Kenya',c:'KES',s:'KSh'},KG:{n:'Kyrgyzstan',c:'KGS',s:'с'},KH:{n:'Cambodia',c:'KHR',s:'៛'},KI:{n:'Kiribati',c:'AUD',s:'A$'},KM:{n:'Comoros',c:'KMF',s:'Fr'},KN:{n:'Saint Kitts and Nevis',c:'XCD',s:'$'},KP:{n:'North Korea',c:'KPW',s:'₩'},KR:{n:'South Korea',c:'KRW',s:'₩'},KW:{n:'Kuwait',c:'KWD',s:'KD'},KZ:{n:'Kazakhstan',c:'KZT',s:'₸'},
+  LA:{n:'Laos',c:'LAK',s:'₭'},LB:{n:'Lebanon',c:'LBP',s:'L£'},LC:{n:'Saint Lucia',c:'XCD',s:'$'},LI:{n:'Liechtenstein',c:'CHF',s:'Fr'},LK:{n:'Sri Lanka',c:'LKR',s:'₨'},LR:{n:'Liberia',c:'LRD',s:'$'},LS:{n:'Lesotho',c:'LSL',s:'L'},LT:{n:'Lithuania',c:'EUR',s:'€'},LU:{n:'Luxembourg',c:'EUR',s:'€'},LV:{n:'Latvia',c:'EUR',s:'€'},LY:{n:'Libya',c:'LYD',s:'LD'},
+  MA:{n:'Morocco',c:'MAD',s:'MAD'},MC:{n:'Monaco',c:'EUR',s:'€'},MD:{n:'Moldova',c:'MDL',s:'L'},ME:{n:'Montenegro',c:'EUR',s:'€'},MG:{n:'Madagascar',c:'MGA',s:'Ar'},MH:{n:'Marshall Islands',c:'USD',s:'$'},MK:{n:'North Macedonia',c:'MKD',s:'ден'},ML:{n:'Mali',c:'XOF',s:'Fr'},MM:{n:'Myanmar',c:'MMK',s:'K'},MN:{n:'Mongolia',c:'MNT',s:'₮'},MR:{n:'Mauritania',c:'MRU',s:'UM'},MT:{n:'Malta',c:'EUR',s:'€'},MU:{n:'Mauritius',c:'MUR',s:'₨'},MV:{n:'Maldives',c:'MVR',s:'Rf'},MW:{n:'Malawi',c:'MWK',s:'MK'},MX:{n:'Mexico',c:'MXN',s:'$'},MY:{n:'Malaysia',c:'MYR',s:'RM'},MZ:{n:'Mozambique',c:'MZN',s:'MT'},
+  NA:{n:'Namibia',c:'NAD',s:'$'},NE:{n:'Niger',c:'XOF',s:'Fr'},NG:{n:'Nigeria',c:'NGN',s:'₦'},NI:{n:'Nicaragua',c:'NIO',s:'C$'},NL:{n:'Netherlands',c:'EUR',s:'€'},NO:{n:'Norway',c:'NOK',s:'kr'},NP:{n:'Nepal',c:'NPR',s:'₨'},NR:{n:'Nauru',c:'AUD',s:'A$'},NZ:{n:'New Zealand',c:'NZD',s:'NZ$'},
+  OM:{n:'Oman',c:'OMR',s:'ر.ع.'},
+  PA:{n:'Panama',c:'PAB',s:'B/.'},PE:{n:'Peru',c:'PEN',s:'S/.'},PG:{n:'Papua New Guinea',c:'PGK',s:'K'},PH:{n:'Philippines',c:'PHP',s:'₱'},PK:{n:'Pakistan',c:'PKR',s:'₨'},PL:{n:'Poland',c:'PLN',s:'zł'},PT:{n:'Portugal',c:'EUR',s:'€'},PW:{n:'Palau',c:'USD',s:'$'},PY:{n:'Paraguay',c:'PYG',s:'₲'},
+  QA:{n:'Qatar',c:'QAR',s:'ر.ق'},
+  RO:{n:'Romania',c:'RON',s:'lei'},RS:{n:'Serbia',c:'RSD',s:'дин'},RU:{n:'Russia',c:'RUB',s:'₽'},RW:{n:'Rwanda',c:'RWF',s:'Fr'},
+  SA:{n:'Saudi Arabia',c:'SAR',s:'ر.س'},SB:{n:'Solomon Islands',c:'SBD',s:'$'},SC:{n:'Seychelles',c:'SCR',s:'₨'},SD:{n:'Sudan',c:'SDG',s:'ج.س.'},SE:{n:'Sweden',c:'SEK',s:'kr'},SG:{n:'Singapore',c:'SGD',s:'S$'},SI:{n:'Slovenia',c:'EUR',s:'€'},SK:{n:'Slovakia',c:'EUR',s:'€'},SL:{n:'Sierra Leone',c:'SLE',s:'Le'},SM:{n:'San Marino',c:'EUR',s:'€'},SN:{n:'Senegal',c:'XOF',s:'Fr'},SO:{n:'Somalia',c:'SOS',s:'Sh'},SR:{n:'Suriname',c:'SRD',s:'$'},SS:{n:'South Sudan',c:'SSP',s:'£'},ST:{n:'São Tomé and Príncipe',c:'STN',s:'Db'},SV:{n:'El Salvador',c:'USD',s:'$'},SY:{n:'Syria',c:'SYP',s:'£'},SZ:{n:'Eswatini',c:'SZL',s:'L'},
+  TD:{n:'Chad',c:'XAF',s:'Fr'},TG:{n:'Togo',c:'XOF',s:'Fr'},TH:{n:'Thailand',c:'THB',s:'฿'},TJ:{n:'Tajikistan',c:'TJS',s:'SM'},TL:{n:'Timor-Leste',c:'USD',s:'$'},TM:{n:'Turkmenistan',c:'TMT',s:'T'},TN:{n:'Tunisia',c:'TND',s:'DT'},TO:{n:'Tonga',c:'TOP',s:'T$'},TR:{n:'Turkey',c:'TRY',s:'₺'},TT:{n:'Trinidad and Tobago',c:'TTD',s:'$'},TV:{n:'Tuvalu',c:'AUD',s:'A$'},TW:{n:'Taiwan',c:'TWD',s:'NT$'},TZ:{n:'Tanzania',c:'TZS',s:'Sh'},
+  UA:{n:'Ukraine',c:'UAH',s:'₴'},UG:{n:'Uganda',c:'UGX',s:'Sh'},US:{n:'United States',c:'USD',s:'$'},UY:{n:'Uruguay',c:'UYU',s:'$'},UZ:{n:'Uzbekistan',c:'UZS',s:'лв'},
+  VA:{n:'Vatican City',c:'EUR',s:'€'},VC:{n:'Saint Vincent and the Grenadines',c:'XCD',s:'$'},VE:{n:'Venezuela',c:'VES',s:'Bs.S'},VN:{n:'Vietnam',c:'VND',s:'₫'},VU:{n:'Vanuatu',c:'VUV',s:'Vt'},
+  WS:{n:'Samoa',c:'WST',s:'T'},
+  YE:{n:'Yemen',c:'YER',s:'﷼'},
+  ZA:{n:'South Africa',c:'ZAR',s:'R'},ZM:{n:'Zambia',c:'ZMW',s:'ZK'},ZW:{n:'Zimbabwe',c:'ZWL',s:'$'},
+};
+
+let pricingCountryCode = 'US';
+let exchangeRates = null;
+let exchangeRatesPromise = null;
+
+function loadExchangeRates() {
+  if (exchangeRatesPromise) return exchangeRatesPromise;
+  exchangeRatesPromise = fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.min.json')
+    .then(r => r.json()).then(d => { exchangeRates = d.usd; return d.usd; })
+    .catch(() => { exchangeRatesPromise = null; return null; });
+  return exchangeRatesPromise;
+}
+
+async function detectPricingCountry() {
+  try {
+    const r = await fetch('/api/geo');
+    if (r.ok) { const d = await r.json(); if (d.countryCode && COUNTRY_CURRENCY[d.countryCode]) return d.countryCode; }
+  } catch (_) {}
+  return 'US';
+}
+
+function populateCountrySelect() {
+  const sel = document.getElementById('pricingCountrySelect');
+  if (!sel || sel.options.length > 1) return;
+  const sorted = Object.entries(COUNTRY_CURRENCY).sort((a, b) => a[1].n.localeCompare(b[1].n));
+  sel.innerHTML = sorted.map(([code, info]) => `<option value="${code}">${info.n} (${info.c})</option>`).join('');
+  sel.value = pricingCountryCode;
+}
+
+function setPricingCountry(code) {
+  if (!COUNTRY_CURRENCY[code]) return;
+  pricingCountryCode = code;
+  renderPricingCards();
+}
+
+function formatLocalPrice(usdPrice) {
+  if (usdPrice === 0) return 'Free';
+  const info = COUNTRY_CURRENCY[pricingCountryCode] || COUNTRY_CURRENCY.US;
+  if (info.c === 'USD' || !exchangeRates) return `$${usdPrice.toFixed(2)}`;
+  const rate = exchangeRates[info.c.toLowerCase()];
+  if (!rate) return `$${usdPrice.toFixed(2)}`;
+  const local = usdPrice * rate;
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: info.c, maximumFractionDigits: local >= 100 ? 0 : 2 }).format(local);
+  } catch (_) {
+    return `${info.s}${local.toFixed(local >= 100 ? 0 : 2)}`;
+  }
+}
+
 function openPricingModal() {
   loadPaypalConfig().then(() => { setPricingPeriod(pricingPeriod); });
+  populateCountrySelect();
+  loadExchangeRates().then(() => renderPricingCards());
+  if (!document.getElementById('pricingCountrySelect')?.value || document.getElementById('pricingCountrySelect').options.length <= 1) {
+    detectPricingCountry().then(code => {
+      pricingCountryCode = code;
+      populateCountrySelect();
+      renderPricingCards();
+    });
+  }
   renderPricingCards();
   document.getElementById('pricingModal').style.display = 'flex';
 }
@@ -272,12 +360,13 @@ function renderPricingCards() {
   container.innerHTML = PLAN_DATA.map(plan => {
     const isCurrent = plan.key === currentTier;
     const price = pricingPeriod === 'annual' ? plan.annual : plan.monthly;
-    const priceStr = price === 0 ? 'Free' : `$${price.toFixed(2)}`;
+    const priceStr = formatLocalPrice(price);
     const periodStr = price === 0 ? 'forever' : pricingPeriod === 'annual' ? '/ year' : '/ month';
     let perMonth = '<div class="pc-per-month"></div>';
     if (plan.annual > 0 && pricingPeriod === 'annual') {
       const savePct = Math.round((1 - plan.annual / (plan.monthly * 12)) * 100);
-      perMonth = `<div class="pc-per-month">~$${(plan.annual / 12).toFixed(2)}/mo &nbsp;<span class="pc-save-pct">Save ${savePct}%</span></div>`;
+      const perMonthLocal = formatLocalPrice(plan.annual / 12);
+      perMonth = `<div class="pc-per-month">~${perMonthLocal}/mo &nbsp;<span class="pc-save-pct">Save ${savePct}%</span></div>`;
     }
     const badge = plan.badge ? `<div class="pc-badge">${escHtml(plan.badge)}</div>` : '';
     const features = plan.features.map(f => `<li>✓ ${escHtml(f)}</li>`).join('');
@@ -321,8 +410,6 @@ let currentCheckoutPeriod = 'monthly';
 let paypalSdkLoaded = false;
 let paypalSdkLoading = false;
 let currentCheckoutPlan = null;
-let paypalCardFields = null;
-
 function handleUpgradeCta(planKey) {
   if (planKey === 'free' || !planBuyable(planKey)) return;
   openPaypalCheckout(planKey, yearlyAvailable && pricingPeriod === 'annual' ? 'annual' : 'monthly');
@@ -355,7 +442,7 @@ async function openPaypalCheckout(planKey, period) {
       if (cfg && cfg.planIds) Object.assign(PAYPAL_PLAN_IDS, cfg.planIds);
       await new Promise((resolve, reject) => {
         const s = document.createElement('script');
-        s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(cfg.clientId)}&vault=true&intent=subscription&components=buttons,card-fields`;
+        s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(cfg.clientId)}&vault=true&intent=subscription&components=buttons`;
         s.onload = resolve;
         s.onerror = reject;
         document.head.appendChild(s);
@@ -393,57 +480,6 @@ function initPayPalWidgets(planKey) {
     }).render('#paypal-button-container');
   } catch (err) { console.error('PayPal button render error:', err); }
 
-  // Credit card fields
-  try {
-    paypalCardFields = null;
-    const eligible = paypal.CardFields && paypal.CardFields({
-      createSubscription(data, actions) {
-        return actions.subscription.create({ plan_id: planId, custom_id: String(currentUser.googleId) });
-      },
-      onApprove(data) { return verifyAndActivateSubscription(data.subscriptionID, planKey); },
-      onError(err) {
-        document.getElementById('paypal-checkout-status').textContent = 'Card payment failed. Please try again.';
-        document.getElementById('card-submit-btn').disabled = false;
-        document.getElementById('card-submit-btn').textContent = 'Subscribe Now';
-        console.error('Card error:', err);
-      }
-    });
-
-    if (eligible && eligible.isEligible()) {
-      paypalCardFields = eligible;
-      ['card-name-field-container', 'card-number-field-container', 'card-expiry-field-container', 'card-cvv-field-container'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.innerHTML = '';
-      });
-      paypalCardFields.NameField().render('#card-name-field-container');
-      paypalCardFields.NumberField().render('#card-number-field-container');
-      paypalCardFields.ExpiryField().render('#card-expiry-field-container');
-      paypalCardFields.CVVField().render('#card-cvv-field-container');
-      document.getElementById('card-submit-btn').style.display = 'block';
-      document.getElementById('card-not-eligible').style.display = 'none';
-    } else {
-      document.getElementById('card-submit-btn').style.display = 'none';
-      document.getElementById('card-not-eligible').style.display = 'block';
-    }
-  } catch (err) {
-    console.error('CardFields init error:', err);
-    document.getElementById('card-submit-btn').style.display = 'none';
-    document.getElementById('card-not-eligible').style.display = 'block';
-  }
-}
-
-async function submitCardPayment() {
-  if (!paypalCardFields) return;
-  const btn = document.getElementById('card-submit-btn');
-  btn.disabled = true;
-  btn.textContent = 'Processing…';
-  try {
-    await paypalCardFields.submit();
-  } catch (err) {
-    document.getElementById('paypal-checkout-status').textContent = 'Card payment failed. Please check your details and try again.';
-    btn.disabled = false;
-    btn.textContent = 'Subscribe Now';
-  }
 }
 
 async function verifyAndActivateSubscription(subscriptionId, planKey) {
@@ -5185,7 +5221,7 @@ function renderMarkdown(text, theme, opts) {
     while ((m = FENCE.exec(full)) !== null) {
       if (m.index > last) out += renderStoryText(full.slice(last, m.index));
       const lang = (m[1] || '').slice(0, 20);
-      out += '<pre class="code-block"><div class="code-head"><span class="code-lang">' + escHtml(lang || 'code') + '</span><button type="button" class="code-copy" onclick="copyCodeBlock(this)">Copy</button></div><code>' + escHtml(String(m[2]).replace(/\n$/, '')) + '</code></pre>';
+      out += '<div class="code-block"><div class="code-head"><span class="code-lang">' + escHtml(lang || 'code') + '</span><button type="button" class="code-copy" onclick="copyCodeBlock(this)">Copy</button></div><pre><code>' + escHtml(String(m[2]).replace(/\n$/, '')) + '</code></pre></div>';
       last = FENCE.lastIndex;
       if (m[0] === '') FENCE.lastIndex++;
     }

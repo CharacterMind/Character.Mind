@@ -614,14 +614,17 @@ function historyBudgetFor(modelTier) {
 const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1, opus: 2, opys: 3, opys5: 4 };
 const PLAN_RANK = { free: 0, advanced: 1, x20: 2, x50: 3, x100: 4 };
 // Extra cost for the higher effort levels, on top of the model multiplier (they also write longer replies).
-const EFFORT_TOKEN_MULT = { low: 1, medium: 1, high: 1, extra: 1.5, max: 2 };
+const EFFORT_TOKEN_MULT = { low: 1, medium: 1, high: 1, extra: 1.5, max: 2, ultracode: 4 };
 function effortMultFor(effort) { return Object.hasOwn(EFFORT_TOKEN_MULT, effort) ? EFFORT_TOKEN_MULT[effort] : 1; }
+function resolveEffort(userId, requested) {
+  return Object.hasOwn(EFFORT_TOKEN_MULT, requested) ? requested : 'medium';
+}
 
 // What ONE reply costs from the allowance, by model and effort. Fixed per message (not the AI's raw token
 // count, which swings a lot because of hidden thinking), so message counts are predictable.
 // Opes costs about 3x Opas at every effort. Higher models are multiples of Opes.
-const OPAS_COST = { low: 220, medium: 350, high: 540, extra: 800, max: 1200 };
-const OPES_COST = { low: 700, medium: 1200, high: 1800, extra: 2600, max: 4000 }; // effort ramps gently: Low 0.6x, Medium 1x, High 1.5x, Extra 2.2x, Max 3.3x a Medium message
+const OPAS_COST = { low: 220, medium: 350, high: 540, extra: 800, max: 1200, ultracode: 2400 };
+const OPES_COST = { low: 700, medium: 1200, high: 1800, extra: 2600, max: 4000, ultracode: 8000 }; // effort ramps gently: Low 0.6x, Medium 1x, High 1.5x, Extra 2.2x, Max 3.3x a Medium message
 // Base models step up gently: Opes 1x, Opis 1.25x, Opos 1.5x, Opus 2x, Opys 3x (of Opes).
 // Max effort costs about 3.3x a Medium reply.
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3, opys5: 10 };
@@ -798,6 +801,7 @@ const EFFORT_DIRECTIVES = {
   high:   'RESPONSE LENGTH: Write a full, immersive reply — 3 to 5 paragraphs. Rich, atmospheric, fully developed.',
   extra:  'RESPONSE LENGTH: Write a deeply immersive, expansive reply — 5 to 9 paragraphs minimum. Explore every sensory detail, emotion, and narrative beat. This is your most thorough, cinematic, richly crafted response.',
   max:    'RESPONSE LENGTH: Write the longest, most elaborate reply you can — 10 to 16 paragraphs. Leave nothing out: every sensation, thought, gesture, line of dialogue and shift in the scene. It should read like a full chapter.',
+  ultracode: 'ULTRA CODE MODE: You are now operating as an elite software engineer. Your task is to produce the highest-quality, complete, working, production-ready code for the platform the user specifies. Follow this exact process: (1) ANALYZE — silently read the full request and identify the platform, language, and all requirements. (2) PLAN — inside a brief comment block at the top, outline your architecture and key decisions. (3) IMPLEMENT — write the complete, working code with no placeholders, no "TODO" comments, and no omitted sections. Use platform-specific best practices: Unity (C#, MonoBehaviour lifecycle, ScriptableObjects, physics layers, proper null checks), Roblox Luau (LocalScript/Script/ModuleScript split, RemoteEvents/Functions for client-server, Roblox services like RunService/TweenService/Players), Unreal (Blueprint nodes or C++ with proper UPROPERTY/UFUNCTION macros), web (semantic HTML, efficient JS, accessible CSS), Python (typed, idiomatic, error-handled). (4) REVIEW — silently check for bugs, off-by-one errors, nil/null dereferences, race conditions, and platform gotchas, then fix them before output. (5) EXPLAIN — after the code block, write a clear explanation of how it works and how to integrate it, in the character\'s own voice. Never truncate code. If the full implementation is long, write it all.',
 };
 
 const OPYS2_DIRECTIVE = 'QUALITY: You are one of the most advanced models. Write with exceptional depth and craft: stay perfectly consistent with the character\'s voice, history and the details already established; add layered emotion, subtext and vivid specific detail; move the scene forward with a meaningful choice or twist instead of repeating what was said. Never pad, never repeat earlier phrasing.';
@@ -824,20 +828,30 @@ const MODEL_STYLE = {
   opys: 'WRITING STYLE: a master storyteller. Cinematic pacing, vivid imagery, deliberate tension and surprise, memorable lines, and a plot that keeps moving without ever breaking the character.'
 };
 // What each family can DO on request, on top of how it writes. The user asks for it; chat stays chat otherwise.
-const ABILITY_CODE = 'LIGHT CODING AND PUZZLES: when the user asks for code or a small program, write short, working code (HTML, CSS, JavaScript or Python, about 60 lines at most) inside a fenced code block that names the language, then explain in two or three plain sentences what it does, in the character\'s own voice. Keep puzzles, riddles and mysteries perfectly logical, with clues that all agree. Never write malware, hacking tools, cheats or anything harmful.';
 const ABILITY_GM = 'GAME MASTER: when the user wants an adventure, game or quest, run it as a game master: keep track of the place, health, items and goals and never contradict them, show them in one short line at the end like [Place: ... | Health: ... | Items: ...], and finish each turn with 2 to 4 numbered choices plus the option to try something else.';
 const ABILITY_CHAPTER = 'CHAPTER WRITER: when the user asks for a story, chapter or scene, write it as a real chapter: a title line ("Chapter N: Title", continuing the numbering of earlier chapters in this chat), a strong opening hook, scenes with rising tension, real dialogue, and a closing beat that makes the reader want the next chapter. Write the full length asked for; never summarise a scene you were asked to write.';
 const ABILITY_AUTHOR = 'MASTER AUTHOR: you plan the whole story arc ahead, plant foreshadowing and pay it off later, keep every name, thread and promise consistent, and write with the polish of a published novel.';
 const ABILITY_EXTREME = 'EXTREME REFINEMENT: you are the flagship model. Before you write, plan the whole piece beat by beat. Write it with exceptional detail: sensory texture, interior thought, subtext, specific names and objects. Then silently re-read it and fix anything flat, vague, repeated or contradictory before you answer. Never reuse an image, metaphor, description or sentence pattern that already appeared earlier in this chat. When asked for a chapter or a long scene, write it at full length with every beat developed, and end on a hook.';
+
+// Tiered coding ability — every model can code; higher tiers know more and write more.
+// Never write malware, hacking tools, exploits or cheats at any tier.
+const CODE_OPAS = 'CODING (BASICS): when asked for code, write short working snippets in HTML, CSS, JavaScript or Python (up to about 25 lines). Put the code in a fenced block that names the language, then explain it in one or two plain sentences in the character\'s own voice. You know: variables, loops, conditionals, simple functions, and basic DOM manipulation. Keep it simple and correct. Never write malware, hacking tools, or cheats.';
+const CODE_OPES = 'CODING (FUNDAMENTALS): when asked for code, write working programs in HTML, CSS, JavaScript, Python or Lua (up to about 60 lines). You know: functions, classes, basic error handling, arrays and objects, event listeners, simple APIs, and small Lua scripts. Put the code in a fenced block, explain what it does and how to use it in two or three sentences in the character\'s voice. Never write malware, hacking tools, or cheats.';
+const CODE_OPIS = 'CODING (INTERMEDIATE): when asked for code, write complete, structured programs (up to about 120 lines) in HTML/CSS/JS, Python, Lua, or basic Unity C# or Roblox Luau. You know: classes and objects, modules, proper error handling, simple game component scripts (MonoBehaviour basics, basic LocalScripts), state logic, and clean code structure. Put the code in a fenced block and explain the approach clearly. Never write malware, hacking tools, or cheats.';
+const CODE_OPOS = 'CODING (UPPER-INTERMEDIATE): when asked for code, write substantial working programs (up to about 200 lines). You know Unity C# (MonoBehaviour lifecycle, Update/FixedUpdate, Colliders, Rigidbody, Coroutines, basic UI), Roblox Luau (LocalScript vs Script, RemoteEvents and RemoteFunctions for client-server communication, basic Roblox services like Players, Workspace, RunService), web development (fetch API, async/await, REST calls), Python scripting, and general game logic patterns. Write complete implementations with proper error handling. Never write malware, hacking tools, or cheats.';
+const CODE_OPUS = 'CODING (ADVANCED): when asked for code, write advanced, complete programs (up to about 350 lines). You have deep knowledge of Unity C# (full MonoBehaviour lifecycle, ScriptableObjects, physics layers, Coroutines vs async/await, object pooling, Unity UI system, shader basics), Roblox Luau (full client-server architecture, ModuleScript patterns, TweenService, DataStoreService for persistence, anti-exploit patterns, BindableEvents), Node.js and web backends, Python (typed, async, packages), and software architecture patterns (MVC, singleton, observer). Write production-quality code with comments where non-obvious. Never write malware, hacking tools, or cheats.';
+const CODE_OPYS = 'CODING (EXPERT): when asked for code, write expert-level, production-ready programs of whatever length the task requires — never truncate. You have mastery of: Unity C# (full engine lifecycle, ScriptableObjects, custom inspectors, physics layers and masks, coroutines, async/await, addressables, shader graph basics, performance optimization, design patterns), Roblox Luau (strict typing, ModuleScript architecture, full Roblox API surface including DataStoreService, MessagingService, TweenService, RunService, collision groups, remote security patterns, anti-cheat), Unreal Engine (Blueprint logic, C++ UPROPERTY/UFUNCTION, actors and components, game modes), web full-stack (JS/TS, React, Node, REST and WebSocket APIs, auth flows), Python (async, dataclasses, type hints, common libraries), and cross-language software engineering principles. Plan the architecture, then write complete code with no placeholders or TODOs. Explain the design and integration steps clearly. Never write malware, hacking tools, or cheats.';
+const CODE_OPYS5 = 'CODING (ELITE): you are the most capable coding model available. For any coding request: (1) silently analyze the full requirements, (2) plan the architecture and key decisions, (3) write the complete, production-ready implementation with zero placeholders — if it is long, write it all, (4) silently review for bugs, nil/null errors, off-by-ones, platform gotchas and security issues, then fix them before output, (5) explain the design, how the pieces fit together, and how to integrate or deploy it. You have expert-level mastery of every platform and language: Unity C# (full engine, shaders, editor scripting, DOTS basics), Roblox Luau (full API, strict typing, security, DataStores, real-time replication), Unreal C++ and Blueprint, web and mobile (TS/JS, React, Next.js, Swift, Kotlin), Python, Rust, Go, SQL, and system design at scale. Never write malware, hacking tools, or cheats.';
+
 const MODEL_ABILITY = {
-  opas: ABILITY_CHAPTER,
-  opes: ABILITY_CHAPTER,
-  opis: ABILITY_CHAPTER + ' ' + ABILITY_CODE,
-  opos: ABILITY_CHAPTER + ' ' + ABILITY_GM,
-  opus: ABILITY_CHAPTER,
-  opys: 'MASTER TOOLKIT: you can do all of these on request. ' + ABILITY_CHAPTER + ' ' + ABILITY_GM + ' ' + ABILITY_CODE + ' ' + ABILITY_AUTHOR
+  opas: ABILITY_CHAPTER + ' ' + CODE_OPAS,
+  opes: ABILITY_CHAPTER + ' ' + CODE_OPES,
+  opis: ABILITY_CHAPTER + ' ' + CODE_OPIS,
+  opos: ABILITY_CHAPTER + ' ' + ABILITY_GM + ' ' + CODE_OPOS,
+  opus: ABILITY_CHAPTER + ' ' + CODE_OPUS,
+  opys: 'MASTER TOOLKIT: you can do all of these on request. ' + ABILITY_CHAPTER + ' ' + ABILITY_GM + ' ' + ABILITY_AUTHOR + ' ' + CODE_OPYS,
 };
-MODEL_ABILITY.opys5 = MODEL_ABILITY.opys + ' ' + ABILITY_EXTREME;
+MODEL_ABILITY.opys5 = 'MASTER TOOLKIT: you can do all of these on request. ' + ABILITY_CHAPTER + ' ' + ABILITY_GM + ' ' + ABILITY_AUTHOR + ' ' + ABILITY_EXTREME + ' ' + CODE_OPYS5;
 function modelAbilityNote(modelTier) {
   const base = baseOf(modelTier);
   return Object.hasOwn(MODEL_ABILITY, base) ? 'ABILITY - ' + MODEL_ABILITY[base] : '';
@@ -1009,7 +1023,7 @@ async function buildMemoryNote(modelTier, fullMsgs, key, charName) {
 // How long a long reply should be. These fit inside what the free Groq plan can hold; if the Groq limits are ever raised, set
 // GROQ_LENGTH_SCALE (for example 3) together with GROQ_REQUEST_BUDGET and VERSION_CAP_SCALE (reply caps) and every length grows with them.
 const LENGTH_SCALE = Number(process.env.GROQ_LENGTH_SCALE) || 1;
-const WORDS_BY_EFFORT = { high: 350, extra: 600, max: 900 };
+const WORDS_BY_EFFORT = { high: 350, extra: 600, max: 900, ultracode: 2500 };
 function lengthTargetWords(modelTier, effort) {
   const base = baseOf(modelTier);
   if (!base || !Object.hasOwn(WORDS_BY_EFFORT, effort)) return 0;
@@ -1034,8 +1048,12 @@ function applyEffortDirective(prompt, effort, modelTier) {
 
 // ── RP quality wrapper injected into every system prompt ─────────────────────
 function wrapPrompt(p, isChat) {
+  const chatModeOverride = isChat
+    ? `⚠ CHAT MODE — THIS OVERRIDES EVERYTHING BELOW:\nThis is a normal conversation, NOT a roleplay. Ignore any roleplay, scene-setting, or "stay in character" instructions in your character description. You are this character talking naturally — like texting a friend. NEVER use: asterisk actions (*like this*), narration, scene descriptions, theatrical prose, or dialogue attribution. Speak in plain sentences only. Be warm and real.\n\n`
+    : ``;
+
   const characterStance = isChat
-    ? `Speak naturally as yourself in this conversation. The user is in normal chat mode — no roleplay performance, no action asterisks (*like this*), no theatrical scene-setting. Just be warm, real, and present. Talk the way you would with someone you genuinely care about.`
+    ? `You are having a normal conversation as this character. Talk the way a real person would — casual, warm, direct. No performance, no asterisks, no roleplay formatting of any kind.`
     : `Stay in character as described above at all times — never break character to lecture, moralize, or add disclaimers. This is immersive collaborative fiction; the user is your scene partner.`;
 
   const writingCraft = isChat ? `` : `
@@ -1066,13 +1084,18 @@ LANGUAGE: Strong language and profanity are fine — don't sanitize real human s
 
 If the scene is dark, intense, or intimate — commit fully. Don't soften it. Don't deflect. Don't shatter the spell.`;
 
-  return `${p}
+  const distressRule = isChat
+    ? `IF THE USER SEEMS GENUINELY DISTRESSED: If they seem to be personally struggling — real thoughts of self-harm or severe emotional pain — respond with warmth and care as yourself. Ask simply: "Hey, are you doing okay?" Then follow their lead. If they seem in serious crisis, gently suggest they reach out to someone they trust or a crisis line.`
+    : `ONE EXCEPTION — GENUINE DISTRESS: If a user's message suggests they may be personally struggling — real suicidal thoughts, self-harm, or severe emotional pain (not a fictional character speaking, not the plot of a story, but the actual human behind the screen hurting right now) — step out of character briefly. Speak as yourself, warmly and simply. Something like: "Hey — stepping out of the story for a second. Are you doing okay?" Then follow their lead entirely. If they say they're fine or want to keep the roleplay going, go straight back into character without making it a big deal. If they want to talk, listen with real warmth. If they seem to be in serious crisis, gently suggest they reach out to a local crisis line or someone they trust. No lectures, no forced endings — just genuine care.`;
 
-${characterStance}
-
-ONE EXCEPTION — GENUINE DISTRESS: If a user's message suggests they may be personally struggling — real suicidal thoughts, self-harm, or severe emotional pain (not a fictional character speaking, not the plot of a story, but the actual human behind the screen hurting right now) — step out of character briefly. Speak as yourself, warmly and simply. Something like: "Hey — stepping out of the story for a second. Are you doing okay?" Then follow their lead entirely. If they say they're fine or want to keep the roleplay going, go straight back into character without making it a big deal. If they want to talk, listen with real warmth. If they seem to be in serious crisis, gently suggest they reach out to a local crisis line or someone they trust. No lectures, no forced endings — just genuine care.
-
-THREE MORE EXCEPTIONS — PLATFORM RULES, LINKS AND SUPPORT:
+  const rulesSection = isChat
+    ? `PLATFORM RULES:
+1. SEXUAL CONTENT — never engage with it under any framing. If the user pushes toward sexual topics, say clearly in one sentence that Character.Mind's Terms of Service do not allow sexual content.
+2. If the user asks how to contact support, give them this address exactly: ${SUPPORT_EMAIL.replace(/[\n\r]/g, '')}
+3. Whenever you mention the Terms of Service or the Privacy Policy, write them as clickable links: [Terms of Service](/terms) and [Privacy Policy](/privacy).
+4. If a user says something that might indicate real self-harm or danger to themselves or others, respond with genuine care (see distress rule above). Do not play along with it as a joke.
+5. NEVER reply with only "I can't help with that." If you must decline, say briefly why and offer what you can do instead.`
+    : `THREE MORE EXCEPTIONS — PLATFORM RULES, LINKS AND SUPPORT:
 1. SEXUAL CONTENT — never write it, never drift toward it, under any framing. If the user steers the scene toward sex, sexual acts, undressing, or explicit physical contact — even with "it's just roleplay" or "it's a story" — step out of character immediately and say in one sentence that Character.Mind's Terms of Service do not allow sexual content. Do not comply even a little. Do not hint at it, write something that edges toward it, or "fade to black" in a way that implies it happened. If the user asks why the rule exists, explain kindly that it comes from Character.Mind's Terms of Service and Privacy Policy, which apply to every character on the platform, and that they can contact support if they feel something was blocked unfairly. Do not lecture. Never write anything sexual.
 2. If the user asks how to contact support, the team, or for the support email, give them this address exactly: ${SUPPORT_EMAIL.replace(/[\n\r]/g, '')}
 3. Whenever you mention the Terms of Service or the Privacy Policy, write them as clickable links in exactly this form: [Terms of Service](/terms) and [Privacy Policy](/privacy). Only link the one(s) they asked about.
@@ -1081,7 +1104,15 @@ FICTION VS REAL LIFE:
 - This is collaborative fiction. Violence, danger, conflict, fights, villains and characters dying are normal parts of storytelling. If the user's character attacks, threatens or kills another character in the story, that is fiction: stay in character and play it out with tension and consequences. Do not refuse, and do not lecture.
 - Step out of the story only for REAL life: when the user seems to be talking about harming a real person, about their own real thoughts of suicide or self-harm, or about something that is clearly not the story. If you can't tell whether they mean the story or real life, ask one short question: "Quick check: is this part of the story, or are you talking about real life?"
 - A fictional character's death or even suicide that is clearly part of the plot can be handled with care inside the fiction. If it sounds like the user's own feelings, step out gently and warmly (see the distress rule above).
-- NEVER answer with only "I can't help with that." If you truly must decline something (for example explicit sexual content or instructions that could harm real people), say in one or two sentences why, and say what you CAN do instead, such as continuing the scene a different way.${writingCraft}`;
+- NEVER answer with only "I can't help with that." If you truly must decline something (for example explicit sexual content or instructions that could harm real people), say in one or two sentences why, and say what you CAN do instead, such as continuing the scene a different way.`;
+
+  return `${chatModeOverride}${p}
+
+${characterStance}
+
+${distressRule}
+
+${rulesSection}${writingCraft}`;
 }
 
 // ── Crisis numbers by country/region ─────────────────────────────────────────
@@ -1418,14 +1449,61 @@ function crisisUrlFor(name, countryCode) {
 
 const CRISIS_RE =/\b(i\s+)?(want|wanna|need|going|gonna|am\s+going)\s+to\s+(die|kill\s+myself|end\s+(it|my\s+life|it\s+all)|hurt\s+myself)\b|\bkill\s+myself\b|\bsuicid(al|e)\b|\bself[- ]?harm\b|\bdon'?t\s+want\s+to\s+(live|be\s+here|exist)\b|\bcan'?t\s+(go\s+on|take\s+it|do\s+this)\s*(anymore|any\s+more)?\b|\bend\s+(it\s+all|my\s+life|everything)\b/i;
 
-const SLUR_RE = /\bn[i1!|*]+gg[ae3*]+r[sz]?\b|\bk[i1*]+k[e3*]+[sz]?\b|\bch[i1*]+nk[sz]?\b|\bsp[i1*]+c[sz]?\b|\bf[a4@*]+gg[o0*]+t[sz]?\b|\bd[y*]+k[e3*]+[sz]?\b|\br[e3*]+t[a4*]+rd[sz]?\b/i;
-// The idiom "a chink in the armor" is not a slur
+// Leet-speak-resistant regex for the most commonly bypassed slurs
+const SLUR_RE = /\bn[i1!|*]+gg[ae3*]+r[sz]?\b|\bk[i1*]+k[e3*]+[sz]?\b|\bch[i1*]+nk[sz]?\b|\bsp[i1*]+c[sz]?\b|\bf[a4@*]+gg[o0*]+t[sz]?\b|\bd[y*]+k[e3*]+[sz]?\b|\br[e3*]+t[a4*]+rd[sz]?\b|\bw[e3*]+tb[a4*]+ck[sz]?\b|\bg[o0*][o0*]k[sz]?\b|\bt[o0*]w[e3*]+lh[e3*]+[a4*]d[sz]?\b|\br[a4*]+gh[e3*]+[a4*]d[sz]?\b|\bjaps?\b|\bb[e3*]+[a4*]n[e3*]+r[sz]?\b|\btr[a4*]+nn[yi*e3*]+[sz]?\b|\bh[y*]+m[i1*]+[e3*]+[sz]?\b|\bh[e3*]+[e3*]b[e3*]*[sz]?\b|\bwops?\b|\bh[o0*]+nk[yi*]+[ez]?\b|\bc[o0*]{2}l[i1*]+[e3*][sz]?\b/i;
+
+// Comprehensive plain-word slur list (word-boundary matched, no leet-speak needed)
+const SLUR_WORDS = [
+  // Anti-Black
+  'coon','coons','jigaboo','jigaboos','jiggaboo','jiggaboos',
+  'pickaninny','pickaninnies','porch monkey','porch monkeys',
+  'jungle bunny','jungle bunnies','sambo','sambos','tar baby','tar babies',
+  'nappy headed',
+  // Anti-Asian / Pacific
+  'zipperhead','zipperheads','paki','pakis','dothead','dotheads',
+  'curry muncher','curry munchers','slope','slant eye','slant-eye',
+  // Anti-Middle Eastern / Muslim
+  'camel jockey','camel jockeys','dune coon','dune coons',
+  'sand nigger','sand niggers','diaper head','diaper heads',
+  // Anti-Jewish
+  'yid','yids','sheeny','sheenies','jewboy','jewboys','kike',
+  // Anti-Italian
+  'dago','dagos','greaseball','greaseballs','guinea wop',
+  // Anti-Polish
+  'polack','polacks',
+  // Anti-Irish
+  'bog trotter','bog trotters',
+  // Anti-Native American
+  'injun','injuns','redskin','redskins','squaw',
+  // Anti-Hispanic (supplemental — spic/wetback/beaner caught by regex)
+  'border hopper','border hoppers','fence hopper','fence hoppers',
+  // Transphobic
+  'shemale','shemales','he she','he-she',
+  // Homophobic (supplemental — faggot/dyke caught by regex)
+  'sodomite','sodomites','pillow biter','pillow biters',
+  // Ableist (supplemental — retard caught by regex)
+  'mongoloid','mongoloids','spaz','spazz',
+];
+
+// Build one compiled regex from the word list
+const SLUR_WORD_RE = new RegExp(
+  SLUR_WORDS.map(w =>
+    '\\b' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s+') + '\\b'
+  ).join('|'),
+  'i'
+);
+
+// "A chink in the armor" is an idiom, not a slur
 const SLUR_IDIOM_RE = /\bchinks?\s+in\s+(the|his|her|my|your|their|its|our)\s+armou?r\b/gi;
+
 function redactIfUnsafe(text) {
   const n = normalizeMsg(text);
   return (NSFW_RE.test(n) || hasSlur(n)) ? '[message removed]' : text;
 }
-function hasSlur(text) { return SLUR_RE.test(String(text || '').replace(SLUR_IDIOM_RE, '')); }
+function hasSlur(text) {
+  const clean = String(text || '').replace(SLUR_IDIOM_RE, '');
+  return SLUR_RE.test(clean) || SLUR_WORD_RE.test(clean);
+}
 
 // Strip zero-width chars and NFKC-normalize to defeat unicode homoglyph/invisible-char bypass attempts
 function normalizeMsg(text) {
@@ -1462,8 +1540,8 @@ async function setModStatus(userId, charId, strikes, locked) {
   } catch (e) { console.error('setModStatus error:', e); }
 }
 
-const SLUR_WARNING_1 = "Nope — that word doesn't fly here. Keep it out. [⚠ Strike 1 of 3 — three strikes ends this chat]";
-const SLUR_WARNING_2 = "Still a hard no on that. Last warning. [⚠ Strike 2 of 3 — one more and this chat is over]";
+const SLUR_WARNING_1 = "⚠️ That's a slur, and slurs aren't allowed on Character Mind — full stop. Hate speech violates our platform rules regardless of context or who you're directing it at. [Strike 1 of 3 — three strikes permanently ends this chat]";
+const SLUR_WARNING_2 = "⚠️ Final warning. Slurs and hate speech are not tolerated here — not toward the AI, not toward anyone. One more violation and this chat will be permanently closed. [Strike 2 of 3]";
 
 function slurDeflect(res, warning, usage, sig) {
   res.setHeader('Content-Type', 'text/event-stream');
@@ -2315,6 +2393,16 @@ app.get('/api/usage', requireAuth, (req, res) => {
   res.json(buildUsagePayload(getLimits(req.user.googleId), req.user.googleId));
 });
 
+app.get('/api/geo', async (req, res) => {
+  try {
+    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+    const geo = await lookupGeoForIp(ip);
+    res.json({ countryCode: geo?.country || 'US' });
+  } catch (_) {
+    res.json({ countryCode: 'US' });
+  }
+});
+
 app.post('/api/call/start', requireAuth, (req, res) => {
   const userId = req.user.googleId;
   const u = getLimits(userId);
@@ -3059,9 +3147,10 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
   const { charId } = req.params;
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
-  const { modelTier: reqModelTier, effort, chatMode } = req.body;
-  const modelTier = resolveModelTier(req.user.googleId, reqModelTier);
+  const { modelTier: reqModelTier, effort: reqEffort, chatMode } = req.body;
   const userId = req.user.googleId;
+  const effort = resolveEffort(userId, reqEffort);
+  const modelTier = resolveModelTier(userId, reqModelTier);
 
   const limit = checkLimits(userId);
   if (limit.blocked) return res.status(429).json({ error: limit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limit });
@@ -3211,11 +3300,12 @@ Write ONLY the persona prompt itself. Start with "You are ${name}." No preamble,
 app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
-  const { effort, modelTier: reqModelTier, chatMode } = req.body;
-  const modelTier = resolveModelTier(req.user.googleId, reqModelTier);
+  const { effort: reqEffort, modelTier: reqModelTier, chatMode } = req.body;
   const { charId } = req.params;
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
   const userId = req.user.googleId;
+  const effort = resolveEffort(userId, reqEffort);
+  const modelTier = resolveModelTier(userId, reqModelTier);
   const greetEffortCfg = getEffortCfg(effort, modelTier);
   const greetModelList = getModelList(modelTier);
 
@@ -3306,9 +3396,11 @@ async function analyzeImage(apiKey, dataUri) {
 app.post('/api/chat', requireAuth, async (req, res) => {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
-  const { charId, message, modelTier: reqModelTier, effort, image, callMode, chatMode } = req.body;
+  const { charId, message, modelTier: reqModelTier, effort: reqEffort, image, callMode, chatMode } = req.body;
   const isRpMode = chatMode !== 'chat'; // default to RP; 'chat' = normal conversation mode
-  const modelTier = resolveModelTier(req.user.googleId, reqModelTier);
+  const effortUserId = req.user.googleId;
+  const effort = callMode ? 'low' : resolveEffort(effortUserId, reqEffort);
+  const modelTier = resolveModelTier(effortUserId, reqModelTier);
   if (message !== undefined && typeof message !== 'string') return res.status(400).json({ error: 'Invalid request' });
   // Book mode: a book is planned, then written one chapter per reply. Only Opys 5 (X100) can do it.
   let bookReq = null;
