@@ -151,7 +151,7 @@ function updateModelBarLabel() {
     el.classList.toggle('active', e === selectedEffort);
   });
   const maxWarn = document.getElementById('effortMaxWarn');
-  if (maxWarn) maxWarn.textContent = '⚠ ' + (MAX_EFFORT_MULTIPLIERS[selectedModelTier] || '3.4×') + ' vs baseline usage';
+  if (maxWarn) maxWarn.textContent = '⚠ ' + (MAX_EFFORT_MULTIPLIERS[selectedModelTier] || '3.4×') + ' more tokens';
   const ultraWarn = document.getElementById('effortUltracodeWarn');
   if (ultraWarn) {
     const mult = Math.round(clientMessageCost(selectedModelTier, 'ultracode') / (OPAS_COST.medium));
