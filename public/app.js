@@ -1312,15 +1312,20 @@ function randomCharColor(c) {
   if (!hexes || !hexes.length) return 'var(--accent-l)';
   return hexes[Math.floor(Math.random() * hexes.length)];
 }
-// Boost a hex color that's too dark to read on a dark background.
+// Only touch absolute zero — everything else (including near-black) passes through as-is.
 function boostColor(hex) {
   const n = parseInt(hex.slice(1), 16);
-  let r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255;
-  const lum = 0.299*r + 0.587*g + 0.114*b;
-  if (lum >= 60) return hex;
-  if (lum === 0) return '#aaaaaa';
-  const s = 100 / lum;
-  return '#' + [Math.min(255,Math.round(r*s)), Math.min(255,Math.round(g*s)), Math.min(255,Math.round(b*s))].map(v => v.toString(16).padStart(2,'0')).join('');
+  if (n === 0) return '#181818';
+  return hex;
+}
+// Build name HTML with each non-space character wrapped in a random-color span.
+function colorizeNameHtml(name, c) {
+  const hexes = String(c || '').match(/#[0-9a-fA-F]{6}/gi);
+  if (!hexes || !hexes.length) return escHtml(name || '');
+  const colors = hexes.map(boostColor);
+  return [...(name || '')].map(ch =>
+    /\s/.test(ch) ? escHtml(ch) : `<span style="color:${colors[Math.floor(Math.random()*colors.length)]}">${escHtml(ch)}</span>`
+  ).join('');
 }
 // Wrap every non-whitespace character in the bubble in a random-colored span.
 function colorizeLetters(bubble, c) {
@@ -1572,7 +1577,7 @@ function charRow(c) {
   return `<div class="char-row" data-id="${safeId}" onclick="openChat(this.dataset.id)">
     ${av}
     <div class="char-row-info">
-      <div class="char-row-name" style="color:${brightestHex(c.color)}">${escHtml(c.name)}</div>
+      <div class="char-row-name">${colorizeNameHtml(c.name, c.color)}</div>
       <div class="char-row-tagline">${escHtml(c.tagline || '')}</div>
       <div class="char-row-meta">${c.isOfficial ? '<span class="hc-creator-official">By Character Mind Playtime Co</span>' : escHtml('By ' + (c.creator || 'a community creator'))} · ${formatCount(c.interactions||0)} chats</div>
     </div>
@@ -1583,7 +1588,7 @@ function charRow(c) {
 function charCard(c) {
   return `<div class="char-card" data-id="${escHtml(c.id)}" onclick="openChat(this.dataset.id)">
     ${charAvatarHtml(c, 'card-avatar')}
-    <div class="card-name" style="color:${brightestHex(c.color)}">${escHtml(c.name)}</div>
+    <div class="card-name">${colorizeNameHtml(c.name, c.color)}</div>
     <div class="card-tagline">${escHtml(c.tagline || '')}</div>
     <div class="card-meta">
       <span class="card-creator">${c.isOfficial ? '<span class="hc-creator-official">By Character Mind Playtime Co</span>' : escHtml('By ' + (c.creator || 'a community creator'))}</span>
@@ -1628,7 +1633,7 @@ function renderFeed() {
     return `<div class="feed-card">
       <div class="feed-card-header">
         ${av}
-        <div><div class="feed-char-name" style="color:${brightestHex(c.color)}">${escHtml(c.name)}</div><div class="feed-char-sub">${escHtml(c.creator||'@you')} · ${formatCount(c.interactions||0)} chats</div></div>
+        <div><div class="feed-char-name">${colorizeNameHtml(c.name, c.color)}</div><div class="feed-char-sub">${escHtml(c.creator||'@you')} · ${formatCount(c.interactions||0)} chats</div></div>
       </div>
       <div class="feed-preview">${escHtml(c.description || c.tagline || '')}</div>
       <div class="feed-footer">
@@ -1905,7 +1910,7 @@ async function openChat(charId) {
       mobAvEl.innerHTML = `<span style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:14px;font-weight:700;color:#fff">${escHtml(currentChar.name[0]||'?')}</span>`;
     }
   }
-  if (mobNmEl) { mobNmEl.textContent = currentChar.name; mobNmEl.style.color = brightestHex(currentChar.color); }
+  if (mobNmEl) { mobNmEl.innerHTML = colorizeNameHtml(currentChar.name, currentChar.color); }
 
   // Update info panel
   const ia = document.getElementById('infoAvatar');
@@ -1914,7 +1919,7 @@ async function openChat(charId) {
     else { ia.style.background = safeColor(currentChar.color); ia.style.borderRadius = '12px'; ia.textContent = currentChar.name[0]||'?'; }
   }
   const infoName = document.getElementById('infoName');
-  if (infoName) { infoName.textContent = currentChar.name; infoName.style.color = brightestHex(currentChar.color); }
+  if (infoName) { infoName.innerHTML = colorizeNameHtml(currentChar.name, currentChar.color); }
   const infoCreator = document.getElementById('infoCreator');
   if (infoCreator) infoCreator.textContent = currentChar.creator || '@you';
   const infoInteractions = document.getElementById('infoInteractions');
@@ -2112,7 +2117,7 @@ async function generateGreeting() {
       document.getElementById('sendBtn').disabled = false;
       if (err.error !== 'Already started') {
         document.getElementById('chatWelcome').innerHTML = `
-          <div class="chat-welcome-name" style="color:${brightestHex(currentChar.color)}">${escHtml(currentChar.name)}</div>
+          <div class="chat-welcome-name">${colorizeNameHtml(currentChar.name, currentChar.color)}</div>
           <div style="color:var(--text3);font-size:14px;margin-top:8px">${escHtml(err.error || 'Could not start conversation.')}</div>`;
       }
       return;
@@ -3444,7 +3449,7 @@ function appendNsfwCard(variant) {
   div.innerHTML = `
     <div class="msg-header">
       ${msgAvatarHtml('msg-avatar')}
-      <span class="msg-name" style="color:${randomCharColor(currentChar?.color)}">${escHtml(currentChar?.name || 'AI')}</span>
+      <span class="msg-name">${colorizeNameHtml(currentChar?.name || 'AI', currentChar?.color)}</span>
       <span class="msg-badge">C.M</span>
     </div>
     <div class="nsfw-block-card">
@@ -3486,7 +3491,7 @@ function appendMessage(role, text, imgB64, lite) {
     div.innerHTML = `
       <div class="msg-header">
         ${msgAvatarHtml('msg-avatar')}
-        <span class="msg-name" style="color:${randomCharColor(currentChar?.color)}">${escHtml(currentChar?.name || 'AI')}</span>
+        <span class="msg-name">${colorizeNameHtml(currentChar?.name || 'AI', currentChar?.color)}</span>
         <span class="msg-badge">C.M</span>
         <button class="tts-btn" onclick="toggleTTS(this)" title="Read aloud (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
         ${msgMenuHtml('ai')}
@@ -3518,7 +3523,7 @@ function createAiMessage() {
   div.innerHTML = `
     <div class="msg-header">
       ${msgAvatarHtml('msg-avatar')}
-      <span class="msg-name" style="color:${randomCharColor(currentChar?.color)}">${escHtml(currentChar?.name || 'AI')}</span>
+      <span class="msg-name">${colorizeNameHtml(currentChar?.name || 'AI', currentChar?.color)}</span>
       <span class="msg-badge">C.M</span>
       <button class="tts-btn" onclick="toggleTTS(this)" title="Read aloud (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
       ${msgMenuHtml('ai')}
@@ -4314,7 +4319,7 @@ async function startCallMode() {
       }
     }
     const nameEl = document.getElementById('callCharName');
-    if (nameEl) { nameEl.textContent = currentChar.name || ''; nameEl.style.color = brightestHex(currentChar.color); }
+    if (nameEl) { nameEl.innerHTML = colorizeNameHtml(currentChar.name || '', currentChar.color); }
     overlay.style.display = 'flex';
     const vob = document.getElementById('callVoiceOnBadge');
     if (vob) { vob.style.display = ''; setTimeout(() => { if (callModeActive) vob.style.display = 'none'; }, 5000); }
