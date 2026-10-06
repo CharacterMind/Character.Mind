@@ -209,8 +209,9 @@
   body.calm .band.b3 { animation-duration: 34s !important; }
   body.calm .band.b4 { display: none; }
   body.calm .scan { animation-duration: 8s !important; opacity: .7 !important; }
-  body.calm .beam { animation-duration: 8s !important; opacity: .65 !important; filter: blur(14px) !important; }
-  body.calm .show { filter: saturate(1.5) brightness(0.98) !important; }
+  body.calm .beam { animation-duration: 8s !important; opacity: .95 !important; filter: blur(5px) !important; }
+  body.calm .vignette { opacity: .45 !important; }
+  body.calm .show { filter: saturate(3.0) brightness(1.1) contrast(1.08) !important; }
   body.calm .pulse-layer { animation-duration: 4s !important; }
   body.calm .flash-layer { display: none; }
 
@@ -247,8 +248,9 @@
   body:not(.calm) .band.b3 { animation-duration: 3.4s !important; }
   body:not(.calm) .band.b4 { animation-duration: 4s !important; opacity: 0.45 !important; }
   body:not(.calm) .scan { animation-duration: 0.5s !important; }
-  body:not(.calm) .show { filter: saturate(2.6) brightness(1.25) !important; }
-  body:not(.calm) .beam { animation-duration: 0.38s !important; opacity: 1 !important; filter: blur(7px) !important; }
+  body:not(.calm) .show { filter: saturate(3.5) brightness(1.35) contrast(1.12) !important; }
+  body:not(.calm) .vignette { opacity: .35 !important; }
+  body:not(.calm) .beam { animation-duration: 0.38s !important; opacity: 1 !important; filter: blur(3px) !important; }
   body:not(.calm) .pulse-layer {
     animation-duration: 0.38s !important;
     background: radial-gradient(ellipse 90% 70% at 50% 60%, rgba(255,80,255,.45), transparent 70%) !important;
