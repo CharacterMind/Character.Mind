@@ -1789,7 +1789,7 @@ function renderSidebarChats() {
     ${b.chars.map(c => `
       <div class="chat-item ${currentChar?.id===c.id?'active':''}" data-id="${escHtml(c.id)}" onclick="openChat(this.dataset.id)">
         ${charAvatarHtml(c, 'chat-item-avatar')}
-        <div class="chat-item-info"><div class="chat-item-name">${escHtml(c.name)}</div></div>
+        <div class="chat-item-info"><div class="chat-item-name">${colorizeNameHtml(c.name, c.color)}</div></div>
       </div>`).join('')}
   `).join('');
 }
@@ -3493,7 +3493,7 @@ const liteObserver = (typeof IntersectionObserver !== 'undefined')
         if (!en.isIntersecting) continue;
         const b = en.target;
         liteObserver.unobserve(b);
-        if (b.dataset.lite) { delete b.dataset.lite; if (typeof b.dataset.raw === 'string') b.innerHTML = renderMarkdown(b.dataset.raw); }
+        if (b.dataset.lite) { delete b.dataset.lite; if (typeof b.dataset.raw === 'string') { b.innerHTML = renderMarkdown(b.dataset.raw); colorizeLetters(b, currentChar?.color); } }
       }
     }, { root: document.getElementById('chatBody'), rootMargin: '400px' })
   : null;

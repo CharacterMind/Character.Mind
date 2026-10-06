@@ -81,6 +81,8 @@ if (db) {
   }).then(r => { if (r && r.rowCount > 0) console.log(`[MIGRATION] Fixed greeting_mode auto→fixed for ${r.rowCount} characters`); })
     .then(() => db.query(`UPDATE characters SET greeting_mode = 'fixed' WHERE greeting_mode NOT IN ('fixed', 'auto')`))
     .then(r => { if (r && r.rowCount > 0) console.log(`[MIGRATION] Normalized ${r.rowCount} non-standard greeting_mode values to fixed`); })
+    .then(() => db.query(`UPDATE characters SET color = 'linear-gradient(135deg, #ef4444, #f97316, #fbbf24, #3b82f6)' WHERE id = 'custom_1790774765927' AND color NOT LIKE '%#3b82f6%'`))
+    .then(r => { if (r && r.rowCount > 0) console.log('[MIGRATION] Added blue to Doey color palette'); })
     .catch(err => console.error('DB init error:', err));
 
   db.query(`
