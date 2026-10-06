@@ -5,188 +5,412 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Privacy Policy — Character.Mind</title>
 <link rel="icon" href="/logo.webp" type="image/webp">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <style>
   :root {
-    --bg: #0e0e10; --bg2: #16161a; --bg3: #1e1e24;
-    --text1: #f1f1f3; --text2: #b0b0bc; --text3: #6b6b7a;
-    --accent: #7c3aed; --border: rgba(255,255,255,0.07);
+    --bg:      #0c0c0f;
+    --bg2:     #14141a;
+    --bg3:     #1c1c24;
+    --bg4:     #232330;
+    --text1:   #f0f0f5;
+    --text2:   #a8a8be;
+    --text3:   #5c5c78;
+    --accent:  #7c3aed;
+    --accent2: #9d5ff5;
+    --border:  rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --read-bar-pct: 0%;
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text2); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 15px; line-height: 1.7; }
-  a { color: var(--accent); text-decoration: none; }
-  a:hover { text-decoration: underline; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg); color: var(--text2);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 15px; line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent2); text-decoration: none; transition: color .15s; }
+  a:hover { color: var(--text1); text-decoration: underline; }
 
-  .page-header {
+  /* ── Reading progress bar ──────────── */
+  #readProgress {
+    position: fixed; top: 0; left: 0; height: 3px; z-index: 1000;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    width: var(--read-bar-pct);
+    transition: width .1s linear;
+    border-radius: 0 2px 2px 0;
+  }
+
+  /* ── Top nav ──────────────────────── */
+  .site-nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(12,12,15,0.92); backdrop-filter: blur(14px);
     border-bottom: 1px solid var(--border);
-    padding: 20px 32px;
-    display: flex; align-items: center; gap: 14px;
+    padding: 0 32px; height: 56px;
+    display: flex; align-items: center; gap: 16px;
   }
-  .page-header img { width: 30px; height: 30px; border-radius: 8px; }
-  .page-header .brand { font-size: 16px; font-weight: 700; color: var(--text1); }
-  .page-header .back { margin-left: auto; color: var(--text3); font-size: 14px; }
+  .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+  .nav-logo img { width: 26px; height: 26px; border-radius: 7px; }
+  .nav-logo-name { font-size: 15px; font-weight: 700; color: var(--text1); letter-spacing: -.3px; }
+  .nav-sep { width: 1px; height: 18px; background: var(--border2); }
+  .nav-doc-label { font-size: 13px; font-weight: 600; color: var(--text3); }
+  .nav-links { margin-left: auto; display: flex; align-items: center; gap: 20px; }
+  .nav-link { font-size: 13px; color: var(--text3); text-decoration: none; transition: color .15s; }
+  .nav-link:hover { color: var(--text1); text-decoration: none; }
+  .nav-link-active { color: var(--accent2); }
+  .nav-back {
+    font-size: 13px; font-weight: 500; color: var(--text3);
+    display: flex; align-items: center; gap: 5px;
+    text-decoration: none; transition: color .15s;
+    padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border);
+  }
+  .nav-back:hover { color: var(--text1); border-color: var(--border2); text-decoration: none; }
 
-  .container { max-width: 760px; margin: 0 auto; padding: 52px 24px 80px; }
-  .doc-title { font-size: 30px; font-weight: 800; color: var(--text1); margin-bottom: 6px; }
-  .doc-date { font-size: 13px; color: var(--text3); margin-bottom: 44px; }
+  /* ── Hero ─────────────────────────── */
+  .hero {
+    background: linear-gradient(180deg, #0d0f20 0%, var(--bg) 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 72px 32px 56px;
+    text-align: center;
+  }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(124,58,237,.15); border: 1px solid rgba(124,58,237,.3);
+    border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 600;
+    color: var(--accent2); letter-spacing: .4px; text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  .hero-title { font-size: 38px; font-weight: 800; color: var(--text1); letter-spacing: -.8px; margin-bottom: 10px; }
+  .hero-meta { font-size: 13px; color: var(--text3); }
+  .hero-meta span { color: var(--text2); }
 
-  h2 { font-size: 17px; font-weight: 700; color: var(--text1); margin: 40px 0 12px; }
-  h2:first-of-type { margin-top: 0; }
-  p { margin-bottom: 14px; color: var(--text2); }
+  /* ── Layout ───────────────────────── */
+  .layout { max-width: 1060px; margin: 0 auto; padding: 0 24px 100px; display: flex; gap: 48px; align-items: flex-start; }
+
+  /* ── TOC sidebar ──────────────────── */
+  .toc {
+    flex-shrink: 0; width: 220px;
+    position: sticky; top: 76px;
+    padding-top: 48px;
+  }
+  .toc-title { font-size: 11px; font-weight: 700; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 14px; }
+  .toc-list { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+  .toc-link {
+    display: block; font-size: 13px; color: var(--text3);
+    padding: 5px 10px; border-radius: 6px; border-left: 2px solid transparent;
+    text-decoration: none; transition: color .15s, background .15s, border-color .15s;
+    line-height: 1.4;
+  }
+  .toc-link:hover { color: var(--text2); background: var(--bg3); text-decoration: none; }
+  .toc-link.active { color: var(--accent2); border-left-color: var(--accent); background: rgba(124,58,237,.1); }
+
+  /* ── Content ──────────────────────── */
+  .content { flex: 1; min-width: 0; padding-top: 48px; padding-bottom: 20px; }
+
+  .section {
+    scroll-margin-top: 80px;
+    padding: 32px 0 0;
+    border-top: 1px solid var(--border);
+  }
+  .section:first-child { border-top: none; padding-top: 0; }
+
+  .section-num {
+    font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: 1px;
+    text-transform: uppercase; margin-bottom: 6px;
+  }
+  h2 {
+    font-size: 18px; font-weight: 700; color: var(--text1);
+    margin-bottom: 16px; letter-spacing: -.3px;
+  }
+  p { margin-bottom: 14px; }
   ul { padding-left: 20px; margin-bottom: 14px; }
-  li { margin-bottom: 7px; color: var(--text2); }
+  li { margin-bottom: 8px; }
+  strong { color: var(--text1); font-weight: 600; }
 
-  .callout { background: var(--bg3); border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; padding: 14px 18px; margin: 20px 0; font-size: 14px; }
+  /* ── Callout ──────────────────────── */
+  .callout {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 10px 10px 0;
+    padding: 14px 18px; margin: 20px 0;
+    font-size: 14px; color: var(--text2);
+  }
 
-  h2 a.anchor-link { color: inherit; text-decoration: none; opacity: 0; margin-left: 6px; font-weight: 400; font-size: 14px; transition: opacity .15s; }
-  h2:hover a.anchor-link { opacity: 0.5; }
-  h2:hover a.anchor-link:hover { opacity: 1; color: var(--accent); }
+  /* ── Data chip grid ───────────────── */
+  .data-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 20px; }
+  .data-chip {
+    background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: 6px; padding: 5px 12px;
+    font-size: 13px; color: var(--text2);
+  }
 
-  @media (max-width: 600px) {
-    .page-header { padding: 16px; }
-    .container { padding: 36px 16px 60px; }
-    .doc-title { font-size: 24px; }
+  /* ── Footer ───────────────────────── */
+  .site-footer {
+    border-top: 1px solid var(--border);
+    padding: 32px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    flex-wrap: wrap;
+  }
+  .footer-brand { font-size: 13px; font-weight: 600; color: var(--text3); }
+  .footer-links { display: flex; gap: 20px; }
+  .footer-link { font-size: 13px; color: var(--text3); text-decoration: none; transition: color .15s; }
+  .footer-link:hover { color: var(--text1); }
+
+  /* ── Responsive ───────────────────── */
+  @media (max-width: 768px) {
+    .site-nav { padding: 0 16px; }
+    .hero { padding: 48px 20px 36px; }
+    .hero-title { font-size: 28px; }
+    .toc { display: none; }
+    .layout { padding: 0 16px 80px; }
+    .content { padding-top: 32px; }
+    .site-footer { padding: 24px 16px; flex-direction: column; align-items: flex-start; gap: 12px; }
   }
 </style>
 </head>
 <body>
 
-<header class="page-header">
-  <img src="/logo.webp" alt="Character.Mind">
-  <span class="brand">character.mind</span>
-  <a href="/" class="back">← Back to app</a>
-</header>
+<div id="readProgress"></div>
 
-<div class="container">
-  <h1 class="doc-title">Privacy Policy</h1>
-  <p class="doc-date">Effective date: October 3, 2026 &nbsp;·&nbsp; Last updated: October 3, 2026</p>
+<nav class="site-nav">
+  <a href="/" class="nav-logo">
+    <img src="/logo.webp" alt="Character.Mind">
+    <span class="nav-logo-name">character.mind</span>
+  </a>
+  <div class="nav-sep"></div>
+  <span class="nav-doc-label">Legal</span>
+  <div class="nav-links">
+    <a href="/terms.html" class="nav-link">Terms</a>
+    <a href="/privacy.html" class="nav-link nav-link-active">Privacy</a>
+    <a href="/" class="nav-back">← Back to app</a>
+  </div>
+</nav>
 
-  <h2 id="section-1">1. Overview</h2>
-  <p>Character Mind Playtime Co ("we," "us," or "our") operates Character.Mind. This Privacy Policy explains what information we collect, how we use it, and the choices you have. By using the service, you agree to the practices described here.</p>
-
-  <h2 id="section-2">2. Information We Collect</h2>
-
-  <p><strong>From your Google account (at sign-in):</strong></p>
-  <ul>
-    <li>Your name and profile picture</li>
-    <li>Your Google email address</li>
-    <li>A unique Google account identifier</li>
-  </ul>
-
-  <p><strong>From your use of the service:</strong></p>
-  <ul>
-    <li><strong>Active conversation history:</strong> Messages exchanged with AI characters are stored server-side to maintain continuity across sessions. You can clear this at any time from within the app.</li>
-    <li><strong>Archived past conversations:</strong> When you start a new chat with a character, the previous conversation is automatically saved to your archive so you can browse it later through the History panel. Archived conversations are stored in our database and are included in account deletion requests.</li>
-    <li><strong>Long-term memory notes:</strong> When you chat with Opys or Opys 5, we keep a short, automatically written summary of the earlier part of that chat so the character can remember it. It is stored with your account, used only for that chat, and deleted when you start a new chat or clear it.</li>
-    <li><strong>Data kept in your browser:</strong> To load quickly, your device keeps a copy of your recent chats, past chats, profile picture, display name and preferences in your browser's local storage. Signing out does not erase it. To remove it, clear this site's data in your browser settings.</li>
-    <li><strong>Recent chats:</strong> A list of characters you have recently chatted with, stored to populate your sidebar.</li>
-    <li><strong>Usage data:</strong> Token counts, session start times, and weekly usage totals, used to enforce plan limits and display your usage dashboard.</li>
-    <li><strong>Subscription tier and PayPal subscription ID:</strong> Your current plan (Free, Advanced, X20, X50, or X100) and, for paid subscribers, the PayPal subscription identifier linked to your account, stored in our database.</li>
-    <li><strong>Content moderation records:</strong> Per-conversation violation strike counts (for our hate speech and slur policy) are stored to enforce our 3-strike moderation system. These records are tied to your account and character pair, not to your individual messages. Starting a new chat with a character resets the strike count for that character.</li>
-    <li><strong>User-created characters:</strong> Any characters you create, including their name, description, system prompt, and associated image.</li>
-  </ul>
-
-  <p><strong>Automatically collected:</strong></p>
-  <ul>
-    <li>Session identifiers (stored in a browser cookie, used for authentication)</li>
-    <li>Basic server logs (request timestamps, error messages) for operational purposes</li>
-    <li><strong>Your IP address</strong> — used solely for geographic location estimation during in-chat crisis detection (see <a href="#section-3a">Section 3a</a> below). It is never stored in our database and is not linked to your account or profile.</li>
-    <li><strong>Browser GPS location (optional)</strong> — if you grant permission when opening the Resources panel, your device's GPS coordinates are used for a one-time reverse-geocode lookup to display locally relevant support resources. Coordinates are never stored. See <a href="#section-3a">Section 3a</a> for full details.</li>
-  </ul>
-
-  <h2 id="section-3">3. How We Use Your Information</h2>
-  <ul>
-    <li>To authenticate you and maintain your session</li>
-    <li>To deliver AI character responses tailored to your conversation history</li>
-    <li>To save and display your archived past conversations through the in-app History panel</li>
-    <li>To enforce and display your subscription plan limits</li>
-    <li>To enforce content moderation policies, including tracking per-conversation violation strikes under our 3-strike hate speech policy</li>
-    <li>To detect crisis or self-harm language and respond with appropriate, locally relevant safety resources (see Section 3a for IP address use)</li>
-    <li>To populate your recent chats sidebar</li>
-    <li>To process subscription payments via PayPal and send email receipts after successful charges</li>
-    <li>To send service-related emails (such as subscription receipts, policy updates, and important account notices) to the email address associated with your Google account</li>
-    <li>To detect and prevent abuse or violations of our Terms of Service</li>
-  </ul>
-
-  <h2 id="section-3a">3a. Location Data and Geographic Resources (Safety Features)</h2>
-  <p>Character.Mind uses location information in two ways to provide locally relevant crisis and support resources. Both methods are used solely for safety purposes and neither stores your location data in our database.</p>
-
-  <p><strong>Method 1 — Browser GPS (Resources panel)</strong></p>
-  <p>When you open the Resources panel (the heart icon in the sidebar), your browser asks for permission to share your device's GPS or network-based location. This permission request is initiated by your browser and is entirely optional.</p>
-  <ul>
-    <li><strong>What we collect:</strong> If you grant permission, your device's latitude and longitude coordinates are sent to our server over HTTPS. We pass these coordinates to OpenStreetMap's Nominatim reverse-geocoding service to determine your city, province/state, and country.</li>
-    <li><strong>What we do not do:</strong> We do not store your GPS coordinates or the resulting location in our database. We do not link your location to your account or profile. We do not use it for advertising, tracking, or any purpose other than displaying locally relevant support resources.</li>
-    <li><strong>How long it is kept:</strong> Coordinates are used for a single reverse-geocode lookup and immediately discarded. They are never written to disk or our database.</li>
-    <li><strong>If you deny permission:</strong> Your browser location is not accessed. We fall back to IP-based geolocation (described below) to estimate your region.</li>
-    <li><strong>Third party:</strong> Your coordinates are sent to Nominatim (openstreetmap.org) to determine your location. Only the coordinates are shared; no account information is transmitted. OpenStreetMap's privacy policy applies to data they process.</li>
-  </ul>
-
-  <p><strong>Method 2 — IP Address (in-chat crisis detection)</strong></p>
-  <p>When our automated system detects a message that may indicate personal distress or thoughts of self-harm, we perform a one-time, ephemeral lookup of your IP address to estimate your geographic region. This is done solely to direct you to the Resources panel with locally relevant support lines.</p>
-  <ul>
-    <li><strong>What we look up:</strong> Country, province/state, and city, derived from your IP address via a third-party geolocation service (ip-api.com).</li>
-    <li><strong>What we do not do:</strong> We do not store your IP address in our database. We do not link your IP or location to your account or profile. We do not use it for advertising, analytics, or any purpose other than safety resource delivery.</li>
-    <li><strong>How long it is kept:</strong> The result is cached in server memory for up to one hour to avoid repeated external lookups, then discarded automatically. It is never written to disk or our database.</li>
-    <li><strong>Accuracy:</strong> IP geolocation is approximate. It identifies a general region, not a precise address. If you have already granted GPS permission via the Resources panel, that more accurate location is used instead.</li>
-    <li><strong>Third party:</strong> Your IP address is sent to ip-api.com to determine your approximate region. Only your IP is shared; no account information is transmitted. ip-api.com's privacy policy applies to data they process.</li>
-  </ul>
-
-  <p><strong>Legal basis for both methods:</strong> Under PIPEDA, Quebec Law 25, and GDPR, this processing is justified by vital interests — the safety of a person who may be in crisis — and by our legitimate interest in providing accurate, life-relevant information.</p>
-  <div class="callout">If you are uncomfortable with location detection, you may deny the GPS permission prompt and use a VPN. Safety resources will still be displayed; they may be less region-specific.</div>
-
-  <h2 id="section-4">4. Third-Party Services</h2>
-  <p>We share data with the following third parties only as necessary to operate the service:</p>
-  <ul>
-    <li><strong>Google OAuth 2.0</strong> — handles sign-in. We receive your basic profile information as described above. Google's privacy policy applies to data processed by Google.</li>
-    <li><strong>Groq</strong> — our AI inference provider. Your conversation messages are sent to Groq's API to generate character responses. If you attach an image, it is also sent to Groq so we can check it against our content rules and, if it passes, so the character can respond to it. Groq's privacy policy applies to data they process.</li>
-    <li><strong>ElevenLabs</strong> — text-to-speech provider, used only when voice calls are available. The text of a character's reply is sent to ElevenLabs to generate the spoken audio. No account information is transmitted. ElevenLabs' privacy policy applies to data they process.</li>
-    <li><strong>Neon (PostgreSQL)</strong> — our database host, where user data, conversations, and character definitions are stored.</li>
-    <li><strong>Render</strong> — our hosting provider, where the application server runs.</li>
-    <li><strong>PayPal</strong> — payment processing for paid subscriptions. PayPal's privacy policy applies to payment data they collect.</li>
-    <li><strong>ip-api.com</strong> — geographic location service. When crisis language is detected in a message, your IP address is sent to ip-api.com to determine your approximate region so we can display locally relevant crisis resources. Only your IP is shared; no account information is transmitted. ip-api.com's privacy policy applies to data they process.</li>
-    <li><strong>Nominatim / OpenStreetMap</strong> — reverse-geocoding service. When you open the Resources panel and grant GPS permission, your device's coordinates are sent to Nominatim to determine your city, province, and country. Only your coordinates are shared; no account information is transmitted. OpenStreetMap's privacy policy applies to data they process.</li>
-  </ul>
-  <p>We do not sell your personal data to third parties.</p>
-
-  <h2 id="section-5">5. Data Retention</h2>
-  <ul>
-    <li><strong>Active conversation history</strong> is retained while your account is active and may be cleared at any time from within the app.</li>
-    <li><strong>Archived past conversations</strong> are retained while your account is active and are browsable from the History panel. They are included in account deletion requests.</li>
-    <li><strong>Content moderation records</strong> (strike counts per user-character pair) are retained while your account is active to enforce our policies. Starting a new chat with a character resets the count for that character.</li>
-    <li><strong>Usage data</strong> (daily/weekly counters) is retained for the current billing and limit window, then reset.</li>
-    <li><strong>Account data</strong> (name, email, subscription tier, PayPal subscription ID) is retained as long as your account exists. The PayPal subscription ID is removed when a subscription is cancelled, expired, or suspended.</li>
-    <li><strong>IP geolocation results</strong> are cached in server memory for up to one hour and are never stored in our database. See <a href="#section-3a">Section 3a</a>.</li>
-    <li>If you request account deletion, we will remove your personal data from our database within 30 days, except where retention is required by law.</li>
-  </ul>
-
-  <h2 id="section-6">6. Email Communications</h2>
-  <p>By creating an account, you agree to receive service-related emails such as important policy updates and account notices. These are not marketing emails. We do not send promotional emails without your explicit opt-in.</p>
-  <p>To stop receiving service emails, contact us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a>. Note that opting out of service emails may mean you miss important updates about your account or the platform.</p>
-
-  <h2 id="section-7">7. Data Security</h2>
-  <p>We take reasonable measures to protect your data, including encrypted connections (HTTPS), secure session management, and access controls on our database. However, no system is perfectly secure. You use the service at your own risk, and we cannot guarantee absolute security.</p>
-
-  <h2 id="section-8">8. Children's Privacy</h2>
-  <p>Character.Mind is not directed at children under 13. We do not knowingly collect personal information from anyone under 13. If we become aware that a child under 13 has provided us with personal data, we will delete it promptly. If you believe this has occurred, contact us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a>.</p>
-
-  <h2 id="section-9">9. Your Rights and Choices</h2>
-  <ul>
-    <li><strong>Access and correction:</strong> You can view and update your profile picture within the app.</li>
-    <li><strong>Conversation deletion:</strong> You can clear your active conversation history with any character at any time from within the app. Archived past conversations are viewable in the History panel, where you can delete a single archived conversation or all of them. Deleting your account and all remaining data can be requested by contacting us.</li>
-    <li><strong>Account deletion:</strong> To request full deletion of your account and data, email us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a>.</li>
-    <li><strong>Data portability:</strong> Contact us if you would like a copy of the data we hold about you.</li>
-  </ul>
-
-  <div class="callout">If you are in the European Economic Area (EEA), UK, or California, additional rights may apply to you under GDPR or CCPA. Contact us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a> to exercise those rights.</div>
-
-  <h2 id="section-10">10. Cookies</h2>
-  <p>We use a single session cookie to keep you logged in. This cookie is strictly necessary for the service to function and does not track you across other websites. We do not use advertising or analytics cookies.</p>
-
-  <h2 id="section-11">11. Changes to This Policy</h2>
-  <p>We may update this Privacy Policy from time to time. When we do, we will update the effective date above and notify users via the platform. Continued use of Character.Mind after changes are posted constitutes your acceptance of the updated policy.</p>
-
-  <h2 id="section-12">12. Contact</h2>
-  <p>Questions about this Privacy Policy or your data? Contact us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a>.</p>
+<div class="hero">
+  <div class="hero-badge">Legal Document</div>
+  <h1 class="hero-title">Privacy Policy</h1>
+  <p class="hero-meta">Effective <span>October 3, 2026</span> &nbsp;·&nbsp; Last updated <span>October 3, 2026</span></p>
 </div>
 
+<div class="layout">
+  <aside class="toc">
+    <p class="toc-title">On this page</p>
+    <ul class="toc-list">
+      <li><a href="#s1"  class="toc-link">1. Overview</a></li>
+      <li><a href="#s2"  class="toc-link">2. Information We Collect</a></li>
+      <li><a href="#s3"  class="toc-link">3. How We Use It</a></li>
+      <li><a href="#s3a" class="toc-link">3a. Location &amp; Safety</a></li>
+      <li><a href="#s4"  class="toc-link">4. Third-Party Services</a></li>
+      <li><a href="#s5"  class="toc-link">5. Data Retention</a></li>
+      <li><a href="#s6"  class="toc-link">6. Email Communications</a></li>
+      <li><a href="#s7"  class="toc-link">7. Data Security</a></li>
+      <li><a href="#s8"  class="toc-link">8. Children's Privacy</a></li>
+      <li><a href="#s9"  class="toc-link">9. Your Rights</a></li>
+      <li><a href="#s10" class="toc-link">10. Cookies</a></li>
+      <li><a href="#s11" class="toc-link">11. Changes</a></li>
+      <li><a href="#s12" class="toc-link">12. Contact</a></li>
+    </ul>
+  </aside>
+
+  <main class="content">
+
+    <div class="section" id="s1">
+      <p class="section-num">Section 01</p>
+      <h2>Overview</h2>
+      <p>Character Mind Playtime Co ("we," "us," or "our") operates Character.Mind. This Privacy Policy explains what information we collect, how we use it, and the choices you have. By using the service, you agree to the practices described here.</p>
+    </div>
+
+    <div class="section" id="s2">
+      <p class="section-num">Section 02</p>
+      <h2>Information We Collect</h2>
+
+      <p><strong>From your Google account (at sign-in):</strong></p>
+      <div class="data-chips">
+        <span class="data-chip">Name &amp; profile picture</span>
+        <span class="data-chip">Google email address</span>
+        <span class="data-chip">Unique Google account ID</span>
+      </div>
+
+      <p><strong>From your use of the service:</strong></p>
+      <ul>
+        <li><strong>Active conversation history:</strong> Messages exchanged with AI characters are stored server-side to maintain continuity across sessions. You can clear this at any time from within the app.</li>
+        <li><strong>Archived past conversations:</strong> When you start a new chat with a character, the previous conversation is automatically saved to your archive so you can browse it later through the History panel. Archived conversations are stored in our database and are included in account deletion requests.</li>
+        <li><strong>Long-term memory notes:</strong> When you chat with Opys or Opys 5, we keep a short, automatically written summary of the earlier part of that chat so the character can remember it. It is stored with your account, used only for that chat, and deleted when you start a new chat or clear it.</li>
+        <li><strong>Data kept in your browser:</strong> To load quickly, your device keeps a copy of your recent chats, past chats, profile picture, display name and preferences in your browser's local storage. Signing out does not erase it. To remove it, clear this site's data in your browser settings.</li>
+        <li><strong>Recent chats:</strong> A list of characters you have recently chatted with, stored to populate your sidebar.</li>
+        <li><strong>Usage data:</strong> Token counts, session start times, and weekly usage totals, used to enforce plan limits and display your usage dashboard.</li>
+        <li><strong>Subscription tier and PayPal subscription ID:</strong> Your current plan (Free, Advanced, X20, X50, or X100) and, for paid subscribers, the PayPal subscription identifier linked to your account, stored in our database.</li>
+        <li><strong>Content moderation records:</strong> Per-conversation violation strike counts (for our hate speech and slur policy) are stored to enforce our 3-strike moderation system. These records are tied to your account and character pair, not to your individual messages.</li>
+        <li><strong>User-created characters:</strong> Any characters you create, including their name, description, system prompt, and associated image.</li>
+      </ul>
+
+      <p><strong>Automatically collected:</strong></p>
+      <ul>
+        <li>Session identifiers (stored in a browser cookie, used for authentication)</li>
+        <li>Basic server logs (request timestamps, error messages) for operational purposes</li>
+        <li><strong>Your IP address</strong> — used solely for geographic location estimation during in-chat crisis detection (see <a href="#s3a">Section 3a</a>). It is never stored in our database and is not linked to your account or profile.</li>
+        <li><strong>Browser GPS location (optional)</strong> — if you grant permission when opening the Resources panel, your device's GPS coordinates are used for a one-time reverse-geocode lookup to display locally relevant support resources. Coordinates are never stored.</li>
+      </ul>
+    </div>
+
+    <div class="section" id="s3">
+      <p class="section-num">Section 03</p>
+      <h2>How We Use Your Information</h2>
+      <ul>
+        <li>To authenticate you and maintain your session</li>
+        <li>To deliver AI character responses tailored to your conversation history</li>
+        <li>To save and display your archived past conversations through the in-app History panel</li>
+        <li>To enforce and display your subscription plan limits</li>
+        <li>To enforce content moderation policies, including tracking per-conversation violation strikes under our 3-strike hate speech policy</li>
+        <li>To detect crisis or self-harm language and respond with appropriate, locally relevant safety resources (see Section 3a for IP address use)</li>
+        <li>To populate your recent chats sidebar</li>
+        <li>To process subscription payments via PayPal and send email receipts after successful charges</li>
+        <li>To send service-related emails (such as subscription receipts, policy updates, and important account notices) to the email address associated with your Google account</li>
+        <li>To detect and prevent abuse or violations of our Terms of Service</li>
+      </ul>
+    </div>
+
+    <div class="section" id="s3a">
+      <p class="section-num">Section 03a</p>
+      <h2>Location Data and Geographic Resources (Safety Features)</h2>
+      <p>Character.Mind uses location information in two ways to provide locally relevant crisis and support resources. Both methods are used solely for safety purposes and neither stores your location data in our database.</p>
+
+      <p><strong>Method 1 — Browser GPS (Resources panel)</strong></p>
+      <p>When you open the Resources panel (the heart icon in the sidebar), your browser asks for permission to share your device's GPS or network-based location. This permission request is initiated by your browser and is entirely optional.</p>
+      <ul>
+        <li><strong>What we collect:</strong> If you grant permission, your device's latitude and longitude coordinates are sent to our server over HTTPS. We pass these coordinates to OpenStreetMap's Nominatim reverse-geocoding service to determine your city, province/state, and country.</li>
+        <li><strong>What we do not do:</strong> We do not store your GPS coordinates or the resulting location in our database. We do not link your location to your account or profile. We do not use it for advertising, tracking, or any purpose other than displaying locally relevant support resources.</li>
+        <li><strong>How long it is kept:</strong> Coordinates are used for a single reverse-geocode lookup and immediately discarded. They are never written to disk or our database.</li>
+        <li><strong>Third party:</strong> Your coordinates are sent to Nominatim (openstreetmap.org). Only the coordinates are shared; no account information is transmitted. OpenStreetMap's privacy policy applies to data they process.</li>
+      </ul>
+
+      <p><strong>Method 2 — IP Address (in-chat crisis detection)</strong></p>
+      <p>When our automated system detects a message that may indicate personal distress or thoughts of self-harm, we perform a one-time, ephemeral lookup of your IP address to estimate your geographic region.</p>
+      <ul>
+        <li><strong>What we look up:</strong> Country, province/state, and city, derived from your IP address via ip-api.com.</li>
+        <li><strong>What we do not do:</strong> We do not store your IP address in our database. We do not link your IP or location to your account or profile.</li>
+        <li><strong>How long it is kept:</strong> The result is cached in server memory for up to one hour to avoid repeated external lookups, then discarded automatically. It is never written to disk or our database.</li>
+        <li><strong>Third party:</strong> Your IP address is sent to ip-api.com to determine your approximate region. Only your IP is shared; no account information is transmitted.</li>
+      </ul>
+
+      <p><strong>Legal basis for both methods:</strong> Under PIPEDA, Quebec Law 25, and GDPR, this processing is justified by vital interests — the safety of a person who may be in crisis — and by our legitimate interest in providing accurate, life-relevant information.</p>
+      <div class="callout">If you are uncomfortable with location detection, you may deny the GPS permission prompt and use a VPN. Safety resources will still be displayed; they may be less region-specific.</div>
+    </div>
+
+    <div class="section" id="s4">
+      <p class="section-num">Section 04</p>
+      <h2>Third-Party Services</h2>
+      <p>We share data with the following third parties only as necessary to operate the service:</p>
+      <ul>
+        <li><strong>Google OAuth 2.0</strong> — handles sign-in. We receive your basic profile information as described above.</li>
+        <li><strong>Groq</strong> — our AI inference provider. Your conversation messages are sent to Groq's API to generate character responses. If you attach an image, it is also sent to Groq.</li>
+        <li><strong>ElevenLabs</strong> — text-to-speech provider, used only when voice calls are available. The text of a character's reply is sent to ElevenLabs to generate spoken audio. No account information is transmitted.</li>
+        <li><strong>Neon (PostgreSQL)</strong> — our database host, where user data, conversations, and character definitions are stored.</li>
+        <li><strong>Render</strong> — our hosting provider, where the application server runs.</li>
+        <li><strong>PayPal</strong> — payment processing for paid subscriptions.</li>
+        <li><strong>ip-api.com</strong> — geographic location service used during crisis detection. Only your IP is shared; no account information is transmitted.</li>
+        <li><strong>Nominatim / OpenStreetMap</strong> — reverse-geocoding service. When you open the Resources panel and grant GPS permission, your device's coordinates are sent to Nominatim to determine your city, province, and country.</li>
+      </ul>
+      <p>We do not sell your personal data to third parties.</p>
+    </div>
+
+    <div class="section" id="s5">
+      <p class="section-num">Section 05</p>
+      <h2>Data Retention</h2>
+      <ul>
+        <li><strong>Active conversation history</strong> is retained while your account is active and may be cleared at any time from within the app.</li>
+        <li><strong>Archived past conversations</strong> are retained while your account is active and are browsable from the History panel. They are included in account deletion requests.</li>
+        <li><strong>Content moderation records</strong> (strike counts per user-character pair) are retained while your account is active to enforce our policies.</li>
+        <li><strong>Usage data</strong> (daily/weekly counters) is retained for the current billing and limit window, then reset.</li>
+        <li><strong>Account data</strong> (name, email, subscription tier, PayPal subscription ID) is retained as long as your account exists. The PayPal subscription ID is removed when a subscription is cancelled, expired, or suspended.</li>
+        <li><strong>IP geolocation results</strong> are cached in server memory for up to one hour and are never stored in our database. See <a href="#s3a">Section 3a</a>.</li>
+        <li>If you request account deletion, we will remove your personal data from our database within 30 days, except where retention is required by law.</li>
+      </ul>
+    </div>
+
+    <div class="section" id="s6">
+      <p class="section-num">Section 06</p>
+      <h2>Email Communications</h2>
+      <p>By creating an account, you agree to receive service-related emails such as important policy updates and account notices. These are not marketing emails. We do not send promotional emails without your explicit opt-in.</p>
+      <p>To stop receiving service emails, contact us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a>. Note that opting out of service emails may mean you miss important updates about your account or the platform.</p>
+    </div>
+
+    <div class="section" id="s7">
+      <p class="section-num">Section 07</p>
+      <h2>Data Security</h2>
+      <p>We take reasonable measures to protect your data, including encrypted connections (HTTPS), secure session management, and access controls on our database. However, no system is perfectly secure. You use the service at your own risk, and we cannot guarantee absolute security.</p>
+    </div>
+
+    <div class="section" id="s8">
+      <p class="section-num">Section 08</p>
+      <h2>Children's Privacy</h2>
+      <p>Character.Mind is not directed at children under 13. We do not knowingly collect personal information from anyone under 13. If we become aware that a child under 13 has provided us with personal data, we will delete it promptly. If you believe this has occurred, contact us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a>.</p>
+    </div>
+
+    <div class="section" id="s9">
+      <p class="section-num">Section 09</p>
+      <h2>Your Rights and Choices</h2>
+      <ul>
+        <li><strong>Access and correction:</strong> You can view and update your profile picture within the app.</li>
+        <li><strong>Conversation deletion:</strong> You can clear your active conversation history with any character at any time from within the app. Archived past conversations are viewable in the History panel, where you can delete individual archived conversations or all of them.</li>
+        <li><strong>Account deletion:</strong> To request full deletion of your account and data, email us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a>.</li>
+        <li><strong>Data portability:</strong> Contact us if you would like a copy of the data we hold about you.</li>
+      </ul>
+      <div class="callout">If you are in the European Economic Area (EEA), UK, or California, additional rights may apply to you under GDPR or CCPA. Contact us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a> to exercise those rights.</div>
+    </div>
+
+    <div class="section" id="s10">
+      <p class="section-num">Section 10</p>
+      <h2>Cookies</h2>
+      <p>We use a single session cookie to keep you logged in. This cookie is strictly necessary for the service to function and does not track you across other websites. We do not use advertising or analytics cookies.</p>
+    </div>
+
+    <div class="section" id="s11">
+      <p class="section-num">Section 11</p>
+      <h2>Changes to This Policy</h2>
+      <p>We may update this Privacy Policy from time to time. When we do, we will update the effective date above and notify users via the platform. Continued use of Character.Mind after changes are posted constitutes your acceptance of the updated policy.</p>
+    </div>
+
+    <div class="section" id="s12">
+      <p class="section-num">Section 12</p>
+      <h2>Contact</h2>
+      <p>Questions about this Privacy Policy or your data? Contact us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a>.</p>
+    </div>
+
+  </main>
+</div>
+
+<footer class="site-footer">
+  <span class="footer-brand">© 2026 Character Mind Playtime Co</span>
+  <nav class="footer-links">
+    <a href="/terms.html" class="footer-link">Terms of Service</a>
+    <a href="/privacy.html" class="footer-link">Privacy Policy</a>
+    <a href="mailto:support.charactermind@gmail.com" class="footer-link">Contact</a>
+    <a href="/" class="footer-link">Back to App</a>
+  </nav>
+</footer>
+
+<script>
+  const prog = document.getElementById('readProgress');
+  function updateProgress() {
+    const scrollTop = window.scrollY;
+    const docH = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = docH > 0 ? Math.min(100, (scrollTop / docH) * 100) : 0;
+    document.documentElement.style.setProperty('--read-bar-pct', pct + '%');
+  }
+  window.addEventListener('scroll', updateProgress, { passive: true });
+
+  const sections = document.querySelectorAll('.section[id]');
+  const tocLinks = document.querySelectorAll('.toc-link');
+  function updateToc() {
+    let active = null;
+    sections.forEach(s => { if (s.getBoundingClientRect().top <= 100) active = s.id; });
+    tocLinks.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + active));
+  }
+  window.addEventListener('scroll', updateToc, { passive: true });
+  updateToc();
+</script>
 </body>
 </html>

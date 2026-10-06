@@ -821,7 +821,19 @@ html, body {
 .btn-send:hover { opacity: .88; transform: scale(1.04); }
 .btn-send svg { width: 17px; height: 17px; }
 .btn-send:disabled { opacity: .28; cursor: not-allowed; transform: none; }
-.disclaimer { font-size: 11px; color: var(--text3); text-align: center; margin-top: 7px; }
+.disclaimer {
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
+  gap: 6px 10px; font-size: 11px; color: var(--text3);
+  text-align: center; margin-top: 7px; line-height: 1.4;
+}
+.disclaimer-text { color: var(--text3); }
+.disclaimer-links { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.disclaimer-dot { color: var(--text3); opacity: .5; }
+.disclaimer-link {
+  color: var(--text3); text-decoration: none;
+  transition: color .15s;
+}
+.disclaimer-link:hover { color: var(--text2); }
 
 /* ── Image preview strip (above input) ──────────────────────────────────────── */
 .img-preview-strip {
