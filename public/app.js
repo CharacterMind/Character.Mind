@@ -2960,8 +2960,8 @@ function showWarning(msg, autoCloseMs, persistent) {
 // ── Usage warning banners ──────────────────────────────────────────────────────
 // Always drawn from the CURRENT usage numbers (never from one-off events or saved timestamps), so they are the same after every
 // reload, on every device and in every browser. They use the same steps as the bar colours and the headline: 50%, 75% and 90%.
-const WEEKLY_BANNER_TEXT = { 50: "You've used half of your weekly limit.", 75: "You've used 75% of your weekly limit.", 90: "You've used 90% of your weekly limit." };
-const SESSION_BANNER_TEXT = { 90: "You've used 90% of your session limit." };   // a session is short and resets by itself, so one warning is enough
+const WEEKLY_BANNER_TEXT = { 50: "You're approaching your weekly limit.", 75: "You've used 75% of your weekly limit.", 90: "You've used 90% of your weekly limit — upgrade for more." };
+const SESSION_BANNER_TEXT = { 90: "You're approaching your session limit." };   // a session is short and resets by itself, so one warning is enough
 function usagePctOf(used, limit) { return (limit > 0 && typeof used === 'number') ? Math.min(100, Math.round(used / limit * 100)) : 0; }   // the same rounding the bars show
 function usageStep(pct) { return pct >= 90 ? 90 : pct >= 75 ? 75 : pct >= 50 ? 50 : 0; }
 function bannerDismissKey() { return 'cm_usage_banner_dismissed_' + (currentUser?.googleId || 'anon'); }
