@@ -42,6 +42,21 @@ if (!process.env.DATABASE_URL) {
   console.warn('[WARN] DATABASE_URL is not set — character save/load will not work');
 }
 
+// Bind to the port immediately so Render routes traffic here during startup.
+// serverReady stays false until DB init finishes, so all early requests see
+// the maintenance page. Once ready, serverReady flips true and the site opens.
+app.listen(PORT, () => {
+  console.log(`\nAI Character Site bound on port ${PORT} — initializing (maintenance active)...\n`);
+  if (!db) {
+    serverReady = true;
+    loadOwnerIds();
+    console.log('No DB — skipping DB init, site ready.');
+    return;
+  }
+  initDB();
+});
+
+function initDB() {
 if (db) {
   db.query(`
     CREATE TABLE IF NOT EXISTS characters (
@@ -101,7 +116,11 @@ if (db) {
     )
   `).then(() => loadLimitsFromDB())
     .catch(err => console.error('user_limits table init error:', err))
-    .finally(() => startListening());
+    .finally(() => {
+      serverReady = true;
+      loadOwnerIds();
+      console.log('\nAI Character Site ready — maintenance lifted.\n');
+    });
 
   db.query(`
     CREATE TABLE IF NOT EXISTS chat_moderation (
@@ -3895,14 +3914,4 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong. Please try again.' });
 });
 
-function startListening() {
-  app.listen(PORT, () => {
-    serverReady = true;
-    loadOwnerIds();
-    console.log(`\nAI Character Site running at http://localhost:${PORT}\n`);
-  });
-}
-
-if (!db) {
-  startListening();
-}
+} // end initDB
