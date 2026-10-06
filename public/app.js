@@ -3412,7 +3412,6 @@ function msgMenuHtml(role) {
        <button class='msg-di danger' onclick='removeMsgEl(this)'>${MI.remove}Remove message</button>
        <button class='msg-di' onclick='rewindToHere(this)'>${MI.rewind}Rewind to here</button>`
     : `<button class='msg-di' onclick='copyMsgText(this)'>${MI.copy}Copy</button>
-       <button class='msg-di' onclick='editMsgText(this)'>${MI.edit}Edit response</button>
        <button class='msg-di danger' onclick='removeMsgEl(this)'>${MI.remove}Remove message</button>
        <button class='msg-di' onclick='rewindToHere(this)'>${MI.rewind}Rewind to here</button>`;
   return `<div class='msg-menu-wrap'><button class='msg-menu-btn' onclick='toggleMsgMenu(this)'>⋯</button><div class='msg-dropdown hidden'>${items}</div></div>`;
