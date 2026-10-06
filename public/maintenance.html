@@ -203,15 +203,16 @@
   .mode-pill { position: fixed; bottom: 16px; right: 16px; z-index: 30; padding: 7px 14px; border-radius: 999px; background: rgba(12,6,24,.78); border: 1px solid rgba(255,255,255,.2); color: rgba(255,255,255,.82); font-size: 12px; cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); transition: background .2s; font-family: inherit; }
   .mode-pill:hover { background: rgba(28,10,48,.92); }
 
-  /* ---------- calm mode (body.calm) ---------- */
-  body.calm .band { animation-duration: 60s !important; }
-  body.calm .band.b2 { animation-duration: 88s !important; }
-  body.calm .band.b3 { animation-duration: 120s !important; }
+  /* ---------- calm mode (body.calm) — concert look, just slower ---------- */
+  body.calm .band { animation-duration: 18s !important; }
+  body.calm .band.b2 { animation-duration: 26s !important; }
+  body.calm .band.b3 { animation-duration: 34s !important; }
   body.calm .band.b4 { display: none; }
-  body.calm .scan { display: none !important; }
-  body.calm .beam { animation-duration: 28s !important; opacity: .18 !important; filter: blur(26px) !important; }
-  body.calm .spark { display: none !important; }
-  body.calm .show { filter: saturate(.7) brightness(.75) !important; }
+  body.calm .scan { animation-duration: 8s !important; opacity: .7 !important; }
+  body.calm .beam { animation-duration: 8s !important; opacity: .65 !important; filter: blur(14px) !important; }
+  body.calm .show { filter: saturate(1.5) brightness(0.98) !important; }
+  body.calm .pulse-layer { animation-duration: 4s !important; }
+  body.calm .flash-layer { display: none; }
 
   /* ---------- 4th band: wide horizontal stripe for extra concert chaos ---------- */
   .band.b4 { transform: scale(2.2) rotate(14deg); animation: slide 22s linear infinite; mix-blend-mode: color-dodge; opacity: .18; }
@@ -253,9 +254,7 @@
     background: radial-gradient(ellipse 90% 70% at 50% 60%, rgba(255,80,255,.45), transparent 70%) !important;
   }
 
-  /* character RGB glow + shake */
-  body:not(.calm) .pal img { animation: charglow 0.28s steps(1) infinite !important; }
-  body:not(.calm) .rig-canvas { animation: charglow 0.28s steps(1) infinite, charshake 0.2s ease-in-out infinite !important; }
+  /* shared RGB glow keyframe */
   @keyframes charglow {
     0%   { filter: drop-shadow(0 10px 14px rgba(0,0,0,.4)) drop-shadow(0 0 40px #ff0000) drop-shadow(0 0 80px #ff0000); }
     20%  { filter: drop-shadow(0 10px 14px rgba(0,0,0,.4)) drop-shadow(0 0 40px #ff8800) drop-shadow(0 0 80px #ff8800); }
@@ -263,16 +262,62 @@
     60%  { filter: drop-shadow(0 10px 14px rgba(0,0,0,.4)) drop-shadow(0 0 40px #0099ff) drop-shadow(0 0 80px #0099ff); }
     80%  { filter: drop-shadow(0 10px 14px rgba(0,0,0,.4)) drop-shadow(0 0 40px #cc00ff) drop-shadow(0 0 80px #cc00ff); }
   }
-  @keyframes charshake {
-    0%, 100% { transform: translateY(0) scale(1); }
-    25%  { transform: translateY(-12px) scale(1.05) rotate(2.5deg); }
-    50%  { transform: translateY(0) scale(0.95) rotate(-1.5deg); }
-    75%  { transform: translateY(-7px) scale(1.04) rotate(1deg); }
+
+  /* Lily: breakdancer — hops, spins all the way around, teleports sides */
+  body:not(.calm) .pal.l img,
+  body:not(.calm) .pal.l .rig-canvas {
+    animation: charglow 0.28s steps(1) infinite, lily-rave 0.62s ease-in-out infinite !important;
+  }
+  @keyframes lily-rave {
+    0%   { transform: translate(0, 0) rotate(0deg) scale(1); }
+    8%   { transform: translate(-42px, -62px) rotate(100deg) scale(1.18); }
+    18%  { transform: translate(38px, -12px) rotate(0deg) scale(0.76); }
+    28%  { transform: translate(-28px, -78px) rotate(-100deg) scale(1.24); }
+    40%  { transform: translate(52px, 0) rotate(200deg) scale(1.06); }
+    52%  { transform: translate(0, -82px) rotate(300deg) scale(1.32); }
+    62%  { transform: translate(-52px, -22px) rotate(360deg) scale(0.86); }
+    74%  { transform: translate(42px, -42px) rotate(360deg) scale(1.14); }
+    88%  { transform: translate(-14px, 0) rotate(360deg) scale(0.94); }
+    100% { transform: translate(0, 0) rotate(360deg) scale(1); }
   }
 
-  /* CSS dances faster for non-rigged fallback */
-  body:not(.calm) .pal.l:not(.rigged) { animation-duration: 0.75s !important; }
-  body:not(.calm) .pal.d:not(.rigged) { animation-duration: 0.38s !important; }
+  /* Doey: rubber blob — extreme squash/stretch/skew, springs up and crashes down */
+  body:not(.calm) .pal.d img,
+  body:not(.calm) .pal.d .rig-canvas {
+    animation: charglow 0.28s steps(1) infinite, doey-rave 0.42s ease-in-out infinite !important;
+  }
+  @keyframes doey-rave {
+    0%   { transform: scale(1, 1) skewX(0deg) translateY(0); }
+    8%   { transform: scale(2.5, 0.4) skewX(0deg) translateY(6px); }
+    18%  { transform: scale(0.48, 2.5) skewX(-15deg) translateY(-72px); }
+    28%  { transform: scale(1.9, 0.55) skewX(12deg) translateY(0); }
+    40%  { transform: scale(0.52, 2.1) skewX(-12deg) translateY(-58px); }
+    52%  { transform: scale(2.1, 0.48) skewX(18deg) translateY(0); }
+    62%  { transform: scale(0.62, 1.9) skewX(-14deg) translateY(-68px); }
+    74%  { transform: scale(1.45, 0.7) skewX(7deg) translateY(0); }
+    88%  { transform: scale(0.9, 1.12) skewX(-3deg) translateY(-18px); }
+    100% { transform: scale(1, 1) skewX(0deg) translateY(0); }
+  }
+
+  /* Poppy: marionette chaos — flips upside down, snaps side to side, random scale pops */
+  body:not(.calm) .pal.p img,
+  body:not(.calm) .pal.p .rig-canvas {
+    animation: charglow 0.28s steps(1) infinite, poppy-rave 0.55s ease-in-out infinite !important;
+  }
+  @keyframes poppy-rave {
+    0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+    10%  { transform: translate(-28px, -52px) rotate(-22deg) scale(1.3); }
+    22%  { transform: translate(32px, -14px) rotate(180deg) scale(0.7); }
+    35%  { transform: translate(-32px, 0) rotate(180deg) scale(1.45); }
+    48%  { transform: translate(28px, -62px) rotate(360deg) scale(0.76); }
+    60%  { transform: translate(-42px, -22px) rotate(270deg) scale(1.2); }
+    72%  { transform: translate(38px, -48px) rotate(360deg) scale(1.06); }
+    86%  { transform: translate(-16px, 0) rotate(22deg) scale(0.88); }
+  }
+
+  /* non-rigged CSS dance fallback: also fast */
+  body:not(.calm) .pal.l:not(.rigged) { animation-duration: 0.62s !important; }
+  body:not(.calm) .pal.d:not(.rigged) { animation-duration: 0.42s !important; }
   body:not(.calm) .pal.p:not(.rigged) { animation-duration: 0.55s !important; }
 
   /* full-screen color flash bursts */
