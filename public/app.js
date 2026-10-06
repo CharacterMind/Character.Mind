@@ -1515,7 +1515,7 @@ function charRow(c) {
   return `<div class="char-row" data-id="${safeId}" onclick="openChat(this.dataset.id)">
     ${av}
     <div class="char-row-info">
-      <div class="char-row-name">${escHtml(c.name)}</div>
+      <div class="char-row-name" style="color:${safeColor(c.color)}">${escHtml(c.name)}</div>
       <div class="char-row-tagline">${escHtml(c.tagline || '')}</div>
       <div class="char-row-meta">${c.isOfficial ? '<span class="hc-creator-official">By Character Mind Playtime Co</span>' : escHtml('By ' + (c.creator || 'a community creator'))} · ${formatCount(c.interactions||0)} chats</div>
     </div>
@@ -1526,7 +1526,7 @@ function charRow(c) {
 function charCard(c) {
   return `<div class="char-card" data-id="${escHtml(c.id)}" onclick="openChat(this.dataset.id)">
     ${charAvatarHtml(c, 'card-avatar')}
-    <div class="card-name">${escHtml(c.name)}</div>
+    <div class="card-name" style="color:${safeColor(c.color)}">${escHtml(c.name)}</div>
     <div class="card-tagline">${escHtml(c.tagline || '')}</div>
     <div class="card-meta">
       <span class="card-creator">${c.isOfficial ? '<span class="hc-creator-official">By Character Mind Playtime Co</span>' : escHtml('By ' + (c.creator || 'a community creator'))}</span>
@@ -1571,7 +1571,7 @@ function renderFeed() {
     return `<div class="feed-card">
       <div class="feed-card-header">
         ${av}
-        <div><div class="feed-char-name">${escHtml(c.name)}</div><div class="feed-char-sub">${escHtml(c.creator||'@you')} · ${formatCount(c.interactions||0)} chats</div></div>
+        <div><div class="feed-char-name" style="color:${safeColor(c.color)}">${escHtml(c.name)}</div><div class="feed-char-sub">${escHtml(c.creator||'@you')} · ${formatCount(c.interactions||0)} chats</div></div>
       </div>
       <div class="feed-preview">${escHtml(c.description || c.tagline || '')}</div>
       <div class="feed-footer">
