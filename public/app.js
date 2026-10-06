@@ -5256,11 +5256,19 @@ async function newChat() {
   if (!currentChar) return;
   abandonStream();
   releaseChatInput();
-  // Archive the chat on the server first. If saving fails (the server then keeps the live chat), do NOT clear it: tell the person instead.
-  const arch = await fetch(`/api/conversations/${currentChar.id}/archive`, { method: 'POST' }).catch(() => null);
+  // Archive the chat on the server first. If saving fails (the server then keeps the live chat), do NOT clear it.
+  // Retry once after 15 s — covers Render free-tier cold-start which can take up to 30 s.
+  let arch = await fetch(`/api/conversations/${currentChar.id}/archive`, { method: 'POST' }).catch(() => null);
   if (!arch || !arch.ok) {
-    showWarning("Couldn't save your current chat, so it was left as it is. Please try again in a moment.");
-    return;
+    const firstStatus = arch ? arch.status : 0;
+    showWarning("Saving your chat — please wait a moment…", 16000);
+    await new Promise(r => setTimeout(r, 15000));
+    arch = await fetch(`/api/conversations/${currentChar.id}/archive`, { method: 'POST' }).catch(() => null);
+    if (!arch || !arch.ok) {
+      const status = arch ? arch.status : firstStatus;
+      showWarning(`Couldn't save your current chat (error ${status || 'network'}), so it was left as it is. Please try again in a moment.`);
+      return;
+    }
   }
   savePastChatLocal(currentChar.id, loadHistoryLocal(currentChar.id));
   // If this chat was permanently banned, unlock it so the new conversation can proceed
