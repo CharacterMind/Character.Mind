@@ -639,7 +639,7 @@ const NSFW_BLOCK_TOKENS = 200;
 
 const TIER_CALL_LIMITS  = { free: 3,   advanced: 5,   x20: 100,  x50: 250,  x100: 500  };
 const TIER_MEMO_LIMITS  = { free: 30,  advanced: 50,  x20: 1000, x50: 2500, x100: 5000 };
-const TIER_IMAGE_LIMITS = { free: 5,   advanced: 10,  x20: 200,  x50: 500,  x100: 1000 };
+const TIER_IMAGE_LIMITS = { free: 1,   advanced: 10,  x20: 200,  x50: 500,  x100: 1000 };
 
 function getCallLimitForUser(userId) {
   const tier = userLimits[userId]?.subscriptionTier || 'free';
@@ -667,7 +667,7 @@ const userLimits = {};
 function getLimits(sid) {
   const now = Date.now();
   if (!userLimits[sid]) {
-    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null, memosToday: 0, memoDayStart: null, imagesDay: 0, imageDayStart: null, subscriptionTier: 'free' };
+    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null, memosToday: 0, memoDayStart: null, imagesDay: 0, imageDayStart: null, imageFirstUsedAt: null, subscriptionTier: 'free' };
   }
   const u = userLimits[sid];
   if (u.subscriptionTier === undefined) u.subscriptionTier = 'free';
@@ -684,7 +684,7 @@ function getLimits(sid) {
   const callWindow = getCallWindowStart();
   if (!u.callDayStart  || u.callDayStart  < callWindow) { u.callsToday  = 0; u.callDayStart  = callWindow; }
   if (!u.memoDayStart  || u.memoDayStart  < callWindow) { u.memosToday  = 0; u.memoDayStart  = callWindow; }
-  if (!u.imageDayStart || u.imageDayStart < callWindow) { u.imagesDay   = 0; u.imageDayStart = callWindow; }
+  if (u.imageFirstUsedAt && (now - u.imageFirstUsedAt) > 24 * 60 * 60 * 1000) { u.imagesDay = 0; u.imageFirstUsedAt = null; }
   if (!u.regenDayStart || u.regenDayStart < callWindow) { u.regenCount = 0; u.regenDayStart = callWindow; }
   return u;
 }
@@ -700,6 +700,7 @@ function checkLimits(sid) {
 function buildUsagePayload(u, userId) {
   const callLimit = userId ? getCallLimitForUser(userId) : (TIER_CALL_LIMITS[u.subscriptionTier || 'free'] ?? TIER_CALL_LIMITS.free);
   const memoLimit = userId ? getMemoLimitForUser(userId) : (TIER_MEMO_LIMITS[u.subscriptionTier || 'free'] ?? TIER_MEMO_LIMITS.free);
+  const imgLimit  = userId ? getImageLimitForUser(userId) : (TIER_IMAGE_LIMITS[u.subscriptionTier || 'free'] ?? TIER_IMAGE_LIMITS.free);
   const callsRemaining = callLimit === Infinity ? 9999 : Math.max(0, callLimit - (u.callsToday || 0));
   const memosRemaining = memoLimit === Infinity ? 9999 : Math.max(0, memoLimit - (u.memosToday || 0));
   return {
@@ -720,6 +721,9 @@ function buildUsagePayload(u, userId) {
     memosToday: u.memosToday || 0,
     memosLimit: memoLimit === Infinity ? 9999 : memoLimit,
     memosRemaining,
+    imagesDay: u.imagesDay || 0,
+    imageLimit: imgLimit === Infinity ? 9999 : imgLimit,
+    imageResetAt: u.imageFirstUsedAt ? u.imageFirstUsedAt + 24 * 60 * 60 * 1000 : null,
     subscriptionTier: u.subscriptionTier || 'free',
     callWindowResetsAt: getCallWindowStart() + 24 * 60 * 60 * 1000
   };
@@ -3286,8 +3290,10 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     const imgU = getLimits(userId);
     const imgLimit = getImageLimitForUser(userId);
     if (imgLimit !== Infinity && (imgU.imagesDay || 0) >= imgLimit) {
-      return res.status(429).json({ error: `Daily image limit reached (${imgLimit}/day). Resets at 8 AM UTC.` });
+      const imgResetAt = imgU.imageFirstUsedAt ? imgU.imageFirstUsedAt + 24 * 60 * 60 * 1000 : null;
+      return res.status(429).json({ error: `Image upload limit reached.`, type: 'image', imageResetAt: imgResetAt });
     }
+    if (!imgU.imageFirstUsedAt) imgU.imageFirstUsedAt = Date.now();
     imgU.imagesDay = (imgU.imagesDay || 0) + 1; // attempts count toward the cap, including blocked ones
     let explicit;
     try {

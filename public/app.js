@@ -178,6 +178,7 @@ const PLAN_DATA = [
       'Opas & Opes: fast, capable AI for casual chats',
       'Every character unlocked — no paywalled cast',
       '3 messages per day to try it out',
+      '1 image upload per day',
     ],
   },
   {
@@ -187,6 +188,7 @@ const PLAN_DATA = [
       'Opis: sharp at logic, riddles, and light banter',
       'Opos: GM-mode — sets scenes, runs NPCs, drives drama',
       '5 messages per day — enough for daily check-ins',
+      '10 image uploads per day',
       'Everything in Free',
     ],
   },
@@ -198,6 +200,7 @@ const PLAN_DATA = [
       'Tracks your story from the first message — no repetition, no forgetting',
       'Replies are 3–5× longer and more immersive than free models',
       '100 messages per day — enough for a serious writing session',
+      '200 image uploads per day',
       'Everything in Advanced',
     ],
   },
@@ -210,6 +213,7 @@ const PLAN_DATA = [
       'Plans scenes before writing them: outlines, tension beats, payoffs',
       'Builds full story arcs — not just replies, but structured narratives',
       '250 messages per day — enough to write a novel chapter by chapter',
+      '500 image uploads per day',
       'Everything in X20',
     ],
   },
@@ -223,6 +227,7 @@ const PLAN_DATA = [
       'Zero repetition — tracks every plot point, line, and character detail ever written',
       'Handles full novels, series arcs, and long-running collaborative stories',
       '500 messages per day — built for dedicated writers and daily storytellers',
+      '1,000 image uploads per day',
       'Everything in X50',
     ],
   },
@@ -2213,6 +2218,8 @@ async function generateGreeting() {
 
 // ── Image attachment ──────────────────────────────────────────────────────────
 let pendingImageB64 = null;
+let imageUploadLimitReached = false;
+let imageUploadResetAt = null;
 
 function onImageSelected(event) {
   const file = event.target.files?.[0];
@@ -2255,6 +2262,56 @@ function clearPendingImage() {
   const thumb = document.getElementById('imgPreviewThumb');
   if (strip) strip.style.display = 'none';
   if (thumb) thumb.src = '';
+}
+
+function formatImageResetTime(resetAt) {
+  if (!resetAt) return '';
+  const d = new Date(resetAt);
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const day = d.getDate();
+  const suffix = day === 1 || day === 21 || day === 31 ? 'st' : day === 2 || day === 22 ? 'nd' : day === 3 || day === 23 ? 'rd' : 'th';
+  const h = d.getHours(); const m = String(d.getMinutes()).padStart(2,'0');
+  const ampm = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 || 12;
+  return `${months[d.getMonth()]} ${day}${suffix} at ${h12}:${m} ${ampm}`;
+}
+
+function setImageLimitReached(resetAt) {
+  imageUploadLimitReached = true;
+  imageUploadResetAt = resetAt || null;
+  const btn = document.querySelector('.btn-attach');
+  if (btn) {
+    btn.classList.add('btn-attach--limited');
+    const resetStr = resetAt ? ` · Resets ${formatImageResetTime(resetAt)}` : '';
+    btn.title = `Image upload limit reached${resetStr}`;
+  }
+}
+
+function clearImageLimit() {
+  imageUploadLimitReached = false;
+  imageUploadResetAt = null;
+  const btn = document.querySelector('.btn-attach');
+  if (btn) {
+    btn.classList.remove('btn-attach--limited');
+    btn.title = 'Attach image';
+  }
+}
+
+function handleImageAttachClick() {
+  if (imageUploadLimitReached) {
+    const resetStr = imageUploadResetAt ? ` Resets ${formatImageResetTime(imageUploadResetAt)}.` : '';
+    showWarning(`Image upload limit reached.${resetStr}`);
+    return;
+  }
+  document.getElementById('imgUploadInput').click();
+}
+
+function updateImageAttachState(usage) {
+  if (!usage) return;
+  if (usage.imagesDay >= usage.imageLimit) {
+    setImageLimitReached(usage.imageResetAt);
+  } else {
+    clearImageLimit();
+  }
 }
 
 // ── Send Message ──────────────────────────────────────────────────────────────
@@ -2332,6 +2389,12 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
         if (err.type === 'session') startCooldown(err.cooldownUntil, 'session', true);
         else startCooldown(err.resetsAt, 'weekly', true);
         showTyping(false); isStreaming = false;
+        return;
+      }
+      if (res.status === 429 && err.type === 'image') {
+        setImageLimitReached(err.imageResetAt);
+        showTyping(false); isStreaming = false;
+        document.getElementById('sendBtn').disabled = false;
         return;
       }
       throw new Error(err.error || `Request failed (${res.status})`);
@@ -2720,6 +2783,7 @@ function updateUsageBars(usage) {
   renderUsageBanners(usage);
   updateUsageModal(usage);
   updateSettingsUsage(usage);
+  updateImageAttachState(usage);
   if (usage.cooldownUntil && Date.now() < usage.cooldownUntil) {
     startCooldown(usage.cooldownUntil, 'session');
   } else if (usage.weeklyTokens >= usage.weeklyLimit) {

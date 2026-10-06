@@ -383,7 +383,7 @@
         </div>
         <input type="file" id="imgUploadInput" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none" onchange="onImageSelected(event)">
         <div class="input-row">
-          <button class="btn-attach" onclick="document.getElementById('imgUploadInput').click()" title="Attach image">
+          <button class="btn-attach" onclick="handleImageAttachClick()" title="Attach image">
             <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
           </button>
           <div class="input-wrap">
@@ -768,6 +768,16 @@
     </div>
 
     <p class="welcome-patience">Thank you for being here early. Character Mind is still in development, so you may run into bugs or slow replies while we improve it. Please be patient with us, and tell us what you find through <strong>Contact us</strong> in the menu.</p>
+
+    <div class="welcome-rules">
+      <h3 class="welcome-rules-title">Community rules</h3>
+      <ul class="welcome-rules-list">
+        <li><span class="wr-icon">🔞</span><span>No sexual or NSFW content — keep chats appropriate for all.</span></li>
+        <li><span class="wr-icon">🚫</span><span>No slurs or hate speech — respect everyone in the community.</span></li>
+        <li><span class="wr-icon">💙</span><span>In crisis? We'll refer you to mental health resources and support lines.</span></li>
+      </ul>
+      <p class="welcome-rules-note">Violations may result in your chat being permanently closed.</p>
+    </div>
 
     <div class="welcome-footer">
       <button class="welcome-cta" onclick="closeWelcome()">Let's go →</button>

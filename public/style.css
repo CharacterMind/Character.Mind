@@ -854,6 +854,8 @@ html, body {
   flex-shrink: 0; color: var(--text3); transition: background .15s, color .15s;
 }
 .btn-attach:hover { background: var(--bg3); color: var(--text2); }
+.btn-attach--limited { color: rgba(239,68,68,0.6) !important; border-color: rgba(239,68,68,0.35) !important; cursor: not-allowed; }
+.btn-attach--limited:hover { background: rgba(239,68,68,0.08) !important; color: rgba(239,68,68,0.8) !important; }
 .btn-call, .btn-img-pick {
   width: 40px; height: 40px; border-radius: 50%;
   background: var(--bg3); border: 1px solid var(--border2);
@@ -2802,6 +2804,12 @@ body:not(.voice-on) .tts-btn::after { content: "Soon"; font-size: 9px; font-weig
 .contact-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--text3); }
 
 .welcome-patience { margin: 0; font-size: 13px; line-height: 1.6; color: var(--text3); text-align: center; max-width: 460px; align-self: center; }
+.welcome-rules { margin-top: 4px; padding: 14px 16px; background: rgba(255,255,255,0.04); border: 1px solid var(--border2); border-radius: 10px; }
+.welcome-rules-title { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--text2); letter-spacing: .03em; text-transform: uppercase; }
+.welcome-rules-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.welcome-rules-list li { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.45; color: var(--text2); }
+.wr-icon { flex-shrink: 0; font-size: 15px; line-height: 1.3; }
+.welcome-rules-note { margin: 10px 0 0; font-size: 12px; color: var(--text3); line-height: 1.5; }
 
 .chat-loading { text-align: center; padding: 40px 0; font-size: 13px; color: var(--text3); }
 
