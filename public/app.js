@@ -143,8 +143,6 @@ function updateModelBarLabel() {
     if (el) el.classList.toggle('active', t === selectedModelTier);
   });
 
-  const moreEl = document.getElementById('mdMore');
-
   // Update effort picker checks and max multiplier label
   EFFORT_LEVELS.forEach(e => {
     const el = document.getElementById('effortOpt' + e.charAt(0).toUpperCase() + e.slice(1));
@@ -2177,7 +2175,7 @@ async function generateGreeting() {
       buffer = lines.pop();
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
-        const data = JSON.parse(line.slice(6));
+        let data; try { data = JSON.parse(line.slice(6)); } catch (_) { continue; }
         if (data.error) throw new Error(data.error);
         if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
         if (data.text) {
@@ -2427,7 +2425,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
       let convEnded = false;
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
-        const data = JSON.parse(line.slice(6));
+        let data; try { data = JSON.parse(line.slice(6)); } catch (_) { continue; }
         if (data.error) throw new Error(data.error);
         if (data.nsfw) { showTyping(false); appendNsfwCard(data.variant); }
         if (data.conversationEnded) {
@@ -4169,26 +4167,19 @@ async function viewPastChat(archiveId, src, localIdx) {
   `;
 }
 
-function resumePastChat(msgs) {
+async function resumePastChat(msgs) {
   if (!currentChar || !msgs || !msgs.length) return;
   if (isStreaming) { showWarning('Wait for the reply to finish first.'); return; }
   const current = loadHistoryLocal(currentChar.id);
   if (current.length > 0) {
     savePastChatLocal(currentChar.id, current);
-    fetch(`/api/conversations/${currentChar.id}/archive`, { method: 'POST' }).catch(() => {});
+    await fetch(`/api/conversations/${currentChar.id}/archive`, { method: 'POST' }).catch(() => {});
   }
   const messagesEl = document.getElementById('messages');
   if (messagesEl) messagesEl.innerHTML = '';
   const welcome = document.getElementById('chatWelcome');
   if (welcome) welcome.innerHTML = '';
   msgs.forEach((m, i) => appendHistoryItem(m, i < msgs.length - LIVE_COLOUR_MESSAGES));
-  const normalized = msgs.map(m => (m.card === 'nsfw')
-    ? { role: 'ai', content: '', card: 'nsfw', variant: m.variant }
-    : {
-        role: (m.role === 'assistant' || m.role === 'ai') ? 'ai' : 'user',
-        content: m.content,
-        ...(m.sig ? { sig: m.sig } : {})
-      });
   saveHistoryLocal();
   resyncServer();
   closeHistoryPanel();
@@ -4650,7 +4641,7 @@ function sendCallMessage(text) {
 }
 
 function openImagePicker() {
-  document.getElementById('imageFileInput')?.click();
+  document.getElementById('imgUploadInput')?.click();
 }
 
 function handleImageFile(e) {
@@ -4851,7 +4842,7 @@ async function regenerate() {
       buffer = lines.pop();
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
-        const data = JSON.parse(line.slice(6));
+        let data; try { data = JSON.parse(line.slice(6)); } catch (_) { continue; }
         if (data.error) throw new Error(data.error);
         if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
         if (data.text) {
@@ -5209,7 +5200,7 @@ async function newChat() {
   releaseChatInput();
   // Archive the chat on the server first. If saving fails (the server then keeps the live chat), do NOT clear it: tell the person instead.
   const arch = await fetch(`/api/conversations/${currentChar.id}/archive`, { method: 'POST' }).catch(() => null);
-  if (!arch || arch.status === 500 || arch.status === 503) {
+  if (!arch || !arch.ok) {
     showWarning("Couldn't save your current chat, so it was left as it is. Please try again in a moment.");
     return;
   }

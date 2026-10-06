@@ -3075,7 +3075,12 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
 
   const regenModelList = getModelList(modelTier);
   const regenEffortCfg = getEffortCfg(effort, modelTier);
-  const regenMem = await buildMemoryNote(modelTier, aiHistory(hist), key, dbChar.name || charId);
+  let regenMem = '';
+  try {
+    regenMem = await buildMemoryNote(modelTier, aiHistory(hist), key, dbChar.name || charId);
+  } catch (e) {
+    console.error('[regen] buildMemoryNote failed:', e.message);
+  }
 
   startReplyStream({
     res, apiKey,
