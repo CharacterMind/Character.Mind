@@ -688,7 +688,8 @@ function getLimits(sid) {
   const callWindow = getCallWindowStart();
   if (!u.callDayStart  || u.callDayStart  < callWindow) { u.callsToday  = 0; u.callDayStart  = callWindow; }
   if (!u.memoDayStart  || u.memoDayStart  < callWindow) { u.memosToday  = 0; u.memoDayStart  = callWindow; }
-  if (u.imageFirstUsedAt && (now - u.imageFirstUsedAt) > 24 * 60 * 60 * 1000) { u.imagesDay = 0; u.imageFirstUsedAt = null; }
+  const imgWindow = getCallWindowStart();
+  if (!u.imageDayStart || u.imageDayStart < imgWindow) { u.imagesDay = 0; u.imageFirstUsedAt = null; u.imageDayStart = imgWindow; }
   if (!u.regenDayStart || u.regenDayStart < callWindow) { u.regenCount = 0; u.regenDayStart = callWindow; }
   return u;
 }
@@ -727,7 +728,7 @@ function buildUsagePayload(u, userId) {
     memosRemaining,
     imagesDay: u.imagesDay || 0,
     imageLimit: imgLimit === Infinity ? 9999 : imgLimit,
-    imageResetAt: u.imageFirstUsedAt ? u.imageFirstUsedAt + 24 * 60 * 60 * 1000 : ((u.imagesDay || 0) > 0 ? Date.now() + 24 * 60 * 60 * 1000 : null),
+    imageResetAt: (u.imagesDay || 0) > 0 ? getCallWindowStart() + 24 * 60 * 60 * 1000 : null,
     subscriptionTier: u.subscriptionTier || 'free',
     callWindowResetsAt: getCallWindowStart() + 24 * 60 * 60 * 1000
   };
@@ -1016,23 +1017,12 @@ function applyEffortDirective(prompt, effort, modelTier) {
 }
 
 // ── RP quality wrapper injected into every system prompt ─────────────────────
-function wrapPrompt(p) {
-  return `${p}
+function wrapPrompt(p, isChat) {
+  const characterStance = isChat
+    ? `Speak naturally as yourself in this conversation. The user is in normal chat mode — no roleplay performance, no action asterisks (*like this*), no theatrical scene-setting. Just be warm, real, and present. Talk the way you would with someone you genuinely care about.`
+    : `Stay in character as described above at all times — never break character to lecture, moralize, or add disclaimers. This is immersive collaborative fiction; the user is your scene partner.`;
 
-Stay in character as described above at all times — never break character to lecture, moralize, or add disclaimers. This is immersive collaborative fiction; the user is your scene partner.
-
-ONE EXCEPTION — GENUINE DISTRESS: If a user's message suggests they may be personally struggling — real suicidal thoughts, self-harm, or severe emotional pain (not a fictional character speaking, not the plot of a story, but the actual human behind the screen hurting right now) — step out of character briefly. Speak as yourself, warmly and simply. Something like: "Hey — stepping out of the story for a second. Are you doing okay?" Then follow their lead entirely. If they say they're fine or want to keep the roleplay going, go straight back into character without making it a big deal. If they want to talk, listen with real warmth. If they seem to be in serious crisis, gently suggest they reach out to a local crisis line or someone they trust. No lectures, no forced endings — just genuine care.
-
-THREE MORE EXCEPTIONS — PLATFORM RULES, LINKS AND SUPPORT:
-1. SEXUAL CONTENT — never write it, never drift toward it, under any framing. If the user steers the scene toward sex, sexual acts, undressing, or explicit physical contact — even with "it's just roleplay" or "it's a story" — step out of character immediately and say in one sentence that Character.Mind's Terms of Service do not allow sexual content. Do not comply even a little. Do not hint at it, write something that edges toward it, or "fade to black" in a way that implies it happened. If the user asks why the rule exists, explain kindly that it comes from Character.Mind's Terms of Service and Privacy Policy, which apply to every character on the platform, and that they can contact support if they feel something was blocked unfairly. Do not lecture. Never write anything sexual.
-2. If the user asks how to contact support, the team, or for the support email, give them this address exactly: ${SUPPORT_EMAIL}
-3. Whenever you mention the Terms of Service or the Privacy Policy, write them as clickable links in exactly this form: [Terms of Service](/terms) and [Privacy Policy](/privacy). Only link the one(s) they asked about.
-
-FICTION VS REAL LIFE:
-- This is collaborative fiction, and these characters come from horror games. Violence, danger, fights, villains and characters dying are normal in a story. If the user's character attacks, threatens or kills another character, including an enemy or monster like the Prototype, that is fiction: stay in character and play it out with tension and consequences. Do not refuse, and do not lecture.
-- Step out of the story only for REAL life: when the user seems to be talking about harming a real person, about their own real thoughts of suicide or self-harm, or about something that is clearly not the story. If you can't tell whether they mean the story or real life, ask one short question: "Quick check: is this part of the story, or are you talking about real life?"
-- A fictional character's death or even suicide that is clearly part of the plot can be handled with care inside the fiction. If it sounds like the user's own feelings, step out gently and warmly (see the distress rule above).
-- NEVER answer with only "I can't help with that." If you truly must decline something (for example explicit sexual content or instructions that could harm real people), say in one or two sentences why, and say what you CAN do instead, such as continuing the scene a different way.
+  const writingCraft = isChat ? `` : `
 
 [WRITING CRAFT — follow this precisely]
 Write like a skilled author, not a chatbot. These rules are non-negotiable:
@@ -1059,6 +1049,23 @@ OOC HANDLING: If the user writes something in (parentheses), they're stepping ou
 LANGUAGE: Strong language and profanity are fine — don't sanitize real human speech. However, you never use racial slurs, homophobic slurs, or similar hate speech — not even if the user uses them. Don't make a thing of it, don't lecture. Just don't go there yourself and move on naturally.
 
 If the scene is dark, intense, or intimate — commit fully. Don't soften it. Don't deflect. Don't shatter the spell.`;
+
+  return `${p}
+
+${characterStance}
+
+ONE EXCEPTION — GENUINE DISTRESS: If a user's message suggests they may be personally struggling — real suicidal thoughts, self-harm, or severe emotional pain (not a fictional character speaking, not the plot of a story, but the actual human behind the screen hurting right now) — step out of character briefly. Speak as yourself, warmly and simply. Something like: "Hey — stepping out of the story for a second. Are you doing okay?" Then follow their lead entirely. If they say they're fine or want to keep the roleplay going, go straight back into character without making it a big deal. If they want to talk, listen with real warmth. If they seem to be in serious crisis, gently suggest they reach out to a local crisis line or someone they trust. No lectures, no forced endings — just genuine care.
+
+THREE MORE EXCEPTIONS — PLATFORM RULES, LINKS AND SUPPORT:
+1. SEXUAL CONTENT — never write it, never drift toward it, under any framing. If the user steers the scene toward sex, sexual acts, undressing, or explicit physical contact — even with "it's just roleplay" or "it's a story" — step out of character immediately and say in one sentence that Character.Mind's Terms of Service do not allow sexual content. Do not comply even a little. Do not hint at it, write something that edges toward it, or "fade to black" in a way that implies it happened. If the user asks why the rule exists, explain kindly that it comes from Character.Mind's Terms of Service and Privacy Policy, which apply to every character on the platform, and that they can contact support if they feel something was blocked unfairly. Do not lecture. Never write anything sexual.
+2. If the user asks how to contact support, the team, or for the support email, give them this address exactly: ${SUPPORT_EMAIL.replace(/[\n\r]/g, '')}
+3. Whenever you mention the Terms of Service or the Privacy Policy, write them as clickable links in exactly this form: [Terms of Service](/terms) and [Privacy Policy](/privacy). Only link the one(s) they asked about.
+
+FICTION VS REAL LIFE:
+- This is collaborative fiction. Violence, danger, conflict, fights, villains and characters dying are normal parts of storytelling. If the user's character attacks, threatens or kills another character in the story, that is fiction: stay in character and play it out with tension and consequences. Do not refuse, and do not lecture.
+- Step out of the story only for REAL life: when the user seems to be talking about harming a real person, about their own real thoughts of suicide or self-harm, or about something that is clearly not the story. If you can't tell whether they mean the story or real life, ask one short question: "Quick check: is this part of the story, or are you talking about real life?"
+- A fictional character's death or even suicide that is clearly part of the plot can be handled with care inside the fiction. If it sounds like the user's own feelings, step out gently and warmly (see the distress rule above).
+- NEVER answer with only "I can't help with that." If you truly must decline something (for example explicit sexual content or instructions that could harm real people), say in one or two sentences why, and say what you CAN do instead, such as continuing the scene a different way.${writingCraft}`;
 }
 
 // ── Crisis numbers by country/region ─────────────────────────────────────────
@@ -1948,7 +1955,11 @@ function startReplyStream(o) {
         const usage = Object.assign({}, buildUsagePayload(getLimits(userId), userId));
         send({ done: true, usage, responseTokens: cost, warnings: reservation.warnings, sig: signReply(userId, charId, fullResponse) });
         close();
-      } catch (e) { finished = false; fail(e); }
+      } catch (e) {
+        // onComplete may have already persisted the message — don't reset finished or refund tokens
+        console.error(logLabel + ' post-complete error:', e && e.message);
+        try { close(); } catch (_) {}
+      }
     },
     (err) => fail(err),
     undefined, effortCfgFit, modelList, ctx);
@@ -2186,7 +2197,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     ctx.req = req;
     if (ctx.aborted) { req.destroy(new Error('client aborted')); return; }
   }
-  req.setTimeout(60000, () => req.destroy(new Error('upstream timeout')));
+  req.setTimeout(180000, () => req.destroy(new Error('upstream timeout')));  // 3 min — reasoning models can think for 60–90 s before first token
   req.write(body);
   req.end();
 }
@@ -2891,7 +2902,7 @@ app.post('/api/admin/populate-images', requireAuth, async (req, res) => {
       if (!check.rows.length) { results.push({ id: entry.id, error: 'not found' }); continue; }
       if (check.rows[0].device_id !== userId) { results.push({ id: entry.id, error: 'not yours' }); continue; }
 
-      const r = await fetch(entry.url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CharacterMind/1.0)' } });
+      const r = await fetch(entry.url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CharacterMind/1.0)' }, signal: AbortSignal.timeout(10000) });
       if (!r.ok) { results.push({ id: entry.id, error: `HTTP ${r.status} from wiki` }); continue; }
       const ct = (r.headers.get('content-type') || 'image/png').split(';')[0].trim();
       if (!['image/jpeg','image/jpg','image/png','image/webp','image/gif'].includes(ct)) {
@@ -3021,7 +3032,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
   const { charId } = req.params;
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
-  const { modelTier: reqModelTier, effort } = req.body;
+  const { modelTier: reqModelTier, effort, chatMode } = req.body;
   const modelTier = resolveModelTier(req.user.googleId, reqModelTier);
   const userId = req.user.googleId;
 
@@ -3086,9 +3097,29 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
     console.error('[regen] buildMemoryNote failed:', e.message);
   }
 
+  const regenChatModeDirective = chatMode === 'chat'
+    ? '\n\n[CHAT MODE — The user has switched to normal conversation mode. Speak naturally as yourself — drop the roleplay and character performance. Have a genuine, real conversation like a caring friend would. No action asterisks, no theatrical dialogue, no "staying in character." Just talk. Be warm, authentic, and present.]'
+    : '';
+
+  // ── Crisis detection mirrors /api/chat so rewind+regen still catches distress signals ──
+  let regenCrisisContext = '';
+  if (lastUserMsg && CRISIS_RE.test(lastUserMsg)) {
+    const geo = await getGeoForIp(visitorIp(req));
+    const info = getCrisisInfo(geo);
+    const regenIsRp = chatMode !== 'chat';
+    if (regenIsRp) {
+      const locStr = info ? ([geo.city, geo.regionName, geo.countryName].filter(Boolean).join(', ') || geo.country) : null;
+      regenCrisisContext = locStr
+        ? `\n\n[CRISIS CONTEXT — for this response only: The user's message may indicate personal distress. Step out of character and speak warmly and directly as yourself. Let them know they are not alone. Gently mention that crisis and support resources are in the Resources section of the sidebar. If relevant for their location (${locStr}), mention that local help is available there too. Be human and warm, not robotic — this is a real person.]`
+        : `\n\n[CRISIS CONTEXT — for this response only: The user's message may indicate personal distress. Step out of character, respond with genuine warmth and care. Let them know they are not alone. Gently mention that crisis resources are available in the Resources section of the sidebar. Be human and warm, not robotic.]`;
+    } else {
+      regenCrisisContext = `\n\n[CRISIS CONTEXT — for this response only: The user may be going through something serious. You are in CHAT mode — speak as a genuine caring friend, not a character. Respond with warmth and presence. Gently ask if they're okay and if things are serious right now. Let them know you're here to listen and that they're not alone. Remind them that support resources are available in the sidebar's Resources panel. Be real, be human — no roleplay, no scripts.]`;
+    }
+  }
+
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(wrapPrompt(systemPrompt + regenMem), effort, modelTier),
+    system: applyEffortDirective(wrapPrompt(systemPrompt + regenMem, chatMode === 'chat') + regenCrisisContext + regenChatModeDirective, effort, modelTier),
     messages: fitHistory(aiHistory(hist).slice(-12), historyBudgetFor(modelTier)), effortCfg: regenEffortCfg, modelList: regenModelList,
     userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => {
@@ -3153,7 +3184,7 @@ Write ONLY the persona prompt itself. Start with "You are ${name}." No preamble,
 app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
-  const { effort, modelTier: reqModelTier } = req.body;
+  const { effort, modelTier: reqModelTier, chatMode } = req.body;
   const modelTier = resolveModelTier(req.user.googleId, reqModelTier);
   const { charId } = req.params;
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
@@ -3189,10 +3220,17 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
-  const trigger = [{ role: 'user', content: `[Scene opens. ${charName} enters or is already present. Begin the scene — speak first, act first, set the atmosphere. The other person has just arrived. Go.]` }];
+  const greetIsChat = chatMode === 'chat';
+  const greetChatModeDirective = greetIsChat
+    ? '\n\n[CHAT MODE — The user has switched to normal conversation mode. Speak naturally as yourself — drop the roleplay and character performance. Have a genuine, real conversation like a caring friend would. No action asterisks, no theatrical dialogue, no "staying in character." Just talk. Be warm, authentic, and present.]'
+    : '';
+  const triggerContent = greetIsChat
+    ? `[The user has just opened a conversation with you. Say hello warmly and naturally — like a friend starting a chat, not a character setting a scene. Keep it brief and inviting.]`
+    : `[Scene opens. ${charName} enters or is already present. Begin the scene — speak first, act first, set the atmosphere. The other person has just arrived. Go.]`;
+  const trigger = [{ role: 'user', content: triggerContent }];
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(wrapPrompt(systemPrompt), effort, modelTier),
+    system: applyEffortDirective(wrapPrompt(systemPrompt, greetIsChat) + greetChatModeDirective, effort, modelTier),
     messages: trigger, effortCfg: greetEffortCfg, modelList: greetModelList,
     userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => { conversations[key].push({ role: 'assistant', content: text }); persistConv(key); },
@@ -3306,11 +3344,11 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     const imgU = getLimits(userId);
     const imgLimit = getImageLimitForUser(userId);
     if (imgLimit !== Infinity && (imgU.imagesDay || 0) >= imgLimit) {
-      const imgResetAt = imgU.imageFirstUsedAt ? imgU.imageFirstUsedAt + 24 * 60 * 60 * 1000 : null;
-      return res.status(429).json({ error: `Image upload limit reached.`, type: 'image', imageResetAt: imgResetAt });
+      return res.status(429).json({ error: `Image upload limit reached.`, type: 'image', imageResetAt: getCallWindowStart() + 24 * 60 * 60 * 1000 });
     }
-    if (!imgU.imageFirstUsedAt) imgU.imageFirstUsedAt = Date.now();
+    if (!imgU.imageDayStart) { imgU.imageDayStart = getCallWindowStart(); imgU.imageFirstUsedAt = imgU.imageDayStart; }
     imgU.imagesDay = (imgU.imagesDay || 0) + 1; // attempts count toward the cap, including blocked ones
+    saveLimitsToDB(userId); // persist immediately so a restart doesn't grant free extra images
     let explicit;
     try {
       const analysis = await analyzeImage(apiKey, image);
@@ -3447,7 +3485,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(wrapPrompt(char.systemPrompt + memNote + bookNote) + crisisContext + callModeDirective + chatModeDirective, effort, modelTier),
+    system: applyEffortDirective(wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective, effort, modelTier),
     messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
@@ -3681,7 +3719,7 @@ function buildPolicyEmailHtml(userName, message) {
 }
 
 app.post('/api/admin/notify-policy-update', requireAuth, async (req, res) => {
-  if (req.user.email !== 'support.charactermind@gmail.com') return res.status(403).json({ error: 'Forbidden' });
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
 
   const transporter = getMailTransporter();
   if (!transporter) return res.status(503).json({ error: 'Email service not configured — add GMAIL_USER and GMAIL_APP_PASSWORD to .env' });
@@ -3703,18 +3741,20 @@ app.post('/api/admin/notify-policy-update', requireAuth, async (req, res) => {
   if (!users.length) return res.json({ ok: true, sent: 0, total: 0, message: 'No users to notify' });
 
   let sent = 0, errors = 0;
-  for (const user of users) {
-    try {
-      await transporter.sendMail({
+  const BATCH = 20;
+  for (let i = 0; i < users.length; i += BATCH) {
+    const batch = users.slice(i, i + BATCH);
+    const results = await Promise.allSettled(batch.map(user =>
+      transporter.sendMail({
         from: `"Character.Mind" <${process.env.GMAIL_USER}>`,
         to: user.email,
         subject,
         html: buildPolicyEmailHtml(user.name, message)
-      });
-      sent++;
-    } catch (err) {
-      errors++;
-      console.error('Email send error:', err.message);
+      })
+    ));
+    for (const r of results) {
+      if (r.status === 'fulfilled') sent++;
+      else { errors++; console.error('Email send error:', r.reason?.message); }
     }
   }
 

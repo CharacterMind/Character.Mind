@@ -585,10 +585,12 @@
   <!-- Right Info Panel -->
   <aside class="info-panel" id="infoPanel" style="display:none">
 
-    <!-- Collapse button (desktop only) -->
-    <button class="ip-collapse-btn" onclick="toggleInfoPanel()" title="Collapse panel">
-      <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
-    </button>
+    <!-- Top bar with collapse button (mirrors left sidebar pattern) -->
+    <div class="ip-panel-topbar">
+      <button class="ip-collapse-btn" onclick="toggleInfoPanel()" title="Collapse panel">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="17" height="17"><path d="M5.59 7.41L10.18 12l-4.59 4.59L7 18l6-6-6-6zM18 6h-2v12h2z"/></svg>
+      </button>
+    </div>
 
     <!-- Header: avatar + name/meta side by side -->
     <div class="ip-header">
@@ -690,8 +692,8 @@
   </aside>
 
   <!-- Info panel expand button — visible only when panel is collapsed on desktop -->
-  <button class="info-panel-expand-btn" id="infoPanelExpandBtn" onclick="toggleInfoPanel()" title="Show panel" style="display:none">
-    <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+  <button class="info-panel-expand-btn" id="infoPanelExpandBtn" onclick="toggleInfoPanel()" title="Show info panel" style="display:none">
+    <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M18.41 16.59L13.82 12l4.59-4.59L17 6l-6 6 6 6zM6 6h2v12H6z"/></svg>
   </button>
 
 </div>

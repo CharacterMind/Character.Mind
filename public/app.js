@@ -6,6 +6,7 @@ let characters = [];
 let currentChar = null;
 let currentChatLocked = false;
 let isStreaming = false;
+let callModeActive = false;
 let chatEpoch = 0; // bumps whenever the open chat changes, so an old reply can't land in the new chat
 let currentFilter = 'all';
 let lastUserMessage = '';
@@ -613,6 +614,14 @@ function closeNewChatWarning() {
 }
 async function confirmNewChat() {
   closeNewChatWarning();
+  // Collapse right panel so the new greeting gets full attention
+  if (window.innerWidth > 768) {
+    const _p = document.getElementById('infoPanel');
+    const _e = document.getElementById('infoPanelExpandBtn');
+    if (_p) { _p.classList.add('ip-collapsed'); }
+    if (_e) _e.style.display = 'flex';
+    try { localStorage.setItem('cm_infopanel_collapsed', '1'); } catch (_) {}
+  }
   await newChat();
 }
 
@@ -1077,7 +1086,7 @@ function openSettings(tab) {
   if (!currentUser) return;
 
   const header = document.getElementById('settingsUserHeader');
-  if (header) header.innerHTML = `${avatarHtml(currentUser, 52)}<div class="su-name">${escHtml(getDisplayName())}</div><div class="su-plan-badge">Free</div>`;
+  if (header) header.innerHTML = `${avatarHtml(currentUser, 52)}<div class="su-name">${escHtml(getDisplayName())}</div><div class="su-plan-badge">${PLAN_LABELS[lastKnownUsage?.subscriptionTier || 'free'] || 'Free'}</div>`;
 
   const profAvatar = document.getElementById('settingsProfileAvatar');
   if (profAvatar) profAvatar.innerHTML = avatarHtml(currentUser, 72);
@@ -2150,7 +2159,7 @@ async function generateGreeting() {
     const res = await fetch(`/api/greet/${currentChar.id}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ effort: selectedEffort, modelTier: selectedModelTier }),
+      body: JSON.stringify({ effort: selectedEffort, modelTier: selectedModelTier, chatMode: rpMode ? 'rp' : 'chat' }),
       signal: watch.signal
     });
     if (myEpoch !== chatEpoch) { watch.clear(); try { if (res.body) res.body.cancel(); } catch (_) {} return; }   // the chat changed while waiting
@@ -2175,7 +2184,7 @@ async function generateGreeting() {
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, pendingWarnings = null, streamCharCount = 0;
+    let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, streamCharCount = 0;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -2189,7 +2198,7 @@ async function generateGreeting() {
         if (!line.startsWith('data: ')) continue;
         let data; try { data = JSON.parse(line.slice(6)); } catch (_) { continue; }
         if (data.error) throw new Error(data.error);
-        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
+        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; }
         if (data.text) {
           if (!gotFirst) {
             gotFirst = true;
@@ -2451,7 +2460,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
     let msgEl = null, bubble = null, gotFirst = false;
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, pendingWarnings = null, streamCharCount = 0;
+    let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, streamCharCount = 0;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -2484,7 +2493,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
           }
           break;
         }
-        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
+        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; }
         if (data.text) {
           if (!gotFirst) {
             gotFirst = true;
@@ -4373,7 +4382,6 @@ async function callModeElevenTTS(text) {
 }
 
 // ── Call mode ─────────────────────────────────────────────────────────────────
-let callModeActive = false;
 let callGen = 0; // bumped when a call ends or is interrupted so late async results are dropped
 let callMuted = false;
 let callFirstConnect = false;
@@ -4844,7 +4852,7 @@ async function regenerate() {
     const res = await fetch(`/api/regenerate/${currentChar.id}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ modelTier: selectedModelTier, effort: selectedEffort }),
+      body: JSON.stringify({ modelTier: selectedModelTier, effort: selectedEffort, chatMode: rpMode ? 'rp' : 'chat' }),
       signal: watch.signal
     });
 
@@ -4873,7 +4881,7 @@ async function regenerate() {
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = '', streamRealTokens = null, streamSig = null, pendingUsage = null, pendingWarnings = null, streamCharCount = 0;
+    let buffer = '', streamRealTokens = null, streamSig = null, pendingUsage = null, streamCharCount = 0;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -4887,7 +4895,7 @@ async function regenerate() {
         if (!line.startsWith('data: ')) continue;
         let data; try { data = JSON.parse(line.slice(6)); } catch (_) { continue; }
         if (data.error) throw new Error(data.error);
-        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; pendingWarnings = data.warnings; }
+        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; }
         if (data.text) {
           streamText += data.text;
           feedTypewriter(data.text);
