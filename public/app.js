@@ -312,7 +312,7 @@ function populateCountrySelect() {
 function setPricingCountry(code) {
   if (!COUNTRY_CURRENCY[code]) return;
   pricingCountryCode = code;
-  renderPricingCards();
+  loadExchangeRates().then(() => renderPricingCards());
 }
 
 function formatLocalPrice(usdPrice) {
@@ -331,6 +331,7 @@ function formatLocalPrice(usdPrice) {
 
 function openPricingModal() {
   loadPaypalConfig().then(() => { setPricingPeriod(pricingPeriod); });
+  populateCountrySelect();
   renderPricingCards();
   document.getElementById('pricingModal').style.display = 'flex';
   Promise.all([loadExchangeRates(), detectPricingCountry()]).then(([, code]) => {
