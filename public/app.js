@@ -5261,8 +5261,8 @@ async function newChat() {
   let arch = await fetch(`/api/conversations/${currentChar.id}/archive`, { method: 'POST' }).catch(() => null);
   if (!arch || !arch.ok) {
     const firstStatus = arch ? arch.status : 0;
-    showWarning("Saving your chat — please wait a moment…", 16000);
-    await new Promise(r => setTimeout(r, 15000));
+    showWarning("Saving your chat — please wait a moment…", 22000);
+    await new Promise(r => setTimeout(r, 20000));
     arch = await fetch(`/api/conversations/${currentChar.id}/archive`, { method: 'POST' }).catch(() => null);
     if (!arch || !arch.ok) {
       const status = arch ? arch.status : firstStatus;
