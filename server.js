@@ -597,7 +597,7 @@ const baseOf = (t) => {
 // The most tokens one reply may use, per model (the bigger writers get more room), and how long each model writes compared with Opes
 // (Opys 5's cap is high on purpose: what it can really write at once depends on the Groq plan, see GROQ_REQUEST_BUDGET and GROQ_LENGTH_SCALE.)
 const MODEL_CAP   = { opas: 3000, opes: 5000, opis: 3200, opos: 4000, opus: 5000, opys: 6000, opys5: 40000, opys6: 40000 };
-const MODEL_WORDS = { opas: 0.7,  opes: 1,    opis: 1.1,  opos: 1.3,  opus: 1.6,  opys: 1.9,  opys5: 3.5,  opys6: 5.0 };
+const MODEL_WORDS = { opas: 0.7,  opes: 1.1,  opis: 1.3,  opos: 1.5,  opus: 1.8,  opys: 2.1,  opys5: 3.5,  opys6: 5.0 };
 const MODEL_CAP_SCALE = Number(process.env.VERSION_CAP_SCALE) || 1;
 for (const k of Object.keys(MODEL_CAP)) MODEL_CAP[k] = Math.round(MODEL_CAP[k] * MODEL_CAP_SCALE);
 // Groq's free plan allows about 8,000 tokens per request, counting the prompt AND the reply room together.
@@ -1029,7 +1029,7 @@ async function buildMemoryNote(modelTier, fullMsgs, key, charName) {
 // How long a long reply should be. These fit inside what the free Groq plan can hold; if the Groq limits are ever raised, set
 // GROQ_LENGTH_SCALE (for example 3) together with GROQ_REQUEST_BUDGET and VERSION_CAP_SCALE (reply caps) and every length grows with them.
 const LENGTH_SCALE = Number(process.env.GROQ_LENGTH_SCALE) || 1;
-const WORDS_BY_EFFORT = { high: 350, extra: 600, max: 900, ultracode: 2500 };
+const WORDS_BY_EFFORT = { high: 800, extra: 1500, max: 2200, ultracode: 2500 };
 function lengthTargetWords(modelTier, effort) {
   const base = baseOf(modelTier);
   if (!base || !Object.hasOwn(WORDS_BY_EFFORT, effort)) return 0;
