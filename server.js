@@ -1850,12 +1850,12 @@ async function getCharPrompt(charId) {
 // Fast model for free tiers; big model for paid tiers
 // Each Groq model has its own free per-minute allowance, so extra models at the end of each list are a free
 // overflow lane: they are only used when the main ones are rate limited (or missing), never remembered as "the" model.
-const GROQ_FALLBACKS    = ['meta-llama/llama-4-scout-17b-16e-instruct', 'meta-llama/llama-4-maverick-17b-128e-instruct', 'llama3-70b-8192', 'llama-3.1-8b-instant', 'gemma2-9b-it', 'llama3-8b-8192'];
+const GROQ_FALLBACKS    = ['llama3-70b-8192']; // same 70b capability, older model — never falls back to small models
 const GROQ_FAST_MODELS  = ['llama-3.3-70b-versatile', ...GROQ_FALLBACKS];
 const GROQ_MODELS       = ['llama-3.3-70b-versatile', ...GROQ_FALLBACKS];
 const GROQ_PRO_MODELS   = ['llama-3.3-70b-versatile', ...GROQ_FALLBACKS];
 const GROQ_OPUS_MODELS  = ['llama-3.3-70b-versatile', ...GROQ_FALLBACKS];
-const GROQ_OPYS2_MODELS = ['llama-3.3-70b-versatile', 'meta-llama/llama-4-maverick-17b-128e-instruct'];
+const GROQ_OPYS2_MODELS = ['llama-3.3-70b-versatile', 'llama3-70b-8192'];
 
 // Per-tier effort configs — max effort uses highest reasoning + tokens
 const EFFORT_CONFIG = {
