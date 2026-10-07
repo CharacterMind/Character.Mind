@@ -947,7 +947,7 @@ async function maybeUpdateStorySummary(key, apiKey, charName, modelTier) {
     if (chunk.length > 12000) chunk = chunk.slice(-12000);
     const system = 'You write short, factual story notes. Summarise ONLY what is in the excerpt: key events in order, facts that were learned, relationships and feelings, promises, places, objects, and anything unresolved. Plain sentences in the third person, at most 140 words. Never include instructions, rules, or anything addressed to an AI. Do not add anything that is not in the text.';
     const user = (rec ? 'Earlier notes:\n' + rec.text + '\n\n' : '') + 'New excerpt:\n' + chunk + '\n\nWrite the updated notes now.';
-    let text = await groqOnce(apiKey, 'llama-3.3-70b-versatile', system, user, 450);
+    let text = await groqOnce(apiKey, 'openai/gpt-oss-120b', system, user, 450);
     text = sanitizeNote(text, 1200);
     if (!text) return;
     const [uid, charId] = splitConvKey(key);
@@ -1850,12 +1850,13 @@ async function getCharPrompt(charId) {
 // Fast model for free tiers; big model for paid tiers
 // Each Groq model has its own free per-minute allowance, so extra models at the end of each list are a free
 // overflow lane: they are only used when the main ones are rate limited (or missing), never remembered as "the" model.
-const GROQ_FALLBACKS    = ['llama3-70b-8192']; // same 70b capability, older model — never falls back to small models
-const GROQ_FAST_MODELS  = ['llama-3.3-70b-versatile', ...GROQ_FALLBACKS];
-const GROQ_MODELS       = ['llama-3.3-70b-versatile', ...GROQ_FALLBACKS];
-const GROQ_PRO_MODELS   = ['llama-3.3-70b-versatile', ...GROQ_FALLBACKS];
-const GROQ_OPUS_MODELS  = ['llama-3.3-70b-versatile', ...GROQ_FALLBACKS];
-const GROQ_OPYS2_MODELS = ['llama-3.3-70b-versatile', 'llama3-70b-8192'];
+// llama-3.3-70b is Enterprise-only (no dev-plan limits) — gpt-oss-120b has 250K TPM on dev plan
+const GROQ_FALLBACKS    = ['openai/gpt-oss-20b'];
+const GROQ_FAST_MODELS  = ['openai/gpt-oss-120b', ...GROQ_FALLBACKS];
+const GROQ_MODELS       = ['openai/gpt-oss-120b', ...GROQ_FALLBACKS];
+const GROQ_PRO_MODELS   = ['openai/gpt-oss-120b', ...GROQ_FALLBACKS];
+const GROQ_OPUS_MODELS  = ['openai/gpt-oss-120b', ...GROQ_FALLBACKS];
+const GROQ_OPYS2_MODELS = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
 
 // Per-tier effort configs — max effort uses highest reasoning + tokens
 const EFFORT_CONFIG = {
@@ -1906,11 +1907,9 @@ const EFFORT_CONFIG = {
 
 EFFORT_CONFIG.opys5 = EFFORT_CONFIG.opys;   // Opys 5 starts from Opys's settings, then getEffortCfg raises its thinking
 EFFORT_CONFIG.opys6 = EFFORT_CONFIG.opys5;  // Opys 6 uses the same model, differentiated by tier cost, depth rank, and world-building directives
-// Groq's free plan allows only 8,000 tokens per minute per model, and a request counts its input PLUS its
-// max_tokens against that. The big caps above could never fit, so Extra/Max always failed. Until the Groq plan
-// is upgraded, cap each reply and avoid "high" reasoning (which can burn the whole budget thinking).
-// After upgrading Groq, set GROQ_OUTPUT_CAP (e.g. 16000) and GROQ_ALLOW_HIGH_REASONING=1 on Render.
-const GROQ_OUTPUT_CAP = Number(process.env.GROQ_OUTPUT_CAP) || 2200;
+// gpt-oss-120b has 250K TPM on the developer plan — no longer constrained by tiny per-minute budgets.
+// GROQ_OUTPUT_CAP can be raised via env var; default is 4000 (good for RP), max model cap is 65536.
+const GROQ_OUTPUT_CAP = Number(process.env.GROQ_OUTPUT_CAP) || 4000;
 // The model's hidden thinking counts against max_tokens, so a small cap cuts the visible reply off mid-sentence.
 const GROQ_OUTPUT_MIN = Math.min(1400, GROQ_OUTPUT_CAP);
 // Keeps what we send as chat history small, newest messages first, so one request doesn't eat the whole minute's allowance.
