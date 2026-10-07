@@ -5076,7 +5076,7 @@ async function regenerate() {
         else if (err.type === 'weekly') { startCooldown(err.resetsAt, 'weekly', true); }
         // Restore current version
         const store = regenStore.get(id);
-        if (bubble && store) { bubble.classList.remove('streaming'); setBubbleRaw(bubble, store.texts[store.idx]); }
+        if (bubble && store) { bubble.classList.remove('streaming'); setBubbleRaw(bubble, store.texts[store.idx]); colorizeLetters(bubble, currentChar?.color); }
         flushTypewriter();
         cleanupStreamUi();
         isStreaming = false;
@@ -5145,7 +5145,7 @@ async function regenerate() {
     const store = regenStore.get(id);
     if (bubble) {
       bubble.classList.remove('streaming');
-      if (store?.texts?.length) setBubbleRaw(bubble, store.texts[store.idx]); else { delete bubble.dataset.raw; bubble.innerHTML = `<p>⚠️ ${escHtml(err.name === 'AbortError' ? 'The connection went quiet, so the reply stopped. Please try again.' : err.message)}</p>`; }
+      if (store?.texts?.length) { setBubbleRaw(bubble, store.texts[store.idx]); colorizeLetters(bubble, currentChar?.color); } else { delete bubble.dataset.raw; bubble.innerHTML = `<p>⚠️ ${escHtml(err.name === 'AbortError' ? 'The connection went quiet, so the reply stopped. Please try again.' : err.message)}</p>`; }
     }
   } finally {
     if (myEpoch === chatEpoch) showTyping(false);

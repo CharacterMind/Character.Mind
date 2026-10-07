@@ -550,7 +550,7 @@ function saveLimitsToDB(userId) {
 const LIMITS = {
   SESSION_COOLDOWN_MS: Number(process.env.SESSION_COOLDOWN_MS) || (2 * 60 * 60 * 1000 + 3000),
   WEEKLY_MS: 7 * 24 * 60 * 60 * 1000,
-  REGEN_FREE: 5, // free plan: regenerations per day (resets with the other daily counters)
+  REGEN_FREE: 3, // free plan: regenerations per day (resets with the other daily counters)
   CALL_DAILY: 3
 };
 
@@ -559,15 +559,15 @@ const LIMITS = {
 // An average message = Opes at Medium effort = 1,800 tokens (see MESSAGE_COST below).
 // Lighter models/efforts give more messages than this; heavier ones give fewer.
 // Advanced 150, X20 = 20x Advanced (3,000), X50 = 50x Advanced (7,500), X100 = 100x Advanced (15,000), X200 = 200x (30,000). Weekly = 5 sessions' worth.
-// Free budget is fixed at 72,000 tokens per session — auto-computed so it never drifts when AVG_MESSAGE_TOKENS changes.
-const FREE_SESSION_TOKENS = 72000;
+// Free budget is fixed at 10,800 tokens per session (~6 messages) — auto-computed so it never drifts when AVG_MESSAGE_TOKENS changes.
+const FREE_SESSION_TOKENS = 10800;
 const AVG_MESSAGE_TOKENS = 1800;
 const X20_MULT = 20;
 const X50_MULT = 50;
 const X100_MULT = 100;
 const X200_MULT = 200;
 const MESSAGES_PER_SESSION = { free: Math.round(FREE_SESSION_TOKENS / AVG_MESSAGE_TOKENS), advanced: 150 };
-const WEEKLY_SESSIONS = 5;
+const WEEKLY_SESSIONS = 3;
 function limitsForMessages(sessionMessages) {
   const session = sessionMessages * AVG_MESSAGE_TOKENS;
   return { session, weekly: session * WEEKLY_SESSIONS };
