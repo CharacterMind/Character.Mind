@@ -1850,7 +1850,7 @@ async function getCharPrompt(charId) {
 // Fast model for free tiers; big model for paid tiers
 // Each Groq model has its own free per-minute allowance, so extra models at the end of each list are a free
 // overflow lane: they are only used when the main ones are rate limited (or missing), never remembered as "the" model.
-const GROQ_FALLBACKS    = ['meta-llama/llama-4-scout-17b-16e-instruct', 'meta-llama/llama-4-maverick-17b-128e-instruct', 'llama3-70b-8192', 'llama-3.1-8b-instant'];
+const GROQ_FALLBACKS    = ['meta-llama/llama-4-scout-17b-16e-instruct', 'meta-llama/llama-4-maverick-17b-128e-instruct', 'llama3-70b-8192', 'llama-3.1-8b-instant', 'gemma2-9b-it', 'llama3-8b-8192'];
 const GROQ_FAST_MODELS  = ['llama-3.3-70b-versatile', ...GROQ_FALLBACKS];
 const GROQ_MODELS       = ['llama-3.3-70b-versatile', ...GROQ_FALLBACKS];
 const GROQ_PRO_MODELS   = ['llama-3.3-70b-versatile', ...GROQ_FALLBACKS];
@@ -2106,9 +2106,9 @@ function parseRetryAfterMs(msg) {
 }
 // A premium reply is worth waiting for when Groq says its minute budget refills soon. The browser is kept informed while we wait
 // (a "still working" note every 10 seconds), so a wait of up to about a minute no longer ends in an error.
-const RATE_RETRY_MAX_MS = 55000;     // the longest single wait Groq may ask for
-const RATE_RETRY_TOTAL_MS = 100000;  // the longest total waiting for one reply
-const RATE_RETRY_MAX_TRIES = 3;      // how many times to wait and go round again
+const RATE_RETRY_MAX_MS = 65000;     // the longest single wait Groq may ask for
+const RATE_RETRY_TOTAL_MS = 130000;  // the longest total waiting for one reply
+const RATE_RETRY_MAX_TRIES = 5;      // how many times to wait and go round again
 
 function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex, effortCfg, modelList, ctx) {
   modelList = modelList || GROQ_FAST_MODELS;
