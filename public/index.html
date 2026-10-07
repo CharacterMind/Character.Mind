@@ -552,16 +552,16 @@
                 <span class="epp-item-name">High<span class="epp-item-sub">A full scene, three to five paragraphs</span></span>
                 <svg class="epp-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <button class="epp-item" id="effortOptExtra" onclick="setEffort('extra');closeAllPickers()">
+              <button class="epp-item" id="effortOptExtra" onclick="setEffort('extra');closeAllPickers()" style="display:none">
                 <span class="epp-item-name">Extra<span class="epp-item-sub">Long and detailed, planned before it is written</span></span>
                 <svg class="epp-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <button class="epp-item" id="effortOptMax" onclick="setEffort('max');closeAllPickers()">
+              <button class="epp-item" id="effortOptMax" onclick="setEffort('max');closeAllPickers()" style="display:none">
                 <span class="epp-item-name">Max<span class="epp-item-sub">Chapter-length: planned, written and checked</span></span>
                 <span class="epp-max-warn" id="effortMaxWarn">⚠ 3.3× or more usage</span>
                 <svg class="epp-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <button class="epp-item epp-item-ultracode" id="effortOptUltracode" onclick="setEffort('ultracode');closeAllPickers()">
+              <button class="epp-item epp-item-ultracode" id="effortOptUltracode" onclick="setEffort('ultracode');closeAllPickers()" style="display:none">
                 <span class="epp-item-name">⚡ Ultra Code<span class="epp-item-sub">Full production code: analyze, architect, write, test, optimize</span></span>
                 <span class="epp-max-warn epp-ultra-warn" id="effortUltracodeWarn">⚠ high token usage</span>
                 <svg class="epp-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -569,18 +569,18 @@
             </div>
           </div>
           <div class="model-bar">
-            <button class="mb-model-btn" id="mbModelBtn" onclick="toggleModelDropdown()">
+            <button class="mb-model-btn" id="mbModelBtn" onclick="toggleModelDropdown()" style="display:none">
               <svg class="mb-model-icon" id="modelBarIcon" viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
               <span id="mbModelLabel">Opas</span>
             </button>
-            <span class="mb-sep">·</span>
+            <span class="mb-sep" id="modelSep" style="display:none">·</span>
             <button class="mb-effort-btn" id="mbEffortBtn" onclick="toggleEffortPanel()">
               <span id="mbEffortLabel">Medium</span>
             </button>
             <span class="mb-sep" id="bookSep" style="display:none">·</span>
             <button class="mb-effort-btn mb-book-btn" id="bookModeBtn" style="display:none" onclick="openBookModal()">Write a book</button>
-            <span class="mb-sep">·</span>
-            <button class="mb-effort-btn mb-rp-btn" id="mbRpBtn" onclick="toggleRpMode()" title="Switch to normal chat mode">RP</button>
+            <span class="mb-sep" id="rpSep" style="display:none">·</span>
+            <button class="mb-effort-btn mb-rp-btn" id="mbRpBtn" onclick="toggleRpMode()" title="Switch to normal chat mode" style="display:none">RP</button>
           </div>
         </div>
         <div class="disclaimer">
@@ -656,19 +656,19 @@
       </button>
 
       <!-- History -->
-      <button class="ip-row" onclick="openHistoryPanel()">
+      <button class="ip-row" onclick="comingSoon('History')">
         <span class="ip-row-ico"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg></span>
         <span class="ip-row-label">History</span>
-        <span class="ip-row-right"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></span>
+        <span class="ip-row-right"><span class="ip-badge-new">Soon</span><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></span>
       </button>
 
       <!-- Customize (expandable) -->
-      <button class="ip-row" onclick="toggleCustomize()">
+      <button class="ip-row" onclick="toggleCustomize()" style="display:none">
         <span class="ip-row-ico"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg></span>
         <span class="ip-row-label">Customize</span>
         <span class="ip-row-right"><svg class="ip-chevron" id="customizeChevron" viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></span>
       </button>
-      <div class="ip-expand" id="customizePanel">
+      <div class="ip-expand" id="customizePanel" style="display:none">
         <div class="ip-expand-inner">
           <span class="ip-expand-label">Response length is controlled by <strong>Effort</strong> in the model bar</span>
         </div>

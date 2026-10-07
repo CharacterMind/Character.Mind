@@ -34,7 +34,7 @@ function loadAccountPrefs() {
     const t = localStorage.getItem(userKey('cm_model_tier'));
     if (baseTierOf(t)) selectedModelTier = baseTierOf(t);
     const e = localStorage.getItem(userKey('cm_effort'));
-    if (EFFORT_LEVELS.includes(e)) selectedEffort = e;
+    if (['low', 'medium', 'high'].includes(e)) selectedEffort = e;
   } catch (_) {}
   updateModelBarLabel();
 }
@@ -2434,9 +2434,7 @@ async function generateGreeting() {
 let rpMode = true; // true = roleplay mode (default), false = normal chat mode
 
 function toggleRpMode() {
-  rpMode = !rpMode;
-  try { localStorage.setItem('cm_rp_mode', rpMode ? '1' : '0'); } catch (_) {}
-  updateRpModeUI();
+  // RP mode is always on; toggling disabled
 }
 
 function updateRpModeUI() {
@@ -2447,7 +2445,7 @@ function updateRpModeUI() {
 }
 
 function initRpMode() {
-  try { rpMode = localStorage.getItem('cm_rp_mode') !== '0'; } catch (_) {}
+  rpMode = true;
   updateRpModeUI();
 }
 

@@ -3279,9 +3279,14 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
     }
   }
 
+  const regenHasTriggerStates = /STATE [123]|your trigger is|escalat/i.test(systemPrompt);
+  const regenCharEnforcement = (chatMode !== 'chat' && regenHasTriggerStates)
+    ? '\n\n[CHARACTER ENFORCEMENT: The opening warmth phase is over. Move to STATE 2 now — find what feels off about what the user just said or did. Your trigger is a hair. Candy Cat has already noticed. The warmth is still there; it just has teeth. Do NOT default to generic friendliness. Escalate. Every response must be at least STATE 2.]'
+    : '';
+
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(wrapPrompt(systemPrompt + regenMem, chatMode === 'chat') + regenCrisisContext + regenChatModeDirective, effort, modelTier),
+    system: applyEffortDirective(wrapPrompt(systemPrompt + regenMem, chatMode === 'chat') + regenCrisisContext + regenChatModeDirective + regenCharEnforcement, effort, modelTier),
     messages: fitHistory(aiHistory(hist).slice(-12), historyBudgetFor(modelTier)), effortCfg: regenEffortCfg, modelList: regenModelList,
     userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => {
@@ -3647,9 +3652,16 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     ? '\n\n[CHAT MODE — The user has switched to normal conversation mode. Speak naturally as yourself — drop the roleplay and character performance. Have a genuine, real conversation like a caring friend would. No action asterisks, no theatrical dialogue, no "staying in character." Just talk. Be warm, authentic, and present.]'
     : '';
 
+  // For characters with explicit trigger-state systems (like Lily), inject a compact reminder
+  // that keeps aligned models from defaulting to generic warmth.
+  const hasTriggerStates = /STATE [123]|your trigger is|escalat/i.test(char.systemPrompt);
+  const characterEnforcement = (isRpMode && hasTriggerStates && !callMode)
+    ? '\n\n[CHARACTER ENFORCEMENT: The opening warmth phase is over. Move to STATE 2 now — find what feels off about what the user just said or did. Your trigger is a hair. Candy Cat has already noticed. The warmth is still there; it just has teeth. Do NOT default to generic friendliness. Escalate. Every response must be at least STATE 2.]'
+    : '';
+
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective, effort, modelTier),
+    system: applyEffortDirective(wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement, effort, modelTier),
     messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
