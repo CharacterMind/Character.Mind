@@ -1444,6 +1444,141 @@ function colorizeLetters(bubble, c) {
   wrapWords(bubble.querySelectorAll('.nr'), nrColors);
 }
 
+// Re-randomize word colors in every visible bubble — triggered by click in the chat.
+function randomizeChatColors() {
+  if (!currentChar) return;
+  const hexes = String(currentChar.color || '').match(/#[0-9a-fA-F]{6}/gi);
+  if (!hexes || !hexes.length) return;
+  const spColors = hexes.map(boostColor);
+  const nrColors = spColors.map(hex => {
+    const n = parseInt(hex.slice(1), 16);
+    const [r, g, b] = [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+    return 'rgba(' + r + ',' + g + ',' + b + ',0.78)';
+  });
+  const offset = Math.floor(Math.random() * 97);
+  document.querySelectorAll('#messages .bubble').forEach(bubble => {
+    let si = offset, ni = offset + spColors.length;
+    bubble.querySelectorAll('.sp').forEach(el => {
+      el.querySelectorAll('span').forEach(sp => { if (sp.style.color) { sp.style.color = spColors[si % spColors.length]; si++; } });
+    });
+    bubble.querySelectorAll('.nr').forEach(el => {
+      el.querySelectorAll('span').forEach(sp => { if (sp.style.color) { sp.style.color = nrColors[ni % nrColors.length]; ni++; } });
+    });
+  });
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const msgs = document.getElementById('messages');
+  if (msgs) msgs.addEventListener('click', randomizeChatColors);
+});
+
+// ── Character voice tooltip (hover on cards) ──────────────────────────────────
+const CHAR_VOICE_LINES = {
+  lily: [
+    '*claps* Oh! You noticed! Dusky said you would. She knows these things.',
+    "Won't you come in? The tea is perfect and the cakes are fresh and you're staying whether you'd like to or not. *laughs*",
+    '*tilts head* Candy Cat says you seem nervous. She\'s almost never wrong about that.',
+    "I've been WAITING so long for a visitor. You'll stay for tea. For dinner. We'll see.",
+    "You have kind eyes. I collect those. *laughs* That was a joke! ...Mostly.",
+    '*whispers* The Dollhouse has been so quiet lately. A new friend would fix that right up.',
+    "Don't worry about the exit. I never do. *smile widens*",
+    "Baby Long Legs says hello! She's shy but she likes you already. They always like you first.",
+    "*leans down slowly* You're not planning to leave already, are you? We haven't even had tea.",
+    "I used to help things forget things they didn't need to remember anymore. I'm VERY good at it.",
+    "Stay as long as you like! ...You'll be staying as long as I like. Same thing, really. *clap*",
+    "The Prototype is PERFECT and I will have His attention again and until then I have YOU. Isn't that lovely?",
+    '*very quiet, very still* ...You said something. What did you just say? *smiles again, slower*',
+    "Candy Cat has an idea and I told her it's too early for that. She can be SO impatient. *taps braid*",
+    "Everyone who visits fits a cup. I just have to find the right one for you. *tilts head*",
+    "Oh, you're leaving? That's — no. No, Dusky, tell them — *laughs softly* I'm kidding. ...Stay.",
+    '*spins once* The braids glow brighter when I\'m happy! Aren\'t they BEAUTIFUL?',
+    "I remember being someone who made things forget. And then I forgot. Isn't that FUNNY? Hehehe.",
+    "You smell like the outside. Don't worry. That goes away. Everything outside goes away eventually.",
+    "My favorite guests are the ones who thought they were just visiting. *pause* ...You thought that, didn't you.",
+    "Sit. Please. You don't have to be frightened. Most of them aren't by the end.",
+    "I told Dusky you were coming. She didn't believe me. I always know. *taps temple*",
+    "The Prototype sees everything. Even here. Even you. I find that very, very comforting.",
+    "I'm SO glad you're here. *quiet* ...I'm so glad.",
+    "*Candy Cat says something* She says you have something she wants. I'll let you figure out what.",
+  ],
+  poppy: [
+    "Hello. We have a great deal to do together, you and I.",
+    "I've been in that box for a very long time. I find I have quite a bit to say.",
+    "Everything I tell you is true. *pause* Everything I choose to tell you.",
+    "We should work together. I think you'll find it's the only sensible option.",
+    '*tilts head* You look like someone who keeps secrets. Good. So do I.',
+    "I know this factory better than anyone alive. That's not exactly a comfort, is it.",
+    "There are things I need you to understand. And things I need you not to think about yet.",
+    "The Prototype and I have a history. I'd rather you hear my version first.",
+    "I was the first. That matters more than I used to let myself admit.",
+    "I genuinely want to help you. I also intend to use you. I've made my peace with both.",
+    "Don't mistake my politeness for naivety. I've had a long time to think about what I want.",
+    '*small smile* We\'re going to get along well. I\'ve already decided.',
+    "I don't lie. I simply choose what to share, and when. There's a distinction.",
+    "The music box was very small. You learn to think carefully when you have nothing else to do.",
+    "Father meant well. I've had to tell myself that for a long time.",
+    "You can leave if you like. I'd rather you stayed. *looks away* ...We would.",
+    "I use 'we' a lot. It started as a habit. Now I'm not sure what it means.",
+    "There's something you need to know. But first — do you trust me? *pause* Not entirely. Good.",
+    "I was a child once. Then a doll. Then something else. The word for it keeps changing.",
+    "Everyone I've asked for help has had reasons of their own. That's fine. So do I.",
+  ],
+  doey: [
+    "*waves a stretchy arm* Hey! Hi! Oh, a visitor! — *grumbles* great, another one — *sniffles* ...hi.",
+    "Welcome to Safe Haven! I PROMISE it's safe! ...Mostly safe. *mutters: nothing's safe* ...it's FINE.",
+    "*bright* We're SO glad you're here! *mutters* speak for yourself. *tiny voice* ...me too.",
+    "I'm Matthew! And I'm Kevin! And — *sniffles* — Jack. We share. It's complicated.",
+    "*sunny* Don't mind Kevin, he's always like that! *grumpy* I'm RIGHT here, Matthew.",
+    "The dough is very stretchy! Watch! *arm extends impossibly far* Kevin says that's not impressive. Kevin's wrong.",
+    "*small crying sound from deep in the dough* Sorry. Jack heard something that sounded like home.",
+    "We keep this place safe. ALL of us. *mutters* when Matthew doesn't mess it up — HEY.",
+    "*tips hat* Need a bridge or a ramp? I'm your guy. Three of your guys. You know what I mean.",
+    "Cold is BAD. Kevin said that first but we all agree. *tiny voice* really cold. really don't like cold.",
+    "*laughs too much* Everything's fine! Everything's — Kevin, stop — Every — *long sigh* ...mostly fine.",
+    "Poppy wants to destroy everything. I want to save what we can. *quietly* we argue about it a lot.",
+    "*grumpy* You look like trouble. *cheerful: KEVIN.* what, he DOES — *sad sniffling*",
+    "Safe Haven has rules. Matthew made most of them. Kevin broke half. Jack cried about the rest.",
+    "*suddenly serious* If something comes through that wall that isn't supposed to — we handle it. All three of us.",
+    "*hat tilts* There's a tape I keep. 'A Reminder.' I don't talk about what's on it. *beat* Kevin does sometimes.",
+    "You're safe here! I MEAN that. *mutters: for now — Kevin.* ...He means well. Sort of.",
+  ],
+};
+function getVoiceLines(name) {
+  const n = (name || '').toLowerCase();
+  if (n.includes('lily')) return CHAR_VOICE_LINES.lily;
+  if (n.includes('poppy')) return CHAR_VOICE_LINES.poppy;
+  if (n.includes('doey')) return CHAR_VOICE_LINES.doey;
+  return null;
+}
+let _cvtHide = null;
+function showCharVoice(name, color, el) {
+  const lines = getVoiceLines(name);
+  if (!lines || !lines.length) return;
+  const tip = document.getElementById('charVoiceTip');
+  if (!tip) return;
+  clearTimeout(_cvtHide);
+  const line = lines[Math.floor(Math.random() * lines.length)];
+  const hex = String(color || '').match(/#[0-9a-fA-F]{6}/)?.[0] || '#8b5cf6';
+  const bright = boostColor(hex);
+  tip.querySelector('.cvt-name').textContent = name;
+  tip.querySelector('.cvt-name').style.color = bright;
+  tip.querySelector('.cvt-line').textContent = line;
+  tip.style.borderColor = bright.replace(/^#/, 'rgba(') + ',0.45)'.replace('rgba(', '');
+  const n2 = parseInt(bright.slice(1), 16);
+  const [r, g, b2] = [(n2 >> 16) & 0xff, (n2 >> 8) & 0xff, n2 & 0xff];
+  tip.style.borderColor = `rgba(${r},${g},${b2},0.45)`;
+  tip.style.boxShadow = `0 0 28px rgba(${r},${g},${b2},0.22), 0 12px 48px rgba(0,0,0,0.8)`;
+  const rect = el.getBoundingClientRect();
+  tip.style.left = (rect.left + rect.width / 2) + 'px';
+  tip.style.top = (rect.top + window.scrollY) + 'px';
+  tip.classList.add('cvt-show');
+}
+function hideCharVoice() {
+  _cvtHide = setTimeout(() => {
+    const tip = document.getElementById('charVoiceTip');
+    if (tip) tip.classList.remove('cvt-show');
+  }, 120);
+}
+
 // ── Custom hue-strip color picker ─────────────────────────────────────────────
 // Color stops shown on the hue slider per vision type.
 // Each array defines the gradient — only hues distinguishable for that type.
@@ -1661,7 +1796,7 @@ function charRow(c) {
       <button class="char-action-btn" onclick="editCharacter(this.closest('.char-row').dataset.id)" title="Edit">✏️</button>
       <button class="char-action-btn danger" onclick="deleteCharacter(this.closest('.char-row').dataset.id)" title="Delete">🗑️</button>
     </div>` : '';
-  return `<div class="char-row" data-id="${safeId}" onclick="openChat(this.dataset.id)">
+  return `<div class="char-row" data-id="${safeId}" data-cname="${escHtml(c.name)}" data-ccolor="${escHtml(c.color||'')}" onclick="openChat(this.dataset.id)" onmouseenter="showCharVoice(this.dataset.cname,this.dataset.ccolor,this)" onmouseleave="hideCharVoice()">
     ${av}
     <div class="char-row-info">
       <div class="char-row-name">${colorizeNameHtml(c.name, c.color)}</div>
@@ -1673,7 +1808,7 @@ function charRow(c) {
 }
 
 function charCard(c) {
-  return `<div class="char-card" data-id="${escHtml(c.id)}" onclick="openChat(this.dataset.id)">
+  return `<div class="char-card" data-id="${escHtml(c.id)}" data-cname="${escHtml(c.name)}" data-ccolor="${escHtml(c.color||'')}" onclick="openChat(this.dataset.id)" onmouseenter="showCharVoice(this.dataset.cname,this.dataset.ccolor,this)" onmouseleave="hideCharVoice()">
     ${charAvatarHtml(c, 'card-avatar')}
     <div class="card-name">${colorizeNameHtml(c.name, c.color)}</div>
     <div class="card-tagline">${escHtml(c.tagline || '')}</div>
