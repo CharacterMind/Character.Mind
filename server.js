@@ -2407,6 +2407,28 @@ app.get('/api/geo', async (req, res) => {
   }
 });
 
+let cachedExchangeRates = null;
+let cachedExchangeRatesAt = 0;
+app.get('/api/exchange-rates', async (req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  const now = Date.now();
+  if (cachedExchangeRates && now - cachedExchangeRatesAt < 3600000) {
+    return res.json(cachedExchangeRates);
+  }
+  try {
+    const r = await fetch('https://api.frankfurter.app/latest?from=USD');
+    const d = await r.json();
+    const rates = { usd: 1 };
+    for (const [k, v] of Object.entries(d.rates || {})) rates[k.toLowerCase()] = v;
+    cachedExchangeRates = rates;
+    cachedExchangeRatesAt = now;
+    res.json(rates);
+  } catch (_) {
+    if (cachedExchangeRates) return res.json(cachedExchangeRates);
+    res.status(500).json({});
+  }
+});
+
 app.post('/api/call/start', requireAuth, (req, res) => {
   const userId = req.user.googleId;
   const u = getLimits(userId);

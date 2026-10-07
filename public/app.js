@@ -300,14 +300,9 @@ let exchangeRatesPromise = null;
 
 function loadExchangeRates() {
   if (exchangeRatesPromise) return exchangeRatesPromise;
-  exchangeRatesPromise = fetch('https://api.frankfurter.app/latest?from=USD')
+  exchangeRatesPromise = fetch('/api/exchange-rates')
     .then(r => r.json())
-    .then(d => {
-      const rates = { usd: 1 };
-      for (const [k, v] of Object.entries(d.rates || {})) rates[k.toLowerCase()] = v;
-      exchangeRates = rates;
-      return rates;
-    })
+    .then(d => { exchangeRates = d; return d; })
     .catch(() => { exchangeRatesPromise = null; return null; });
   return exchangeRatesPromise;
 }
