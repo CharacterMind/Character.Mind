@@ -1913,7 +1913,7 @@ const GROQ_OUTPUT_CAP = Number(process.env.GROQ_OUTPUT_CAP) || 4000;
 // The model's hidden thinking counts against max_tokens, so a small cap cuts the visible reply off mid-sentence.
 const GROQ_OUTPUT_MIN = Math.min(1400, GROQ_OUTPUT_CAP);
 // Keeps what we send as chat history small, newest messages first, so one request doesn't eat the whole minute's allowance.
-const HISTORY_CHAR_BUDGET = Number(process.env.HISTORY_CHAR_BUDGET) || 12000;
+const HISTORY_CHAR_BUDGET = Number(process.env.HISTORY_CHAR_BUDGET) || 7000;
 function fitHistory(msgs, budget) {
   const limit = Number.isFinite(budget) ? budget : HISTORY_CHAR_BUDGET;
   const KEEP_RECENT = 4;                                           // the newest messages are always sent, shortened if they must be
