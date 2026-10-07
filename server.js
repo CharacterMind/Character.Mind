@@ -2123,7 +2123,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     if (ctx.rateLimited) {
       // Every model was out of tokens for this minute. If the wait is not too long, wait and go round again (a few times, within a total limit).
       const wait = Math.max(500, (ctx.retryAfterMs || 0) + 300);
-      if (!ctx.aborted && ctx.retryAfterMs != null && ctx.retryAfterMs <= RATE_RETRY_MAX_MS && (ctx.retries || 0) < RATE_RETRY_MAX_TRIES && (ctx.waitedMs || 0) + wait <= RATE_RETRY_TOTAL_MS) {
+      if (!ctx.aborted && (ctx.retryAfterMs == null || ctx.retryAfterMs <= RATE_RETRY_MAX_MS) && (ctx.retries || 0) < RATE_RETRY_MAX_TRIES && (ctx.waitedMs || 0) + wait <= RATE_RETRY_TOTAL_MS) {
         ctx.retries = (ctx.retries || 0) + 1;
         ctx.waitedMs = (ctx.waitedMs || 0) + wait;
         ctx.rateLimited = false; ctx.retryAfterMs = null;
