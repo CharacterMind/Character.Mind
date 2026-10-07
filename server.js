@@ -560,7 +560,7 @@ const LIMITS = {
 // Lighter models/efforts give more messages than this; heavier ones give fewer.
 // Advanced 150, X20 = 20x Advanced (3,000), X50 = 50x Advanced (7,500), X100 = 100x Advanced (15,000), X200 = 200x (30,000). Weekly = 5 sessions' worth.
 // Free budget is fixed at 5,400 tokens per session (~2 Opes messages at the new cost) — auto-computed so it never drifts when AVG_MESSAGE_TOKENS changes.
-const FREE_SESSION_TOKENS = 5000;
+const FREE_SESSION_TOKENS = 15000;
 const AVG_MESSAGE_TOKENS = 3600;
 const X20_MULT = 20;
 const X50_MULT = 50;
