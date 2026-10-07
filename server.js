@@ -1850,12 +1850,12 @@ async function getCharPrompt(charId) {
 // Fast model for free tiers; big model for paid tiers
 // Each Groq model has its own free per-minute allowance, so extra models at the end of each list are a free
 // overflow lane: they are only used when the main ones are rate limited (or missing), never remembered as "the" model.
-const GROQ_FALLBACKS    = ['gemini-1.5-flash', 'gemini-1.5-flash-8b'];
-const GROQ_FAST_MODELS  = ['gemini-2.0-flash', ...GROQ_FALLBACKS];
-const GROQ_MODELS       = ['gemini-2.0-flash', ...GROQ_FALLBACKS];
-const GROQ_PRO_MODELS   = ['gemini-2.0-flash', ...GROQ_FALLBACKS];
-const GROQ_OPUS_MODELS  = ['gemini-2.0-flash', ...GROQ_FALLBACKS];
-const GROQ_OPYS2_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+const GROQ_FALLBACKS    = ['meta-llama/llama-4-scout-17b-16e-instruct', 'meta-llama/llama-4-maverick-17b-128e-instruct', 'llama3-70b-8192', 'llama-3.1-8b-instant', 'gemma2-9b-it', 'llama3-8b-8192'];
+const GROQ_FAST_MODELS  = ['llama-3.3-70b-versatile', ...GROQ_FALLBACKS];
+const GROQ_MODELS       = ['llama-3.3-70b-versatile', ...GROQ_FALLBACKS];
+const GROQ_PRO_MODELS   = ['llama-3.3-70b-versatile', ...GROQ_FALLBACKS];
+const GROQ_OPUS_MODELS  = ['llama-3.3-70b-versatile', ...GROQ_FALLBACKS];
+const GROQ_OPYS2_MODELS = ['llama-3.3-70b-versatile', 'meta-llama/llama-4-maverick-17b-128e-instruct'];
 
 // Per-tier effort configs — max effort uses highest reasoning + tokens
 const EFFORT_CONFIG = {
@@ -2155,7 +2155,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     ...(model.startsWith('openai/') && effortCfg.reasoningEffort ? { reasoning_effort: effortCfg.reasoningEffort } : {})
   });
 
-  const reqPath = '/v1beta/openai/chat/completions';
+  const reqPath = '/openai/v1/chat/completions';
   const headers = {
     'content-type': 'application/json',
     'content-length': Buffer.byteLength(body),
@@ -2163,7 +2163,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
   };
 
   let gotResponse = false;
-  const req = https.request({ hostname: 'generativelanguage.googleapis.com', path: reqPath, method: 'POST', headers }, (res) => {
+  const req = https.request({ hostname: 'api.groq.com', path: reqPath, method: 'POST', headers }, (res) => {
     gotResponse = true;
     // Decode as UTF-8 across chunk boundaries: an emoji, curly quote or dash split between two network packets must not turn into "�"
     if (typeof res.setEncoding === 'function') res.setEncoding('utf8');
@@ -2180,7 +2180,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
           const msg = parsed.error?.message || '';
           console.log(`Model ${model} status ${res.statusCode}: ${msg}`);
           if (res.statusCode === 401 || res.statusCode === 403) {
-            return onError(new Error(`Invalid API key: ${msg}`));
+            return onError(new Error(`Invalid Groq API key: ${msg}`));
           }
           if (res.statusCode === 429) {
             ctx.rateLimited = true;
@@ -2865,7 +2865,7 @@ function charTextUnsafe(body) {
 async function charImageProblem(image) {
   // Only a newly uploaded picture is checked; the "keep existing" marker is not a picture
   if (!image || KEEP_IMAGE_RE.test(image)) return null;
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return { status: 503, error: "We couldn't check that picture right now. Please try again in a moment." };
   try {
     const analysis = await analyzeImage(apiKey, image);
@@ -3188,7 +3188,7 @@ app.post('/api/conversations/:charId/edit', requireAuth, async (req, res) => {
 });
 
 app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
   const { charId } = req.params;
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
@@ -3312,7 +3312,7 @@ app.post('/api/rewind/:charId', requireAuth, convLimiter, async (req, res) => {
 });
 
 app.post('/api/generate-persona', requireAuth, (req, res) => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
   const { name, tagline, description } = req.body;
   if (!name || typeof name !== 'string' || !name.trim() || name.length > 60) return res.status(400).json({ error: 'Name required, max 60 chars' });
@@ -3348,7 +3348,7 @@ Write ONLY the persona prompt itself. Start with "You are ${name}." No preamble,
 });
 
 app.post('/api/greet/:charId', requireAuth, async (req, res) => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
   const { effort: reqEffort, modelTier: reqModelTier, chatMode } = req.body;
   const { charId } = req.params;
@@ -3405,7 +3405,7 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   });
 });
 
-const GROQ_VISION_MODEL = process.env.GEMINI_VISION_MODEL || 'gemini-1.5-flash';
+const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-maverick-17b-128e-instruct';
 
 // One vision call that both checks the image against the content rules and describes it.
 // The chat models are text-only, so the character reacts to this description instead of the raw image.
@@ -3427,7 +3427,8 @@ async function analyzeImage(apiKey, dataUri) {
       ...extra
     })
   });
-  let r = await call({});
+  let r = await call({ reasoning_effort: 'none', reasoning_format: 'hidden' });
+  if (r.status === 400) r = await call({});
   if (!r.ok) throw new Error('vision http ' + r.status);
   const j = await r.json();
   const content = String(j.choices?.[0]?.message?.content || '');
@@ -3441,7 +3442,7 @@ async function analyzeImage(apiKey, dataUri) {
 }
 
 app.post('/api/chat', requireAuth, async (req, res) => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
   const { charId, message, modelTier: reqModelTier, effort: reqEffort, image, callMode, chatMode } = req.body;
   const isRpMode = chatMode !== 'chat'; // default to RP; 'chat' = normal conversation mode
