@@ -2144,10 +2144,12 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     ...messages.map(m => ({ role: m.role, content: m.content }))
   ];
 
+  // Fallback models (gpt-oss-20b) have tight TPM limits — cap their output so the request fits
+  const maxTokens = modelIndex > 0 ? Math.min(effortCfg.maxOutputTokens, 1800) : effortCfg.maxOutputTokens;
   const body = JSON.stringify({
     model,
     messages: groqMessages,
-    max_tokens: effortCfg.maxOutputTokens,
+    max_tokens: maxTokens,
     temperature: effortCfg.temperature,
     top_p: 0.95,
     frequency_penalty: 0.35,
