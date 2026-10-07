@@ -556,15 +556,15 @@ const LIMITS = {
 
 // Plan limits are defined in AVERAGE MESSAGES per session, then converted to tokens (what a reply is charged:
 // model tokens x model multiplier x effort multiplier).
-// An average message = Opes at Medium effort = 1,200 tokens (see MESSAGE_COST below).
+// An average message = Opes at Medium effort = 1,800 tokens (see MESSAGE_COST below).
 // Lighter models/efforts give more messages than this; heavier ones give fewer.
-// Free 60, Advanced 150 (2.5x), X20 = 20x Advanced (3,000), X50 = 50x Advanced (7,500), X100 = 100x Advanced (15,000), X200 = 200x (30,000). Weekly = 5 sessions' worth.
-const AVG_MESSAGE_TOKENS = 1200;
+// Free 35, Advanced 150 (4.3x), X20 = 20x Advanced (3,000), X50 = 50x Advanced (7,500), X100 = 100x Advanced (15,000), X200 = 200x (30,000). Weekly = 5 sessions' worth.
+const AVG_MESSAGE_TOKENS = 1800;
 const X20_MULT = 20;
 const X50_MULT = 50;
 const X100_MULT = 100;
 const X200_MULT = 200;
-const MESSAGES_PER_SESSION = { free: 60, advanced: 150 };
+const MESSAGES_PER_SESSION = { free: 35, advanced: 150 };
 const WEEKLY_SESSIONS = 5;
 function limitsForMessages(sessionMessages) {
   const session = sessionMessages * AVG_MESSAGE_TOKENS;
@@ -594,7 +594,7 @@ const baseOf = (t) => {
 };
 // The most tokens one reply may use, per model (the bigger writers get more room), and how long each model writes compared with Opes
 // (Opys 5's cap is high on purpose: what it can really write at once depends on the Groq plan, see GROQ_REQUEST_BUDGET and GROQ_LENGTH_SCALE.)
-const MODEL_CAP   = { opas: 1600, opes: 2200, opis: 2600, opos: 3300, opus: 3900, opys: 4500, opys5: 40000, opys6: 40000 };
+const MODEL_CAP   = { opas: 2400, opes: 3600, opis: 2600, opos: 3300, opus: 3900, opys: 4500, opys5: 40000, opys6: 40000 };
 const MODEL_WORDS = { opas: 0.7,  opes: 1,    opis: 1.1,  opos: 1.3,  opus: 1.6,  opys: 1.9,  opys5: 3.5,  opys6: 5.0 };
 const MODEL_CAP_SCALE = Number(process.env.VERSION_CAP_SCALE) || 1;
 for (const k of Object.keys(MODEL_CAP)) MODEL_CAP[k] = Math.round(MODEL_CAP[k] * MODEL_CAP_SCALE);
@@ -625,8 +625,8 @@ function resolveEffort(userId, requested) {
 // What ONE reply costs from the allowance, by model and effort. Fixed per message (not the AI's raw token
 // count, which swings a lot because of hidden thinking), so message counts are predictable.
 // Opes costs about 3x Opas at every effort. Higher models are multiples of Opes.
-const OPAS_COST = { low: 220, medium: 350, high: 540, extra: 800, max: 1200, ultracode: 2400 };
-const OPES_COST = { low: 700, medium: 1200, high: 1800, extra: 2600, max: 4000, ultracode: 8000 }; // effort ramps gently: Low 0.6x, Medium 1x, High 1.5x, Extra 2.2x, Max 3.3x a Medium message
+const OPAS_COST = { low: 330, medium: 520, high: 800, extra: 1200, max: 1800, ultracode: 3600 };
+const OPES_COST = { low: 1050, medium: 1800, high: 2700, extra: 3900, max: 6000, ultracode: 12000 }; // effort ramps gently: Low 0.6x, Medium 1x, High 1.5x, Extra 2.2x, Max 3.3x a Medium message
 // Base models step up gently: Opes 1x, Opis 1.25x, Opos 1.5x, Opus 2x, Opys 3x (of Opes).
 // Max effort costs about 3.3x a Medium reply.
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3, opys5: 10, opys6: 20 };
