@@ -1383,8 +1383,8 @@ function boostColor(hex) {
   let b = n & 0xff;
   // Ensure minimum perceived brightness so colors are legible on dark backgrounds
   const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  if (lum < 70) {
-    const scale = 70 / Math.max(lum, 1);
+  if (lum < 140) {
+    const scale = 140 / Math.max(lum, 1);
     r = Math.min(255, Math.round(r * scale));
     g = Math.min(255, Math.round(g * scale));
     b = Math.min(255, Math.round(b * scale));
@@ -1407,9 +1407,11 @@ function colorizeLetters(bubble, c) {
   if (!hexes || !hexes.length) return;
   const spColors = hexes.map(boostColor);
   const nrColors = spColors.map(hex => {
+    // Mix toward white to keep narration bright but slightly softer than speech
     const n = parseInt(hex.slice(1), 16);
     const [r, g, b] = [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
-    return 'rgba(' + r + ',' + g + ',' + b + ',0.78)';
+    const mix = (v) => Math.min(255, Math.round(v + (255 - v) * 0.25));
+    return '#' + [mix(r), mix(g), mix(b)].map(x => x.toString(16).padStart(2, '0')).join('');
   });
   const wrapWords = (spans, colors) => {
     spans.forEach(el => {
@@ -1424,7 +1426,7 @@ function colorizeLetters(bubble, c) {
           if (/\s/.test(ch)) { frag.appendChild(document.createTextNode(ch)); continue; }
           const sp = document.createElement('span');
           sp.style.color = colors[Math.floor(Math.random() * colors.length)];
-          sp.style.fontWeight = '700';
+          sp.style.fontWeight = '800';
           sp.textContent = ch;
           frag.appendChild(sp);
         }
@@ -1445,7 +1447,8 @@ function randomizeChatColors() {
   const nrColors = spColors.map(hex => {
     const n = parseInt(hex.slice(1), 16);
     const [r, g, b] = [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
-    return 'rgba(' + r + ',' + g + ',' + b + ',0.78)';
+    const mix = (v) => Math.min(255, Math.round(v + (255 - v) * 0.25));
+    return '#' + [mix(r), mix(g), mix(b)].map(x => x.toString(16).padStart(2, '0')).join('');
   });
   document.querySelectorAll('#messages .bubble').forEach(bubble => {
     bubble.querySelectorAll('.sp').forEach(el => {

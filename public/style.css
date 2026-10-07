@@ -635,7 +635,7 @@ html, body {
 
 /* Bubbles — no borders, c.ai style */
 .bubble {
-  padding: 18px 22px; font-size: 21px; line-height: 1.7;
+  padding: 18px 22px; font-size: 21px; line-height: 1.75; font-weight: 700;
   word-break: break-word; border-radius: 0 14px 14px 14px;
 }
 .msg.ai .bubble {
@@ -2888,8 +2888,8 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
 }
 
 /* Bubble text: bold speech, softer italic narration — character colours applied via colorizeLetters on top */
-.bubble .sp { color: #ddd6fe; font-weight: 600; }
-.bubble .nr { color: #c4b8e8; font-style: italic; font-weight: 500; }
+.bubble .sp { color: #f0ebff; font-weight: 700; }
+.bubble .nr { color: #ddd6fe; font-style: italic; font-weight: 700; }
 .bubble p { margin: 0 0 12px; line-height: 1.7; }
 .bubble p:last-child { margin-bottom: 0; }
 
