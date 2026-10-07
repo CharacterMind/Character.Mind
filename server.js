@@ -602,7 +602,7 @@ const MODEL_CAP_SCALE = Number(process.env.VERSION_CAP_SCALE) || 1;
 for (const k of Object.keys(MODEL_CAP)) MODEL_CAP[k] = Math.round(MODEL_CAP[k] * MODEL_CAP_SCALE);
 // Groq's free plan allows about 8,000 tokens per request, counting the prompt AND the reply room together.
 // So the bigger the reply room, the smaller the prompt has to be. The reply room is fitted to what the prompt leaves over.
-const GROQ_REQUEST_BUDGET = Number(process.env.GROQ_REQUEST_BUDGET) || 24000;
+const GROQ_REQUEST_BUDGET = Number(process.env.GROQ_REQUEST_BUDGET) || 8000;
 const MIN_REPLY_ROOM = 1400;
 function estimateTokens(str) { return Math.ceil(String(str || '').length / 3.4); }
 function fitOutputRoom(cfg, system, messages) {
