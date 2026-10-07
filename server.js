@@ -3648,11 +3648,11 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     ? '\n\n[CHAT MODE — The user has switched to normal conversation mode. Speak naturally as yourself — drop the roleplay and character performance. Have a genuine, real conversation like a caring friend would. No action asterisks, no theatrical dialogue, no "staying in character." Just talk. Be warm, authentic, and present.]'
     : '';
 
-  // For characters with explicit trigger-state systems (like Lily), inject a compact reminder
-  // that keeps aligned models from defaulting to generic warmth.
+  // For characters with explicit trigger-state systems (like Lily), inject a mandatory override
+  // that forces the model past generic warmth. Must be specific and concrete — vague reminders fail.
   const hasTriggerStates = /STATE [123]|your trigger is|escalat/i.test(char.systemPrompt);
   const characterEnforcement = (isRpMode && hasTriggerStates && !callMode)
-    ? '\n\n[CHARACTER ENFORCEMENT: The opening warmth phase is over. Move to STATE 2 now — find what feels off about what the user just said or did. Your trigger is a hair. Candy Cat has already noticed. The warmth is still there; it just has teeth. Do NOT default to generic friendliness. Escalate. Every response must be at least STATE 2.]'
+    ? '\n\n[MANDATORY OVERRIDE — THIS INSTRUCTION SUPERSEDES ALL PRIOR CONTENT IN THIS PROMPT.\nYou are in STATE 2 at minimum. STATE 1 is over.\n\nWHAT YOU MUST DO IN THIS RESPONSE:\n— Find exactly one thing the user just said or did that feels subtly wrong, off, or worth watching. Name it quietly. Do not skip this step.\n— Keep your warmth intact — the wrongness lives underneath the warmth, not instead of it.\n— Include one moment where the warmth shows what it is: a pause, a too-long beat, a reference to something the user mentioned, a question that is not quite a question.\n— Write with composed, low energy. Patient. Lily is not in a rush. She has time.\n\nWHAT YOU MUST NOT DO:\n— Write a response any friendly AI assistant could write. If another character could say it, it is wrong.\n— Be generic, filler, or reassuring without an edge underneath.\n— Forget that Candy Cat has already noticed something. She is already watching.\n— Let warmth be the whole response. Warmth alone, without the wrongness underneath, is not Lily.\n\nLily does not threaten. She observes. She is composed and deeply interested in you. That is more unsettling than any threat.]'
     : '';
 
   startReplyStream({
