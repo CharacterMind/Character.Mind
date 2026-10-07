@@ -182,7 +182,8 @@ const PLAN_DATA = [
     features: [
       'Opas & Opes: fast, capable AI for casual chats',
       'Every character unlocked — no paywalled cast',
-      '3 messages per day (hard daily limit)',
+      '~6 AI replies per session, 2hr cooldown between sessions',
+      '3 sessions per week max (~18 replies total)',
       '1 image upload per day',
     ],
   },
@@ -192,7 +193,7 @@ const PLAN_DATA = [
     features: [
       'Opis: precise logic, riddles, mysteries and continuity',
       'Opos: GM-mode — sets scenes, runs NPCs, drives drama',
-      '5 messages per day (hard daily limit)',
+      '150 AI replies per session — long, deep stories',
       '10 image uploads per day',
       'Everything in Free',
     ],
