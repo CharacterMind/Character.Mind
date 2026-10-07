@@ -1412,7 +1412,6 @@ function colorizeLetters(bubble, c) {
     return 'rgba(' + r + ',' + g + ',' + b + ',0.78)';
   });
   const wrapWords = (spans, colors) => {
-    let wi = 0;
     spans.forEach(el => {
       const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
       const nodes = [];
@@ -1421,15 +1420,13 @@ function colorizeLetters(bubble, c) {
       for (const tn of nodes) {
         if (tn.parentNode && tn.parentNode.closest && tn.parentNode.closest('code, pre')) continue;
         const frag = document.createDocumentFragment();
-        for (const tok of tn.textContent.split(/(\s+)/)) {
-          if (!tok) continue;
-          if (/^\s+$/.test(tok)) { frag.appendChild(document.createTextNode(tok)); continue; }
+        for (const ch of tn.textContent) {
+          if (/\s/.test(ch)) { frag.appendChild(document.createTextNode(ch)); continue; }
           const sp = document.createElement('span');
-          sp.style.color = colors[wi % colors.length];
+          sp.style.color = colors[Math.floor(Math.random() * colors.length)];
           sp.style.fontWeight = '700';
-          sp.textContent = tok;
+          sp.textContent = ch;
           frag.appendChild(sp);
-          wi++;
         }
         tn.parentNode.replaceChild(frag, tn);
       }
@@ -1450,14 +1447,12 @@ function randomizeChatColors() {
     const [r, g, b] = [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
     return 'rgba(' + r + ',' + g + ',' + b + ',0.78)';
   });
-  const offset = Math.floor(Math.random() * 97);
   document.querySelectorAll('#messages .bubble').forEach(bubble => {
-    let si = offset, ni = offset + spColors.length;
     bubble.querySelectorAll('.sp').forEach(el => {
-      el.querySelectorAll('span').forEach(sp => { if (sp.style.color) { sp.style.color = spColors[si % spColors.length]; si++; } });
+      el.querySelectorAll('span').forEach(sp => { if (sp.style.color) { sp.style.color = spColors[Math.floor(Math.random() * spColors.length)]; } });
     });
     bubble.querySelectorAll('.nr').forEach(el => {
-      el.querySelectorAll('span').forEach(sp => { if (sp.style.color) { sp.style.color = nrColors[ni % nrColors.length]; ni++; } });
+      el.querySelectorAll('span').forEach(sp => { if (sp.style.color) { sp.style.color = nrColors[Math.floor(Math.random() * nrColors.length)]; } });
     });
   });
 }
