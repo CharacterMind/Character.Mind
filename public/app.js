@@ -295,9 +295,15 @@ const COUNTRY_CURRENCY = {
 };
 
 let pricingCountryCode = 'US';
-let pricingCountryDetected = false;
+let pricingCountryPromise = null;
 let exchangeRates = null;
 let exchangeRatesPromise = null;
+
+function ensurePricingCountry() {
+  if (!pricingCountryPromise)
+    pricingCountryPromise = detectPricingCountry().then(code => { pricingCountryCode = code; return code; });
+  return pricingCountryPromise;
+}
 
 function loadExchangeRates() {
   if (exchangeRatesPromise) return exchangeRatesPromise;
@@ -316,22 +322,6 @@ async function detectPricingCountry() {
   return 'US';
 }
 
-function populateCountrySelect() {
-  const sel = document.getElementById('pricingCountrySelect');
-  if (!sel) return;
-  if (sel.options.length <= 1) {
-    const sorted = Object.entries(COUNTRY_CURRENCY).sort((a, b) => a[1].n.localeCompare(b[1].n));
-    sel.innerHTML = sorted.map(([code, info]) => `<option value="${code}">${info.n} (${info.c})</option>`).join('');
-  }
-  sel.value = pricingCountryCode;
-}
-
-function setPricingCountry(code) {
-  if (!COUNTRY_CURRENCY[code]) return;
-  pricingCountryDetected = true;
-  pricingCountryCode = code;
-  loadExchangeRates().then(() => renderPricingCards());
-}
 
 function formatLocalPrice(usdPrice) {
   if (usdPrice === 0) return 'Free';
@@ -349,18 +339,9 @@ function formatLocalPrice(usdPrice) {
 
 function openPricingModal() {
   loadPaypalConfig().then(() => { setPricingPeriod(pricingPeriod); });
-  populateCountrySelect();
   renderPricingCards();
   document.getElementById('pricingModal').style.display = 'flex';
-  loadExchangeRates().then(() => {
-    if (pricingCountryDetected) { renderPricingCards(); return; }
-    detectPricingCountry().then(code => {
-      pricingCountryDetected = true;
-      pricingCountryCode = code;
-      populateCountrySelect();
-      renderPricingCards();
-    });
-  });
+  Promise.all([loadExchangeRates(), ensurePricingCountry()]).then(() => renderPricingCards());
 }
 function closePricingModal() {
   document.getElementById('pricingModal').style.display = 'none';
@@ -555,11 +536,7 @@ function updateSettingsPlanCard(tier) {
 function renderSettingsTiers(currentTier) {
   if (!paypalConfigLoaded) loadPaypalConfig().then(() => renderSettingsTiers(currentTier));
   if (!exchangeRates) {
-    const countryP = pricingCountryDetected ? Promise.resolve(pricingCountryCode) : detectPricingCountry();
-    Promise.all([loadExchangeRates(), countryP]).then(([, code]) => {
-      if (!pricingCountryDetected) { pricingCountryDetected = true; pricingCountryCode = code; }
-      renderSettingsTiers(currentTier);
-    });
+    Promise.all([loadExchangeRates(), ensurePricingCountry()]).then(() => renderSettingsTiers(currentTier));
   }
   const el = document.getElementById('settingsTiersSection');
   if (!el) return;
