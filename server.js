@@ -627,8 +627,8 @@ function resolveEffort(userId, requested) {
 // What ONE reply costs from the allowance, by model and effort. Fixed per message (not the AI's raw token
 // count, which swings a lot because of hidden thinking), so message counts are predictable.
 // Opes costs about 3x Opas at every effort. Higher models are multiples of Opes.
-const OPAS_COST = { low: 660, medium: 1040, high: 1600, extra: 2400, max: 3600, ultracode: 7200 };
-const OPES_COST = { low: 2100, medium: 3600, high: 5400, extra: 7800, max: 12000, ultracode: 24000 }; // effort ramps gently: Low 0.6x, Medium 1x, High 1.5x, Extra 2.2x, Max 3.3x a Medium message
+const OPAS_COST = { low: 264, medium: 420, high: 640, extra: 960, max: 1440, ultracode: 2880 };
+const OPES_COST = { low: 1050, medium: 1800, high: 2700, extra: 3900, max: 6000, ultracode: 12000 }; // effort ramps gently: Low 0.6x, Medium 1x, High 1.5x, Extra 2.2x, Max 3.3x a Medium message
 // Base models step up gently: Opes 1x, Opis 1.25x, Opos 1.5x, Opus 2x, Opys 3x (of Opes).
 // Max effort costs about 3.3x a Medium reply.
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3, opys5: 10, opys6: 20 };

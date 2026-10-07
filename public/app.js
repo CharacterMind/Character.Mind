@@ -41,8 +41,8 @@ function loadAccountPrefs() {
 
 const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys', opys5:'Opys 5', opys6:'Opys 6' };
 // Must match OPAS_COST / OPES_COST / COST_FACTOR_VS_OPES in server.js — what one reply costs from the allowance.
-const OPAS_COST = { low: 660, medium: 1040, high: 1600, extra: 2400, max: 3600, ultracode: 7200 };
-const OPES_COST = { low: 2100, medium: 3600, high: 5400, extra: 7800, max: 12000, ultracode: 24000 };
+const OPAS_COST = { low: 264, medium: 420, high: 640, extra: 960, max: 1440, ultracode: 2880 };
+const OPES_COST = { low: 1050, medium: 1800, high: 2700, extra: 3900, max: 6000, ultracode: 12000 };
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3, opys5: 10, opys6: 20 };
 const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1, opus: 2, opys: 3, opys5: 4, opys6: 5 };
 const PLAN_RANK = { free: 0, advanced: 1, x20: 2, x50: 3, x100: 4, x200: 5 };
