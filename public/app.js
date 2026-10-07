@@ -41,8 +41,8 @@ function loadAccountPrefs() {
 
 const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys', opys5:'Opys 5', opys6:'Opys 6' };
 // Must match OPAS_COST / OPES_COST / COST_FACTOR_VS_OPES in server.js — what one reply costs from the allowance.
-const OPAS_COST = { low: 220, medium: 350, high: 540, extra: 800, max: 1200, ultracode: 2400 };
-const OPES_COST = { low: 700, medium: 1200, high: 1800, extra: 2600, max: 4000, ultracode: 8000 };
+const OPAS_COST = { low: 660, medium: 1040, high: 1600, extra: 2400, max: 3600, ultracode: 7200 };
+const OPES_COST = { low: 2100, medium: 3600, high: 5400, extra: 7800, max: 12000, ultracode: 24000 };
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3, opys5: 10, opys6: 20 };
 const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1, opus: 2, opys: 3, opys5: 4, opys6: 5 };
 const PLAN_RANK = { free: 0, advanced: 1, x20: 2, x50: 3, x100: 4, x200: 5 };
@@ -180,10 +180,9 @@ const PLAN_DATA = [
     key: 'free', name: 'Free', monthly: 0, annual: 0,
     callsPerDay: 3, memosPerDay: 30,
     features: [
-      'Opas & Opes: fast, capable AI for casual chats',
-      'Every character unlocked — no paywalled cast',
-      '~6 AI replies per session, 2hr cooldown between sessions',
-      '3 sessions per week max (~18 replies total)',
+      'Opas & Opes: quick-witted, weirdly capable, zero fluff',
+      'Every character unlocked — no velvet rope',
+      '~2 replies per session on Opes (or ~5 on Opas) — it ends when you want more',
       '1 image upload per day',
     ],
   },
@@ -191,9 +190,9 @@ const PLAN_DATA = [
     key: 'advanced', name: 'Advanced', monthly: 9.99, annual: 59.99,
     callsPerDay: 5, memosPerDay: 50,
     features: [
-      'Opis: precise logic, riddles, mysteries and continuity',
-      'Opos: GM-mode — sets scenes, runs NPCs, drives drama',
-      '150 AI replies per session — long, deep stories',
+      'Opis: sharper logic, built for mystery, never loses the thread',
+      'Opos: plays GM — runs the whole room, drives plot, voices every NPC',
+      '150 replies per session — actually settle into a story',
       '10 image uploads per day',
       'Everything in Free',
     ],
@@ -202,9 +201,9 @@ const PLAN_DATA = [
     key: 'x20', name: 'X20', badge: 'Recommended', monthly: 39.99, annual: 239.99,
     callsPerDay: 100, memosPerDay: 1000,
     features: [
-      'Opus: deep emotional storytelling, inner conflict, layered subtext',
-      'Replies are 1.6× longer than Opes at the same effort level',
-      '100 messages per day — serious writing sessions',
+      'Opus: proper emotional weight — subtext, inner conflict, the whole thing',
+      'Replies run 1.6× longer — scenes don\'t cut short when they shouldn\'t',
+      '100 messages a day, every day — real writing sessions',
       '200 image uploads per day',
       'Everything in Advanced',
     ],
@@ -213,10 +212,9 @@ const PLAN_DATA = [
     key: 'x50', name: 'X50', badge: 'Best Value', monthly: 79.99, annual: 479.99,
     callsPerDay: 250, memosPerDay: 2500,
     features: [
-      'Opys: master storyteller — cinematic pacing, vivid imagery, deliberate tension',
-      'Plans scenes before writing: outlines, tension beats, structured arcs',
-      'Replies are 1.9× longer than Opes; handles multi-chapter story arcs',
-      '250 messages per day — write a novel chapter by chapter',
+      'Opys: plans the scene before it writes it — tension beats, pacing, full arcs',
+      'Replies run 1.9× longer with multi-chapter stamina',
+      '250 messages a day — novel chapters, start to finish',
       '500 image uploads per day',
       'Everything in X20',
     ],
@@ -225,10 +223,10 @@ const PLAN_DATA = [
     key: 'x100', name: 'X100', badge: 'Ultimate', monthly: 159.99, annual: 959.99,
     callsPerDay: 500, memosPerDay: 5000,
     features: [
-      'Opys 5: the flagship model — exclusive to X100',
-      'Replies are 3.5× longer than Opes with multi-pass refinement',
-      '⚡ Ultra Code mode: production-ready Unity, Roblox, game & web code',
-      '500 messages per day — built for dedicated writers and developers',
+      'Opys 5: the flagship model, gated here on purpose',
+      '3.5× longer replies with multi-pass refinement — it rewrites itself until it\'s right',
+      '⚡ Ultra Code: ships real production code for Unity, Roblox, and web — not pseudocode',
+      '500 messages a day — built for serious daily use',
       '1,000 image uploads per day',
       'Everything in X50',
     ],
@@ -237,11 +235,11 @@ const PLAN_DATA = [
     key: 'x200', name: 'X200', badge: 'Legend', monthly: 399.99, annual: 2399.99,
     callsPerDay: 1500, memosPerDay: 15000,
     features: [
-      'Opys 6: next-generation model — exclusive to X200',
-      'Replies are 5× longer than baseline with cinematic depth & layered subtext',
-      '⚡ Ultra Code: enterprise-grade multi-system architecture, full pipelines',
-      'World-building mode: persistent lore, faction maps & character arcs across chapters',
-      '1,500 messages per day — built for power users, studios & professional writers',
+      'Opys 6: next-generation, exclusive — nothing else gets you here',
+      '5× longer replies with cinematic depth most models can\'t approach',
+      '⚡ Ultra Code at full scale — pipelines, multi-system architecture, the works',
+      'World-building mode: lore, faction maps, and character arcs that survive every session',
+      '1,500 messages a day — for studios, professionals, and people who mean it',
       '3,000 image uploads per day',
       'Everything in X100',
     ],
@@ -1175,7 +1173,7 @@ function updateSettingsUsage(u) {
   const settingsModal = document.getElementById('settingsModal');
   if (!settingsModal || settingsModal.style.display === 'none') return;
   const sPct = Math.min(100, Math.round((u.sessionTokens / u.sessionLimit) * 100));
-  const wPct = Math.min(100, Math.round((u.weeklyTokens / u.weeklyLimit) * 100));
+  const wPct = u.weeklyLimit ? Math.min(100, Math.round((u.weeklyTokens / u.weeklyLimit) * 100)) : 0;
   const fillClass = p => p >= 90 ? 'danger' : p >= 75 ? 'warn' : '';   // the same steps as the usage window (50 / 75 / 90)
   const sBar = document.getElementById('settingsSessionBar');
   if (sBar) { sBar.style.width = sPct + '%'; sBar.className = 'settings-usage-bar-fill ' + fillClass(sPct); }
@@ -2441,17 +2439,10 @@ function toggleRpMode() {
 }
 
 function updateRpModeUI() {
-  const btn = document.getElementById('mbRpBtn');
-  if (!btn) return;
-  if (rpMode) {
-    btn.textContent = 'RP';
-    btn.title = 'Switch to normal chat mode';
-    btn.classList.remove('rp-off');
-  } else {
-    btn.textContent = 'Chat';
-    btn.title = 'Switch to roleplay mode';
-    btn.classList.add('rp-off');
-  }
+  const toggle = document.getElementById('rpToggle');
+  if (toggle) toggle.classList.toggle('rp-active', rpMode);
+  const desc = document.getElementById('rpModeDesc');
+  if (desc) desc.textContent = rpMode ? 'Immersive roleplay' : 'Regular chat';
 }
 
 function initRpMode() {
@@ -2570,7 +2561,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
   // If we're locked out (limit reached), re-show the modal with a new message every attempt
   const lockoutBarEl = document.getElementById('lockoutBar');
   if (lockoutBarEl && lockoutBarEl.style.display !== 'none') {
-    const lockoutType = document.getElementById('lockoutMsg')?.textContent?.toLowerCase().includes('session') ? 'session' : 'weekly';
+    const lockoutType = currentLockoutType || 'session';
     const displayStr = document.getElementById('lockoutCountdown')?.textContent || '';
     showLimitModal(lockoutType, displayStr);
     return;
@@ -2671,7 +2662,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
       buffer = lines.pop();
-      let convEnded = false;
+      let convEnded = false, convEndedLocked = false;
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
         let data; try { data = JSON.parse(line.slice(6)); } catch (_) { continue; }
@@ -2679,6 +2670,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
         if (data.nsfw) { showTyping(false); appendNsfwCard(data.variant); }
         if (data.conversationEnded) {
           convEnded = true;
+          convEndedLocked = !!data.locked;
           showTyping(false);
           if (data.locked) {
             saveHistoryLocal();
@@ -2710,7 +2702,18 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
           streamCharCount += data.text.length;
         }
       }
-      if (convEnded) { isStreaming = false; streamTimeout.clear(); return; }
+      if (convEnded) {
+        streamTimeout.clear();
+        drainTypewriter(() => {
+          if (msgEl) { if (streamSig) msgEl.dataset.sig = streamSig; else delete msgEl.dataset.sig; }
+          if (msgEl) stopStreamStats(msgEl, streamRealTokens);
+          isStreaming = false;
+          if (bubble) { bubble.classList.remove('streaming'); colorizeLetters(bubble, currentChar?.color); }
+          if (pendingUsage) updateUsageBars(pendingUsage);
+          if (streamText && !convEndedLocked) saveHistoryLocal();
+        });
+        return;
+      }
     }
     streamTimeout.clear();
     drainTypewriter(() => {
@@ -2756,6 +2759,7 @@ function handleKey(e) {
 // ── Usage / rate-limit system ─────────────────────────────────────────────────
 let cooldownTimer = null;
 let cooldownSyncTimeout = null;
+let currentLockoutType = null;
 
 const OUTDOOR_MESSAGES = [
   // encouraging
@@ -3044,7 +3048,7 @@ function updateUsageBars(usage) {
   updateImageAttachState(usage);
   if (usage.cooldownUntil && Date.now() < usage.cooldownUntil) {
     startCooldown(usage.cooldownUntil, 'session');
-  } else if (usage.weeklyTokens >= usage.weeklyLimit) {
+  } else if (usage.weeklyLimit && usage.weeklyTokens >= usage.weeklyLimit) {
     startCooldown(usage.weeklyResetsAt, 'weekly');
   } else {
     clearLockout();
@@ -3100,9 +3104,12 @@ function startCooldown(until, type, showModal) {
 
   if (cooldownTimer) { clearInterval(cooldownTimer); cooldownTimer = null; }
   if (cooldownSyncTimeout) { clearTimeout(cooldownSyncTimeout); cooldownSyncTimeout = null; }
+  currentLockoutType = type;
   updateCountdown();
   // 1-second interval: always exactly in sync, no drift possible
   cooldownTimer = setInterval(updateCountdown, 1000);
+  // Refresh usage bars shortly after the cooldown expires so the restored quota shows up
+  cooldownSyncTimeout = setTimeout(() => { cooldownSyncTimeout = null; loadUsage(); }, Math.max(0, until - Date.now()) + 1200);
 
   if (showModal) {
     const displayStr = formatResetTime(until);
@@ -3141,6 +3148,7 @@ function closeTosModal() {
 function clearLockout() {
   if (cooldownSyncTimeout) { clearTimeout(cooldownSyncTimeout); cooldownSyncTimeout = null; }
   if (cooldownTimer) { clearInterval(cooldownTimer); cooldownTimer = null; }
+  currentLockoutType = null;
   const bar = document.getElementById('lockoutBar');
   if (bar) bar.style.display = 'none';
   // Auto-close the limit modal after a 2s grace period so the user briefly sees it unlock
@@ -3396,15 +3404,15 @@ function generateUsageHeadline(u) {
   const { sessionTokens, sessionLimit, weeklyTokens, weeklyLimit, cooldownUntil, weeklyResetsAt, weeklyStart } = u;
   if (!weeklyStart) return 'Ready to go — your limits are fresh and waiting.';
   const sPct = (sessionTokens / sessionLimit) * 100;
-  const wPct = (weeklyTokens / weeklyLimit) * 100;
+  const wPct = weeklyLimit ? (weeklyTokens / weeklyLimit) * 100 : 0;
   if (cooldownUntil && Date.now() < cooldownUntil) {
     const t = formatResetTime(cooldownUntil);
     return `Session paused. ${t}.`;
   }
-  if (weeklyTokens >= weeklyLimit) return 'Weekly limit reached. Take a break — you\'ll be back soon.';
-  if (wPct >= 90) return 'Almost at your weekly limit. Wrapping up soon.';
-  if (wPct >= 75) return 'You\'ve used most of your weekly limit — pace yourself.';
-  if (wPct >= 50) return 'Halfway through your weekly limit. You\'re doing great.';
+  if (weeklyLimit && weeklyTokens >= weeklyLimit) return 'Weekly limit reached. Take a break — you\'ll be back soon.';
+  if (weeklyLimit && wPct >= 90) return 'Almost at your weekly limit. Wrapping up soon.';
+  if (weeklyLimit && wPct >= 75) return 'You\'ve used most of your weekly limit — pace yourself.';
+  if (weeklyLimit && wPct >= 50) return 'Halfway through your weekly limit. You\'re doing great.';
   if (sPct >= 90) return 'Session almost full. Your next cooldown is close.';
   if (sPct >= 75) return 'Session getting full. Consider a fresh chat soon.';
   if (weeklyResetsAt) {
@@ -3441,7 +3449,7 @@ function updateUsageModal(u) {
   if (headlineEl) headlineEl.textContent = generateUsageHeadline(u);
 
   const sPct = Math.min(100, Math.round((u.sessionTokens / u.sessionLimit) * 100));
-  const wPct = Math.min(100, Math.round((u.weeklyTokens / u.weeklyLimit) * 100));
+  const wPct = u.weeklyLimit ? Math.min(100, Math.round((u.weeklyTokens / u.weeklyLimit) * 100)) : 0;
 
   const sBar = document.getElementById('usageSessionBar');
   if (sBar) { sBar.style.width = sPct + '%'; sBar.className = 'usage-fill-modal ' + usageFillClass(sPct); }
@@ -3464,10 +3472,10 @@ function updateUsageModal(u) {
   if (wBar) { wBar.style.width = wPct + '%'; wBar.className = 'usage-fill-modal ' + usageFillClass(wPct); }
 
   const wPctEl = document.getElementById('usageWeeklyPct');
-  if (wPctEl) wPctEl.textContent = wPct + '%';
+  if (wPctEl) wPctEl.textContent = u.weeklyLimit ? wPct + '%' : '∞';
 
   const wSubEl = document.getElementById('usageWeeklySub');
-  if (wSubEl) wSubEl.textContent = u.weeklyResetsAt ? formatResetTime(u.weeklyResetsAt) : 'Resets weekly';
+  if (wSubEl) wSubEl.textContent = u.weeklyLimit ? (u.weeklyResetsAt ? formatResetTime(u.weeklyResetsAt) : 'Resets weekly') : 'No weekly limit on the free tier';
 }
 
 function startUsageModalTimer() {
@@ -3545,6 +3553,29 @@ function setGreetingMode(mode) {
 
 function getGreetingMode() {
   return document.getElementById('gmAuto')?.classList.contains('active') ? 'auto' : 'fixed';
+}
+
+// ── Greeting content moderation (mirrors server patterns) ──────────────────
+const GREETING_CRISIS_RE = /\b(i\s+)?(want|wanna|need|going|gonna|am\s+going)\s+to\s+(die|kill\s+myself|end\s+(it|my\s+life|it\s+all)|hurt\s+myself)\b|\bkill\s+myself\b|\bsuicid(al|e)\b|\bself[- ]?harm\b|\bdon'?t\s+want\s+to\s+(live|be\s+here|exist)\b|\bcan'?t\s+(go\s+on|take\s+it|do\s+this)\s*(anymore|any\s+more)?\b|\bend\s+(it\s+all|my\s+life|everything)\b/i;
+const GREETING_SLUR_RE = /\bn[i1!|*]+gg[ae3*]+r[sz]?\b|\bk[i1*]+k[e3*]+[sz]?\b|\bch[i1*]+nk[sz]?\b|\bsp[i1*]+c[sz]?\b|\bf[a4@*]+gg[o0*]+t[sz]?\b|\br[e3*]+t[a4*]+rd[sz]?\b/i;
+const GREETING_NSFW_RE = /blow\s*job|hand\s*job|\bfuck\s+(me|you|her|him|us)\b|have\s+sex|penetrat(e|ing)|naked\s+for\s+me|strip\s+(naked|for\s+me)\b|\bporn\b|smut\b|erotic/i;
+const GREETING_TOS_MSG = "We don't allow suicidal, sexual, or hate speech content in greetings. This goes against our Terms of Service and is not allowed on the platform.";
+
+function greetingViolation(text) {
+  if (!text) return false;
+  if (GREETING_CRISIS_RE.test(text)) return true;
+  if (GREETING_SLUR_RE.test(text)) return true;
+  if (GREETING_NSFW_RE.test(text)) return true;
+  return false;
+}
+
+function checkGreetingInput() {
+  const text = document.getElementById('newGreeting')?.value || '';
+  const errEl = document.getElementById('greetingError');
+  if (!errEl) return;
+  const bad = greetingViolation(text);
+  errEl.style.display = bad ? 'block' : 'none';
+  if (bad) errEl.textContent = GREETING_TOS_MSG;
 }
 
 // ── Info Panel helpers ────────────────────────────────────────────────────────
@@ -3670,7 +3701,7 @@ function editMsgText(btn) {
   if (isAi) {
     ctrl.innerHTML = `<button onclick="saveAiEdit(this)">Save</button><button onclick="cancelEdit(this)">Cancel</button>`;
   } else {
-    ctrl.innerHTML = `<button onclick="saveEdit(this)">Save & Resend</button><button onclick="cancelEdit(this)">Cancel</button>`;
+    ctrl.innerHTML = `<button onclick="saveEdit(this)">Save</button><button onclick="cancelEdit(this)">Cancel</button>`;
   }
   bubble.after(ctrl);
 }
@@ -3716,19 +3747,10 @@ function saveEdit(btn) {
   bubble.classList.remove('editing');
   ctrl.remove();
   if (!newText) { msgEl.remove(); resyncServer(); return; }
-  // Remove everything after this user message
-  const msgs = [...document.getElementById('messages').querySelectorAll('.msg')];
-  const idx = msgs.indexOf(msgEl);
-  msgs.slice(idx + 1).forEach(m => m.remove());
   bubble.textContent = newText;
-  // Sync history without the last user turn, then resend
+  // Just update in place — use Rewind to here to regenerate from this point
   saveHistoryLocal();
-  if (!currentChar) return;
-  const localHistory = loadHistoryLocal(currentChar.id);
-  // Remove the last entry (the user message we're re-sending) from the sync
-  const histWithout = localHistory.slice(0, -1);
-  // Clear first, then sync, in order (running them together could leave the server chat empty)
-  pushHistoryToServer(currentChar.id, histWithout).then(() => sendMessage(newText, true)).catch(() => sendMessage(newText, true));
+  resyncServer();
 }
 
 // Replace the chat the server holds with this history. The server chat is cleared first, so the new copy must really arrive: if the
@@ -3765,15 +3787,45 @@ function removeMsgEl(btn) {
   resyncServer();
 }
 
+let pendingRewindEl = null;
+
 function rewindToHere(btn) {
   btn.closest('.msg-dropdown').classList.add('hidden');
   if (isStreaming) { showWarning('Wait for the reply to finish first.'); return; }
-  const msgEl = btn.closest('.msg');
+  pendingRewindEl = btn.closest('.msg');
+  const modal = document.getElementById('rewindModal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeRewindModal() {
+  const modal = document.getElementById('rewindModal');
+  if (modal) modal.style.display = 'none';
+  pendingRewindEl = null;
+}
+
+function confirmRewindToHere() {
+  closeRewindModal();
+  if (!pendingRewindEl) return;
+  const msgEl = pendingRewindEl;
   const msgs = [...document.getElementById('messages').querySelectorAll('.msg')];
   const idx = msgs.indexOf(msgEl);
   msgs.slice(idx + 1).forEach(m => m.remove());
-  saveHistoryLocal();
-  resyncServer();
+  const isUserMsg = msgEl.classList.contains('user');
+  if (isUserMsg && currentChar) {
+    // Rewind to a user message: remove it from server history, then resend it to get a fresh AI reply
+    const bubble = msgEl.querySelector('.bubble');
+    const text = bubble ? bubble.innerText.trim() : '';
+    saveHistoryLocal();
+    const localHistory = loadHistoryLocal(currentChar.id);
+    const histWithout = localHistory.slice(0, -1);
+    clearPendingImage();
+    pushHistoryToServer(currentChar.id, histWithout)
+      .then(() => { if (text) sendMessage(text, true); })
+      .catch(() => { if (text) sendMessage(text, true); });
+  } else {
+    saveHistoryLocal();
+    resyncServer();
+  }
 }
 
 function resyncServer() {
@@ -4085,6 +4137,8 @@ function regenNavStep(id, dir) {
   if (store.sigs && store.sigs[store.idx]) msgEl.dataset.sig = store.sigs[store.idx]; else delete msgEl.dataset.sig;   // the signature of the version shown
   msgEl.querySelectorAll('.like-btn.active, .dislike-btn.active').forEach(b => b.classList.remove('active'));
   regenNavUpdate(msgEl);
+  saveHistoryLocal();
+  resyncServer();
   scrollToBottom();
 }
 
@@ -5734,6 +5788,11 @@ async function createCharacter(e) {
   const editingId = document.getElementById('newName').dataset.editingId;
   const id = editingId || 'custom_' + Date.now();
   if (!name) { alert('Character name is required'); return; }
+  if (greetingViolation(greeting)) {
+    checkGreetingInput();
+    document.getElementById('newGreeting')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
 
   const submitBtn = document.querySelector('.btn-submit');
   submitBtn.disabled = true;
@@ -5800,7 +5859,8 @@ async function createCharacter(e) {
     await loadCharacters();
     e.target.reset();
     pendingAvatarData = null;
-    setGreetingMode('fixed');
+    setGreetingMode('auto');
+    document.getElementById('greetingError').style.display = 'none';
     document.getElementById('newName').dataset.editingId = '';
     submitBtn.disabled = false;
     submitBtn.textContent = 'Create Character';

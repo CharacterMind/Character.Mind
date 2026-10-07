@@ -556,24 +556,24 @@ const LIMITS = {
 
 // Plan limits are defined in AVERAGE MESSAGES per session, then converted to tokens (what a reply is charged:
 // model tokens x model multiplier x effort multiplier).
-// An average message = Opes at Medium effort = 1,800 tokens (see MESSAGE_COST below).
+// An average message = Opes at Medium effort = 2,700 tokens (see MESSAGE_COST below).
 // Lighter models/efforts give more messages than this; heavier ones give fewer.
 // Advanced 150, X20 = 20x Advanced (3,000), X50 = 50x Advanced (7,500), X100 = 100x Advanced (15,000), X200 = 200x (30,000). Weekly = 5 sessions' worth.
-// Free budget is fixed at 10,800 tokens per session (~6 messages) — auto-computed so it never drifts when AVG_MESSAGE_TOKENS changes.
-const FREE_SESSION_TOKENS = 10800;
-const AVG_MESSAGE_TOKENS = 1800;
+// Free budget is fixed at 5,400 tokens per session (~2 Opes messages at the new cost) — auto-computed so it never drifts when AVG_MESSAGE_TOKENS changes.
+const FREE_SESSION_TOKENS = 5000;
+const AVG_MESSAGE_TOKENS = 3600;
 const X20_MULT = 20;
 const X50_MULT = 50;
 const X100_MULT = 100;
 const X200_MULT = 200;
 const MESSAGES_PER_SESSION = { free: Math.round(FREE_SESSION_TOKENS / AVG_MESSAGE_TOKENS), advanced: 150 };
-const WEEKLY_SESSIONS = 3;
+const WEEKLY_SESSIONS = 2;
 function limitsForMessages(sessionMessages) {
   const session = sessionMessages * AVG_MESSAGE_TOKENS;
   return { session, weekly: session * WEEKLY_SESSIONS };
 }
 const TIER_TOKEN_LIMITS = {
-  free:     limitsForMessages(MESSAGES_PER_SESSION.free),
+  free:     { ...limitsForMessages(MESSAGES_PER_SESSION.free), weekly: Infinity },
   advanced: limitsForMessages(MESSAGES_PER_SESSION.advanced),
   x20:      limitsForMessages(MESSAGES_PER_SESSION.advanced * X20_MULT),
   x50:      limitsForMessages(MESSAGES_PER_SESSION.advanced * X50_MULT),
@@ -627,8 +627,8 @@ function resolveEffort(userId, requested) {
 // What ONE reply costs from the allowance, by model and effort. Fixed per message (not the AI's raw token
 // count, which swings a lot because of hidden thinking), so message counts are predictable.
 // Opes costs about 3x Opas at every effort. Higher models are multiples of Opes.
-const OPAS_COST = { low: 330, medium: 520, high: 800, extra: 1200, max: 1800, ultracode: 3600 };
-const OPES_COST = { low: 1050, medium: 1800, high: 2700, extra: 3900, max: 6000, ultracode: 12000 }; // effort ramps gently: Low 0.6x, Medium 1x, High 1.5x, Extra 2.2x, Max 3.3x a Medium message
+const OPAS_COST = { low: 660, medium: 1040, high: 1600, extra: 2400, max: 3600, ultracode: 7200 };
+const OPES_COST = { low: 2100, medium: 3600, high: 5400, extra: 7800, max: 12000, ultracode: 24000 }; // effort ramps gently: Low 0.6x, Medium 1x, High 1.5x, Extra 2.2x, Max 3.3x a Medium message
 // Base models step up gently: Opes 1x, Opis 1.25x, Opos 1.5x, Opus 2x, Opys 3x (of Opes).
 // Max effort costs about 3.3x a Medium reply.
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3, opys5: 10, opys6: 20 };
@@ -2853,8 +2853,9 @@ function charTypeError(body) {
 }
 function charTextUnsafe(body) {
   for (const f of [body.name, body.tagline, body.description, body.greeting, body.creatorName, ...(Array.isArray(body.tags) ? body.tags : [])]) {
-    if (f && redactIfUnsafe(f) !== f) return true;
+    if (f && redactIfUnsafe(f) !== f) return 'prohibited';
   }
+  if (body.greeting && CRISIS_RE.test(body.greeting)) return 'crisis';
   return false;
 }
 async function charImageProblem(image) {
@@ -2917,7 +2918,10 @@ app.post('/api/characters', requireAuth, charWriteLimiter, async (req, res) => {
 
   const validErr = validateChar(body);
   if (validErr) return res.status(400).json({ error: validErr });
-  if (charTextUnsafe(body)) return res.status(400).json({ error: "The name or text contains language that isn't allowed on Character Mind." });
+  const textErr = charTextUnsafe(body);
+  if (textErr) return res.status(400).json({ error: textErr === 'crisis'
+    ? "We don't allow suicidal or self-harm content in greetings. This goes against our Terms of Service and is not allowed on the platform."
+    : "We don't allow sexual content, slurs, or hate speech on the platform. This goes against our Terms of Service and is not allowed on the platform." });
   const imgProblem = await charImageProblem(body.image);
   if (imgProblem) return res.status(imgProblem.status).json({ error: imgProblem.error });
 
@@ -2985,7 +2989,10 @@ app.put('/api/characters/:id', requireAuth, charWriteLimiter, async (req, res) =
 
   const validErr = validateChar({ id: req.params.id, ...body2 });
   if (validErr) return res.status(400).json({ error: validErr });
-  if (charTextUnsafe(body2)) return res.status(400).json({ error: "The name or text contains language that isn't allowed on Character Mind." });
+  const textErr2 = charTextUnsafe(body2);
+  if (textErr2) return res.status(400).json({ error: textErr2 === 'crisis'
+    ? "We don't allow suicidal or self-harm content in greetings. This goes against our Terms of Service and is not allowed on the platform."
+    : "We don't allow sexual content, slurs, or hate speech on the platform. This goes against our Terms of Service and is not allowed on the platform." });
   const imgProblem = await charImageProblem(body2.image);
   if (imgProblem) return res.status(imgProblem.status).json({ error: imgProblem.error });
 
