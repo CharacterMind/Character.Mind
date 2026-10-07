@@ -2213,17 +2213,7 @@ async function openChat(charId) {
     } else {
       messagesDiv.innerHTML = '';
       document.getElementById('chatWelcome').innerHTML = '';
-      if (currentChar.greeting && currentChar.greetingMode !== 'auto') {
-        appendMessage('ai', currentChar.greeting);
-        saveHistoryLocal();
-        fetch(`/api/conversations/${charId}/sync`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ history: [{ role: 'assistant', content: currentChar.greeting }] })
-        }).catch(() => {});
-      } else {
-        generateGreeting();
-      }
+      generateGreeting();
     }
   } else if (sameAsShown) {
     document.getElementById('chatWelcome').innerHTML = '';   // what is shown is already right
@@ -5565,17 +5555,7 @@ async function newChat() {
   document.getElementById('messages').innerHTML = '';
   document.getElementById('chatWelcome').innerHTML = '';
   warnedThresholds.clear();
-  if (currentChar.greeting && currentChar.greetingMode !== 'auto') {
-    appendMessage('ai', currentChar.greeting);
-    saveHistoryLocal();
-    fetch(`/api/conversations/${currentChar.id}/sync`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ history: [{ role: 'assistant', content: currentChar.greeting }] })
-    }).catch(() => {});
-  } else {
-    generateGreeting();
-  }
+  generateGreeting();
 }
 
 function toggleInfoPanel() {

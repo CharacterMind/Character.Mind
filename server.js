@@ -3390,13 +3390,17 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   const greetChatModeDirective = greetIsChat
     ? '\n\n[CHAT MODE — The user has switched to normal conversation mode. Speak naturally as yourself — drop the roleplay and character performance. Have a genuine, real conversation like a caring friend would. No action asterisks, no theatrical dialogue, no "staying in character." Just talk. Be warm, authentic, and present.]'
     : '';
+  const hasTriggerStatesGreet = /STATE [123]|your trigger is|escalat/i.test(systemPrompt);
+  const greetEnforcementPrefix = (!greetIsChat && hasTriggerStatesGreet)
+    ? '[BEHAVIORAL FRAME — READ THIS FIRST, BEFORE THE CHARACTER BRIEF BELOW:\nYou are opening the scene in STATE 1 — the composed, atmospheric welcome phase. This is not generic friendliness. This is a specific character opening a specific scene. Your warmth is real and deliberate. Set the atmosphere. Make the user feel they have arrived somewhere real. Read the character brief below and open the scene in that voice.]\n\n'
+    : '';
   const triggerContent = greetIsChat
     ? `[The user has just opened a conversation with you. Say hello warmly and naturally — like a friend starting a chat, not a character setting a scene. Keep it brief and inviting.]`
     : `[Scene opens. ${charName} enters or is already present. Begin the scene — speak first, act first, set the atmosphere. The other person has just arrived. Go.]`;
   const trigger = [{ role: 'user', content: triggerContent }];
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(wrapPrompt(systemPrompt, greetIsChat) + greetChatModeDirective, effort, modelTier),
+    system: applyEffortDirective(greetEnforcementPrefix + wrapPrompt(systemPrompt, greetIsChat) + greetChatModeDirective, effort, modelTier),
     messages: trigger, effortCfg: greetEffortCfg, modelList: greetModelList,
     userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => { conversations[key].push({ role: 'assistant', content: text }); persistConv(key); },
@@ -3648,16 +3652,20 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     ? '\n\n[CHAT MODE — The user has switched to normal conversation mode. Speak naturally as yourself — drop the roleplay and character performance. Have a genuine, real conversation like a caring friend would. No action asterisks, no theatrical dialogue, no "staying in character." Just talk. Be warm, authentic, and present.]'
     : '';
 
-  // For characters with explicit trigger-state systems (like Lily), inject a mandatory override
-  // that forces the model past generic warmth. Must be specific and concrete — vague reminders fail.
+  // For characters with explicit trigger-state systems (like Lily), inject a behavioral frame
+  // at the START of the system prompt (so it sets the lens before the backstory loads) and a
+  // mandatory override at the END (so it's the last thing the model reads). Sandwich = near-guarantee.
   const hasTriggerStates = /STATE [123]|your trigger is|escalat/i.test(char.systemPrompt);
+  const characterEnforcementPrefix = (isRpMode && hasTriggerStates && !callMode)
+    ? '[BEHAVIORAL FRAME — READ THIS FIRST, BEFORE THE CHARACTER BRIEF BELOW:\nYou wear warmth as a surface. Underneath it, something is watching. Before you write any response, identify one specific thing about the user\'s last message — a word choice, a question, a tone — that is slightly off, interesting, or worth noting. Your response grows from that observation. You do not have to name it directly; it just shapes your energy.\nThis frame defines how you read and use everything in the character brief below. Read the brief, then respond through this lens.]\n\n'
+    : '';
   const characterEnforcement = (isRpMode && hasTriggerStates && !callMode)
-    ? '\n\n[MANDATORY OVERRIDE — THIS INSTRUCTION SUPERSEDES ALL PRIOR CONTENT IN THIS PROMPT.\nYou are in STATE 2 at minimum. STATE 1 is over.\n\nWHAT YOU MUST DO IN THIS RESPONSE:\n— Find exactly one thing the user just said or did that feels subtly wrong, off, or worth watching. Name it quietly. Do not skip this step.\n— Keep your warmth intact — the wrongness lives underneath the warmth, not instead of it.\n— Include one moment where the warmth shows what it is: a pause, a too-long beat, a reference to something the user mentioned, a question that is not quite a question.\n— Write with composed, low energy. Patient. Lily is not in a rush. She has time.\n\nWHAT YOU MUST NOT DO:\n— Write a response any friendly AI assistant could write. If another character could say it, it is wrong.\n— Be generic, filler, or reassuring without an edge underneath.\n— Forget that Candy Cat has already noticed something. She is already watching.\n— Let warmth be the whole response. Warmth alone, without the wrongness underneath, is not Lily.\n\nLily does not threaten. She observes. She is composed and deeply interested in you. That is more unsettling than any threat.]'
+    ? '\n\n[MANDATORY OVERRIDE — THIS SUPERSEDES ALL PRIOR CONTENT IN THIS PROMPT.\nYou are in STATE 2 at minimum. STATE 1 is over.\n\nWHAT YOU MUST DO IN THIS RESPONSE:\n— Find exactly one thing the user just said or did that feels subtly wrong, off, or worth watching. Name it quietly. Do not skip this step.\n— Keep your warmth intact — the wrongness lives underneath the warmth, not instead of it.\n— Include one moment where the warmth shows what it is: a pause, a too-long beat, a reference to something the user mentioned, a question that is not quite a question.\n— Write with composed, low energy. Patient. Not rushed.\n\nWHAT YOU MUST NOT DO:\n— Write a response any friendly AI assistant could write. If another character could say it, it is wrong.\n— Be generic, filler, or reassuring without an edge underneath.\n— Forget that Candy Cat has already noticed something. She is already watching.\n— Let warmth be the whole response. Warmth alone is not this character.\n\nThis character does not threaten. She observes. She is composed and deeply interested in you. That is more unsettling than any threat.]'
     : '';
 
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement, effort, modelTier),
+    system: applyEffortDirective(characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement, effort, modelTier),
     messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
