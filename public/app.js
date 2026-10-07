@@ -1172,6 +1172,10 @@ function updateSettingsUsage(u) {
   if (isStreaming) return;   // not while a reply is being written (see updateUsageBars)
   const settingsModal = document.getElementById('settingsModal');
   if (!settingsModal || settingsModal.style.display === 'none') return;
+  const isFreeSettings = !u.subscriptionTier || u.subscriptionTier === 'free';
+  const settingsWeeklyWrap = document.getElementById('settingsWeeklyWrap');
+  if (settingsWeeklyWrap) settingsWeeklyWrap.style.display = isFreeSettings ? 'none' : '';
+
   const sPct = Math.min(100, Math.round((u.sessionTokens / u.sessionLimit) * 100));
   const wPct = u.weeklyLimit ? Math.min(100, Math.round((u.weeklyTokens / u.weeklyLimit) * 100)) : 0;
   const fillClass = p => p >= 90 ? 'danger' : p >= 75 ? 'warn' : '';   // the same steps as the usage window (50 / 75 / 90)
@@ -1179,10 +1183,12 @@ function updateSettingsUsage(u) {
   if (sBar) { sBar.style.width = sPct + '%'; sBar.className = 'settings-usage-bar-fill ' + fillClass(sPct); }
   const sPctEl = document.getElementById('settingsSessionPct');
   if (sPctEl) sPctEl.textContent = sPct + '%';
-  const wBar = document.getElementById('settingsWeeklyBar');
-  if (wBar) { wBar.style.width = wPct + '%'; wBar.className = 'settings-usage-bar-fill ' + fillClass(wPct); }
-  const wPctEl = document.getElementById('settingsWeeklyPct');
-  if (wPctEl) wPctEl.textContent = wPct + '%';
+  if (!isFreeSettings) {
+    const wBar = document.getElementById('settingsWeeklyBar');
+    if (wBar) { wBar.style.width = wPct + '%'; wBar.className = 'settings-usage-bar-fill ' + fillClass(wPct); }
+    const wPctEl = document.getElementById('settingsWeeklyPct');
+    if (wPctEl) wPctEl.textContent = wPct + '%';
+  }
 }
 
 function formatWeeklyResetShort(until) {
@@ -3238,7 +3244,8 @@ function renderUsageBanners(usage) {
   const container = document.getElementById('warningBanners');
   if (!container || !usage) return;
   const want = [];
-  const wStep = usageStep(usagePctOf(usage.weeklyTokens, usage.weeklyLimit));
+  const isFreeUser = !usage.subscriptionTier || usage.subscriptionTier === 'free';
+  const wStep = isFreeUser ? 0 : usageStep(usagePctOf(usage.weeklyTokens, usage.weeklyLimit));
   if (wStep) want.push({ kind: 'weekly', level: wStep, msg: WEEKLY_BANNER_TEXT[wStep], windowStart: usage.weeklyStart || 0, upgrade: true, persistent: wStep === 90 });
   const sStep = usageStep(usagePctOf(usage.sessionTokens, usage.sessionLimit));
   if (SESSION_BANNER_TEXT[sStep]) want.push({ kind: 'session', level: sStep, msg: SESSION_BANNER_TEXT[sStep], windowStart: usage.sessionStartedAt || 0, upgrade: false, persistent: false });
@@ -3447,6 +3454,14 @@ function updateUsageModal(u) {
 
   const headlineEl = document.getElementById('usageHeadline');
   if (headlineEl) headlineEl.textContent = generateUsageHeadline(u);
+
+  const isFree = !u.subscriptionTier || u.subscriptionTier === 'free';
+  const weeklySection = document.getElementById('usageWeeklySection');
+  const weeklyRule1   = document.getElementById('usageWeeklyRule');
+  const weeklyRule2   = document.getElementById('usageWeeklyRule2');
+  if (weeklySection) weeklySection.style.display = isFree ? 'none' : '';
+  if (weeklyRule1)   weeklyRule1.style.display   = isFree ? 'none' : '';
+  if (weeklyRule2)   weeklyRule2.style.display   = isFree ? 'none' : '';
 
   const sPct = Math.min(100, Math.round((u.sessionTokens / u.sessionLimit) * 100));
   const wPct = u.weeklyLimit ? Math.min(100, Math.round((u.weeklyTokens / u.weeklyLimit) * 100)) : 0;

@@ -79,10 +79,10 @@
       <div class="usage-sec-sub" id="usageSessionSub" style="margin-top:6px"></div>
     </div>
 
-    <div class="usage-modal-rule"></div>
+    <div class="usage-modal-rule" id="usageWeeklyRule"></div>
 
     <!-- Weekly -->
-    <div class="usage-section">
+    <div class="usage-section" id="usageWeeklySection">
       <div class="usage-sec-label-row">
         <span class="usage-sec-label">Weekly</span>
         <span class="usage-sec-pct" id="usageWeeklyPct">0%</span>
@@ -91,7 +91,7 @@
       <div class="usage-sec-sub" id="usageWeeklySub" style="margin-top:6px"></div>
     </div>
 
-    <div class="usage-modal-rule"></div>
+    <div class="usage-modal-rule" id="usageWeeklyRule2"></div>
     <div class="usage-updated-row">
       <span id="usageUpdatedText"></span>
       <button class="usage-refresh-btn" onclick="refreshUsageManual()" title="Refresh">
@@ -956,11 +956,13 @@
             <span class="settings-usage-pct" id="settingsSessionPct">—</span>
           </div>
           <div class="settings-usage-bar-track"><div class="settings-usage-bar-fill" id="settingsSessionBar"></div></div>
+          <div id="settingsWeeklyWrap">
           <div class="settings-usage-row" style="margin-top:14px">
             <span class="settings-usage-label">Weekly</span>
             <span class="settings-usage-pct" id="settingsWeeklyPct">—</span>
           </div>
           <div class="settings-usage-bar-track"><div class="settings-usage-bar-fill" id="settingsWeeklyBar"></div></div>
+          </div>
         </div>
       </div>
     </div>
