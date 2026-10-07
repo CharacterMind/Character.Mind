@@ -596,13 +596,13 @@ const baseOf = (t) => {
 };
 // The most tokens one reply may use, per model (the bigger writers get more room), and how long each model writes compared with Opes
 // (Opys 5's cap is high on purpose: what it can really write at once depends on the Groq plan, see GROQ_REQUEST_BUDGET and GROQ_LENGTH_SCALE.)
-const MODEL_CAP   = { opas: 2400, opes: 3600, opis: 2600, opos: 3300, opus: 3900, opys: 4500, opys5: 40000, opys6: 40000 };
+const MODEL_CAP   = { opas: 3000, opes: 5000, opis: 3200, opos: 4000, opus: 5000, opys: 6000, opys5: 40000, opys6: 40000 };
 const MODEL_WORDS = { opas: 0.7,  opes: 1,    opis: 1.1,  opos: 1.3,  opus: 1.6,  opys: 1.9,  opys5: 3.5,  opys6: 5.0 };
 const MODEL_CAP_SCALE = Number(process.env.VERSION_CAP_SCALE) || 1;
 for (const k of Object.keys(MODEL_CAP)) MODEL_CAP[k] = Math.round(MODEL_CAP[k] * MODEL_CAP_SCALE);
 // Groq's free plan allows about 8,000 tokens per request, counting the prompt AND the reply room together.
 // So the bigger the reply room, the smaller the prompt has to be. The reply room is fitted to what the prompt leaves over.
-const GROQ_REQUEST_BUDGET = Number(process.env.GROQ_REQUEST_BUDGET) || 8000;
+const GROQ_REQUEST_BUDGET = Number(process.env.GROQ_REQUEST_BUDGET) || 24000;
 const MIN_REPLY_ROOM = 1400;
 function estimateTokens(str) { return Math.ceil(String(str || '').length / 3.4); }
 function fitOutputRoom(cfg, system, messages) {
@@ -811,7 +811,7 @@ const EFFORT_DIRECTIVES = {
 
 const OPYS2_DIRECTIVE = 'QUALITY: You are one of the most advanced models. Write with exceptional depth and craft: stay perfectly consistent with the character\'s voice, history and the details already established; add layered emotion, subtext and vivid specific detail; move the scene forward with a meaningful choice or twist instead of repeating what was said. Never pad, never repeat earlier phrasing.';
 // Higher models write a little more: each step up the ladder adds a little more length and detail on top of the effort level.
-const BASE_DEPTH_RANK = { opas: 0, opes: 0, opis: 1, opos: 2, opus: 3, opys: 4, opys5: 6, opys6: 8 };
+const BASE_DEPTH_RANK = { opas: 0, opes: 1, opis: 2, opos: 3, opus: 4, opys: 5, opys5: 7, opys6: 9 };
 function depthRankFor(t) { const b = baseOf(t); return b ? BASE_DEPTH_RANK[b] : 0; }
 function modelDepthNote(modelTier, effort) {
   const rank = depthRankFor(modelTier);
@@ -1913,7 +1913,7 @@ const GROQ_OUTPUT_CAP = Number(process.env.GROQ_OUTPUT_CAP) || 4000;
 // The model's hidden thinking counts against max_tokens, so a small cap cuts the visible reply off mid-sentence.
 const GROQ_OUTPUT_MIN = Math.min(1400, GROQ_OUTPUT_CAP);
 // Keeps what we send as chat history small, newest messages first, so one request doesn't eat the whole minute's allowance.
-const HISTORY_CHAR_BUDGET = Number(process.env.HISTORY_CHAR_BUDGET) || 7000;
+const HISTORY_CHAR_BUDGET = Number(process.env.HISTORY_CHAR_BUDGET) || 12000;
 function fitHistory(msgs, budget) {
   const limit = Number.isFinite(budget) ? budget : HISTORY_CHAR_BUDGET;
   const KEEP_RECENT = 4;                                           // the newest messages are always sent, shortened if they must be
@@ -2150,6 +2150,8 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     max_tokens: effortCfg.maxOutputTokens,
     temperature: effortCfg.temperature,
     top_p: 0.95,
+    frequency_penalty: 0.35,
+    presence_penalty: 0.15,
     stream: true,
     ...(model.startsWith('openai/') && effortCfg.reasoningEffort ? { reasoning_effort: effortCfg.reasoningEffort } : {})
   });
