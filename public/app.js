@@ -3283,6 +3283,7 @@ async function loadUsage() {
     const usage = await res.json();
     lastUsageFetch = Date.now();
     lastKnownUsage = usage;
+    applySoftLaunch(usage.softLaunch);
     loadAccountPrefs();
     updateUsageBars(usage);
     updateUsageTimestamp();
@@ -3290,6 +3291,16 @@ async function loadUsage() {
     renderUserBadge();
     updateModelPickerLocks();
   } catch (_) {}
+}
+
+function applySoftLaunch(on) {
+  const d = on ? 'none' : '';
+  ['navPricingBtn', 'settingsPlanBadge'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.style.display = d;
+  });
+  document.querySelectorAll('.md-upgrade-btn, .settings-plan-upgrade-btn, .call-limit-upgrade-btn, .call-warning-upgrade, .warning-upgrade-link').forEach(el => { el.style.display = d; });
+  const upgradeSection = document.getElementById('settingsTiersSection');
+  if (upgradeSection) upgradeSection.style.display = d;
 }
 
 // Legacy stub so old callers (rewind, etc.) don't break

@@ -749,7 +749,8 @@ function buildUsagePayload(u, userId) {
     imageLimit: imgLimit === Infinity ? 9999 : imgLimit,
     imageResetAt: (u.imagesDay || 0) > 0 ? (u.imageDayStart || getCallWindowStart()) + 24 * 60 * 60 * 1000 : null,
     subscriptionTier: u.subscriptionTier || 'free',
-    callWindowResetsAt: getCallWindowStart() + 24 * 60 * 60 * 1000
+    callWindowResetsAt: getCallWindowStart() + 24 * 60 * 60 * 1000,
+    softLaunch: SOFT_LAUNCH
   };
 }
 
@@ -2661,6 +2662,9 @@ app.delete('/api/conversations/:charId/history', requireAuth, async (req, res) =
   }
 });
 
+// When true: only Lily is visible in the character list and all pricing/upgrade UI is hidden.
+// Set SOFT_LAUNCH=false in Render env vars to open up the full site.
+const SOFT_LAUNCH = process.env.SOFT_LAUNCH !== 'false';
 const OWNER_EMAILS = new Set(['support.charactermind@gmail.com']); // the only account with admin tools or a free plan
 // Only the Character.Mind business account gets the top plan without paying. Every other account (including the
 // other admin login) gets exactly what its own subscription pays for.
@@ -2772,6 +2776,7 @@ app.get('/api/characters', charReadLimiter, async (req, res) => {
       'SELECT id, name, tagline, description, system_prompt, greeting, greeting_mode, color, creator_name, device_id, (image IS NOT NULL AND length(image) > 0) AS has_image, COALESCE(length(image), 0) AS image_len, tags, interactions, created_at FROM characters ORDER BY created_at DESC'
     )).rows;
     if (rows !== charListCache.rows && gen === charListGen) charListCache = { at: Date.now(), rows };
+    if (SOFT_LAUNCH) rows = rows.filter(r => /lily/i.test(r.name));
     const authed = !!req.user;
     const isOwnerUser = !!(userId && ownerGoogleIds.has(userId));
     res.json(rows.map(r => {
