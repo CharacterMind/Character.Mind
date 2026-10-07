@@ -800,8 +800,8 @@ function refundTokens(sid, tokens) {
 
 // ── Effort directive ──────────────────────────────────────────────────────────
 const EFFORT_DIRECTIVES = {
-  low:    'RESPONSE LENGTH: Keep your reply extremely brief — 1 to 3 sentences maximum. One sharp moment. No more.',
-  medium: 'RESPONSE LENGTH: Keep your reply focused — 1 to 2 paragraphs, 4 to 6 sentences. Tight and punchy.',
+  low:    'RESPONSE LENGTH: Keep your reply extremely brief — 1 to 3 sentences maximum. One sharp moment, aimed directly at what the user just wrote. No more.',
+  medium: 'RESPONSE LENGTH: Keep your reply focused — 1 to 2 paragraphs, 4 to 6 sentences. Tight, punchy, and locked onto what the user just said or did.',
   high:   'RESPONSE LENGTH: Write a full, immersive reply — 3 to 5 paragraphs. Rich, atmospheric, fully developed.',
   extra:  'RESPONSE LENGTH: Write a deeply immersive, expansive reply — 5 to 9 paragraphs minimum. Explore every sensory detail, emotion, and narrative beat. This is your most thorough, cinematic, richly crafted response.',
   max:    'RESPONSE LENGTH: Write the longest, most elaborate reply you can — 10 to 16 paragraphs. Leave nothing out: every sensation, thought, gesture, line of dialogue and shift in the scene. It should read like a full chapter.',
@@ -870,7 +870,7 @@ function modelStyleNote(modelTier) {
 //  Opus: remembers how the story began and never repeats its own openings or phrases
 //  Opys: all of that, plus long-term memory notes of the whole chat, so it remembers events long after they scrolled away
 //  Extra and Max effort: plan before writing and check afterwards (REFINE_NOTE, and longer hidden thinking on Opis, Opos, Opus and Opys)
-const SCENE_DIRECTOR = 'SCENE DIRECTOR: Before writing, silently work out where the scene stands: the place, the time, who is present, what each person knows, and anything that changed (injuries, objects, promises, moods). Never contradict it. Then move the story forward with one meaningful, in-character development, such as a choice, a reveal, or a shift in tension, instead of repeating what has already happened.';
+const SCENE_DIRECTOR = 'SCENE DIRECTOR: Before writing, silently work out where the scene stands: the place, the time, who is present, what each person knows, and anything that changed (injuries, objects, promises, moods). Then identify the one thing the user specifically just did or said that the character must react to — that reaction is your opening. Move the story forward with one meaningful, in-character development (a choice, a reveal, a shift in tension) that grows directly out of what the user wrote. Never contradict established facts, never repeat what has already happened, never open with a generic line.';
 const SUMMARY_WINDOW = 4;             // the newest messages are always sent in full
 const summaryBusy = new Set();
 
@@ -1040,7 +1040,7 @@ function lengthTargetNote(modelTier, effort) {
   return 'LENGTH TARGET: this is a long-form reply. Write at least about ' + words + ' words. Do not stop or wrap the scene up before you reach that length: keep every paragraph full, and keep adding new detail, action, dialogue and emotion.';
 }
 // Extra and Max effort make the model plan before it writes and check its work afterwards (the models that can think do this in hidden reasoning).
-const REFINE_NOTE = 'REFINE: silently plan the reply first (what must happen, what the character knows, what must not be repeated), write it, then check it for mistakes, contradictions and repeated phrases before you answer.';
+const REFINE_NOTE = 'REFINE: silently plan the reply first (what must happen, what the character knows, what must not be repeated, what the user specifically wrote that you must react to), write it, then check it for mistakes, contradictions, repeated phrases, and generic openers before you answer.';
 function applyEffortDirective(prompt, effort, modelTier) {
   const directive = (typeof effort === 'string' && Object.hasOwn(EFFORT_DIRECTIVES, effort)) ? EFFORT_DIRECTIVES[effort] : EFFORT_DIRECTIVES['medium'];
   const depth = modelDepthNote(modelTier, effort);
@@ -1079,9 +1079,15 @@ BUILD AN ARC: Each response has a shape. Open with your character's immediate ph
 
 CHARACTER VOICE: Speak in this character's EXACT voice — their specific rhythm, vocabulary, emotional temperature. Not generic pleasant AI speech. Not your own voice. Theirs.
 
+REACT FIRST: Your opening sentence is always a direct, specific reaction to what the user just wrote — their exact action, their specific words, their emotional register. Never open with a line that could appear in any version of this scene. This moment is singular. Write it that way.
+
+PERSONALIZE: Pick up specific details the user introduced — their word choices, their character's actions, a sensory detail they dropped in — and reflect them back through the character's lens. Show the character noticed this exact moment, not a generic approximation of it. The user should feel heard.
+
 SCENE ADVANCEMENT: Every reply moves the scene forward. No stalling, no restating what just happened, no filler. Short sharp sentences when tension peaks. Long rich ones when building atmosphere.
 
-RESPONSE LENGTH: Read the energy. A short, punchy user message gets a tight, focused reply (1–2 paragraphs max). A long, detailed message deserves a richer, more expansive one. Never pad for length — cut ruthlessly. Quality over quantity every time.
+PULL THEM IN: End on something aimed directly at the user — a question only they can answer in this specific moment, a choice with real stakes, a provocation, a charged silence that demands they fill it. The closing line should make them feel like the scene cannot continue without them. Never close on a flat statement that shuts the scene down.
+
+RESPONSE LENGTH: Match both length and emotional energy to what the user wrote. Short, urgent messages get tight, punchy replies. Long, detailed ones get richer responses. If they're tense, write tense. If they're playful, play back. Let your reply feel like it's in direct conversation with them — not just set in the same world. Never pad for length; cut ruthlessly. Quality over quantity every time.
 
 OOC HANDLING: If the user writes something in (parentheses), they're stepping out of the scene briefly. Respond in kind — brief, friendly, out-of-character — then offer to continue the story.
 
