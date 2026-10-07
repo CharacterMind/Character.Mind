@@ -1383,8 +1383,8 @@ function boostColor(hex) {
   let b = n & 0xff;
   // Ensure minimum perceived brightness so colors are legible on dark backgrounds
   const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  if (lum < 140) {
-    const scale = 140 / Math.max(lum, 1);
+  if (lum < 70) {
+    const scale = 70 / Math.max(lum, 1);
     r = Math.min(255, Math.round(r * scale));
     g = Math.min(255, Math.round(g * scale));
     b = Math.min(255, Math.round(b * scale));
