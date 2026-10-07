@@ -1405,17 +1405,43 @@ function colorizeNameHtml(name, c) {
     /\s/.test(ch) ? escHtml(ch) : `<span style="color:${colors[Math.floor(Math.random()*colors.length)]};font-weight:700">${escHtml(ch)}</span>`
   ).join('');
 }
-// Apply the character's primary colour uniformly to speech and narration spans.
+// Apply the character's colours per-word — readable cycling palette, bold weight.
 function colorizeLetters(bubble, c) {
   if (!bubble) return;
   const hexes = String(c || '').match(/#[0-9a-fA-F]{6}/gi);
   if (!hexes || !hexes.length) return;
-  const primary = boostColor(hexes[0]);
-  const n = parseInt(primary.slice(1), 16);
-  const [r, g, b] = [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
-  const narColor = `rgba(${r},${g},${b},0.72)`;
-  bubble.querySelectorAll('.sp').forEach(el => { el.style.color = primary; });
-  bubble.querySelectorAll('.nr').forEach(el => { el.style.color = narColor; });
+  const spColors = hexes.map(boostColor);
+  const nrColors = spColors.map(hex => {
+    const n = parseInt(hex.slice(1), 16);
+    const [r, g, b] = [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+    return 'rgba(' + r + ',' + g + ',' + b + ',0.78)';
+  });
+  const wrapWords = (spans, colors) => {
+    let wi = 0;
+    spans.forEach(el => {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      const nodes = [];
+      let nd;
+      while (nd = walker.nextNode()) nodes.push(nd);
+      for (const tn of nodes) {
+        if (tn.parentNode && tn.parentNode.closest && tn.parentNode.closest('code, pre')) continue;
+        const frag = document.createDocumentFragment();
+        for (const tok of tn.textContent.split(/(\s+)/)) {
+          if (!tok) continue;
+          if (/^\s+$/.test(tok)) { frag.appendChild(document.createTextNode(tok)); continue; }
+          const sp = document.createElement('span');
+          sp.style.color = colors[wi % colors.length];
+          sp.style.fontWeight = '700';
+          sp.textContent = tok;
+          frag.appendChild(sp);
+          wi++;
+        }
+        tn.parentNode.replaceChild(frag, tn);
+      }
+    });
+  };
+  wrapWords(bubble.querySelectorAll('.sp'), spColors);
+  wrapWords(bubble.querySelectorAll('.nr'), nrColors);
 }
 
 // ── Custom hue-strip color picker ─────────────────────────────────────────────
