@@ -3658,10 +3658,10 @@ function getMailTransporter() {
 async function sendReceiptEmail(userName, email, planKey, subscriptionId, period) {
   const transporter = getMailTransporter();
   if (!transporter || !email) return;
-  const planNames  = { advanced: 'Advanced Plan', x20: 'X20 Plan', x50: 'X50 Plan', x100: 'X100 Plan' };
-  const planPrices = { advanced: '$4.99/month', x20: '$24.99/month', x50: '$49.99/month', x100: '$99.99/month' };
+  const planNames  = { advanced: 'Advanced Plan', x20: 'X20 Plan', x50: 'X50 Plan', x100: 'X100 Plan', x200: 'X200 Plan' };
+  const planPrices = { advanced: '$4.99/month', x20: '$24.99/month', x50: '$49.99/month', x100: '$99.99/month', x200: '$249.99/month' };
   const planName  = planNames[planKey]  || planKey;
-  const planPrice = period === 'annual' ? (({ advanced: '$44.99/year', x20: '$199.99/year', x50: '$399.99/year', x100: '$799.99/year' })[planKey] || '') : (planPrices[planKey] || '');
+  const planPrice = period === 'annual' ? (({ advanced: '$44.99/year', x20: '$199.99/year', x50: '$399.99/year', x100: '$799.99/year', x200: '$1,999.99/year' })[planKey] || '') : (planPrices[planKey] || '');
   const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   const firstName = (userName || 'there').split(' ')[0];
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -3751,6 +3751,19 @@ async function sendPlanWelcomeEmail(userName, email, planKey) {
         { icon: '🎙️', label: '250 voice calls per day', sub: 'The highest tier available' },
         { icon: '🔊', label: '2,500 read-alouds per day', sub: 'Effectively no ceiling for any use case' },
         { icon: '💬', label: 'Maximum weekly message limit', sub: 'Everything Character.Mind has to offer' },
+        { icon: '✨', label: 'Access to every AI character', sub: 'All current and future characters included' },
+        { icon: '⚡', label: 'Priority support', sub: 'Reach us at support.charactermind@gmail.com' },
+      ]
+    },
+    x200: {
+      name: 'X200',
+      tagline: 'The legend tier. Opys 6, unlimited in every direction.',
+      color: '#e8c44a',
+      perks: [
+        { icon: '👑', label: 'Opys 6 — next-generation flagship', sub: 'The most powerful model, exclusive to X200' },
+        { icon: '🎙️', label: '1,500 voice calls per day', sub: 'The absolute ceiling — effectively no limit' },
+        { icon: '🔊', label: '15,000 read-alouds per day', sub: 'No ceiling for any use case, ever' },
+        { icon: '💬', label: 'Massive weekly token allowance', sub: '200× the Advanced base — built for the most dedicated users' },
         { icon: '✨', label: 'Access to every AI character', sub: 'All current and future characters included' },
         { icon: '⚡', label: 'Priority support', sub: 'Reach us at support.charactermind@gmail.com' },
       ]
@@ -3918,6 +3931,7 @@ const PAYPAL_PLAN_IDS = {
   x20:      process.env.PAYPAL_PLAN_X20,
   x50:      process.env.PAYPAL_PLAN_X50,
   x100:     process.env.PAYPAL_PLAN_X100,
+  x200:     process.env.PAYPAL_PLAN_X200,
 };
 // Yearly plans: create them in PayPal, then set these three in the Render environment. Until all three exist, yearly is not offered at all.
 const PAYPAL_PLAN_IDS_YEARLY = {
@@ -3925,8 +3939,9 @@ const PAYPAL_PLAN_IDS_YEARLY = {
   x20:      process.env.PAYPAL_PLAN_X20_YEARLY,
   x50:      process.env.PAYPAL_PLAN_X50_YEARLY,
   x100:     process.env.PAYPAL_PLAN_X100_YEARLY,
+  x200:     process.env.PAYPAL_PLAN_X200_YEARLY,
 };
-// Yearly is offered once the first three yearly plans exist; X100 is sold only when its own plan ids are set (planIds.x100 / yearlyPlanIds.x100)
+// Yearly is offered once the first three yearly plans exist; X100/X200 are sold only when their own plan ids are set (planIds.x100 / planIds.x200)
 const yearlyAvailable = () => ['advanced', 'x20', 'x50'].every(k => PAYPAL_PLAN_IDS_YEARLY[k]);
 // the PayPal plan to charge for a plan and period (monthly or annual)
 function paypalPlanIdFor(planKey, period) { return (period === 'annual' ? PAYPAL_PLAN_IDS_YEARLY : PAYPAL_PLAN_IDS)[planKey]; }
@@ -3976,7 +3991,7 @@ app.post('/api/paypal/verify-subscription', requireAuth, paypalVerifyLimiter, as
   const { subscriptionId, planKey } = req.body;
   const period = (req.body && req.body.period === 'annual') ? 'annual' : 'monthly';
   if (period === 'annual' && !yearlyAvailable()) return res.status(400).json({ error: 'Yearly plans are not available right now' });
-  const validPlans = { advanced: true, x20: true, x50: true, x100: true };
+  const validPlans = { advanced: true, x20: true, x50: true, x100: true, x200: true };
   if (typeof planKey !== 'string' || !Object.hasOwn(validPlans, planKey)) return res.status(400).json({ error: 'Invalid request' });
   if (typeof subscriptionId !== 'string' || !/^I-[A-Z0-9]{6,40}$/.test(subscriptionId)) return res.status(400).json({ error: 'Invalid request' });
 
