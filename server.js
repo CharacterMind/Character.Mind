@@ -1851,12 +1851,12 @@ async function getCharPrompt(charId) {
 // Each Groq model has its own free per-minute allowance, so extra models at the end of each list are a free
 // overflow lane: they are only used when the main ones are rate limited (or missing), never remembered as "the" model.
 // llama-3.3-70b is Enterprise-only (no dev-plan limits) — gpt-oss-120b has 250K TPM on dev plan
-const GROQ_FALLBACKS    = ['openai/gpt-oss-20b'];
-const GROQ_FAST_MODELS  = ['openai/gpt-oss-120b', ...GROQ_FALLBACKS];
-const GROQ_MODELS       = ['openai/gpt-oss-120b', ...GROQ_FALLBACKS];
-const GROQ_PRO_MODELS   = ['openai/gpt-oss-120b', ...GROQ_FALLBACKS];
-const GROQ_OPUS_MODELS  = ['openai/gpt-oss-120b', ...GROQ_FALLBACKS];
-const GROQ_OPYS2_MODELS = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
+const GROQ_FALLBACKS    = [];
+const GROQ_FAST_MODELS  = ['openai/gpt-oss-120b'];
+const GROQ_MODELS       = ['openai/gpt-oss-120b'];
+const GROQ_PRO_MODELS   = ['openai/gpt-oss-120b'];
+const GROQ_OPUS_MODELS  = ['openai/gpt-oss-120b'];
+const GROQ_OPYS2_MODELS = ['openai/gpt-oss-120b'];
 
 // Per-tier effort configs — max effort uses highest reasoning + tokens
 const EFFORT_CONFIG = {
