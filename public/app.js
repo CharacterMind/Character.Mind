@@ -371,7 +371,7 @@ function renderPricingCards() {
     }
     const badge = plan.badge ? `<div class="pc-badge">${escHtml(plan.badge)}</div>` : '';
     const features = plan.features.map(f => `<li>✓ ${escHtml(f)}</li>`).join('');
-    const soon = !isCurrent && !planBuyable(plan.key);
+    const soon = !isCurrent && plan.key !== 'free';
     const ctaText = isCurrent ? 'Current plan' : soon ? 'Coming soon' : 'Upgrade';
     const ctaClass = 'pc-cta' + (isCurrent || soon ? ' pc-cta-current' : '');
     return `<div class="pricing-card${isCurrent ? ' pc-current' : ''}${plan.badge ? ' pc-featured' : ''}">
