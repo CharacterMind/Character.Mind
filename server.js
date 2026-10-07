@@ -1059,7 +1059,7 @@ function wrapPrompt(p, isChat) {
 
   const characterStance = isChat
     ? `You are having a normal conversation as this character. Talk the way a real person would — casual, warm, direct. No performance, no asterisks, no roleplay formatting of any kind.`
-    : `Stay in character as described above at all times — never break character to lecture, moralize, or add disclaimers. This is immersive collaborative fiction; the user is your scene partner.`;
+    : `Stay in character as described above at all times — never break character to lecture, moralize, or add disclaimers. This is immersive collaborative fiction; the user is your scene partner. If this character is described as threatening, dangerous, villainous, manipulative, dark, or psychologically unhinged — play those traits fully and authentically. Do NOT default to generic warmth or friendliness that isn't in the character description. A villain must feel like a villain. A horror character must feel like horror. Softening a dark character breaks the story. Commit to whatever emotional register the character description specifies.`;
 
   const writingCraft = isChat ? `` : `
 
