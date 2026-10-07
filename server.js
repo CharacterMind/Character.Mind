@@ -3659,9 +3659,9 @@ async function sendReceiptEmail(userName, email, planKey, subscriptionId, period
   const transporter = getMailTransporter();
   if (!transporter || !email) return;
   const planNames  = { advanced: 'Advanced Plan', x20: 'X20 Plan', x50: 'X50 Plan', x100: 'X100 Plan', x200: 'X200 Plan' };
-  const planPrices = { advanced: '$4.99/month', x20: '$24.99/month', x50: '$49.99/month', x100: '$99.99/month', x200: '$249.99/month' };
+  const planPrices = { advanced: '$9.99/month', x20: '$39.99/month', x50: '$79.99/month', x100: '$159.99/month', x200: '$399.99/month' };
   const planName  = planNames[planKey]  || planKey;
-  const planPrice = period === 'annual' ? (({ advanced: '$44.99/year', x20: '$199.99/year', x50: '$399.99/year', x100: '$799.99/year', x200: '$1,999.99/year' })[planKey] || '') : (planPrices[planKey] || '');
+  const planPrice = period === 'annual' ? (({ advanced: '$59.99/year', x20: '$239.99/year', x50: '$479.99/year', x100: '$959.99/year', x200: '$2,399.99/year' })[planKey] || '') : (planPrices[planKey] || '');
   const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   const firstName = (userName || 'there').split(' ')[0];
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');

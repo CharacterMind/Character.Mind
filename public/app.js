@@ -187,7 +187,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'advanced', name: 'Advanced', monthly: 4.99, annual: 44.99,
+    key: 'advanced', name: 'Advanced', monthly: 9.99, annual: 59.99,
     callsPerDay: 5, memosPerDay: 50,
     features: [
       'Opis: precise logic, riddles, mysteries and continuity',
@@ -198,7 +198,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'x20', name: 'X20', badge: 'Recommended', monthly: 24.99, annual: 199.99,
+    key: 'x20', name: 'X20', badge: 'Recommended', monthly: 39.99, annual: 239.99,
     callsPerDay: 100, memosPerDay: 1000,
     features: [
       'Opus: deep emotional storytelling, inner conflict, layered subtext',
@@ -209,7 +209,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'x50', name: 'X50', badge: 'Best Value', monthly: 49.99, annual: 399.99,
+    key: 'x50', name: 'X50', badge: 'Best Value', monthly: 79.99, annual: 479.99,
     callsPerDay: 250, memosPerDay: 2500,
     features: [
       'Opys: master storyteller — cinematic pacing, vivid imagery, deliberate tension',
@@ -221,7 +221,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'x100', name: 'X100', badge: 'Ultimate', monthly: 99.99, annual: 799.99,
+    key: 'x100', name: 'X100', badge: 'Ultimate', monthly: 159.99, annual: 959.99,
     callsPerDay: 500, memosPerDay: 5000,
     features: [
       'Opys 5: the flagship model — exclusive to X100',
@@ -233,7 +233,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'x200', name: 'X200', badge: 'Legend', monthly: 249.99, annual: 1999.99,
+    key: 'x200', name: 'X200', badge: 'Legend', monthly: 399.99, annual: 2399.99,
     callsPerDay: 1500, memosPerDay: 15000,
     features: [
       'Opys 6: next-generation model — exclusive to X200',
