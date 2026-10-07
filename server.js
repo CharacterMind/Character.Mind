@@ -558,13 +558,15 @@ const LIMITS = {
 // model tokens x model multiplier x effort multiplier).
 // An average message = Opes at Medium effort = 1,800 tokens (see MESSAGE_COST below).
 // Lighter models/efforts give more messages than this; heavier ones give fewer.
-// Free 35, Advanced 150 (4.3x), X20 = 20x Advanced (3,000), X50 = 50x Advanced (7,500), X100 = 100x Advanced (15,000), X200 = 200x (30,000). Weekly = 5 sessions' worth.
+// Free 40, Advanced 150 (3.75x), X20 = 20x Advanced (3,000), X50 = 50x Advanced (7,500), X100 = 100x Advanced (15,000), X200 = 200x (30,000). Weekly = 5 sessions' worth.
+// NOTE: free is set so that free * AVG_MESSAGE_TOKENS = 72,000 (the intended fixed free budget).
+// If AVG_MESSAGE_TOKENS ever changes, recalculate free = 72000 / AVG_MESSAGE_TOKENS to keep the free budget stable.
 const AVG_MESSAGE_TOKENS = 1800;
 const X20_MULT = 20;
 const X50_MULT = 50;
 const X100_MULT = 100;
 const X200_MULT = 200;
-const MESSAGES_PER_SESSION = { free: 35, advanced: 150 };
+const MESSAGES_PER_SESSION = { free: 40, advanced: 150 };
 const WEEKLY_SESSIONS = 5;
 function limitsForMessages(sessionMessages) {
   const session = sessionMessages * AVG_MESSAGE_TOKENS;
