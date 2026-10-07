@@ -1405,35 +1405,17 @@ function colorizeNameHtml(name, c) {
     /\s/.test(ch) ? escHtml(ch) : `<span style="color:${colors[Math.floor(Math.random()*colors.length)]};font-weight:700">${escHtml(ch)}</span>`
   ).join('');
 }
-// Wrap every non-whitespace character in the bubble in a random-colored span.
+// Apply the character's primary colour uniformly to speech and narration spans.
 function colorizeLetters(bubble, c) {
   if (!bubble) return;
   const hexes = String(c || '').match(/#[0-9a-fA-F]{6}/gi);
   if (!hexes || !hexes.length) return;
-  const colors = hexes.map(boostColor);
-  // Clear any gradient text style so child span colors aren't swallowed
-  bubble.style.background = '';
-  bubble.style.webkitBackgroundClip = '';
-  bubble.style.backgroundClip = '';
-  bubble.style.webkitTextFillColor = '';
-  bubble.style.color = '';
-  const walker = document.createTreeWalker(bubble, NodeFilter.SHOW_TEXT);
-  const nodes = [];
-  let nd;
-  while (nd = walker.nextNode()) nodes.push(nd);
-  for (const tn of nodes) {
-    if (tn.parentNode.closest && tn.parentNode.closest('code, pre')) continue;
-    const frag = document.createDocumentFragment();
-    for (const ch of tn.textContent) {
-      if (/\s/.test(ch)) { frag.appendChild(document.createTextNode(ch)); continue; }
-      const sp = document.createElement('span');
-      sp.style.color = colors[Math.floor(Math.random() * colors.length)];
-      sp.style.fontWeight = '700';
-      sp.textContent = ch;
-      frag.appendChild(sp);
-    }
-    tn.parentNode.replaceChild(frag, tn);
-  }
+  const primary = boostColor(hexes[0]);
+  const n = parseInt(primary.slice(1), 16);
+  const [r, g, b] = [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+  const narColor = `rgba(${r},${g},${b},0.72)`;
+  bubble.querySelectorAll('.sp').forEach(el => { el.style.color = primary; });
+  bubble.querySelectorAll('.nr').forEach(el => { el.style.color = narColor; });
 }
 
 // ── Custom hue-strip color picker ─────────────────────────────────────────────

@@ -627,7 +627,7 @@ html, body {
   font-size: 10px; font-weight: 800; color: #fff;
   flex-shrink: 0; overflow: hidden;
 }
-.msg-name { font-weight: 600; color: var(--text2); font-size: 13px; }
+.msg-name { font-weight: 700; color: var(--text); font-size: 15px; }
 .msg-badge {
   font-size: 9.5px; padding: 1px 6px; border-radius: 10px;
   background: var(--accent-dim); color: var(--accent-l); font-weight: 700; letter-spacing: .3px;
@@ -1374,7 +1374,7 @@ html, body {
   box-shadow: 0 4px 16px rgba(0,0,0,.5);
 }
 .ip-header-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.ip-name { font-size: 15px; font-weight: 700; line-height: 1.3; }
+.ip-name { font-size: 18px; font-weight: 700; line-height: 1.25; color: var(--text); letter-spacing: -0.01em; }
 .ip-sub  { font-size: 11.5px; color: var(--text3); line-height: 1.4; }
 
 /* Social action row */
@@ -2895,9 +2895,9 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
   .pc-per-month { flex-wrap: wrap; }
 }
 
-/* Clean, Character.AI-style reading: speech in near-white, narration in softer italic grey, same for every character */
-.bubble .sp { color: #f3f3f6; font-weight: 400; }
-.bubble .nr { color: #aeb0c0; font-style: italic; font-weight: 400; }
+/* Bubble text: bold speech, softer italic narration — character colours applied via colorizeLetters on top */
+.bubble .sp { color: #f0eeff; font-weight: 600; }
+.bubble .nr { color: #c4b8e8; font-style: italic; font-weight: 500; }
 .bubble p { margin: 0 0 12px; line-height: 1.7; }
 .bubble p:last-child { margin-bottom: 0; }
 
