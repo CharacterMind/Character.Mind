@@ -799,6 +799,7 @@ html, body {
   border-top: 1px solid var(--border); padding: 12px 16px 14px;
   flex-shrink: 0; background: var(--bg2);
 }
+.powered-by-line { text-align: center; font-size: 10px; color: var(--muted); opacity: 0.45; margin-top: 6px; letter-spacing: .03em; pointer-events: none; user-select: none; }
 .input-row { display: flex; gap: 8px; align-items: flex-end; }
 .input-wrap {
   flex: 1; background: var(--input-bg); border: 1px solid var(--border2);
