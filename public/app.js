@@ -295,6 +295,7 @@ const COUNTRY_CURRENCY = {
 };
 
 let pricingCountryCode = 'US';
+let pricingCountryDetected = false;
 let exchangeRates = null;
 let exchangeRatesPromise = null;
 
@@ -327,6 +328,7 @@ function populateCountrySelect() {
 
 function setPricingCountry(code) {
   if (!COUNTRY_CURRENCY[code]) return;
+  pricingCountryDetected = true;
   pricingCountryCode = code;
   loadExchangeRates().then(() => renderPricingCards());
 }
@@ -350,10 +352,14 @@ function openPricingModal() {
   populateCountrySelect();
   renderPricingCards();
   document.getElementById('pricingModal').style.display = 'flex';
-  Promise.all([loadExchangeRates(), detectPricingCountry()]).then(([, code]) => {
-    pricingCountryCode = code;
-    populateCountrySelect();
-    renderPricingCards();
+  loadExchangeRates().then(() => {
+    if (pricingCountryDetected) { renderPricingCards(); return; }
+    detectPricingCountry().then(code => {
+      pricingCountryDetected = true;
+      pricingCountryCode = code;
+      populateCountrySelect();
+      renderPricingCards();
+    });
   });
 }
 function closePricingModal() {
@@ -548,6 +554,13 @@ function updateSettingsPlanCard(tier) {
 
 function renderSettingsTiers(currentTier) {
   if (!paypalConfigLoaded) loadPaypalConfig().then(() => renderSettingsTiers(currentTier));
+  if (!exchangeRates) {
+    const countryP = pricingCountryDetected ? Promise.resolve(pricingCountryCode) : detectPricingCountry();
+    Promise.all([loadExchangeRates(), countryP]).then(([, code]) => {
+      if (!pricingCountryDetected) { pricingCountryDetected = true; pricingCountryCode = code; }
+      renderSettingsTiers(currentTier);
+    });
+  }
   const el = document.getElementById('settingsTiersSection');
   if (!el) return;
   const t = currentTier || lastKnownUsage?.subscriptionTier || 'free';
@@ -576,7 +589,7 @@ function renderSettingsTiers(currentTier) {
           ${badge}
           <div class="st2-icon-wrap">${icons[p.key] || ''}</div>
           <div class="st2-plan-name">${escHtml(p.name)}</div>
-          <div class="st2-price-row"><span class="st2-price">$${price.toFixed(2)}</span><span class="st2-period">${period === 'annual' ? '/yr' : '/mo'}</span></div>
+          <div class="st2-price-row"><span class="st2-price">${formatLocalPrice(price)}</span><span class="st2-period">${period === 'annual' ? '/yr' : '/mo'}</span></div>
           <ul class="st2-feats">${feats}</ul>
           <button class="st2-btn${isCurrent || !planBuyable(p.key) ? ' st2-btn-current' : ''}" ${isCurrent || !planBuyable(p.key) ? 'disabled' : `onclick="handleUpgradeCta('${p.key}')"`}>${isCurrent ? 'Current' : !planBuyable(p.key) ? 'Coming soon' : 'Subscribe'}</button>
         </div>`;

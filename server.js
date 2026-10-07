@@ -2399,10 +2399,10 @@ app.get('/api/usage', requireAuth, (req, res) => {
   res.json(buildUsagePayload(getLimits(req.user.googleId), req.user.googleId));
 });
 
-app.get('/api/geo', async (req, res) => {
+app.get('/api/geo', geoLimiter, async (req, res) => {
   try {
     const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
-    const geo = await lookupGeoForIp(ip);
+    const geo = await getGeoForIp(ip);
     res.json({ countryCode: geo?.country || 'US' });
   } catch (_) {
     res.json({ countryCode: 'US' });
