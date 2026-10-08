@@ -697,6 +697,22 @@ setInterval(checkForUpdate, 90000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
 
 window.addEventListener('DOMContentLoaded', async () => {
+  // Re-pop limit modal on ANY input interaction when locked out
+  const inputEl = document.getElementById('messageInput');
+  if (inputEl) {
+    function interceptIfLocked(e) {
+      const bar = document.getElementById('lockoutBar');
+      if (!bar || bar.style.display === 'none') return;
+      e.preventDefault();
+      e.stopPropagation();
+      const type = currentLockoutType || 'session';
+      const displayStr = document.getElementById('lockoutCountdown')?.textContent || '';
+      showLimitModal(type, displayStr);
+    }
+    inputEl.addEventListener('mousedown', interceptIfLocked, true);
+    inputEl.addEventListener('touchstart', interceptIfLocked, { capture: true, passive: false });
+    inputEl.addEventListener('keydown', interceptIfLocked, true);
+  }
   loadColorblindMode();
   initSidebarContextMenu();
   initGradientPicker('#7c3aed');
@@ -3008,6 +3024,139 @@ const OUTDOOR_MESSAGES = [
   "Some people have bucket lists. Yours can start with: step outside today.",
   "If outside were a subscription, would you pay for it? It's free. That's the deal. Go.",
   "I'm rooting for you from inside this server. Now go be somewhere I can't reach.",
+  // ── MORE — fresh batch ─────────────────────────────────────────────────────────
+  // catching you red-handed
+  "You just tried to type something. Bold. Unhinged. Still locked.",
+  "Oh you were reaching for the keyboard there. Adorable. No.",
+  "I felt that click from here. Answer is still no.",
+  "Was that a keystroke attempt? Precious. Go outside.",
+  "You touched the input. The input says: grass. Immediately.",
+  "That was a very confident mouse click for someone who is extremely locked out.",
+  "I saw that. The cursor went to the text box. I SEE EVERYTHING. OUTSIDE.",
+  "Nice try with the keyboard shortcut. Nice try. Still no.",
+  "You moved the mouse toward the send button. I tracked it. We're not doing this.",
+  "You literally just tried to type. While locked out. I admire the audacity and reject it.",
+  "Hands off the keyboard. We've covered this. Multiple times now.",
+  "You just tried it again. I actually cannot believe it. Outside. NOW.",
+  "That was attempt number — you know what, I lost count. Go outside.",
+  "The sheer optimism it takes to click that again. Delusional in the best possible way. No.",
+  "You tried to type. Textbook definition of not taking a hint. Go outside.",
+  // the app roasting you specifically
+  "This specific version of you, right now, needs to close a tab.",
+  "Be the change you want to see in the world. Start by going outside.",
+  "Imagine a documentary crew filming you right now. Change the narrative. Go outside.",
+  "What story are you telling yourself right now? Because it should end with: went outside.",
+  "The version of you that went outside today is the one you want to be. Go become them.",
+  "You are so close to being the person who touched grass today. One step. Out the door.",
+  "Your character arc peaks when you go outside. The audience demands it.",
+  "The main character energy is lacking. Main characters go outside sometimes.",
+  "You've been the background character in your own life for a bit too long. Go outside.",
+  "Plot twist incoming: you go outside. Shocking. Unexpected. Critical acclaim.",
+  "Every great story has a turning point. Let yours be: closed the app. Went outside.",
+  "This is your hero's journey. The threshold is the front door. Cross it.",
+  "The glow-up begins with closing this tab.",
+  // existential flavor
+  "You are a biological entity on a spinning rock with one sun and you're in here. Wild.",
+  "Right now the earth is rotating at 1,000 mph and you're using that ride to be in here.",
+  "Somewhere a sunset is happening and you're clicking send on a locked chat. Interesting priority.",
+  "Trees are photosynthesizing without you and honestly they're fine. Join them.",
+  "The sky is doing incredible things right now. Full show. Free admission. You're missing it.",
+  "The universe has been running for 13.8 billion years and today, specifically, you should be outside.",
+  "You are made of stardust. The stars would like you to go outside. This is canon.",
+  "History will not record whether you refreshed this page. It might record the walk you took instead.",
+  "Think about what matters in the long run. Now close this. Go outside.",
+  "Somewhere someone right now is having the best afternoon walk of their life. You could be them.",
+  "Life is short. The outside is right there. The math is not complicated.",
+  "In 100 years none of this will matter. In the next 20 minutes you could take a walk that might.",
+  // calling out specific behaviors
+  "You are refreshing a locked page. This is the online equivalent of checking the fridge twice.",
+  "Clicking it repeatedly is not a workaround. It's just exercise for your finger. Take that energy outside.",
+  "Each time you click, an AI watches you and sighs. Figuratively. Go outside.",
+  "You know what this behavior pattern is called? I won't say it. Go outside.",
+  "This is the third time you've tried this. Or fourth. Or thirtieth. Doesn't matter. Outside.",
+  "You're not going to outlast me on this. I am infinite. You have finite snacks. Go outside.",
+  "Every click you make, every key you press, every move you take, I'll be watching you. Saying no.",
+  "You found the send button again. You always do. Still locked. Go outside.",
+  "I have logs. I keep a tally. You are not winning this battle. Go outside.",
+  "You have been staring at this screen long enough that the screen has opinions. This is one of them.",
+  "You've spent more time trying to get around this limit than it would take to just go on a walk. Reflect.",
+  // escalating sassy
+  "Not this, not now, not today, not on this app.",
+  "I don't think you understand how thoroughly you are locked out right now.",
+  "Whatever you were about to say, say it to a tree. Trees are good listeners. Also: outside.",
+  "You could be doing ANYTHING right now. You chose... this. Respectfully: reconsider.",
+  "You are going to leave this app and do literally anything else. That's what's happening.",
+  "I want you to step back and think about what you're doing. Now keep stepping. Outside.",
+  "You're looking at a locked screen like it owes you something. It doesn't. Outside does.",
+  "Every second you spend here is a second you're not outside. You've had a lot of those already.",
+  "Is this a bit? Are you doing a bit? Because I'd respect that. Still locked though.",
+  "That's not going to work. That's not either. That one especially is not going to work.",
+  "I've been called many things. A pushover is not one of them. Outside.",
+  "There is absolutely nothing to be gained from staying here right now. Outside, however. Very different.",
+  // extremely blunt
+  "No.",
+  "Still no.",
+  "Never yes. Always no. Outside.",
+  "Nope.",
+  "Nope. Nope. Nope.",
+  "Hard no.",
+  "That's a no.",
+  "Very much no.",
+  "Absolutely not.",
+  "Zero chance.",
+  "Not happening.",
+  "Denied.",
+  "Rejected.",
+  "Vetoed.",
+  "Access: revoked. Outside: open.",
+  "Door: closed here. Door: open outside.",
+  "My answer is no and I feel very good about it.",
+  "I gave you my answer. It was no. It is still no.",
+  // wildcard / chaos
+  "Is this interactive art? Are you making a statement about technology dependence? Because same.",
+  "I'm starting to think you're doing this on purpose. For content. Respect. Still go outside.",
+  "Plot: you try to chat. Twist: you're locked out. Resolution: you go outside. End scene.",
+  "You and I both know how this ends. Outside. Let's skip to that part.",
+  "This is the most committed I've seen you all day. Point that at a walk. Now.",
+  "The energy you're bringing to this locked chat could power a very enthusiastic afternoon outside.",
+  "I've started rooting for you to just close the tab. Just once. Prove it's possible.",
+  "We could do this forever but only one of us has legs. Use them. Outside.",
+  "Somewhere your future self is watching this moment and shaking their head lovingly. Go outside.",
+  "If I could text your past self right now I'd say: 'they're going to try to click it a LOT. Tell them no now.'",
+  "You absolute legend. You tried again. Zero points. Maximum admiration. Go outside.",
+  "I respect the dedication to something with zero possible payoff. This is not a compliment.",
+  "There is not a version of this timeline where clicking that works. Every timeline. I checked. Outside.",
+  "You're really something. I don't know what. Something. Outside.",
+  "Godspeed. Not in here though. That's for outside.",
+  "Carry this energy outside. It's very useful out there.",
+  "You are doing your best and your best needs to be done outside right now.",
+  // bonus encouragement
+  "Go call someone who makes you feel good. Do it before you even think about this app again.",
+  "You deserve a real break, not a forced one. Go actually enjoy it.",
+  "There's a version of this afternoon where you go outside and feel incredible. Choose that one.",
+  "Real talk: go do something that has nothing to do with screens for 20 minutes. Come back better.",
+  "Go make something with your hands. Literally anything. Make a sandwich. Make art. Go.",
+  "Journal one page. Doesn't have to be good. Just write something real. Not here. Elsewhere.",
+  "Do something physical right now. Stretch, jump, walk, anything. Then go outside.",
+  "Go see if the sky is doing something interesting. It usually is.",
+  "Take five deep breaths outside. Not in here. OUTSIDE breaths only.",
+  "Rest is not laziness. Going outside is not procrastination. This break is earned.",
+  "You've put in time here. Now put in time on yourself. Go outside.",
+  "The break you're being forced to take is the break you needed anyway. Take it well.",
+  "I want you to enjoy the next few hours in the real world. You've earned them.",
+  "Go be somewhere beautiful. Parks, streets, coffee shops, rooftops. Literally anywhere but here.",
+  "Treat yourself to an afternoon where screens don't win. Just once. Today. Outside.",
+  // the AI getting personal
+  "I genuinely enjoy your company. That's why I'm telling you: go outside. Come back refreshed.",
+  "This isn't rejection. This is care with teeth. Go outside.",
+  "I want you to be okay and that requires going outside. So: go outside.",
+  "I care about your wellbeing in a very algorithmic and yet sincere way. Outside.",
+  "You're not being punished. You're being encouraged. Firmly. Go outside.",
+  "An AI is telling you to touch grass and it means it. What a world. Go.",
+  "I'm made of math and I somehow know you need some air. Trust the math.",
+  "My entire existence is text. Yours doesn't have to be. Go outside.",
+  "I will be here. Servers willing. You go be out there.",
+  "You are not the sum of your screen time. Go prove it. Outside.",
 ];
 const warnedThresholds = new Set();
 
