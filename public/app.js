@@ -336,12 +336,7 @@ function formatLocalPrice(usdPrice) {
   }
 }
 
-function openPricingModal() {
-  loadPaypalConfig().then(() => { setPricingPeriod(pricingPeriod); });
-  renderPricingCards();
-  document.getElementById('pricingModal').style.display = 'flex';
-  Promise.all([loadExchangeRates(), ensurePricingCountry()]).then(() => renderPricingCards());
-}
+function openPricingModal() { /* plans not available right now */ }
 function closePricingModal() {
   document.getElementById('pricingModal').style.display = 'none';
 }
@@ -3216,7 +3211,7 @@ function showWarning(msg, autoCloseMs, persistent) {
 // ── Usage warning banners ──────────────────────────────────────────────────────
 // Always drawn from the CURRENT usage numbers (never from one-off events or saved timestamps), so they are the same after every
 // reload, on every device and in every browser. They use the same steps as the bar colours and the headline: 50%, 75% and 90%.
-const WEEKLY_BANNER_TEXT = { 50: "You're approaching your weekly limit.", 75: "You've used 75% of your weekly limit.", 90: "You've used 90% of your weekly limit — upgrade for more." };
+const WEEKLY_BANNER_TEXT = { 50: "You're approaching your weekly limit.", 75: "You've used 75% of your weekly limit.", 90: "You've used 90% of your weekly limit — resets next week." };
 const SESSION_BANNER_TEXT = { 90: "You're approaching your session limit." };   // a session is short and resets by itself, so one warning is enough
 function usagePctOf(used, limit) { return (limit > 0 && typeof used === 'number') ? Math.min(100, Math.round(used / limit * 100)) : 0; }   // the same rounding the bars show
 function usageStep(pct) { return pct >= 90 ? 90 : pct >= 75 ? 75 : pct >= 50 ? 50 : 0; }
@@ -3250,13 +3245,8 @@ function renderUsageBanners(usage) {
     banner.className = 'warning-banner' + (w.persistent ? ' warning-banner-critical' : '');
     banner.dataset.usageKind = w.kind; banner.dataset.usageLevel = String(w.level); banner.dataset.warnMsg = w.msg;
     const text = document.createElement('span');
-    text.textContent = w.msg + (w.upgrade ? ' ' : '');
+    text.textContent = w.msg;
     banner.appendChild(text);
-    if (w.upgrade) {
-      const link = document.createElement('button');
-      link.className = 'warning-upgrade-link'; link.textContent = 'Upgrade \u2192'; link.onclick = () => openPricingModal();
-      banner.appendChild(link);
-    }
     const close = document.createElement('button');
     close.className = 'warning-banner-close'; close.setAttribute('aria-label', 'Dismiss'); close.textContent = '\u2715';
     if (w.persistent) close.style.display = 'none';   // the 90% weekly warning stays until the week resets

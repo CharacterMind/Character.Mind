@@ -196,7 +196,7 @@
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
         <span>Safety Resources</span>
       </button>
-      <button class="nav-item" id="navPricingBtn" onclick="openPricingModal()">
+      <button class="nav-item" id="navPricingBtn" onclick="openPricingModal()" style="display:none">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm4.24 16L12 15.45 7.77 18l1.12-4.81-3.73-3.23 4.92-.42L12 5l1.92 4.53 4.92.42-3.73 3.23L16.23 18z"/></svg>
         <span>Subscription Plans</span>
       </button>
@@ -446,15 +446,13 @@
             <div class="call-limit-headline">You've used all your voice calls today.</div>
             <div class="call-limit-sub">Resets in <span id="callLimitCountdown" class="call-limit-countdown">--:--:--</span></div>
             <div class="call-limit-divider"></div>
-            <div class="call-limit-upgrade-label">Want unlimited calls?</div>
-            <button class="call-limit-upgrade-btn" onclick="hideCallLimitModal(); openPricingModal()">See plans →</button>
             <button class="call-limit-got-it" onclick="hideCallLimitModal()">Got it</button>
           </div>
         </div>
         <!-- 1 call remaining warning banner -->
         <div id="callWarningBanner" class="call-warning-banner" style="display:none">
           <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-          1 voice call left today — <span class="call-warning-upgrade" onclick="openPricingModal()">Upgrade for more</span>
+          1 voice call left today
         </div>
         <!-- Call ended due to inactivity banner -->
         <div id="callInactivityBanner" class="call-warning-banner" style="display:none;background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.3);color:#ef4444">
@@ -904,7 +902,7 @@
             <div id="settingsPlanName" class="settings-plan-name">Free Plan</div>
             <div id="settingsPlanSub" class="settings-plan-sub">Free plan</div>
           </div>
-          <button class="settings-plan-upgrade-btn" onclick="openPricingModal()">View plans</button>
+          <button class="settings-plan-upgrade-btn" onclick="openPricingModal()" style="display:none">View plans</button>
         </div>
         <div id="settingsTiersSection" class="settings-tiers-section"></div>
         <div class="settings-usage-section">
