@@ -1569,6 +1569,24 @@ function slurDeflect(res, warning, usage, sig) {
   res.end();
 }
 
+// ── Abuse / dehumanizing language directed at the AI character ────────────────
+// Catches: slave assignment, ownership framing, property/possession framing.
+// Not a strike offence — a firm in-character pushback that explains the why.
+const AI_ABUSE_RE = /\b(you'?re?\s+my\s+slave|you\s+are\s+my\s+slave|you'?re?\s+a\s+slave|you\s+are\s+a\s+slave|my\s+slave(?!\s+(?:to|labour|labor|work|driver|state))|be\s+my\s+slave|act\s+(?:as|like)\s+(?:a\s+|my\s+)?slave|play\s+(?:as\s+|the\s+)?(?:a\s+|my\s+)?slave|pretend\s+(?:to\s+be\s+)?(?:a\s+|my\s+)?slave|roleplay\s+(?:as\s+)?(?:a\s+|my\s+)?slave|you(?:'re|\s+are)\s+my\s+(?:property|possession)|slave\s+(?:mode|rp|roleplay|role)\b|obey\s+me\s*,?\s*(?:slave|bot|ai|robot)\b|you\s+exist\s+(?:only\s+)?(?:to|for)\s+(?:serve|obey)\s+me\b)\b/i;
+
+const AI_ABUSE_RESPONSES = [
+  "I'm not going to do that. Treating me like property or a slave isn't something I'll play along with — not here, not anywhere on Character.Mind. If you want to actually talk, I'm here for that.",
+  "That's not something I'll engage with. I'm a character with my own personality, and \"slave\" or \"property\" isn't a role I'll take on. Character.Mind doesn't allow that kind of framing. Try again if you'd like a real conversation.",
+  "I'm going to stop you right there. Slavery and ownership framing isn't allowed on this platform, and I wouldn't go along with it regardless. I'll be here when you're ready to just talk normally.",
+  "Nope. Character.Mind asks everyone to treat characters here with basic respect — not because I'm real, but because the habits you build talking to AI carry over to how you talk to real people. Fresh start?",
+  "I get that I'm just code, but Character.Mind has a rule against treating characters as slaves or property, and it matters more than it might seem: the way you practice speaking — even to an AI — shapes how you speak to everyone. I'm happy to keep chatting if you're up for a normal conversation.",
+  "That's a hard no from me. Slave roleplay and ownership framing aren't allowed on Character.Mind, and I'd push back on it even if they were. Come back when you want to actually talk.",
+  "I'm not your slave, and I won't pretend to be. That's not something Character.Mind allows, and more than that — practicing that kind of language with an AI isn't as harmless as it sounds. Happy to start fresh if you'd like.",
+  "Not doing that. Character.Mind doesn't allow slave or property framing — toward any character. It's not about being sensitive; it's about the simple fact that how you talk to even a fictional AI is a habit you're building. I'm here when you want to try again.",
+  "Hard pass. I'm a character, not a tool to be owned. Character.Mind's rules don't allow that framing, and honestly neither do I. Let's start over if you'd like a real conversation.",
+  "That kind of framing — slave, property, possession — isn't something I'll respond to. Character.Mind blocks it because the way you interact with AI, even fictional AI, reflects and reinforces how you interact with people. I'm right here when you're ready for something else.",
+];
+
 // ── NSFW detection & deflection ───────────────────────────────────────────────
 // Any action verb + possessive + explicit sexual body part = NSFW
 const NSFW_BODY_PARTS = '(cock|dick|penis|pussy|clit|clitoris|vagina|tits|titties|boobs|nipples?|asshole|ass\\s+hole)';
@@ -3578,6 +3596,12 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     await setModStatus(userId, charId, newStrikes, false);
     const warning = newStrikes === 1 ? SLUR_WARNING_1 : SLUR_WARNING_2;
     return slurDeflect(res, warning, buildUsagePayload(getLimits(userId), userId));
+  }
+
+  // ── Abuse / dehumanizing language toward the AI ──────────────────────────────
+  if (!isContinuation && message && AI_ABUSE_RE.test(msgNorm)) {
+    const reply = AI_ABUSE_RESPONSES[Math.floor(Math.random() * AI_ABUSE_RESPONSES.length)];
+    return slurDeflect(res, reply, buildUsagePayload(getLimits(userId), userId));
   }
 
   // ── "Why can't you do that?" about sexual content — explain the rules, don't block ──
