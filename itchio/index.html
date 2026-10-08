@@ -5,34 +5,130 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>character.mind</title>
 <style>
-  :root { --bg: #0e0b16; --card: #17122a; --line: #2c2347; --text: #f4f1fb; --muted: #a79fc0; --accent: #7c3aed; --accent2: #8b5cf6; --gold: #f4c542; }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  body { display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
-  .card { width: 100%; max-width: 560px; background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 32px 28px; text-align: center; box-shadow: 0 30px 80px rgba(0,0,0,.55); }
-  .logo { width: 84px; height: 84px; border-radius: 20px; object-fit: cover; background: #111; }
-  h1 { margin: 16px 0 6px; font-size: 28px; letter-spacing: .2px; }
-  .tag { margin: 0 0 20px; color: var(--muted); font-size: 15px; line-height: 1.5; }
-  .go { display: inline-block; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; text-decoration: none; font-weight: 700; font-size: 17px; padding: 14px 28px; border-radius: 14px; }
-  .go:hover { filter: brightness(1.1); }
-  ul { list-style: none; padding: 0; margin: 26px 0 0; text-align: left; color: var(--text); font-size: 14px; line-height: 1.55; }
-  li { padding: 9px 0; border-top: 1px solid var(--line); }
+  :root {
+    --bg: #0e0b16;
+    --card: #17122a;
+    --line: #2c2347;
+    --text: #f4f1fb;
+    --muted: #a79fc0;
+    --accent: #7c3aed;
+    --accent2: #8b5cf6;
+    --gold: #f4c542;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  /* ── Landing card ─────────────────────────────── */
+  #landing {
+    min-height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+  }
+  .card {
+    width: 100%;
+    max-width: 520px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 32px 26px;
+    text-align: center;
+  }
+  .logo {
+    width: 72px;
+    height: 72px;
+    border-radius: 16px;
+    object-fit: cover;
+  }
+  h1 { margin: 14px 0 6px; font-size: 26px; }
+  .tag {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.5;
+    margin-bottom: 24px;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 26px;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff;
+    border: none;
+    font-weight: 700;
+    font-size: 15px;
+    padding: 13px 22px;
+    border-radius: 12px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-secondary {
+    background: transparent;
+    color: var(--accent2);
+    border: 1.5px solid var(--accent2);
+    font-weight: 600;
+    font-size: 15px;
+    padding: 12px 22px;
+    border-radius: 12px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .btn-secondary:hover { background: rgba(139,92,246,.1); }
+
+  ul {
+    list-style: none;
+    text-align: left;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--text);
+  }
+  li { padding: 8px 0; border-top: 1px solid var(--line); }
   li b { color: var(--gold); }
-  .note { margin: 22px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.55; }
+
+  .note {
+    margin-top: 18px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
 </style>
 </head>
 <body>
+
+<!-- Landing card -->
+<div id="landing">
   <main class="card">
     <img class="logo" src="logo.webp" alt="character.mind logo">
     <h1>character.mind</h1>
-    <p class="tag">Chat with AI characters, or create your own. six models, long-term memory and characters with their own voices.</p>
-    <a class="go" href="https://charactermind.onrender.com" target="_blank" rel="noopener noreferrer">Open character.mind &rarr;</a>
+    <p class="tag">Chat with AI characters or create your own.</p>
+
+    <div class="btn-row">
+      <a class="btn-primary" href="https://charactermind.onrender.com" target="_blank" rel="noopener noreferrer">Play now &rarr;</a>
+    </div>
+
     <ul>
-      <li><b>Characters:</b> ready-made characters inspired by Poppy Playtime, or build your own with a personality and picture.</li>
-      <li><b>Models:</b> six models, each with its own job: quick chat, everyday stories, light coding and puzzles, game master adventures, chapter writing, and a master author with long-term memory.</li>
-      <li><b>Free to start:</b> sign in with Google. Paid plans unlock the heavier models.</li>
+      <li><b>Characters:</b> Lily Lovebraids, Doey and Poppy from Poppy Playtime, or build your own with a personality and picture.</li>
+      <li><b>Models:</b> six AI models with different writing styles, from quick chat to chapter-length scenes with five effort levels.</li>
+      <li><b>Free:</b> sign in with Google. No payment needed.</li>
     </ul>
-    <p class="note">Opens in a new tab. The site is early and built by one person, so expect bugs, and the first load can take up to a minute while the server wakes up. This project uses generative AI for its chat text and its code. Explicit content is not allowed.</p>
+
+    <p class="note">Early and built by one person — expect bugs. The first load can take up to a minute while the server wakes up. Uses generative AI for chat text and code. Fan-made; Poppy Playtime belongs to Mob Entertainment. No explicit content.</p>
   </main>
+</div>
+
 </body>
 </html>
