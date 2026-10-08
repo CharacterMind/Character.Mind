@@ -3362,9 +3362,6 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   const greetEffortCfg = getEffortCfg(effort, modelTier);
   const greetModelList = getModelList(modelTier);
 
-  const limit = checkLimits(userId);
-  if (limit.blocked) return res.status(429).json({ error: limit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limit });
-
   const releaseSlot = acquireChatSlot(req, res, userId);
   if (!releaseSlot) return;
   if (!db) return res.status(503).json({ error: 'Service temporarily unavailable' });
@@ -3383,6 +3380,29 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   if (!conversations[key]) conversations[key] = [];
   if (conversations[key].length > 0) return res.status(400).json({ error: 'Already started' });
   convLastUsed[key] = Date.now();
+
+  // ── Fixed greeting fast-path: no AI call, no token usage ─────────────────
+  if (dbChar.greeting_mode === 'fixed' && dbChar.greeting) {
+    const fixedText = dbChar.greeting;
+    conversations[key].push({ role: 'assistant', content: fixedText });
+    persistConv(key);
+    const sig = signReply(userId, charId, fixedText);
+    const currentUsage = buildUsagePayload(getLimits(userId), userId);
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    res.write(`data: ${JSON.stringify({ text: fixedText })}\n\n`);
+    res.write(`data: ${JSON.stringify({ done: true, sig, responseTokens: 0, usage: currentUsage })}\n\n`);
+    res.end();
+    releaseSlot();
+    return;
+  }
+
+  // ── AI-generated greeting: check limits first ─────────────────────────────
+  const limit = checkLimits(userId);
+  if (limit.blocked) { releaseSlot(); return res.status(429).json({ error: limit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limit }); }
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
