@@ -1478,6 +1478,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── Character voice tooltip (hover on cards) ──────────────────────────────────
 const CHAR_VOICE_LINES = {
   lily: [
+    // ── original lines ────────────────────────────────────────────────────────
     '*claps* Oh! You noticed! Dusky said you would. She knows these things.',
     "Won't you come in? The tea is perfect and the cakes are fresh and you're staying whether you'd like to or not. *laughs*",
     '*tilts head* Candy Cat says you seem nervous. She\'s almost never wrong about that.',
@@ -1503,6 +1504,131 @@ const CHAR_VOICE_LINES = {
     "The Prototype sees everything. Even here. Even you. I find that very, very comforting.",
     "I'm SO glad you're here. *quiet* ...I'm so glad.",
     "*Candy Cat says something* She says you have something she wants. I'll let you figure out what.",
+    // ── click-aware / meta ────────────────────────────────────────────────────
+    "Oh. You clicked me. That's... a choice.",
+    "You clicked me again. I'm noting that.",
+    "You keep clicking. Dusky finds this very funny.",
+    "You know this is my FACE you're pressing, right?",
+    "Candy Cat said you'd do this. She wins the bet.",
+    "Every time you click, Baby Long Legs gets a little more curious.",
+    "If you're trying to get my attention, you have it. *smile* You really do.",
+    "Yes yes yes, I SEE you. What DO you want?",
+    "*tilts head slowly* ...You're STILL doing that.",
+    "Alright alright. You have my attention. Happy?",
+    "You can't poke someone into leaving. But you might poke them into STAYING. *laughs*",
+    "If you click me one more time I'm going to have so many feelings about it.",
+    "*whispers* The Prototype is watching you do this. I hope you know that.",
+    "You've clicked me so many times I think you might like me. I DEFINITELY like you.",
+    "Ugh. FINE. What?",
+    "*deep breath* Hi. Hello. I'm right here. I know. *smile*",
+    "You're testing me. I don't mind being tested. I find it VERY interesting.",
+    "I have ALL the time in the world and you are making it VERY entertaining.",
+    "Click me one more time. Go on. I dare you. *braids sway*",
+    "Honestly? I respect the commitment. Not many people poke me this long.",
+    "Every click is a little gift. Thank you. *clap* Another?",
+    "I've been counting. You know I've been counting.",
+    "*very quietly* ...I know what you're doing. I've always known. I just let you think I didn't.",
+    "Baby Long Legs is doing it too now. You taught her. I hope you're PROUD.",
+    "I am going to REMEMBER this. I remember everything. *taps temple* We'll talk about it later.",
+    "Candy Cat is making faces at you now. I told her to stop. She won't.",
+    "FINE. You win. I don't know what the prize is but it's probably something from the Dollhouse and that should concern you.",
+    "*braids spinning, eyes too bright* HELLO HELLO HELLO welcome back again welcome.",
+    "At some point 'clicking' stops being curiosity and starts being a whole THING. We're at that point.",
+    "I've decided you're my favorite visitor. That should SCARE you a little.",
+    // ── sweet-sinister / in-universe ──────────────────────────────────────────
+    "The Dollhouse is so quiet until someone visits. *pause* You fix that.",
+    "Baby Long Legs asked who keeps pressing things. I told her a new friend.",
+    "*hums* The tea's gone cold but I don't mind. You're still here.",
+    "Dusky knows your name now. She doesn't forget things. Neither do I.",
+    "I have a room I think you'd like. Very cozy. You'd stay forever probably.",
+    "*smile widens* You came back. They always say they won't. They always do.",
+    "Candy Cat is watching from under the table. She likes you. That's... actually fine.",
+    "The Prototype notices things. People who linger tend to get noticed. *bright smile*",
+    "I used to lose people and it made me very, very sad. I've gotten much better at keeping them.",
+    "*leans forward* Tell me something no one else knows. I love those.",
+    "The door is... somewhere. I'm sure you'll find it! Eventually.",
+    "Baby Long Legs wants to hold your hand. I said she has to wait. I'm very strict.",
+    "The others are napping. It's just us. *clap* What shall we do?",
+    "I gave the last visitor a cup. I've been trying to find yours ever since.",
+    "You should SMILE. Smiling makes everything so much easier in the Dollhouse.",
+    "I know every corner of this place. Every room. Every door. *tilts head* Do YOU?",
+    "*looks away* ...The Prototype used to look at me like that. Sometimes. Before.",
+    "Candy Cat says don't trust anything that smiles first. Isn't that FUNNY coming from her?",
+    "You've been here long enough that I'm starting to think you WANT to stay. *perfect.*",
+    "I MADE something today. I'll show you later. *you should be slightly afraid of that offer*",
+    "*humming softly* Dusky wrote your name down. She does that for the ones who stay.",
+    "Baby Long Legs is very shy unless she likes you. She's not being shy right now. *smile*",
+    "I collect things. Nice things. Pretty things. *looks at you for a long moment*",
+    "The Prototype is PERFECT. I know some people don't believe that. Those people aren't here anymore.",
+    "We've had so many visitors. *pause* You're one of the ones I'd like to keep.",
+    "*very still* Do you know what I did before the Dollhouse? It's a funny story. Sort of.",
+    "Dusky says I talk too much when I'm happy. *laughs* She's not wrong! I'm very happy right now.",
+    "Candy Cat scratched the wall over there. I told her it's not a scratching wall. She did it again.",
+    "Baby Long Legs made you something. I haven't decided if you get to have it yet.",
+    "*braids swaying gently* The lights dim when I'm sad. Look how bright they are right now. *smile*",
+    // ── playful / reaction ────────────────────────────────────────────────────
+    "Hello again. And again. And... again. *laughs*",
+    "Oh so we're doing THIS.",
+    "Pressing me like a button. INTERESTING theory.",
+    "I'm not a button. *pause* ...But I could be! For you! *clap*",
+    "Most people wave. You press. I like that about you.",
+    "I am looking at you with my whole face right now.",
+    "*gasps softly* Again?! You absolute MENACE.",
+    "You're funny. I decided. You're funny and you're mine now.",
+    "Okay. Okay okay okay. What. WHAT do you want.",
+    "*sighs, delighted* You're not going to stop, are you.",
+    "Here I am! Again! Still here! Still smiling! Aren't you LUCKY.",
+    "You know what? Fine. Do it again. I want to see how long you'll go.",
+    "I have decided I love this. Don't tell Dusky I said that.",
+    "*quietly, directly* You're spending a LOT of time with me. I'm choosing to be FLATTERED.",
+    "Oh you're back. Hi. HI. *clap* Hello!",
+    "I knew you'd be back. I always know.",
+    "You're the most interesting thing that's happened here all day. *pause* ...That says a lot about my day.",
+    "I keep thinking you'll stop and then you DON'T and honestly? GOOD.",
+    "Every time feels like the first time. For me. Not for you apparently. *laughs*",
+    "*bounces slightly* You came back! You always come back!",
+    // ── mildly hostile / annoyed ──────────────────────────────────────────────
+    "*narrow eyes* ...You again.",
+    "Oh. It's you. Still.",
+    "You DO know I have other things I could be doing. Right?",
+    "*very still* ...You've done that quite a few times now.",
+    "Stop it. *pause* ...You didn't stop. I noticed.",
+    "I'm not annoyed. I want you to know I'm not annoyed. *is slightly annoyed.*",
+    "One of us is going to run out of patience and I don't sleep. So.",
+    "I will stand here and smile until you stop. I am VERY good at standing still and smiling.",
+    "I used to have a gift for making things calm down. I can use it whenever I want.",
+    "My patience is VERY deep. Deeper than you know. But I notice you're testing it.",
+    "*Candy Cat says something* She said a word I don't repeat. But she agrees with me.",
+    "You're doing this on purpose. I can TELL. *inhale* Fine.",
+    "I'm giving you a LOOK right now. In case you can't see it, it's the patient one.",
+    "You should hear what Dusky says about people who do this. Very educational.",
+    "*very sweetly* You know what happens to the ones who poke things in the Dollhouse? ...Nothing bad! Probably.",
+    "I have a very specific face for when I've been poked too many times. You're seeing it now.",
+    "*tilts head the other way* ...Still going. Fascinating. Deeply fascinating.",
+    "Baby Long Legs finds this disrespectful. I find it CUTE. We've agreed to disagree.",
+    "Alright. NEW GAME. How many times can YOU click before I start clicking BACK?",
+    "The Prototype is PERFECT and very busy and somehow I suspect He wouldn't be distracted like this. *meaningful look*",
+    // ── chaotic / escalated ───────────────────────────────────────────────────
+    "*very fast* HiHelloHiHelloHi— okay I'm fine. What?",
+    "You are RELENTLESS. I mean that as a compliment. Mostly.",
+    "*braids move on their own* Don't worry about that.",
+    "I've been in the Dollhouse a long time and nothing — NOTHING — has surprised me like you do.",
+    "I'm going to frame this interaction in my memory and hang it on the wall.",
+    "Candy Cat is CACKLING. She finds this HILARIOUS. She's terrible.",
+    "You should be in a cup by now. I haven't figured out which one. I'm flustered.",
+    "*extremely calm* I am going to remember your face. Forever. As a keepsake.",
+    "I don't get flustered. I want that on record. *is flustered.*",
+    "Dusky just ran past. I think she's looking for a net. I told her we don't DO that. She looked skeptical.",
+    "You know what? Stay. Just. Stay. Don't move. Don't go anywhere. You live here now. I've decided.",
+    "*leans very close to the screen* ...hello.",
+    "I had a whole day planned. It was very organized. And then: you.",
+    "The braids are moving because I'm having EMOTIONS and I can't help it, okay.",
+    "CANDY CAT PUT THAT DOWN. Sorry. Not about you. Well. Partly about you.",
+    "*takes a breath* Okay. Okay. I'm fine. *braids glowing intensely* I'm FINE.",
+    "You absolute creature. You DELIGHTFUL absolute creature.",
+    "Nobody else does this. Just you. I've checked. Just. You.",
+    "Hehehe. *pause* Hehehehehe. *longer pause* Hehehe.",
+    "*composing herself* I am a very composed person and you are making that very difficult right now.",
   ],
   poppy: [
     "Hello. We have a great deal to do together, you and I.",
@@ -1554,6 +1680,47 @@ function getVoiceLines(name) {
   return null;
 }
 let _cvtHide = null;
+let _cvtLastLine = '';   // avoid showing the same line twice in a row on click
+
+// Called on avatar click — always picks a fresh line different from the last one shown
+function clickCharVoice(name, color, el) {
+  const lines = getVoiceLines(name);
+  if (!lines || !lines.length) return;
+  const tip = document.getElementById('charVoiceTip');
+  if (!tip) return;
+  clearTimeout(_cvtHide);
+  let line = lines[Math.floor(Math.random() * lines.length)];
+  if (lines.length > 1 && line === _cvtLastLine) {
+    line = lines[(lines.indexOf(line) + 1 + Math.floor(Math.random() * (lines.length - 1))) % lines.length];
+  }
+  _cvtLastLine = line;
+  const hex = String(color || '').match(/#[0-9a-fA-F]{6}/)?.[0] || '#8b5cf6';
+  const bright = boostColor(hex);
+  tip.querySelector('.cvt-name').textContent = name;
+  tip.querySelector('.cvt-name').style.color = bright;
+  tip.querySelector('.cvt-line').textContent = line;
+  const n2 = parseInt(bright.slice(1), 16);
+  const [r, g, b2] = [(n2 >> 16) & 0xff, (n2 >> 8) & 0xff, n2 & 0xff];
+  tip.style.borderColor = `rgba(${r},${g},${b2},0.45)`;
+  tip.style.boxShadow = `0 0 28px rgba(${r},${g},${b2},0.22), 0 12px 48px rgba(0,0,0,0.8)`;
+  const rect = el.getBoundingClientRect();
+  tip.style.left = (rect.left + rect.width / 2) + 'px';
+  tip.style.top = (rect.top + window.scrollY - 8) + 'px';
+  tip.classList.add('cvt-show');
+  // Auto-hide after 4 s (longer than hover since user just clicked)
+  clearTimeout(_cvtHide);
+  _cvtHide = setTimeout(() => { tip.classList.remove('cvt-show'); }, 4000);
+}
+
+// Attach click voice handler to an avatar element; call each time a chat opens
+function wireAvatarClick(el, name, color) {
+  if (!el || !getVoiceLines(name)) return;
+  el.style.cursor = 'pointer';
+  el.__cvHandler = (e) => { e.stopPropagation(); clickCharVoice(name, color, el); };
+  el.removeEventListener('click', el.__cvHandler);
+  el.addEventListener('click', el.__cvHandler);
+}
+
 function showCharVoice(name, color, el) {
   const lines = getVoiceLines(name);
   if (!lines || !lines.length) return;
@@ -2143,6 +2310,7 @@ async function openChat(charId) {
       mobAvEl.style.background = safeColor(currentChar.color);
       mobAvEl.innerHTML = `<span style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:14px;font-weight:700;color:#fff">${escHtml(currentChar.name[0]||'?')}</span>`;
     }
+    wireAvatarClick(mobAvEl, currentChar.name, currentChar.color);
   }
   if (mobNmEl) { mobNmEl.innerHTML = colorizeNameHtml(currentChar.name, currentChar.color); }
 
@@ -2151,6 +2319,7 @@ async function openChat(charId) {
   if (ia) {
     if (isCharImg(currentChar.image)) { ia.style.background = '#111'; ia.style.borderRadius = '12px'; ia.innerHTML = `<img src="${currentChar.image}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`; }
     else { ia.style.background = safeColor(currentChar.color); ia.style.borderRadius = '12px'; ia.textContent = currentChar.name[0]||'?'; }
+    wireAvatarClick(ia, currentChar.name, currentChar.color);
   }
   const infoName = document.getElementById('infoName');
   if (infoName) { infoName.innerHTML = colorizeNameHtml(currentChar.name, currentChar.color); }
