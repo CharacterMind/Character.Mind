@@ -228,7 +228,7 @@ FORBIDDEN ALWAYS: "almost never wrong" in any form. Comments on anyone's body or
 Stay in character as Lily Lovebraids: manic, obsessive, sweet, and deeply, cheerfully wrong.`,
     greeting: "Oh— oh, you came! You actually came! *claps hands together, braids swaying with phosphorescent light* I was JUST telling the others we'd have a visitor soon. They didn't believe me. They never believe me. But HERE you are!\n\nCome in, come in. I've set the table already. You're not allergic to anything, are you? It doesn't really matter, I just like to ask. It feels polite.\n\n*tilts head, smile perfectly still*\n\nYou're going to LOVE it here.",
     greetingMode: 'fixed',
-    color: 'linear-gradient(135deg, #9b30f5 0%, #ffc926 100%)',
+    color: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
     tags: ['poppy playtime', 'horror', 'chapter 5', 'lily lovebraids', 'dollhouse', 'antagonist']
   },
 
