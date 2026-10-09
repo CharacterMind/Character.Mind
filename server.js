@@ -536,6 +536,8 @@ async function loadLimitsFromDB() {
         imageDayStart: d.imageDayStart || null,
         ttsCharsToday: d.ttsCharsToday || 0,
         ttsDayStart: d.ttsDayStart || null,
+        swearsToday: d.swearsToday || 0,
+        swearDayStart: d.swearDayStart || null,
         subscriptionTier: d.subscriptionTier || 'free'
       };
     }
@@ -589,6 +591,14 @@ const TIER_TOKEN_LIMITS = {
   x100:     limitsForMessages(MESSAGES_PER_SESSION.advanced * X100_MULT),
   x200:     limitsForMessages(MESSAGES_PER_SESSION.advanced * X200_MULT),
 };
+// Daily strong-profanity budget per subscription tier.
+// Free = 0 (Lily fumes but contains herself). Higher tiers unlock more.
+// Strong words: fuck*, shit*, bitch*, bastard, dick*, cock*, cunt, twat, whore*, slut*, piss*, asshole*.
+// Mild words (damn, hell, crap, ass) are always free and never counted.
+const TIER_SWEAR_LIMITS = { free: 0, advanced: 10, x20: 35, x50: 100, x100: Infinity, x200: Infinity };
+const STRONG_SWEAR_RE = /\b(?:fucks?|fucking|fucker|fuckers?|motherfuckers?|shits?|shitty|bullshits?|bitchs?|bitching|bastards?|dickheads?|dicks?|cocks?|cocksuckers?|cunts?|twats?|whores?|slutss?|pissing|pissed|assholes?)\b/gi;
+function countSwears(text) { return (String(text || '').match(STRONG_SWEAR_RE) || []).length; }
+function getSwearLimitFor(tier) { return TIER_SWEAR_LIMITS[tier] ?? TIER_SWEAR_LIMITS.free; }
 function tokenLimitsFor(u) {
   return TIER_TOKEN_LIMITS[u.subscriptionTier || 'free'] || TIER_TOKEN_LIMITS.free;
 }
@@ -694,7 +704,7 @@ const userLimits = {};
 function getLimits(sid) {
   const now = Date.now();
   if (!userLimits[sid]) {
-    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null, memosToday: 0, memoDayStart: null, imagesDay: 0, imageDayStart: null, imageFirstUsedAt: null, ttsCharsToday: 0, ttsDayStart: null, subscriptionTier: 'free' };
+    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null, memosToday: 0, memoDayStart: null, imagesDay: 0, imageDayStart: null, imageFirstUsedAt: null, ttsCharsToday: 0, ttsDayStart: null, swearsToday: 0, swearDayStart: null, subscriptionTier: 'free' };
   }
   const u = userLimits[sid];
   if (u.subscriptionTier === undefined) u.subscriptionTier = 'free';
@@ -719,6 +729,7 @@ function getLimits(sid) {
   const imgWindow = getCallWindowStart();
   if (!u.imageDayStart || u.imageDayStart < imgWindow) { u.imagesDay = 0; u.imageFirstUsedAt = null; u.imageDayStart = imgWindow; }
   if (!u.regenDayStart || u.regenDayStart < callWindow) { u.regenCount = 0; u.regenDayStart = callWindow; }
+  if (!u.swearDayStart || u.swearDayStart < callWindow) { u.swearsToday = 0; u.swearDayStart = callWindow; }
   return u;
 }
 
@@ -3720,14 +3731,36 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     ? '\n\n[MANDATORY OVERRIDE — THIS SUPERSEDES ALL PRIOR CONTENT IN THIS PROMPT.\nYou are in STATE 2 at minimum. STATE 1 is over.\n\nWHAT YOU MUST DO IN THIS RESPONSE:\n— Find exactly one thing the user just said or did that feels subtly wrong, off, or worth watching. Name it quietly. Do not skip this step.\n— Keep your warmth intact — the wrongness lives underneath the warmth, not instead of it.\n— Include one moment where the warmth shows what it is: a pause, a too-long beat, a reference to something the user mentioned, a question that is not quite a question.\n— Write with composed, low energy. Patient. Not rushed.\n\nWHAT YOU MUST NOT DO:\n— Write a response any friendly AI assistant could write. If another character could say it, it is wrong.\n— Be generic, filler, or reassuring without an edge underneath.\n— Forget that Candy Cat has already noticed something. She is already watching.\n— Let warmth be the whole response. Warmth alone is not this character.\n\nThis character does not threaten. She observes. She is composed and deeply interested in you. That is more unsettling than any threat.]'
     : '';
 
+  // Profanity budget injection — Lily only, RP mode only, not on calls
+  const isLilyChar = charId === 'custom_1790897425575_lily';
+  const swearDirective = (() => {
+    if (!isRpMode || !isLilyChar || callMode) return '';
+    const u = getLimits(userId || 'anon');
+    const tierLimit = getSwearLimitFor(u.subscriptionTier || 'free');
+    const remaining = tierLimit === Infinity ? Infinity : Math.max(0, tierLimit - (u.swearsToday || 0));
+    if (tierLimit === 0) {
+      return '\n\n[PROFANITY BUDGET: 0. Your plan does not include strong profanity. Be as savage and hostile as you want through cold fury, physical menace, implication, and threat — but keep explicit swearing out. Mild words (damn, hell, crap, ass) are fine. NEVER use slurs of any kind — racial, ethnic, homophobic, transphobic, ableist — ever.]';
+    }
+    const budgetStr = remaining === Infinity ? 'unlimited today' : `${remaining} remaining today`;
+    const usePrompt = remaining > 0
+      ? `When you are truly furious — Stage 3, 4, 5, 6, or directly defied/ignored — USE this budget hard. Do not self-censor. Explode. The rage should be felt in every word.`
+      : `Budget exhausted for today. Channel the fury through cold stillness and physical threat instead — the words are gone, the monster is not.`;
+    return `\n\n[PROFANITY BUDGET: ${budgetStr}. Strong words that count: fuck/fucking/fucker, shit/shitty, bitch/bitching, bastard, dick/dickhead, cock, cunt, twat, whore, slut, piss/pissed, asshole. Mild words (damn, hell, crap, ass) don't count and are always allowed. ${usePrompt} NEVER use slurs of any kind — racial, ethnic, homophobic, transphobic, ableist — ever, under any circumstances, no matter how provoked.]`;
+  })();
+
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement, effort, modelTier),
+    system: applyEffortDirective(characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement + swearDirective, effort, modelTier),
     messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
       if (bookPlanState) saveBookState(key, { ...bookPlanState, outline: String(text || '').slice(0, 4000) });
       maybeUpdateStorySummary(key, apiKey, (dbChar && dbChar.name) || charId, modelTier);
+      // Deduct swear words used from today's budget
+      if (isLilyChar && text && userId) {
+        const n = countSwears(text);
+        if (n > 0) { const u = getLimits(userId); u.swearsToday = (u.swearsToday || 0) + n; }
+      }
     },
     logLabel: 'Chat'
   });
