@@ -181,7 +181,8 @@ if (db) {
   db.query(`
     ALTER TABLE push_subscriptions
       ADD COLUMN IF NOT EXISTS last_context TEXT,
-      ADD COLUMN IF NOT EXISTS crisis_context BOOLEAN DEFAULT FALSE
+      ADD COLUMN IF NOT EXISTS crisis_context BOOLEAN DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS last_chat_mode VARCHAR(10) DEFAULT 'rp'
   `).catch(() => {});
 
   db.query(`
@@ -3496,13 +3497,20 @@ async function generatePushMessage(row) {
   const charName = row.last_character_name || '';
   const ctx = (row.last_context || '').trim();
   const crisis = !!row.crisis_context;
+  const isRp = (row.last_chat_mode || 'rp') !== 'chat';
   const apiKey = process.env.GROQ_API_KEY;
 
   if (apiKey && ctx) {
     try {
+      const modeDesc = isRp
+        ? `a character in an ongoing roleplay story with a user`
+        : `a character the user has been having a real casual conversation with (not roleplay — think texting a friend)`;
+      const styleNote = isRp
+        ? `Write in your character's narrative/story voice. You may use light action cues (*like this*) if it fits.`
+        : `Write like a real text message — casual, warm, plain sentences only. No asterisk actions, no theatrical language.`;
       const systemPrompt = crisis
-        ? `You are ${charName || 'a character'} from a roleplay chat platform. A user you were talking with has been away for a few days. Their last message touched on something painful or difficult. Write a short push notification (2-3 sentences) from your character's voice that: (1) gently and warmly checks in on how they're feeling without repeating the exact words they used, (2) invites them back to talk, (3) mentions in one warm natural sentence that real support is out there if they need it. Write only the notification body text, nothing else.`
-        : `You are ${charName || 'a character'} from a roleplay chat platform. A user you were talking with has been away for a few days. Their last message to you was: "${ctx.slice(0, 300)}". Write a short push notification (2-3 sentences) from your character's voice that: (1) references something specific from what they said — make it feel like you actually remember, (2) invites them back naturally. Vary your opener so it doesn't sound like a template. Write only the notification body text, nothing else.`;
+        ? `You are ${charName || 'a character'}, ${modeDesc}. They've been away for a few days. Their last message touched on something painful or difficult. Write a short push notification (2-3 sentences) from your character's voice that: (1) gently and warmly checks in on how they're feeling without repeating the exact words they used, (2) invites them back to talk, (3) mentions in one warm natural sentence that real support is out there if they need it. ${styleNote} Write only the notification body text, nothing else.`
+        : `You are ${charName || 'a character'}, ${modeDesc}. They've been away for a few days. Their last message to you was: "${ctx.slice(0, 300)}". Write a short push notification (2-3 sentences) from your character's voice that: (1) references something specific from what they said — make it feel like you actually remember, (2) invites them back naturally. Vary your opener so it doesn't sound like a template. ${styleNote} Write only the notification body text, nothing else.`;
 
       const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
@@ -3530,7 +3538,7 @@ async function sendPushReminders() {
   if (!db) return;
   try {
     const result = await db.query(`
-      SELECT ps.id, ps.subscription, ps.last_character_name, ps.last_context, ps.crisis_context, ps.google_id
+      SELECT ps.id, ps.subscription, ps.last_character_name, ps.last_context, ps.crisis_context, ps.last_chat_mode, ps.google_id
       FROM push_subscriptions ps
       JOIN users u ON ps.google_id = u.google_id
       WHERE u.last_seen < NOW() - INTERVAL '2 days'
@@ -3932,8 +3940,8 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         const ctx = (message || '').slice(0, 400);
         const crisis = hasCrisisSignal(message || '');
         db.query(
-          'UPDATE push_subscriptions SET last_character_name=$2, last_context=$3, crisis_context=(crisis_context OR $4), updated_at=NOW() WHERE google_id=$1',
-          [userId, dbChar.name, ctx || null, crisis]
+          'UPDATE push_subscriptions SET last_character_name=$2, last_context=$3, crisis_context=(crisis_context OR $4), last_chat_mode=$5, updated_at=NOW() WHERE google_id=$1',
+          [userId, dbChar.name, ctx || null, crisis, isRpMode ? 'rp' : 'chat']
         ).catch(() => {});
       }
       // Deduct swear words used from today's budget; signal if this response just exhausted it
