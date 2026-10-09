@@ -625,6 +625,7 @@ html, body {
   width: 26px; height: 26px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 10px; font-weight: 800; color: #fff;
+  cursor: pointer;
   flex-shrink: 0; overflow: hidden;
 }
 .msg-name { font-weight: 700; color: var(--text); font-size: 15px; }

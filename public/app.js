@@ -713,6 +713,14 @@ window.addEventListener('DOMContentLoaded', async () => {
     inputEl.addEventListener('touchstart', interceptIfLocked, { capture: true, passive: false });
     inputEl.addEventListener('keydown', interceptIfLocked, true);
   }
+  // Delegate clicks on .msg-avatar (dynamic elements) to trigger voice lines
+  document.addEventListener('click', (e) => {
+    const av = e.target.closest('.msg-avatar');
+    if (!av || !currentChar) return;
+    e.stopPropagation();
+    clickCharVoice(currentChar.name, currentChar.color, av);
+  });
+
   loadColorblindMode();
   initSidebarContextMenu();
   initGradientPicker('#7c3aed');
@@ -1818,7 +1826,7 @@ function clickCharVoice(name, color, el) {
   tip.style.boxShadow = `0 0 28px rgba(${r},${g},${b2},0.22), 0 12px 48px rgba(0,0,0,0.8)`;
   const rect = el.getBoundingClientRect();
   tip.style.left = (rect.left + rect.width / 2) + 'px';
-  tip.style.top = (rect.top + window.scrollY - 8) + 'px';
+  tip.style.top = (rect.top - 8) + 'px';
   tip.classList.add('cvt-show');
   // Auto-hide after 4 s (longer than hover since user just clicked)
   clearTimeout(_cvtHide);
@@ -1853,7 +1861,7 @@ function showCharVoice(name, color, el) {
   tip.style.boxShadow = `0 0 28px rgba(${r},${g},${b2},0.22), 0 12px 48px rgba(0,0,0,0.8)`;
   const rect = el.getBoundingClientRect();
   tip.style.left = (rect.left + rect.width / 2) + 'px';
-  tip.style.top = (rect.top + window.scrollY) + 'px';
+  tip.style.top = (rect.top) + 'px';
   tip.classList.add('cvt-show');
 }
 function hideCharVoice() {
