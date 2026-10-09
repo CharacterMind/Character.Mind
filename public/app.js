@@ -1494,13 +1494,6 @@ function colorizeLetters(bubble, c) {
   const rawHexes = cbPal ? cbPal.colors : String(c || '').match(/#[0-9a-fA-F]{6}/gi);
   if (!rawHexes || !rawHexes.length) return;
   const spColors = rawHexes.map(boostColor);
-  const nrColors = spColors.map(hex => {
-    // Mix toward white to keep narration bright but slightly softer than speech
-    const n = parseInt(hex.slice(1), 16);
-    const [r, g, b] = [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
-    const mix = (v) => Math.min(255, Math.round(v + (255 - v) * 0.25));
-    return '#' + [mix(r), mix(g), mix(b)].map(x => x.toString(16).padStart(2, '0')).join('');
-  });
   const wrapWords = (spans, colors) => {
     spans.forEach(el => {
       const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
@@ -1525,7 +1518,7 @@ function colorizeLetters(bubble, c) {
     });
   };
   wrapWords(bubble.querySelectorAll('.sp'), spColors);
-  wrapWords(bubble.querySelectorAll('.nr'), nrColors);
+  wrapWords(bubble.querySelectorAll('.nr'), spColors);
 }
 
 // Re-randomize word colors in every visible bubble — triggered by click in the chat.
@@ -1536,15 +1529,8 @@ function randomizeChatColors() {
   const rawHexes = cbPal ? cbPal.colors : String(currentChar.color || '').match(/#[0-9a-fA-F]{6}/gi);
   if (!rawHexes || !rawHexes.length) return;
   const spColors = rawHexes.map(boostColor);
-  const nrColors = spColors.map(hex => {
-    const n = parseInt(hex.slice(1), 16);
-    const [r, g, b] = [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
-    const mix = (v) => Math.min(255, Math.round(v + (255 - v) * 0.25));
-    return '#' + [mix(r), mix(g), mix(b)].map(x => x.toString(16).padStart(2, '0')).join('');
-  });
   document.querySelectorAll('#messages .bubble').forEach(bubble => {
-    bubble.querySelectorAll('.sp > span[style]').forEach(sp => { sp.style.color = spColors[Math.floor(Math.random() * spColors.length)]; });
-    bubble.querySelectorAll('.nr > span[style]').forEach(sp => { sp.style.color = nrColors[Math.floor(Math.random() * nrColors.length)]; });
+    bubble.querySelectorAll('.sp > span[style], .nr > span[style]').forEach(sp => { sp.style.color = spColors[Math.floor(Math.random() * spColors.length)]; });
   });
 }
 document.addEventListener('DOMContentLoaded', () => {
