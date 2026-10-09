@@ -6119,20 +6119,35 @@ async function newChat() {
   generateGreeting();
 }
 
+let _infoPanelOpenedAt = 0;
 function toggleInfoPanel() {
   const panel = document.getElementById('infoPanel');
   const expandBtn = document.getElementById('infoPanelExpandBtn');
   if (window.innerWidth <= 768) {
     // Mobile: full show/hide with backdrop
     const opening = panel.style.display === 'none' || panel.style.display === '';
+    // Prevent accidental re-close within 500ms of opening (same tap reaching backdrop)
+    if (!opening && (Date.now() - _infoPanelOpenedAt < 500)) return;
     panel.style.display = opening ? 'flex' : 'none';
+    if (opening) _infoPanelOpenedAt = Date.now();
     let bd = document.getElementById('info-backdrop');
     if (opening) {
       if (!bd) {
         bd = document.createElement('div');
         bd.id = 'info-backdrop';
         bd.style.cssText = 'position:fixed;inset:0;z-index:599;background:rgba(0,0,0,.55)';
-        bd.onclick = toggleInfoPanel;
+        // Use touch events with movement threshold so scrolling doesn't accidentally close the panel
+        let _bdTouchStartX = 0, _bdTouchStartY = 0;
+        bd.addEventListener('touchstart', (e) => {
+          _bdTouchStartX = e.touches[0].clientX;
+          _bdTouchStartY = e.touches[0].clientY;
+        }, { passive: true });
+        bd.addEventListener('touchend', (e) => {
+          const dx = Math.abs(e.changedTouches[0].clientX - _bdTouchStartX);
+          const dy = Math.abs(e.changedTouches[0].clientY - _bdTouchStartY);
+          if (dx < 12 && dy < 12) { e.preventDefault(); toggleInfoPanel(); }
+        }, { passive: false });
+        bd.onclick = (e) => { if (!('ontouchstart' in window)) toggleInfoPanel(); };
         document.body.appendChild(bd);
       }
       bd.style.display = 'block';
