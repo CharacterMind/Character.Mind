@@ -1851,7 +1851,8 @@ function clickCharVoice(name, color, el) {
   tip.style.borderColor = `rgba(${r},${g},${b2},0.45)`;
   tip.style.boxShadow = `0 0 28px rgba(${r},${g},${b2},0.22), 0 12px 48px rgba(0,0,0,0.8)`;
   const rect = el.getBoundingClientRect();
-  tip.style.left = (rect.left + rect.width / 2) + 'px';
+  const cx1 = rect.left + rect.width / 2;
+  tip.style.left = Math.max(154, Math.min(cx1, window.innerWidth - 154)) + 'px';
   tip.style.top = (rect.top - 8) + 'px';
   tip.classList.add('cvt-show');
   // Auto-hide after 4 s (longer than hover since user just clicked)
@@ -1886,7 +1887,8 @@ function showCharVoice(name, color, el) {
   tip.style.borderColor = `rgba(${r},${g},${b2},0.45)`;
   tip.style.boxShadow = `0 0 28px rgba(${r},${g},${b2},0.22), 0 12px 48px rgba(0,0,0,0.8)`;
   const rect = el.getBoundingClientRect();
-  tip.style.left = (rect.left + rect.width / 2) + 'px';
+  const cx2 = rect.left + rect.width / 2;
+  tip.style.left = Math.max(154, Math.min(cx2, window.innerWidth - 154)) + 'px';
   tip.style.top = (rect.top) + 'px';
   tip.classList.add('cvt-show');
 }
