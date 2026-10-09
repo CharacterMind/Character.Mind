@@ -352,6 +352,7 @@ if (GOOGLE_AUTH_ENABLED) {
 
 app.get('/auth/google', (req, res, next) => {
   if (!GOOGLE_AUTH_ENABLED) return res.redirect('/?auth=unavailable');
+  if (req.query.popup === '1') req.session.oauthPopup = true;
   passport.authenticate('google', { scope: ['profile', 'email'], prompt: 'select_account' })(req, res, next);
 });
 app.get('/auth/google/callback',
@@ -360,7 +361,15 @@ app.get('/auth/google/callback',
     passport.authenticate('google', { failureRedirect: '/?auth=fail' })(req, res, next);
   },
   (req, res) => {
+    const isPopup = req.session.oauthPopup;
+    req.session.oauthPopup = false;
     req.session.showWelcome = true;
+    if (isPopup) {
+      req.session.save(() => {
+        res.send('<!DOCTYPE html><html><body><script>try{window.opener.postMessage({type:"auth-success"},"*");}catch(e){}window.close();</script></body></html>');
+      });
+      return;
+    }
     req.session.save(() => res.redirect('/?welcome=1'));
   }
 );

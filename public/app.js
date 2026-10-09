@@ -779,6 +779,25 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (authParam === 'fail') showWarning('Sign-in failed. Please try again.');
     if (authParam === 'unavailable') showWarning('Google sign-in is not set up yet. Check back soon!');
     if (authParam) history.replaceState({}, '', '/');
+
+    // Inside an iframe (e.g. itch.io): Google won't load in the iframe, so open auth as a popup instead
+    if (window.self !== window.top) {
+      const googleBtn = document.querySelector('.auth-google-btn');
+      if (googleBtn) {
+        googleBtn.href = '#';
+        googleBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const popup = window.open('/auth/google?popup=1', 'cm_auth', 'width=500,height=600,left=200,top=100');
+          window.addEventListener('message', function onMsg(ev) {
+            if (ev.data && ev.data.type === 'auth-success') {
+              window.removeEventListener('message', onMsg);
+              if (popup && !popup.closed) popup.close();
+              location.reload();
+            }
+          });
+        });
+      }
+    }
   }
 });
 
