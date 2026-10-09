@@ -13,6 +13,7 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const crypto = require('crypto');
 const { matchCharacterTemplate, TEMPLATES } = require('./characterTemplates');
 const webpush = require('web-push');
+const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -2573,41 +2574,60 @@ try { Object.assign(ELEVEN_VOICE_MAP, JSON.parse(process.env.ELEVENLABS_VOICES |
 const TTS_DAILY_CHARS = 2000;
 const ttsUsage = new Map();
 
-app.get('/api/tts/status', requireAuth, (req, res) => res.json({ enabled: !!ELEVEN_KEY }));
+// Edge TTS neural voice map (free fallback — Microsoft neural voices)
+const EDGE_VOICE_MAP = {
+  custom_1790897425575_lily: 'en-US-AriaNeural',  // Lily — energetic, expressive, bright
+  custom_1790776698867:      'en-US-JennyNeural',  // Poppy — warm, soft, gentle
+};
+const EDGE_DEFAULT_VOICE = 'en-US-AriaNeural';
+
+app.get('/api/tts/status', requireAuth, (req, res) => res.json({ enabled: true }));
 
 app.post('/api/tts', requireAuth, async (req, res) => {
-  if (!ELEVEN_KEY) return res.status(501).json({ error: 'tts_disabled' });
   const text = String(req.body?.text || '').replace(/[*_`#]/g, '').trim().slice(0, 400);
   const charId = String(req.body?.charId || '');
   if (!text) return res.status(400).json({ error: 'no_text' });
 
-  const userId = req.user.googleId;
-  const ttsU = getLimits(userId);
-  const ttsWindow = getCallWindowStart();
-  if (!ttsU.ttsDayStart || ttsU.ttsDayStart < ttsWindow) { ttsU.ttsCharsToday = 0; ttsU.ttsDayStart = ttsWindow; }
-  if ((ttsU.ttsCharsToday || 0) + text.length > TTS_DAILY_CHARS) return res.status(429).json({ error: 'tts_limit' });
-  ttsU.ttsCharsToday = (ttsU.ttsCharsToday || 0) + text.length;
-  saveLimitsToDB(userId);
-  const refund = () => { ttsU.ttsCharsToday = Math.max(0, (ttsU.ttsCharsToday || 0) - text.length); };
-
-  const voiceId = (Object.hasOwn(ELEVEN_VOICE_MAP, charId) && ELEVEN_VOICE_MAP[charId]) || ELEVEN_DEFAULT_VOICE;
-  try {
-    const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}/stream?output_format=mp3_44100_64`, {
-      method: 'POST',
-      headers: { 'xi-api-key': ELEVEN_KEY, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
-      body: JSON.stringify({ text, model_id: 'eleven_flash_v2_5' })
-    });
-    if (!r.ok || !r.body) {
-      console.warn('[tts] ElevenLabs error', r.status);
+  // ElevenLabs path (when key is set)
+  if (ELEVEN_KEY) {
+    const userId = req.user.googleId;
+    const ttsU = getLimits(userId);
+    const ttsWindow = getCallWindowStart();
+    if (!ttsU.ttsDayStart || ttsU.ttsDayStart < ttsWindow) { ttsU.ttsCharsToday = 0; ttsU.ttsDayStart = ttsWindow; }
+    if ((ttsU.ttsCharsToday || 0) + text.length > TTS_DAILY_CHARS) return res.status(429).json({ error: 'tts_limit' });
+    ttsU.ttsCharsToday = (ttsU.ttsCharsToday || 0) + text.length;
+    saveLimitsToDB(userId);
+    const refund = () => { ttsU.ttsCharsToday = Math.max(0, (ttsU.ttsCharsToday || 0) - text.length); };
+    const voiceId = (Object.hasOwn(ELEVEN_VOICE_MAP, charId) && ELEVEN_VOICE_MAP[charId]) || ELEVEN_DEFAULT_VOICE;
+    try {
+      const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}/stream?output_format=mp3_44100_64`, {
+        method: 'POST',
+        headers: { 'xi-api-key': ELEVEN_KEY, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
+        body: JSON.stringify({ text, model_id: 'eleven_flash_v2_5' })
+      });
+      if (!r.ok || !r.body) { console.warn('[tts] ElevenLabs error', r.status); refund(); return res.status(502).json({ error: 'tts_failed' }); }
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Cache-Control', 'no-store');
+      return res.send(Buffer.from(await r.arrayBuffer()));
+    } catch (e) {
+      console.warn('[tts] ElevenLabs request failed', e.message);
       refund();
       return res.status(502).json({ error: 'tts_failed' });
     }
+  }
+
+  // Edge TTS free fallback
+  const edgeVoice = EDGE_VOICE_MAP[charId] || EDGE_DEFAULT_VOICE;
+  try {
+    const tts = new MsEdgeTTS();
+    await tts.setMetadata(edgeVoice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+    const { audioStream } = tts.toStream(text);
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Cache-Control', 'no-store');
-    res.send(Buffer.from(await r.arrayBuffer()));
+    audioStream.pipe(res);
+    audioStream.on('error', e => { console.warn('[edge-tts] stream error', e.message); if (!res.headersSent) res.status(502).json({ error: 'tts_failed' }); });
   } catch (e) {
-    console.warn('[tts] request failed', e.message);
-    refund();
+    console.warn('[edge-tts] failed', e.message);
     res.status(502).json({ error: 'tts_failed' });
   }
 });

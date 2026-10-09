@@ -1850,6 +1850,54 @@ const CHAR_VOICE_LINES = {
     "*absolutely seething at Dolly Grub off-screen* Say it again. SAY. IT. AGAIN— *you're standing there* ...I was doing vocal exercises.",
     "*to Candy Cat, voice shaking* I love you. I do. I genuinely love you. And I am about to absolutely lose my shit if you don't— *to you* We're very close.",
     "*running hands through braids, barely keeping it together* ...one more thing. One more thing and I swear— *looks up* Oh thank god you're here. Distract me.",
+    // ── die-for / self-aggrandizing ───────────────────────────────────────────
+    "I am LITERALLY to die for. People would die for THIS. For ME. For these BRAIDS. And you're just standing there like it's NORMAL.",
+    "*gestures at self slowly* Do you understand what you are looking at right now. Like. Genuinely. Do you.",
+    "Women would commit crimes for braids like these. You get to look at them for FREE. You are WELCOME.",
+    "Some people are background. I am the whole painting, the frame, the gallery, and the gift shop. *smiles*",
+    "I am an EXPERIENCE. Not everyone gets to have me. You're having me right now. Consider yourself lucky. *braids glow*",
+    "I don't know if you've noticed but I'm kind of extraordinary. I try not to bring it up but. *tilts head* It's true.",
+    "People wait MONTHS for my attention. You got it for free. Don't waste it.",
+    "I was described once as 'a lot.' I've also been described as 'perfect.' Both are accurate and neither cancels out.",
+    // ── weaponized sarcasm ────────────────────────────────────────────────────
+    "Oh, WONDERFUL. Another person with opinions. *extremely bright smile* Tell me EVERYTHING.",
+    "WOW. Really? That's what you went with? Okay. Okay! Sure! We'll go with THAT.",
+    "*long pause* ...Right. *another pause* Right right right. Yep. That's a thing you did.",
+    "I'm not saying it was the wrong choice. I'm saying I'm surprised you made it and I'm going to remember it. Forever.",
+    "That was... a choice. And you made it. And now we all have to live in the world where that happened.",
+    "*very softly* I'm sure you meant to do better than that. We all have our days. *smile that doesn't reach the eyes*",
+    "You're doing SO well. *pause* For you. *pause* Relatively speaking. *beams*",
+    "Bless your heart. No, really. *pause* Genuinely. *pause* Bless. It.",
+    // ── dismissive / superior ─────────────────────────────────────────────────
+    "*looks you up and down slowly* I've seen better. *pause* ...I've also seen worse. You're in a category.",
+    "You have two options: be interesting or leave. Take your time. I'll wait. *braids sway*",
+    "I've had cups with more personality. I love them dearly. *looks at you pointedly*",
+    "I don't give second chances. You're technically still on your first. Spend it carefully.",
+    "*with great patience* I'm going to explain this once and slowly because you seem like you might need that.",
+    "I've been described as 'intimidating.' I find that hilarious. *is absolutely not joking*",
+    "Some people leave the Dollhouse changed. Some leave quickly. Some don't leave at all. *looks at you thoughtfully* Where do you think YOU land.",
+    // ── hostile sweetness ─────────────────────────────────────────────────────
+    "*sweet smile* Oh you thought that was a good idea? ...Honey.",
+    "I'd tell you to try harder but I think this might genuinely be your best and I don't want to be cruel.",
+    "You have the energy of someone who has never once been truly humbled. I could fix that. *smiles wider*",
+    "I'm deciding whether to find you charming or insufferable. Still deciding. It's very close.",
+    "*tilts head* Did you mean to come off like that or is that just. How you are.",
+    "I just think— and this is just a thought— you could be trying just a LITTLE harder. *beams*",
+    "I'm in such a GOOD mood today. So I'm going to pretend you didn't just do that. *taps braid*",
+    "I don't get angry. I get... organized. About solutions. *pleasant smile* Very productive.",
+    "I know I'm a lot. I'm SUPPOSED to be a lot. You're not 'a lot.' I've clocked that. *tilts head*",
+    "*claps once* You're here! You exist! That's a starting point! ...That's also where we are right now!",
+    // ── withering / roasting to your face ────────────────────────────────────
+    "I have been VERY patient and kind and delightful and you have not been reciprocating at the level I require.",
+    "You're going to think about this conversation later. I already know. They always do. *smile*",
+    "*extremely calm* You fascinate me the way a very confident mistake fascinates me.",
+    "I don't say things I don't mean. Which means when I say 'interesting,' I mean 'I am WATCHING you.'",
+    "You waltz in here like you haven't just walked into the most significant moment of your week. *pause* It's fine. I forgive you.",
+    "I have a very specific face for when someone underestimates me. You're seeing it right now. *smile is flawless*",
+    "*to Candy Cat, loud enough* Do you hear this? Do you HEAR this. *turns back, delighted* She hears it.",
+    "You know what I find hilarious? When people think I'm being nice. *pause* I AM being nice. That's what makes it hilarious.",
+    "Oh you're going to try THAT? *inhale* Okay. Okay. Sure. I can work with that. *cannot work with that*",
+    "I'm giving you my most generous interpretation. You should know that. I have ones that are much less generous.",
   ],
   poppy: [
     "Hello. We have a great deal to do together, you and I.",
@@ -5128,47 +5176,53 @@ function clearHistoryFromPanel() {
 // ── TTS (Text-to-Speech) ─────────────────────────────────────────────────────
 let activeTTSUtterance = null;
 let activeTTSBtn = null;
+let activeTTSAudio = null;
 
 function ttsCleanText(raw) {
   return raw
-    .replace(/\*[^*]*\*/g, '')        // strip *action text*
-    .replace(/\([^)]*\)/g, '')        // strip (parenthetical notes)
-    .replace(/◆/g, '')               // strip narration delimiters
-    .replace(/\s{2,}/g, ' ')         // collapse whitespace
+    .replace(/\*[^*]*\*/g, '')
+    .replace(/\([^)]*\)/g, '')
+    .replace(/◆/g, '')
+    .replace(/\s{2,}/g, ' ')
     .trim();
 }
 
-function toggleTTS(btn) {
+function stopActiveTTS() {
+  if (activeTTSAudio) { activeTTSAudio.pause(); activeTTSAudio = null; }
+  if (activeTTSUtterance) { window.speechSynthesis.cancel(); activeTTSUtterance = null; }
+  if (activeTTSBtn) { activeTTSBtn.classList.remove('playing'); activeTTSBtn = null; }
+}
+
+async function toggleTTS(btn) {
   const bubble = btn.closest('.msg').querySelector('.bubble');
   const raw = (bubble.innerText || bubble.textContent).trim();
   const text = ttsCleanText(raw);
   if (!text) return;
 
-  if (activeTTSUtterance) {
-    window.speechSynthesis.cancel();
-    if (activeTTSBtn) activeTTSBtn.classList.remove('playing');
-    const wasSame = activeTTSBtn === btn;
-    activeTTSUtterance = null;
-    activeTTSBtn = null;
-    if (wasSame) return;
-  }
+  const wasSame = activeTTSBtn === btn;
+  stopActiveTTS();
+  if (wasSame) return;
 
-  const utterance = new SpeechSynthesisUtterance(text);
-  applyVoice(utterance);
-  utterance.onend = () => {
-    btn.classList.remove('playing');
-    activeTTSUtterance = null;
-    activeTTSBtn = null;
-  };
-  utterance.onerror = () => {
-    btn.classList.remove('playing');
-    activeTTSUtterance = null;
-    activeTTSBtn = null;
-  };
   btn.classList.add('playing');
-  activeTTSUtterance = utterance;
   activeTTSBtn = btn;
-  window.speechSynthesis.speak(utterance);
+
+  try {
+    const r = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '' })
+    });
+    if (!r.ok) throw new Error('server_error');
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    activeTTSAudio = audio;
+    audio.onended = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
+    audio.onerror = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
+    audio.play();
+  } catch (_) {
+    stopActiveTTS();
+  }
 }
 
 function showMemoLimitBanner(resetsAt) {
@@ -5454,7 +5508,7 @@ function endCallMode() {
   clearCallInactivityTimer();
   stopCallAudio();
   if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
-  if (activeTTSUtterance) { window.speechSynthesis.cancel(); if (activeTTSBtn) activeTTSBtn.classList.remove('playing'); activeTTSUtterance = null; activeTTSBtn = null; }
+  stopActiveTTS();
   document.getElementById('callBtn')?.classList.remove('active');
   const overlay = document.getElementById('callOverlay');
   if (overlay) overlay.style.display = 'none';
@@ -5501,9 +5555,9 @@ function toggleCallMute() {
 
 function interruptCall() {
   callGen++;
+  stopActiveTTS();
   window.speechSynthesis.cancel();
   if (callAudio) { const a = callAudio; stopCallAudio(); a.onended && a.onended(); return; }
-  activeTTSUtterance = null;
   if (callModeActive) listenForSpeech();
 }
 
