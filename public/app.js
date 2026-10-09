@@ -713,12 +713,22 @@ window.addEventListener('DOMContentLoaded', async () => {
     inputEl.addEventListener('touchstart', interceptIfLocked, { capture: true, passive: false });
     inputEl.addEventListener('keydown', interceptIfLocked, true);
   }
-  // Delegate clicks on .msg-avatar (dynamic elements) to trigger voice lines
+  // Delegate hover + click on .msg-avatar (dynamic elements) to trigger voice lines
   document.addEventListener('click', (e) => {
     const av = e.target.closest('.msg-avatar');
     if (!av || !currentChar) return;
     e.stopPropagation();
     clickCharVoice(currentChar.name, currentChar.color, av);
+  });
+  document.addEventListener('mouseover', (e) => {
+    const av = e.target.closest('.msg-avatar');
+    if (!av || !currentChar) return;
+    showCharVoice(currentChar.name, currentChar.color, av);
+  });
+  document.addEventListener('mouseout', (e) => {
+    const av = e.target.closest('.msg-avatar');
+    if (!av) return;
+    hideCharVoice();
   });
 
   loadColorblindMode();
@@ -1445,6 +1455,7 @@ function colorizeLetters(bubble, c) {
           if (/\s/.test(ch)) { frag.appendChild(document.createTextNode(ch)); continue; }
           const sp = document.createElement('span');
           sp.style.color = colors[Math.floor(Math.random() * colors.length)];
+          sp.style.fontWeight = '700';
           sp.textContent = ch;
           frag.appendChild(sp);
         }
@@ -2435,7 +2446,7 @@ async function openChat(charId) {
   if (ia) {
     if (isCharImg(currentChar.image)) { ia.style.background = '#111'; ia.style.borderRadius = '12px'; ia.innerHTML = `<img src="${currentChar.image}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`; }
     else { ia.style.background = safeColor(currentChar.color); ia.style.borderRadius = '12px'; ia.textContent = currentChar.name[0]||'?'; }
-    wireAvatarClick(ia, currentChar.name, currentChar.color);
+    ia.style.cursor = '';
   }
   const infoName = document.getElementById('infoName');
   if (infoName) { infoName.innerHTML = colorizeNameHtml(currentChar.name, currentChar.color); }
