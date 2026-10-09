@@ -56,6 +56,13 @@ const PUSH_DEFAULT_MSGS = [
   { title: 'The story continues...', body: 'Come back for more — your roleplay partner is ready! 🌟' },
 ];
 
+const CRISIS_RE = /\b(hate myself|want to die|kill myself|end it all|end my life|take my life|not worth living|don't want to live|don't want to be here|suicidal|self.?harm|hurt myself|cut myself|hurting myself|worthless|no reason to live|better off dead|can't go on|can't keep going)\b/i;
+
+function hasCrisisSignal(text) {
+  if (!text) return false;
+  return CRISIS_RE.test(text);
+}
+
 // ── Database ───────────────────────────────────────────────────────────────────
 // Verify the database's certificate (sslmode=verify-full) instead of just encrypting; keeps pg quiet about
 // the old "require" meaning too. Set DATABASE_SSL_INSECURE=1 only if a host's certificate can't be verified.
@@ -170,6 +177,12 @@ if (db) {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `).catch(err => console.error('push_subscriptions table init error:', err));
+
+  db.query(`
+    ALTER TABLE push_subscriptions
+      ADD COLUMN IF NOT EXISTS last_context TEXT,
+      ADD COLUMN IF NOT EXISTS crisis_context BOOLEAN DEFAULT FALSE
+  `).catch(() => {});
 
   db.query(`
     CREATE TABLE IF NOT EXISTS chat_moderation (
@@ -3479,11 +3492,45 @@ app.delete('/api/push/unsubscribe', requireAuth, async (req, res) => {
 });
 
 // Push reminder scheduler — runs every 6 hours
+async function generatePushMessage(row) {
+  const charName = row.last_character_name || '';
+  const ctx = (row.last_context || '').trim();
+  const crisis = !!row.crisis_context;
+  const apiKey = process.env.GROQ_API_KEY;
+
+  if (apiKey && ctx) {
+    try {
+      const systemPrompt = crisis
+        ? `You are ${charName || 'a character'} from a roleplay chat platform. A user you were talking with has been away for a few days. Their last message touched on something painful or difficult. Write a short push notification (2-3 sentences) from your character's voice that: (1) gently and warmly checks in on how they're feeling without repeating the exact words they used, (2) invites them back to talk, (3) mentions in one warm natural sentence that real support is out there if they need it. Write only the notification body text, nothing else.`
+        : `You are ${charName || 'a character'} from a roleplay chat platform. A user you were talking with has been away for a few days. Their last message to you was: "${ctx.slice(0, 300)}". Write a short push notification (2-3 sentences) from your character's voice that: (1) references something specific from what they said — make it feel like you actually remember, (2) invites them back naturally. Vary your opener so it doesn't sound like a template. Write only the notification body text, nothing else.`;
+
+      const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [{ role: 'user', content: systemPrompt }],
+          max_tokens: 120,
+          temperature: 1.1,
+        })
+      });
+      const data = await resp.json();
+      const body = data.choices?.[0]?.message?.content?.trim();
+      if (body) return { title: charName || 'Your character', body };
+    } catch (_) { /* fall through */ }
+  }
+
+  // Fallback to static pools
+  const charKey = charName.toLowerCase();
+  const pool = PUSH_REMINDER_MSGS[charKey] || PUSH_DEFAULT_MSGS;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 async function sendPushReminders() {
   if (!db) return;
   try {
     const result = await db.query(`
-      SELECT ps.id, ps.subscription, ps.last_character_name
+      SELECT ps.id, ps.subscription, ps.last_character_name, ps.last_context, ps.crisis_context, ps.google_id
       FROM push_subscriptions ps
       JOIN users u ON ps.google_id = u.google_id
       WHERE u.last_seen < NOW() - INTERVAL '2 days'
@@ -3492,10 +3539,8 @@ async function sendPushReminders() {
       LIMIT 200
     `);
     for (const row of result.rows) {
-      const charKey = (row.last_character_name || '').toLowerCase();
-      const pool = PUSH_REMINDER_MSGS[charKey] || PUSH_DEFAULT_MSGS;
-      const msg = pool[Math.floor(Math.random() * pool.length)];
       try {
+        const msg = await generatePushMessage(row);
         await webpush.sendNotification(
           JSON.parse(row.subscription),
           JSON.stringify({ title: msg.title, body: msg.body, icon: '/logo.png', url: '/' })
@@ -3884,8 +3929,12 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       if (bookPlanState) saveBookState(key, { ...bookPlanState, outline: String(text || '').slice(0, 4000) });
       maybeUpdateStorySummary(key, apiKey, (dbChar && dbChar.name) || charId, modelTier);
       if (db && dbChar && dbChar.name) {
-        db.query('UPDATE push_subscriptions SET last_character_name = $2, updated_at = NOW() WHERE google_id = $1',
-          [userId, dbChar.name]).catch(() => {});
+        const ctx = (message || '').slice(0, 400);
+        const crisis = hasCrisisSignal(message || '');
+        db.query(
+          'UPDATE push_subscriptions SET last_character_name=$2, last_context=$3, crisis_context=(crisis_context OR $4), updated_at=NOW() WHERE google_id=$1',
+          [userId, dbChar.name, ctx || null, crisis]
+        ).catch(() => {});
       }
       // Deduct swear words used from today's budget; signal if this response just exhausted it
       if (isLilyChar && text && userId) {
