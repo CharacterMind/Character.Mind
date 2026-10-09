@@ -489,7 +489,8 @@ setInterval(() => {
     const sessionExpired = !u.cooldownUntil && !u.sessionStartedAt;
     const weeklyExpired = !u.weeklyStart || (now - u.weeklyStart) > LIMITS.WEEKLY_MS;
     const cw = getCallWindowStart();
-    const dailyActive = ((u.callsToday || u.memosToday) && u.callDayStart >= cw) || (u.imagesDay && u.imageDayStart >= cw);
+    const imgActive = !!(u.imagesDay && u.imageFirstUsedAt && (now - u.imageFirstUsedAt) < 24 * 60 * 60 * 1000);
+    const dailyActive = ((u.callsToday || u.memosToday) && u.callDayStart >= cw) || imgActive;
     if (sessionExpired && weeklyExpired && !dailyActive) delete userLimits[sid];
   }
   // Clean conversations idle for more than 4 hours
@@ -514,8 +515,9 @@ async function loadLimitsFromDB() {
       if (weeklyGone && sessionGone) {
         // Also skip if there's no active daily data worth preserving
         const cw = getCallWindowStart();
+        const imgActive2 = !!(d.imagesDay > 0 && d.imageFirstUsedAt && (Date.now() - d.imageFirstUsedAt) < 24 * 60 * 60 * 1000);
         const dailyActive = (d.callDayStart >= cw && (d.callsToday > 0 || d.memosToday > 0)) ||
-                            (d.imageDayStart >= cw && d.imagesDay > 0) ||
+                            imgActive2 ||
                             (d.ttsDayStart   >= cw && d.ttsCharsToday > 0);
         if (!dailyActive) continue;
       }
@@ -534,6 +536,7 @@ async function loadLimitsFromDB() {
         memoDayStart: d.memoDayStart || null,
         imagesDay: d.imagesDay || 0,
         imageDayStart: d.imageDayStart || null,
+        imageFirstUsedAt: d.imageFirstUsedAt || null,
         ttsCharsToday: d.ttsCharsToday || 0,
         ttsDayStart: d.ttsDayStart || null,
         swearsToday: d.swearsToday || 0,
@@ -726,8 +729,10 @@ function getLimits(sid) {
   const callWindow = getCallWindowStart();
   if (!u.callDayStart  || u.callDayStart  < callWindow) { u.callsToday  = 0; u.callDayStart  = callWindow; }
   if (!u.memoDayStart  || u.memoDayStart  < callWindow) { u.memosToday  = 0; u.memoDayStart  = callWindow; }
-  const imgWindow = getCallWindowStart();
-  if (!u.imageDayStart || u.imageDayStart < imgWindow) { u.imagesDay = 0; u.imageFirstUsedAt = null; u.imageDayStart = imgWindow; }
+  // Image window is rolling 24h from first use, not a fixed daily window
+  if (u.imageFirstUsedAt && (now - u.imageFirstUsedAt) >= 24 * 60 * 60 * 1000) {
+    u.imagesDay = 0; u.imageFirstUsedAt = null; u.imageDayStart = null;
+  }
   if (!u.regenDayStart || u.regenDayStart < callWindow) { u.regenCount = 0; u.regenDayStart = callWindow; }
   if (!u.swearDayStart || u.swearDayStart < callWindow) { u.swearsToday = 0; u.swearDayStart = callWindow; }
   return u;
@@ -767,7 +772,7 @@ function buildUsagePayload(u, userId) {
     memosRemaining,
     imagesDay: u.imagesDay || 0,
     imageLimit: imgLimit === Infinity ? 9999 : imgLimit,
-    imageResetAt: (u.imagesDay || 0) > 0 ? (u.imageDayStart || getCallWindowStart()) + 24 * 60 * 60 * 1000 : null,
+    imageResetAt: u.imageFirstUsedAt ? u.imageFirstUsedAt + 24 * 60 * 60 * 1000 : null,
     subscriptionTier: u.subscriptionTier || 'free',
     callWindowResetsAt: getCallWindowStart() + 24 * 60 * 60 * 1000,
     softLaunch: SOFT_LAUNCH
@@ -3577,9 +3582,9 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     const imgU = getLimits(userId);
     const imgLimit = getImageLimitForUser(userId);
     if (imgLimit !== Infinity && (imgU.imagesDay || 0) >= imgLimit) {
-      return res.status(429).json({ error: `Image upload limit reached.`, type: 'image', imageResetAt: getCallWindowStart() + 24 * 60 * 60 * 1000 });
+      return res.status(429).json({ error: `Image upload limit reached.`, type: 'image', imageResetAt: (imgU.imageFirstUsedAt || Date.now()) + 24 * 60 * 60 * 1000 });
     }
-    if (!imgU.imageDayStart) { imgU.imageDayStart = getCallWindowStart(); imgU.imageFirstUsedAt = imgU.imageDayStart; }
+    if (!imgU.imageFirstUsedAt) { imgU.imageFirstUsedAt = Date.now(); imgU.imageDayStart = imgU.imageFirstUsedAt; }
     imgU.imagesDay = (imgU.imagesDay || 0) + 1; // attempts count toward the cap, including blocked ones
     saveLimitsToDB(userId); // persist immediately so a restart doesn't grant free extra images
     let explicit;
