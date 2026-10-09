@@ -1426,18 +1426,30 @@ function randomCharColor(c) {
 function boostColor(hex) {
   const n = parseInt(hex.slice(1), 16);
   if (n === 0) return '#181818';
-  let r = (n >> 16) & 0xff;
-  let g = (n >> 8) & 0xff;
-  let b = n & 0xff;
-  // Push ALL colors to a high perceived brightness — vivid on dark backgrounds
-  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  if (lum < 165) {
-    const scale = 185 / Math.max(lum, 1);
-    r = Math.min(255, Math.round(r * scale));
-    g = Math.min(255, Math.round(g * scale));
-    b = Math.min(255, Math.round(b * scale));
+  const r = (n >> 16) & 0xff, g = (n >> 8) & 0xff, b = n & 0xff;
+  // Convert to HSL, clamp lightness to ≥65%, convert back — hue stays exact
+  const rn = r/255, gn = g/255, bn = b/255;
+  const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn), d = max - min;
+  let h = 0, s = 0, l = (max + min) / 2;
+  if (d > 0) {
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case rn: h = ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6; break;
+      case gn: h = ((bn - rn) / d + 2) / 6; break;
+      default:  h = ((rn - gn) / d + 4) / 6;
+    }
   }
-  return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+  if (l < 0.65) l = 0.65;
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+  const h2r = (t) => {
+    const tt = ((t % 1) + 1) % 1;
+    if (tt < 1/6) return p + (q - p) * 6 * tt;
+    if (tt < 1/2) return q;
+    if (tt < 2/3) return p + (q - p) * (2/3 - tt) * 6;
+    return p;
+  };
+  const clamp = v => Math.max(0, Math.min(255, Math.round(v * 255)));
+  return '#' + [h2r(h + 1/3), h2r(h), h2r(h - 1/3)].map(clamp).map(x => x.toString(16).padStart(2, '0')).join('');
 }
 // Build name HTML with each non-space character wrapped in a random-color span.
 function colorizeNameHtml(name, c) {
