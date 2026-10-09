@@ -2289,6 +2289,8 @@ html, body {
 .mb-sep { color: var(--text4); font-size: 12px; line-height: 1; user-select: none; }
 .mb-rp-btn { color: var(--accent-l) !important; font-weight: 600; }
 .mb-rp-btn.rp-off { color: var(--text3) !important; font-weight: 400; }
+.mb-notif-btn { opacity: .5; font-size: 13px; }
+.mb-notif-btn.notif-active { opacity: 1; }
 
 /* Model dropdown */
 .model-dropdown {
@@ -2904,9 +2906,9 @@ body:not(.voice-on) .tts-btn::after { content: "Soon"; font-size: 9px; font-weig
 .bubble .nr .k3 { color: var(--nr3, var(--narration)); text-shadow: var(--nr3g, none); }
 .bubble .nr .k4 { color: var(--nr4, var(--narration)); text-shadow: var(--nr4g, none); }
 .bubble .nr .k5 { color: var(--nr5, var(--narration)); text-shadow: var(--nr5g, none); }
-/* Narration gets subtle ✦ delimiters — pure CSS, invisible to screen readers */
+/* Narration gets subtle ◆ delimiters — pure CSS, invisible to screen readers */
 .bubble .nr::before,
-.bubble .nr::after  { content: "✦"; font-style: normal; font-size: 0.52em; opacity: 0.4; margin: 0 4px; vertical-align: middle; }
+.bubble .nr::after  { content: "◆"; font-style: normal; font-size: 0.45em; opacity: 0.35; margin: 0 4px; vertical-align: middle; }
 /* ALL-CAPS emphasis words get slightly larger, spaced-out treatment */
 .bubble .caps-em { font-size: 1.07em; letter-spacing: 0.07em; font-style: inherit; }
 

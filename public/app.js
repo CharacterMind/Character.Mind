@@ -1903,6 +1903,7 @@ function getVoiceLines(name) {
 }
 let _cvtHide = null;
 let _cvtLastLine = '';   // avoid showing the same line twice in a row on click
+let _cvtDismissHandler = null;
 
 // Called on avatar click — always picks a fresh line different from the last one shown
 function clickCharVoice(name, color, el) {
@@ -1930,9 +1931,17 @@ function clickCharVoice(name, color, el) {
   tip.style.left = Math.max(154, Math.min(cx1, window.innerWidth - 154)) + 'px';
   tip.style.top = (rect.top - 8) + 'px';
   tip.classList.add('cvt-show');
-  // Auto-hide after 4 s (longer than hover since user just clicked)
-  clearTimeout(_cvtHide);
-  _cvtHide = setTimeout(() => { tip.classList.remove('cvt-show'); }, 4000);
+  if (_cvtDismissHandler) document.removeEventListener('click', _cvtDismissHandler);
+  const _h = (e) => {
+    const t2 = document.getElementById('charVoiceTip');
+    if (t2 && !t2.contains(e.target)) {
+      t2.classList.remove('cvt-show');
+      document.removeEventListener('click', _h);
+      _cvtDismissHandler = null;
+    }
+  };
+  _cvtDismissHandler = _h;
+  document.addEventListener('click', _cvtDismissHandler);
 }
 
 // Attach click voice handler to an avatar element; call each time a chat opens
@@ -2492,6 +2501,7 @@ async function openChat(charId) {
   const openEpoch = chatEpoch;
   currentChar = nextChar;
   applyChatTheme(currentChar);
+  updateRpModeUI();
   // Never leave the previous character's messages on screen while the new chat loads
   const welcomeNow = document.getElementById('chatWelcome');
   document.getElementById('messages').innerHTML = '';
@@ -2682,6 +2692,7 @@ async function deleteLockedChat() {
     } catch(_) {}
     currentChatLocked = false;
     currentChar = null;
+    updateRpModeUI();
     showHome();
   } catch(_) { showWarning('Could not delete chat. Try again.'); }
 }
@@ -2807,6 +2818,7 @@ async function generateGreeting() {
       if (pendingUsage) { updateUsageBars(pendingUsage); }
       if (bubble) { bubble.classList.remove('streaming'); colorizeLetters(bubble, currentChar?.color); }
       if (streamText) saveHistoryLocal();
+      if (streamText) maybePromptPush();
     });
   } catch (err) {
     watch.clear();
@@ -2831,10 +2843,20 @@ async function generateGreeting() {
 let rpMode = true; // true = roleplay mode (default), false = normal chat mode
 
 function toggleRpMode() {
-  // RP mode is always on; toggling disabled
+  rpMode = !rpMode;
+  updateRpModeUI();
 }
 
 function updateRpModeUI() {
+  const sep = document.getElementById('rpSep');
+  const btn = document.getElementById('mbRpBtn');
+  const show = !!currentChar;
+  if (sep) sep.style.display = show ? '' : 'none';
+  if (btn) {
+    btn.style.display = show ? '' : 'none';
+    btn.textContent = rpMode ? 'RP' : 'Chat';
+    btn.title = rpMode ? 'Switch to normal chat mode' : 'Switch to RP mode';
+  }
   const toggle = document.getElementById('rpToggle');
   if (toggle) toggle.classList.toggle('rp-active', rpMode);
   const desc = document.getElementById('rpModeDesc');
@@ -6763,3 +6785,112 @@ function showEventBanner(msg, eventName) {
 fetch('/api/tts/status').then(r => (r.ok ? r.json() : null)).then(d => {
   if (d && d.enabled) document.body.classList.add('voice-on');
 }).catch(() => {});
+
+// ── Push notifications ─────────────────────────────────────────────────────────
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+let _pushSubscribed = false;
+let _pushPrompted = false;
+
+async function enablePushNotifications() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    showWarning('Push notifications are not supported by this browser.');
+    return false;
+  }
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') return false;
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
+    const keyRes = await fetch('/api/push/vapid-key');
+    if (!keyRes.ok) return false;
+    const { publicKey } = await keyRes.json();
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey)
+    });
+    const saveRes = await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: sub.toJSON() })
+    });
+    if (saveRes.ok) {
+      _pushSubscribed = true;
+      updateBellButton();
+      return true;
+    }
+  } catch (e) {
+    console.error('Push enable error:', e);
+  }
+  return false;
+}
+
+async function disablePushNotifications() {
+  try {
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.getRegistration('/sw.js');
+      if (reg) {
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) await sub.unsubscribe();
+      }
+    }
+    await fetch('/api/push/unsubscribe', { method: 'DELETE' });
+  } catch (e) { /* best effort */ }
+  _pushSubscribed = false;
+  updateBellButton();
+}
+
+function updateBellButton() {
+  const btn = document.getElementById('notifBellBtn');
+  if (!btn) return;
+  btn.classList.toggle('notif-active', _pushSubscribed);
+  btn.title = _pushSubscribed ? 'Disable character notifications' : 'Get notified when characters want to RP';
+}
+
+async function togglePushNotifications() {
+  if (_pushSubscribed) {
+    await disablePushNotifications();
+  } else {
+    const ok = await enablePushNotifications();
+    if (!ok && Notification.permission === 'denied') {
+      showWarning('Notifications are blocked. Enable them in your browser settings.');
+    }
+  }
+}
+
+async function checkPushStatus() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration('/sw.js');
+    if (!reg) return;
+    const sub = await reg.pushManager.getSubscription();
+    _pushSubscribed = !!sub;
+    updateBellButton();
+  } catch (_) {}
+}
+checkPushStatus();
+
+// Offer push notifications after the first AI reply (once per session)
+const _origShowEventBanner = typeof showEventBanner === 'function' ? showEventBanner : null;
+function maybePromptPush() {
+  if (_pushPrompted || _pushSubscribed) return;
+  if (!('PushManager' in window)) return;
+  if (Notification.permission === 'denied') return;
+  _pushPrompted = true;
+  const banner = document.createElement('div');
+  banner.className = 'event-banner push-prompt-banner';
+  banner.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);max-width:360px;width:calc(100% - 32px);background:var(--bg2,#1a1a2e);border:1px solid var(--border1,#333);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:12px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.5)';
+  banner.innerHTML = `
+    <span style="font-size:20px">🔔</span>
+    <div style="flex:1;font-size:13px;color:var(--text1,#eee)">Get character texts when you're away?</div>
+    <button onclick="enablePushNotifications();this.closest('.push-prompt-banner').remove()" style="background:var(--accent,#7c3aed);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap">Yes!</button>
+    <button onclick="this.closest('.push-prompt-banner').remove()" style="background:transparent;color:var(--text3,#888);border:none;padding:6px;cursor:pointer;font-size:16px">✕</button>
+  `;
+  document.body.appendChild(banner);
+  setTimeout(() => { try { banner.remove(); } catch (_) {} }, 15000);
+}

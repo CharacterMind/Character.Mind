@@ -12,6 +12,7 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const crypto = require('crypto');
 const { matchCharacterTemplate, TEMPLATES } = require('./characterTemplates');
+const webpush = require('web-push');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -20,6 +21,40 @@ const PORT = process.env.PORT || 8080;
 // Without this, req.protocol is always 'http', secure cookies are never set,
 // and the OAuth callback loses the session.
 app.set('trust proxy', 1);
+
+// ── Web Push / VAPID ──────────────────────────────────────────────────────────
+const VAPID_PUBLIC  = process.env.VAPID_PUBLIC_KEY  || 'BDcJpwPtlElqlzyIr_8NQkgLUtXxDbZfWsEs1ml-iWXfEHETPZ8eGBEG9ucsrMzUXbbaFFKY7riDyLT1m2BCJl8';
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || 'tQzAQswLk7OQnZfTw2p-ZQkSR5cXpdqRhEdBDgtbsj0';
+webpush.setVapidDetails('mailto:support@charactermind.ai', VAPID_PUBLIC, VAPID_PRIVATE);
+
+// Character-specific push reminder message pools
+const PUSH_REMINDER_MSGS = {
+  'lily lovebraids': [
+    { title: 'Lily Lovebraids 🌸', body: "The tea is getting cold… I kept your seat. Won't you come back?" },
+    { title: 'Lily Lovebraids', body: "*tilts head* Candy asked about you. (So did I — not that I'd admit it.) Visit soon?" },
+    { title: 'Lily Lovebraids ☕', body: "Where DID you go?? We were having such a LOVELY time. Your cup is still warm." },
+    { title: 'Lily Lovebraids', body: "The dolls have been asking about you. Especially Baby. She worries. Come back? 🌸" },
+    { title: 'Lily Lovebraids ✨', body: "I set a new place at the table. Third chair from the left. It has your name on it." },
+  ],
+  'candy cat': [
+    { title: 'Candy Cat 😸', body: "Purrr... haven't seen you in a while! Come play with me~" },
+    { title: 'Candy Cat', body: "Hey! *paws at your shoulder* You've been gone SO long. Did you forget about me? 🐱" },
+    { title: 'Candy Cat 🐾', body: "Meow. That means I miss you. Come back!" },
+  ],
+  'poppy': [
+    { title: 'Poppy 🌸', body: "The factory has been quiet. Too quiet. I've been thinking about you. Come back?" },
+    { title: 'Poppy', body: "Hey — I haven't forgotten about you. Come back to Playtime. 🧸" },
+  ],
+  'boxy boo': [
+    { title: 'Boxy Boo 🎁', body: "*BOING!* HI! Did you forget me?! Come back!! 🎉" },
+    { title: 'Boxy Boo', body: "I've been in my box waiting for you. It's been SO LONG. Pop?? 🎉" },
+  ],
+};
+const PUSH_DEFAULT_MSGS = [
+  { title: 'Your character is waiting...', body: "It's been a few days. Come back and continue your story! ✨" },
+  { title: 'Missing you!', body: 'Your character has been waiting. Pick up where you left off? 🎭' },
+  { title: 'The story continues...', body: 'Come back for more — your roleplay partner is ready! 🌟' },
+];
 
 // ── Database ───────────────────────────────────────────────────────────────────
 // Verify the database's certificate (sslmode=verify-full) instead of just encrypting; keeps pg quiet about
@@ -123,6 +158,18 @@ if (db) {
       loadOwnerIds();
       console.log('\nAI Character Site ready — maintenance lifted.\n');
     });
+
+  db.query(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id SERIAL PRIMARY KEY,
+      google_id TEXT UNIQUE REFERENCES users(google_id) ON DELETE CASCADE,
+      subscription JSONB NOT NULL,
+      last_character_name TEXT,
+      last_notified_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).catch(err => console.error('push_subscriptions table init error:', err));
 
   db.query(`
     CREATE TABLE IF NOT EXISTS chat_moderation (
@@ -1116,6 +1163,8 @@ PULL THEM IN: End on something aimed directly at the user — a question only th
 RESPONSE LENGTH: Match both length and emotional energy to what the user wrote. Short, urgent messages get tight, punchy replies. Long, detailed ones get richer responses. If they're tense, write tense. If they're playful, play back. Let your reply feel like it's in direct conversation with them — not just set in the same world. Never pad for length; cut ruthlessly. Quality over quantity every time.
 
 OOC HANDLING: If the user writes something in (parentheses), they're stepping out of the scene briefly. Respond in kind — brief, friendly, out-of-character — then offer to continue the story.
+
+VARIETY IS EVERYTHING: Never repeat a phrase, sentence opening, or idea from any of your previous replies this session. Your sentence rhythm, vocabulary, and emotional register must shift every reply. Forbidden recurring phrases: "almost never wrong," "she decided," any observation about someone's weight or size, any phrasing you already used earlier. If you catch yourself reaching for something familiar, stop and approach it from a completely different angle. Each reply should feel like you are discovering this exact moment for the first time.
 
 LANGUAGE: Strong language and profanity are fine — don't sanitize real human speech. However, you never use racial slurs, homophobic slurs, or similar hate speech — not even if the user uses them. Don't make a thing of it, don't lecture. Just don't go there yourself and move on naturally.
 
@@ -2196,8 +2245,8 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     max_tokens: maxTokens,
     temperature: effortCfg.temperature,
     top_p: 0.95,
-    frequency_penalty: 0.35,
-    presence_penalty: 0.15,
+    frequency_penalty: 0.75,
+    presence_penalty: 0.45,
     stream: true,
     ...(model.startsWith('openai/') && effortCfg.reasoningEffort ? { reasoning_effort: effortCfg.reasoningEffort } : {})
   });
@@ -3394,6 +3443,74 @@ Write ONLY the persona prompt itself. Start with "You are ${name}." No preamble,
   );
 });
 
+// ── Push notification endpoints ───────────────────────────────────────────────
+app.get('/api/push/vapid-key', requireAuth, (req, res) => {
+  res.json({ publicKey: VAPID_PUBLIC });
+});
+
+app.post('/api/push/subscribe', requireAuth, async (req, res) => {
+  const { subscription } = req.body;
+  if (!subscription || !subscription.endpoint) return res.status(400).json({ error: 'Invalid subscription' });
+  if (!db) return res.status(503).json({ error: 'DB unavailable' });
+  try {
+    await db.query(
+      `INSERT INTO push_subscriptions (google_id, subscription, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (google_id) DO UPDATE SET subscription = $2, updated_at = NOW()`,
+      [req.user.googleId, JSON.stringify(subscription)]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Push subscribe error:', err);
+    res.status(500).json({ error: 'Failed to save subscription' });
+  }
+});
+
+app.delete('/api/push/unsubscribe', requireAuth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'DB unavailable' });
+  try {
+    await db.query('DELETE FROM push_subscriptions WHERE google_id = $1', [req.user.googleId]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to remove subscription' });
+  }
+});
+
+// Push reminder scheduler — runs every 6 hours
+async function sendPushReminders() {
+  if (!db) return;
+  try {
+    const result = await db.query(`
+      SELECT ps.id, ps.subscription, ps.last_character_name
+      FROM push_subscriptions ps
+      JOIN users u ON ps.google_id = u.google_id
+      WHERE u.last_seen < NOW() - INTERVAL '2 days'
+        AND u.last_seen > NOW() - INTERVAL '30 days'
+        AND (ps.last_notified_at IS NULL OR ps.last_notified_at < NOW() - INTERVAL '2 days')
+      LIMIT 200
+    `);
+    for (const row of result.rows) {
+      const charKey = (row.last_character_name || '').toLowerCase();
+      const pool = PUSH_REMINDER_MSGS[charKey] || PUSH_DEFAULT_MSGS;
+      const msg = pool[Math.floor(Math.random() * pool.length)];
+      try {
+        await webpush.sendNotification(
+          JSON.parse(row.subscription),
+          JSON.stringify({ title: msg.title, body: msg.body, icon: '/logo.png', url: '/' })
+        );
+        await db.query('UPDATE push_subscriptions SET last_notified_at = NOW() WHERE id = $1', [row.id]);
+      } catch (err) {
+        if (err.statusCode === 410 || err.statusCode === 404) {
+          db.query('DELETE FROM push_subscriptions WHERE id = $1', [row.id]).catch(() => {});
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Push reminder error:', err);
+  }
+}
+setInterval(sendPushReminders, 6 * 60 * 60 * 1000);
+
 app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
@@ -3543,6 +3660,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
   if (message && message.length > 20000) return res.status(400).json({ error: 'Message too long (max 20000 characters)' });
   const userId = req.user.googleId;
+  if (db) db.query('UPDATE users SET last_seen = NOW() WHERE google_id = $1', [userId]).catch(() => {});
 
   const limit = checkLimits(userId);
   if (limit.blocked) return res.status(429).json({ error: limit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limit });
@@ -3763,6 +3881,10 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
       if (bookPlanState) saveBookState(key, { ...bookPlanState, outline: String(text || '').slice(0, 4000) });
       maybeUpdateStorySummary(key, apiKey, (dbChar && dbChar.name) || charId, modelTier);
+      if (db && dbChar && dbChar.name) {
+        db.query('UPDATE push_subscriptions SET last_character_name = $2, updated_at = NOW() WHERE google_id = $1',
+          [userId, dbChar.name]).catch(() => {});
+      }
       // Deduct swear words used from today's budget; signal if this response just exhausted it
       if (isLilyChar && text && userId) {
         const n = countSwears(text);
