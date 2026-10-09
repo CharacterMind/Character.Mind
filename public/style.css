@@ -2631,6 +2631,43 @@ html, body {
 [data-colorblind="achromatopsia"] .usage-fill.red,
 [data-colorblind="achromatopsia"] .usage-fill-modal.red      { background: #111827; }
 
+/* Partial / anomaly types — same safe hues as their full counterparts */
+[data-colorblind="deuteranomaly"] .usage-fill.green,
+[data-colorblind="protanomaly"]   .usage-fill.green    { background: #60a5fa; }
+[data-colorblind="deuteranomaly"] .usage-fill.yellow,
+[data-colorblind="protanomaly"]   .usage-fill.yellow   { background: #fbbf24; }
+[data-colorblind="deuteranomaly"] .usage-fill.orange,
+[data-colorblind="protanomaly"]   .usage-fill.orange   { background: #f97316; }
+[data-colorblind="deuteranomaly"] .usage-fill.red,
+[data-colorblind="protanomaly"]   .usage-fill.red      { background: #92400e; }
+[data-colorblind="deuteranomaly"] .usage-fill-modal.green,
+[data-colorblind="protanomaly"]   .usage-fill-modal.green    { background: #60a5fa; }
+[data-colorblind="deuteranomaly"] .usage-fill-modal.yellow,
+[data-colorblind="protanomaly"]   .usage-fill-modal.yellow   { background: #fbbf24; }
+[data-colorblind="deuteranomaly"] .usage-fill-modal.orange,
+[data-colorblind="protanomaly"]   .usage-fill-modal.orange   { background: #f97316; }
+[data-colorblind="deuteranomaly"] .usage-fill-modal.red,
+[data-colorblind="protanomaly"]   .usage-fill-modal.red      { background: #92400e; }
+
+[data-colorblind="tritanomaly"] .usage-fill.green    { background: #2dd4bf; }
+[data-colorblind="tritanomaly"] .usage-fill.yellow   { background: #f472b6; }
+[data-colorblind="tritanomaly"] .usage-fill.orange   { background: #dc2626; }
+[data-colorblind="tritanomaly"] .usage-fill.red      { background: #7f1d1d; }
+[data-colorblind="tritanomaly"] .usage-fill-modal.green    { background: #2dd4bf; }
+[data-colorblind="tritanomaly"] .usage-fill-modal.yellow   { background: #f472b6; }
+[data-colorblind="tritanomaly"] .usage-fill-modal.orange   { background: #dc2626; }
+[data-colorblind="tritanomaly"] .usage-fill-modal.red      { background: #7f1d1d; }
+
+/* Achromatomaly: partial color vision — luminance-led with very slight hue difference */
+[data-colorblind="achromatomaly"] .usage-fill.green,
+[data-colorblind="achromatomaly"] .usage-fill-modal.green    { background: #a1a1aa; }
+[data-colorblind="achromatomaly"] .usage-fill.yellow,
+[data-colorblind="achromatomaly"] .usage-fill-modal.yellow   { background: #71717a; }
+[data-colorblind="achromatomaly"] .usage-fill.orange,
+[data-colorblind="achromatomaly"] .usage-fill-modal.orange   { background: #3f3f46; }
+[data-colorblind="achromatomaly"] .usage-fill.red,
+[data-colorblind="achromatomaly"] .usage-fill-modal.red      { background: #18181b; }
+
 /* ── Colorblind mode: global accent & chrome overrides ──────────────────────── */
 /*
   Each mode applies TWO layers:
@@ -2692,6 +2729,42 @@ html, body {
 /* body grayscale covers everything — images, character cards, all of it. */
 [data-colorblind="achromatopsia"] body {
   filter: grayscale(1) contrast(1.25);
+}
+
+/* ── Anomaly types: same safe channels, milder filter ───────────────────────── */
+[data-colorblind="protanomaly"],
+[data-colorblind="deuteranomaly"] {
+  --accent:      #0ea5e9;
+  --accent-l:    #38bdf8;
+  --accent-d:    #0284c7;
+  --accent-dim:  rgba(14,165,233,0.14);
+  --user-bubble: #0c2840;
+}
+[data-colorblind="protanomaly"] body,
+[data-colorblind="deuteranomaly"] body {
+  filter: hue-rotate(10deg) saturate(0.92) contrast(1.02);
+}
+
+[data-colorblind="tritanomaly"] {
+  --accent:      #f97316;
+  --accent-l:    #fb923c;
+  --accent-d:    #ea580c;
+  --accent-dim:  rgba(249,115,22,0.14);
+  --user-bubble: #1f0a00;
+}
+[data-colorblind="tritanomaly"] body {
+  filter: hue-rotate(-15deg) saturate(0.95) contrast(1.02);
+}
+
+[data-colorblind="achromatomaly"] {
+  --accent:      #c4c4c4;
+  --accent-l:    #e5e5e5;
+  --accent-d:    #9ca3af;
+  --accent-dim:  rgba(196,196,196,0.14);
+  --user-bubble: #1c1c1e;
+}
+[data-colorblind="achromatomaly"] body {
+  filter: grayscale(0.85) saturate(0.3) contrast(1.15);
 }
 
 /* ── Gradient color picker ───────────────────────────────────────────────────── */

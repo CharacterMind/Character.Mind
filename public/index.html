@@ -324,9 +324,13 @@
                 <select class="gc-cb-select" id="gcColorblindPicker" onchange="setColorblindMode(this.value)" title="Color vision mode">
                   <option value="">👁 Normal</option>
                   <option value="deuteranopia">Deuteranopia (green weak)</option>
+                  <option value="deuteranomaly">Deuteranomaly (green weak, mild)</option>
                   <option value="protanopia">Protanopia (red weak)</option>
+                  <option value="protanomaly">Protanomaly (red weak, mild)</option>
                   <option value="tritanopia">Tritanopia (blue-yellow)</option>
+                  <option value="tritanomaly">Tritanomaly (blue-yellow, mild)</option>
                   <option value="achromatopsia">Achromatopsia</option>
+                  <option value="achromatomaly">Achromatomaly (partial)</option>
                 </select>
               </div>
               <div id="gcAchroNote" class="gc-achro-note" style="display:none">
@@ -893,9 +897,13 @@
           <select class="settings-select" id="colorblindMode" onchange="setColorblindMode(this.value)">
             <option value="">None</option>
             <option value="deuteranopia">Deuteranopia — red-green [green weakness, most common]</option>
+            <option value="deuteranomaly">Deuteranomaly — red-green [green weakness, partial]</option>
             <option value="protanopia">Protanopia — red-green [red weakness]</option>
+            <option value="protanomaly">Protanomaly — red-green [red weakness, partial]</option>
             <option value="tritanopia">Tritanopia — blue-yellow</option>
-            <option value="achromatopsia">Achromatopsia — monochromacy</option>
+            <option value="tritanomaly">Tritanomaly — blue-yellow [partial]</option>
+            <option value="achromatopsia">Achromatopsia — monochromacy [complete]</option>
+            <option value="achromatomaly">Achromatomaly — near-monochromacy [partial, very rare]</option>
           </select>
         </div>
       </div>

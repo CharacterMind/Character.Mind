@@ -861,9 +861,31 @@ const CB_PALETTES = {
   },
   achromatopsia: {
     label: 'High-contrast grayscale',
-    // Only luminance — no hue is visible, only brightness difference matters
-    colors: ['#ffffff','#d4d4d4','#a3a3a3','#737373','#404040','#1a1a1a','#e5e5e5','#525252'],
-    defaults: ['#d4d4d4','#525252']
+    // Only luminance — no hue is visible; keep all values bright so they read on dark bubbles
+    colors: ['#ffffff','#e8e8e8','#d4d4d4','#c4c4c4','#b5b5b5','#f5f5f5','#dcdcdc','#cccccc'],
+    defaults: ['#e5e5e5','#cccccc']
+  },
+  // Partial / anomaly types — same safe hue families as the full types, labelled as mild
+  protanomaly: {
+    label: 'Red-weak safe palette (mild)',
+    colors: ['#0ea5e9','#1d4ed8','#eab308','#f97316','#7c3aed','#06b6d4','#facc15','#a78bfa'],
+    defaults: ['#0ea5e9','#eab308']
+  },
+  deuteranomaly: {
+    label: 'Green-weak safe palette (mild)',
+    colors: ['#0ea5e9','#1d4ed8','#f97316','#fb923c','#7c3aed','#06b6d4','#facc15','#c084fc'],
+    defaults: ['#0ea5e9','#f97316']
+  },
+  tritanomaly: {
+    label: 'Blue-yellow safe palette (mild)',
+    colors: ['#ef4444','#dc2626','#22c55e','#16a34a','#ec4899','#db2777','#f43f5e','#4ade80'],
+    defaults: ['#ef4444','#22c55e']
+  },
+  achromatomaly: {
+    label: 'Near-monochromacy palette',
+    // Very pale pastels — achromatomaly users see some hue; bright values read on dark bubbles
+    colors: ['#f0e8ff','#fff3cc','#e8fff0','#cce8ff','#ffe8cc','#ffd4f0','#ccfff5','#fff8e8'],
+    defaults: ['#f0e8ff','#e8fff0']
   }
 };
 
@@ -873,8 +895,8 @@ function _applyGCPalette(mode) {
   const achroNote = document.getElementById('gcAchroNote');
   const strip = document.getElementById('gcPaletteStrip');
 
-  // Achromatopsia — hide the whole picker, show a note instead
-  if (mode === 'achromatopsia') {
+  // Achromatopsia / Achromatomaly — hide the color picker, show note instead
+  if (mode === 'achromatopsia' || mode === 'achromatomaly') {
     if (colorRow) colorRow.style.display = 'none';
     if (strip) strip.style.display = 'none';
     if (achroNote) achroNote.style.display = 'flex';
@@ -1453,9 +1475,11 @@ function boostColor(hex) {
 }
 // Build name HTML with each non-space character wrapped in a random-color span.
 function colorizeNameHtml(name, c) {
-  const hexes = String(c || '').match(/#[0-9a-fA-F]{6}/gi);
-  if (!hexes || !hexes.length) return escHtml(name || '');
-  const colors = hexes.map(boostColor);
+  const cbMode = document.documentElement.dataset.colorblind;
+  const cbPal = cbMode && CB_PALETTES[cbMode];
+  const rawHexes = cbPal ? cbPal.colors : String(c || '').match(/#[0-9a-fA-F]{6}/gi);
+  if (!rawHexes || !rawHexes.length) return escHtml(name || '');
+  const colors = rawHexes.map(boostColor);
   return [...(name || '')].map(ch => {
     if (/\s/.test(ch)) return escHtml(ch);
     const col = colors[Math.floor(Math.random() * colors.length)];
@@ -1465,9 +1489,11 @@ function colorizeNameHtml(name, c) {
 // Apply the character's colours per-word — readable cycling palette, bold weight.
 function colorizeLetters(bubble, c) {
   if (!bubble) return;
-  const hexes = String(c || '').match(/#[0-9a-fA-F]{6}/gi);
-  if (!hexes || !hexes.length) return;
-  const spColors = hexes.map(boostColor);
+  const cbMode = document.documentElement.dataset.colorblind;
+  const cbPal = cbMode && CB_PALETTES[cbMode];
+  const rawHexes = cbPal ? cbPal.colors : String(c || '').match(/#[0-9a-fA-F]{6}/gi);
+  if (!rawHexes || !rawHexes.length) return;
+  const spColors = rawHexes.map(boostColor);
   const nrColors = spColors.map(hex => {
     // Mix toward white to keep narration bright but slightly softer than speech
     const n = parseInt(hex.slice(1), 16);
@@ -1505,9 +1531,11 @@ function colorizeLetters(bubble, c) {
 // Re-randomize word colors in every visible bubble — triggered by click in the chat.
 function randomizeChatColors() {
   if (!currentChar) return;
-  const hexes = String(currentChar.color || '').match(/#[0-9a-fA-F]{6}/gi);
-  if (!hexes || !hexes.length) return;
-  const spColors = hexes.map(boostColor);
+  const cbMode = document.documentElement.dataset.colorblind;
+  const cbPal = cbMode && CB_PALETTES[cbMode];
+  const rawHexes = cbPal ? cbPal.colors : String(currentChar.color || '').match(/#[0-9a-fA-F]{6}/gi);
+  if (!rawHexes || !rawHexes.length) return;
+  const spColors = rawHexes.map(boostColor);
   const nrColors = spColors.map(hex => {
     const n = parseInt(hex.slice(1), 16);
     const [r, g, b] = [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
