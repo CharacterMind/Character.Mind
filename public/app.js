@@ -1532,9 +1532,9 @@ function randomizeChatColors() {
   const rawHexes = cbPal ? cbPal.colors : String(currentChar.color || '').match(/#[0-9a-fA-F]{6}/gi);
   if (!rawHexes || !rawHexes.length) return;
   const spColors = rawHexes.map(boostColor);
-  // Re-randomize bubble text
+  // Re-randomize bubble text (use descendant selector so .caps-em chars inside .sp are also hit)
   document.querySelectorAll('#messages .bubble').forEach(bubble => {
-    bubble.querySelectorAll('.sp > span[style], .nr > span[style]').forEach(sp => { sp.style.color = spColors[Math.floor(Math.random() * spColors.length)]; });
+    bubble.querySelectorAll('.sp span[style], .nr span[style]').forEach(sp => { sp.style.color = spColors[Math.floor(Math.random() * spColors.length)]; });
   });
   // Re-randomize character name in: chat message headers, mobile header, info panel, active sidebar entry
   const freshName = colorizeNameHtml(currentChar.name, currentChar.color);
