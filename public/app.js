@@ -2736,7 +2736,7 @@ async function generateGreeting() {
         if (!line.startsWith('data: ')) continue;
         let data; try { data = JSON.parse(line.slice(6)); } catch (_) { continue; }
         if (data.error) throw new Error(data.error);
-        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; }
+        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; if (data.swearBudgetHit) showSwearLimitModal(); }
         if (data.text) {
           if (!gotFirst) {
             gotFirst = true;
@@ -3039,7 +3039,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
           }
           break;
         }
-        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; }
+        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; if (data.swearBudgetHit) showSwearLimitModal(); }
         if (data.text) {
           if (!gotFirst) {
             gotFirst = true;
@@ -3620,6 +3620,29 @@ function showLimitModal(type, displayStr) {
 function closeLimitModal() {
   const modal = document.getElementById('limitModal');
   if (modal) modal.style.display = 'none';
+}
+
+function showSwearLimitModal() {
+  let modal = document.getElementById('swearLimitModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'swearLimitModal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.75);padding:20px';
+    modal.innerHTML = `
+      <div style="background:#18171f;border:1px solid #3a2a5a;border-radius:16px;padding:32px 28px;max-width:420px;width:100%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.7)">
+        <div style="font-size:40px;margin-bottom:12px">🤐</div>
+        <h2 style="color:#d4aaff;font-size:20px;margin:0 0 12px;font-weight:800">That's your limit for today</h2>
+        <p style="color:#b0a0c8;font-size:15px;line-height:1.6;margin:0 0 16px">
+          You've used up today's swear word budget. There's a time and a place for everything — but making it every single conversation can turn into a habit pretty fast.
+        </p>
+        <p style="color:#8a7aaa;font-size:13px;line-height:1.6;margin:0 0 24px">
+          Your budget resets tomorrow at 8 AM UTC. A higher plan gives you more room if you really need it.
+        </p>
+        <button onclick="document.getElementById('swearLimitModal').style.display='none'" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:12px 28px;font-size:15px;font-weight:700;cursor:pointer;width:100%">Got it</button>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  modal.style.display = 'flex';
 }
 
 function showTosModal() {

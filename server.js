@@ -2104,7 +2104,8 @@ function startReplyStream(o) {
       }
       onComplete(fullResponse);
       const usage = Object.assign({}, buildUsagePayload(getLimits(userId), userId));
-      send({ done: true, usage, responseTokens: cost, warnings: reservation.warnings, sig: signReply(userId, charId, fullResponse) });
+      const doneExtra = _swearBudgetJustHit ? { swearBudgetHit: true } : {};
+      send({ done: true, usage, responseTokens: cost, warnings: reservation.warnings, sig: signReply(userId, charId, fullResponse), ...doneExtra });
       close();
     } catch (e) {
       // onComplete may have already persisted the message — don't reset finished or refund tokens
@@ -3733,6 +3734,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
   // Profanity budget injection — Lily only, RP mode only, not on calls
   const isLilyChar = charId === 'custom_1790897425575_lily';
+  let _swearBudgetJustHit = false; // set to true in onComplete when this reply crosses the daily limit
   const swearDirective = (() => {
     if (!isRpMode || !isLilyChar || callMode) return '';
     const u = getLimits(userId || 'anon');
@@ -3756,10 +3758,19 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
       if (bookPlanState) saveBookState(key, { ...bookPlanState, outline: String(text || '').slice(0, 4000) });
       maybeUpdateStorySummary(key, apiKey, (dbChar && dbChar.name) || charId, modelTier);
-      // Deduct swear words used from today's budget
+      // Deduct swear words used from today's budget; signal if this response just exhausted it
       if (isLilyChar && text && userId) {
         const n = countSwears(text);
-        if (n > 0) { const u = getLimits(userId); u.swearsToday = (u.swearsToday || 0) + n; }
+        if (n > 0) {
+          const u = getLimits(userId);
+          const limit = getSwearLimitFor(u.subscriptionTier || 'free');
+          const before = u.swearsToday || 0;
+          u.swearsToday = before + n;
+          // Flag when we just crossed the limit this message (not already exhausted before)
+          if (limit !== Infinity && limit > 0 && before < limit && u.swearsToday >= limit) {
+            _swearBudgetJustHit = true;
+          }
+        }
       }
     },
     logLabel: 'Chat'
