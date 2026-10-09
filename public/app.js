@@ -1441,16 +1441,11 @@ function colorizeLetters(bubble, c) {
       for (const tn of nodes) {
         if (tn.parentNode && tn.parentNode.closest && tn.parentNode.closest('code, pre')) continue;
         const frag = document.createDocumentFragment();
-        // Split by whitespace, color per-word so groups of letters share one color
-        const parts = tn.textContent.split(/(\s+)/);
-        for (const part of parts) {
-          if (/^\s+$/.test(part) || part === '') {
-            frag.appendChild(document.createTextNode(part));
-            continue;
-          }
+        for (const ch of tn.textContent) {
+          if (/\s/.test(ch)) { frag.appendChild(document.createTextNode(ch)); continue; }
           const sp = document.createElement('span');
           sp.style.color = colors[Math.floor(Math.random() * colors.length)];
-          sp.textContent = part;
+          sp.textContent = ch;
           frag.appendChild(sp);
         }
         tn.parentNode.replaceChild(frag, tn);
