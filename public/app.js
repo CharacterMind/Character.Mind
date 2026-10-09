@@ -338,7 +338,8 @@ function formatLocalPrice(usdPrice) {
 
 function openPricingModal() { /* plans not available right now */ }
 function closePricingModal() {
-  document.getElementById('pricingModal').style.display = 'none';
+  const m = document.getElementById('pricingModal');
+  if (m) m.style.display = 'none';
 }
 function setPricingPeriod(period) {
   // Yearly prices are only shown when yearly PayPal plans really exist (otherwise the person would be charged the monthly price).
@@ -528,9 +529,10 @@ function updateSettingsPlanCard(tier) {
 }
 
 function renderSettingsTiers(currentTier) {
-  if (!paypalConfigLoaded) loadPaypalConfig().then(() => renderSettingsTiers(currentTier));
+  if (!paypalConfigLoaded) { loadPaypalConfig().then(() => renderSettingsTiers(currentTier)); return; }
   if (!exchangeRates) {
     Promise.all([loadExchangeRates(), ensurePricingCountry()]).then(() => renderSettingsTiers(currentTier));
+    return;
   }
   const el = document.getElementById('settingsTiersSection');
   if (!el) return;
@@ -1180,6 +1182,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeConta
 
 async function signOut() {
   // Only show "signed out" once the server really ended the session; otherwise a reload would sign the person straight back in
+  clearLockout();
   const r = await fetch('/auth/logout', { method: 'POST' }).catch(() => null);
   if (!r || !r.ok) { showWarning("Couldn't sign you out. Please try again in a moment."); return; }
   currentUser = null;
@@ -1934,8 +1937,8 @@ function clickCharVoice(name, color, el) {
 function wireAvatarClick(el, name, color) {
   if (!el || !getVoiceLines(name)) return;
   el.style.cursor = 'pointer';
+  if (el.__cvHandler) el.removeEventListener('click', el.__cvHandler);
   el.__cvHandler = (e) => { e.stopPropagation(); clickCharVoice(name, color, el); };
-  el.removeEventListener('click', el.__cvHandler);
   el.addEventListener('click', el.__cvHandler);
 }
 
@@ -2428,7 +2431,12 @@ function saveHistoryLocal() {
     const all = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}');
     all[currentChar.id] = items.slice(-150);
     localStorage.setItem(userKey('cm_history'), JSON.stringify(all));
-  } catch (_) {}
+  } catch (e) {
+    if (e && e.name === 'QuotaExceededError') {
+      try { localStorage.removeItem(userKey('cm_history')); } catch (_) {}
+      showWarning('Chat history cleared — storage was full.');
+    }
+  }
 }
 
 function loadHistoryLocal(charId) {
@@ -4224,17 +4232,23 @@ function msgMenuHtml(role) {
 }
 
 function toggleMsgMenu(btn) {
-  document.querySelectorAll('.msg-dropdown:not(.hidden)').forEach(d => d.classList.add('hidden'));
+  document.querySelectorAll('.msg-dropdown:not(.hidden)').forEach(d => {
+    d.classList.add('hidden');
+    if (d.__closeHandler) { document.removeEventListener('click', d.__closeHandler, true); d.__closeHandler = null; }
+  });
   const dd = btn.nextElementSibling;
   dd.classList.toggle('hidden');
   if (!dd.classList.contains('hidden')) {
     setTimeout(() => {
-      document.addEventListener('click', function close(e) {
+      function close(e) {
         if (!dd.contains(e.target) && e.target !== btn) {
           dd.classList.add('hidden');
+          dd.__closeHandler = null;
           document.removeEventListener('click', close, true);
         }
-      }, true);
+      }
+      dd.__closeHandler = close;
+      document.addEventListener('click', close, true);
     }, 0);
   }
 }
@@ -4606,7 +4620,8 @@ function feedTypewriter(chunk) {
 function drainTypewriter(cb) {
   // draw the complete text BEFORE the callback saves it (the drawing is throttled, so the saved copy would lag behind)
   if (!twInterval || !twQueue.length) { flushTypewriter(); if (cb) cb(); return; }
-  twOnDrain = () => { flushTypewriter(); if (cb) cb(); };
+  const epoch = chatEpoch;
+  twOnDrain = () => { flushTypewriter(); if (cb && chatEpoch === epoch) cb(); };
 }
 
 function flushTypewriter() {
@@ -4767,8 +4782,8 @@ function renderVoiceList() {
   if (!list) return;
   const voices = window.speechSynthesis.getVoices();
   if (!voices.length) {
-    // Voices may not be loaded yet — try again shortly
-    setTimeout(renderVoiceList, 400);
+    // Voices may not be loaded yet — try again shortly (only if panel still open)
+    setTimeout(() => { if (document.getElementById('voiceList')) renderVoiceList(); }, 400);
     list.innerHTML = '<div class="voice-empty">Loading voices…</div>';
     return;
   }
@@ -6085,32 +6100,33 @@ async function newChat() {
   if (!currentChar) return;
   abandonStream();
   releaseChatInput();
+  const newChatCharId = currentChar.id; // capture before any async wait
   // Archive the chat on the server first. If saving fails (the server then keeps the live chat), do NOT clear it.
   // Retry once after 15 s — covers Render free-tier cold-start which can take up to 30 s.
-  let arch = await fetch(`/api/conversations/${currentChar.id}/archive`, { method: 'POST' }).catch(() => null);
+  let arch = await fetch(`/api/conversations/${newChatCharId}/archive`, { method: 'POST' }).catch(() => null);
   if (!arch || !arch.ok) {
     const firstStatus = arch ? arch.status : 0;
     showWarning("Saving your chat — please wait a moment…", 22000);
     await new Promise(r => setTimeout(r, 20000));
-    arch = await fetch(`/api/conversations/${currentChar.id}/archive`, { method: 'POST' }).catch(() => null);
+    arch = await fetch(`/api/conversations/${newChatCharId}/archive`, { method: 'POST' }).catch(() => null);
     if (!arch || !arch.ok) {
       const status = arch ? arch.status : firstStatus;
       showWarning(`Couldn't save your current chat (error ${status || 'network'}), so it was left as it is. Please try again in a moment.`);
       return;
     }
   }
-  savePastChatLocal(currentChar.id, loadHistoryLocal(currentChar.id));
+  savePastChatLocal(newChatCharId, loadHistoryLocal(newChatCharId));
   // If this chat was permanently banned, unlock it so the new conversation can proceed
   if (currentChatLocked) {
-    await fetch(`/api/chat/unlock/${currentChar.id}`, { method: 'POST' }).catch(() => {});
+    await fetch(`/api/chat/unlock/${newChatCharId}`, { method: 'POST' }).catch(() => {});
     currentChatLocked = false;
   }
   // Await the DELETE so the server clears history before we try to greet
-  await fetch(`/api/conversations/${currentChar.id}`, { method: 'DELETE' }).catch(() => {});
+  await fetch(`/api/conversations/${newChatCharId}`, { method: 'DELETE' }).catch(() => {});
   // Clear stale local history so reload starts fresh
   try {
     const all = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}');
-    delete all[currentChar.id];
+    delete all[newChatCharId];
     localStorage.setItem(userKey('cm_history'), JSON.stringify(all));
   } catch(_) {}
   document.getElementById('messages').innerHTML = '';

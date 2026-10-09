@@ -24,6 +24,12 @@
   --r:  10px;
   --rl: 14px;
   --rx: 20px;
+  /* Aliases referenced throughout but previously undefined */
+  --hover:   #2a2a30;
+  --surface: #202024;
+  --bg1:     #1a1a1e;
+  --text1:   #faf9f5;
+  --border1: #303036;
 }
 
 html, body {

@@ -13,7 +13,9 @@
 <meta property="og:description" content="Chat with AI-powered characters from Poppy Playtime and beyond. Create your own characters and have real conversations.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://charactermind.onrender.com">
-<meta name="twitter:card" content="summary">
+<meta property="og:image" content="https://charactermind.onrender.com/logo.webp">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://charactermind.onrender.com/logo.webp">
 <meta name="twitter:title" content="character.mind — AI Character Chat">
 <meta name="twitter:description" content="Chat with AI-powered characters from Poppy Playtime and beyond. Free to use.">
 <link rel="canonical" href="https://charactermind.onrender.com">
@@ -269,25 +271,25 @@
           <div class="avatar-policy-note">JPEG, PNG, WebP or GIF only. No nudity, explicit content, or images of minors — violations result in account removal.</div>
 
           <div class="create-field">
-            <label>Character name</label>
+            <label for="newName">Character name</label>
             <input type="text" id="newName" placeholder="e.g. Albert Einstein" maxlength="60" required oninput="updateCount('newName','nameCount',60);checkTemplateName()" onblur="autoGeneratePersonaOnNameBlur()">
             <div class="field-count"><span id="nameCount">0</span>/60</div>
           </div>
 
           <div class="create-field">
-            <label>Tagline</label>
+            <label for="newTagline">Tagline</label>
             <input type="text" id="newTagline" placeholder="e.g. A detective who solves crimes... before they happen." maxlength="160" oninput="updateCount('newTagline','taglineCount',160)">
             <div class="field-count"><span id="taglineCount">0</span>/160</div>
           </div>
 
           <div class="create-field">
-            <label>Description</label>
+            <label for="newDesc">Description</label>
             <textarea id="newDesc" placeholder="e.g. She's a retired pirate queen who now runs a cozy seaside inn. But trouble still finds her." rows="4" maxlength="2000" oninput="updateCount('newDesc','descCount',2000)"></textarea>
             <div class="field-count"><span id="descCount">0</span>/2000</div>
           </div>
 
           <div class="create-field" style="display:none">
-            <label>Greeting <span class="field-hint">— first thing they say to you</span></label>
+            <label for="newGreeting">Greeting <span class="field-hint">— first thing they say to you</span></label>
             <textarea id="newGreeting" placeholder='e.g. "Took you long enough. I\'ve been waiting."' rows="3" maxlength="4096" oninput="updateCount('newGreeting','greetingCount',4096)"></textarea>
             <div class="field-count"><span id="greetingCount">0</span>/4096</div>
             <div class="greeting-mode-row">
@@ -300,7 +302,7 @@
           </div>
 
           <div class="create-field">
-            <label>Character Persona <span class="field-hint">— how they think and speak</span></label>
+            <label for="newPrompt">Character Persona <span class="field-hint">— how they think and speak</span></label>
             <div class="persona-gen-row">
               <button type="button" class="persona-gen-btn" id="personaGenBtn" onclick="generatePersona()">✨ Auto-generate</button>
               <button type="button" class="persona-gen-btn persona-reset-btn" id="personaResetBtn" onclick="resetToTemplate()" style="display:none">↺ Reset to built-in lore</button>

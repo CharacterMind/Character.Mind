@@ -2172,9 +2172,9 @@ function startReplyStream(o) {
         send({ text: fullResponse });
         held = '';
       }
-      onComplete(fullResponse);
+      const extra = onComplete(fullResponse) || {};
       const usage = Object.assign({}, buildUsagePayload(getLimits(userId), userId));
-      const doneExtra = _swearBudgetJustHit ? { swearBudgetHit: true } : {};
+      const doneExtra = extra.swearBudgetHit ? { swearBudgetHit: true } : {};
       send({ done: true, usage, responseTokens: cost, warnings: reservation.warnings, sig: signReply(userId, charId, fullResponse), ...doneExtra });
       close();
     } catch (e) {
@@ -2519,7 +2519,7 @@ app.get('/api/usage', requireAuth, (req, res) => {
 
 app.get('/api/geo', geoLimiter, async (req, res) => {
   try {
-    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+    const ip = visitorIp(req);
     const geo = await getGeoForIp(ip);
     res.json({ countryCode: geo?.country || 'US' });
   } catch (_) {
@@ -3546,19 +3546,24 @@ async function sendPushReminders() {
         AND (ps.last_notified_at IS NULL OR ps.last_notified_at < NOW() - INTERVAL '2 days')
       LIMIT 200
     `);
-    for (const row of result.rows) {
-      try {
-        const msg = await generatePushMessage(row);
-        await webpush.sendNotification(
-          JSON.parse(row.subscription),
-          JSON.stringify({ title: msg.title, body: msg.body, icon: '/logo.png', url: '/' })
-        );
-        await db.query('UPDATE push_subscriptions SET last_notified_at = NOW() WHERE id = $1', [row.id]);
-      } catch (err) {
-        if (err.statusCode === 410 || err.statusCode === 404) {
-          db.query('DELETE FROM push_subscriptions WHERE id = $1', [row.id]).catch(() => {});
+    // Process in batches of 10 concurrent to avoid 30+ minute sequential runs
+    const CONCURRENCY = 10;
+    for (let i = 0; i < result.rows.length; i += CONCURRENCY) {
+      const batch = result.rows.slice(i, i + CONCURRENCY);
+      await Promise.allSettled(batch.map(async (row) => {
+        try {
+          const msg = await generatePushMessage(row);
+          await webpush.sendNotification(
+            JSON.parse(row.subscription),
+            JSON.stringify({ title: msg.title, body: msg.body, icon: '/logo.png', url: '/' })
+          );
+          await db.query('UPDATE push_subscriptions SET last_notified_at = NOW() WHERE id = $1', [row.id]);
+        } catch (err) {
+          if (err.statusCode === 410 || err.statusCode === 404) {
+            db.query('DELETE FROM push_subscriptions WHERE id = $1', [row.id]).catch(() => {});
+          }
         }
-      }
+      }));
     }
   } catch (err) {
     console.error('Push reminder error:', err);
@@ -3958,6 +3963,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
           }
         }
       }
+      return _swearBudgetJustHit ? { swearBudgetHit: true } : {};
     },
     logLabel: 'Chat'
   });
@@ -4180,7 +4186,7 @@ function buildPolicyEmailHtml(userName, message) {
         <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">Hi ${name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')},</p>
         <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">We've updated our Terms of Service and/or Privacy Policy. Here's a summary of what changed:</p>
         <div style="background:#0a0a0a;border:1px solid #222222;border-radius:8px;padding:20px;margin:0 0 24px">
-          <p style="margin:0;font-size:15px;color:#f0f0f0;line-height:1.6;white-space:pre-wrap">${message.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>
+          <p style="margin:0;font-size:15px;color:#f0f0f0;line-height:1.6;white-space:pre-wrap">${message.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>
         </div>
         <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">You can read the full policies any time:</p>
         <table cellpadding="0" cellspacing="0" style="margin:0 0 32px">
