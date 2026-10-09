@@ -636,7 +636,7 @@ html, body {
 
 /* Bubbles — no borders, c.ai style */
 .bubble {
-  padding: 18px 22px; font-size: 22px; line-height: 1.75; font-weight: 700;
+  padding: 18px 22px; font-size: 24px; line-height: 1.75; font-weight: 700;
   word-break: break-word; border-radius: 0 14px 14px 14px;
 }
 .msg.ai .bubble {
@@ -2092,7 +2092,7 @@ html, body {
 /* ── Responsive — Desktop Large ──────────────────────────────────────────── */
 @media (min-width: 1400px) {
   html, body { font-size: 20px; }
-  .bubble { font-size: 23px; line-height: 1.7; }
+  .bubble { font-size: 26px; line-height: 1.7; }
   .input-wrap textarea { font-size: 18px; }
   .view { padding: 36px 40px 52px; }
   .chat-body { padding: 40px 36px 24px; }
@@ -2215,7 +2215,7 @@ html, body {
   .msg.user .bubble { max-width: 88%; }
 
   /* Slightly smaller bubble text and padding */
-  .bubble { font-size: 18px; line-height: 1.65; padding: 14px 16px; }
+  .bubble { font-size: 20px; line-height: 1.65; padding: 14px 16px; }
 
   /* Stream stats compact */
   .stream-stats { font-size: 11px; gap: 5px; }
@@ -2263,7 +2263,7 @@ html, body {
 
 /* Very small screens (≤400px) */
 @media (max-width: 400px) {
-  .bubble { font-size: 17px; padding: 12px 14px; }
+  .bubble { font-size: 19px; padding: 12px 14px; }
   .msg.user .bubble { max-width: 93%; }
   .input-wrap textarea { font-size: 16px; }
   .chat-body { padding: 16px 8px 10px; }
@@ -2817,7 +2817,7 @@ body:not(.voice-on) .tts-btn::after { content: "Soon"; font-size: 9px; font-weig
 .welcome-soon-tag { display: inline-block; vertical-align: middle; margin-left: 6px; font-size: 9.5px; font-weight: 700; letter-spacing: .03em; color: #fff; background: #7c3aed; padding: 1px 7px; border-radius: 8px; line-height: 1.6; }
 
 /* Character text colours: speech is upright, narration is italic; each letter takes a colour from the character's palette */
-.bubble .sp { font-weight: 800; }
+.bubble .sp { font-weight: 900; }
 .bubble .nr { font-style: italic; letter-spacing: 0.012em; }
 .bubble .sp .k0 { color: var(--sp0, var(--text)); text-shadow: var(--sp0g, none); }
 .bubble .sp .k1 { color: var(--sp1, var(--text)); text-shadow: var(--sp1g, none); }
