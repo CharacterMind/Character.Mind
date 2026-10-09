@@ -2,55 +2,18 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="0; url=https://charactermind.onrender.com">
 <title>character.mind</title>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: #0d0d0d;
-    color: #ccc;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    gap: 20px;
-    padding: 24px;
-    text-align: center;
-  }
-  .logo { font-size: 1.6rem; font-weight: 700; color: #a78bfa; letter-spacing: -0.5px; }
-  .logo span { color: #fff; }
-  p { font-size: 0.9rem; color: #888; max-width: 280px; line-height: 1.5; }
-  .btn {
-    display: inline-block;
-    background: #7c3aed;
-    color: #fff;
-    font-size: 1rem;
-    font-weight: 600;
-    padding: 13px 30px;
-    border-radius: 8px;
-    text-decoration: none;
-    transition: background 0.15s;
-  }
-  .btn:hover { background: #6d28d9; }
+  body { background: #0d0d0d; color: #888; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; flex-direction: column; gap: 12px; }
+  a { color: #a78bfa; }
 </style>
 </head>
 <body>
-  <div class="logo"><span>character</span>.mind</div>
-  <p>Sign-in requires a full browser tab.<br>Click below to open the app.</p>
-  <a id="btn" class="btn" href="https://charactermind.onrender.com" target="_blank">
-    Open character.mind →
-  </a>
+  <p>Redirecting to <a href="https://charactermind.onrender.com">character.mind</a>…</p>
   <script>
-    const APP = 'https://charactermind.onrender.com';
-    // Try to break out of itch.io's frame and navigate the full browser to the app.
-    // itch.io grants allow-top-navigation so this usually works immediately.
-    // If cross-origin policy blocks it, the button above handles it.
-    try { window.top.location.replace(APP); } catch (e) {}
-    document.getElementById('btn').addEventListener('click', function (e) {
-      try { window.top.location.href = APP; e.preventDefault(); } catch (err) {}
-    });
+    try { window.top.location.replace('https://charactermind.onrender.com'); } catch(e) {}
+    window.location.replace('https://charactermind.onrender.com');
   </script>
 </body>
 </html>
