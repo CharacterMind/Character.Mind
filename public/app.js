@@ -3699,7 +3699,7 @@ function startCooldown(until, type, showModal) {
     if (cd) cd.textContent = str;
     if (type === 'session') {
       const sub = document.getElementById('limitModalSub');
-      if (sub && document.getElementById('limitModal')?.style.display !== 'none') sub.textContent = str;
+      if (sub && document.getElementById('limitModal')?.style.display !== 'none') sub.textContent = `Resets ${str}.`;
       const sSubEl = document.getElementById('usageSessionSub');
       if (sSubEl) sSubEl.textContent = str;
     }
@@ -3725,12 +3725,12 @@ function showLimitModal(type, displayStr) {
   if (!modal) return;
   const title = document.getElementById('limitModalTitle');
   const sub = document.getElementById('limitModalSub');
-  const msgEl = document.getElementById('limitOutdoorMsg');
-  if (title) title.textContent = type === 'session' ? 'Session limit reached' : 'Weekly limit reached';
-  if (sub) sub.textContent = displayStr
-    ? (type === 'weekly' ? displayStr + '.' : displayStr)
-    : '';
-  if (msgEl) msgEl.textContent = OUTDOOR_MESSAGES[Math.floor(Math.random() * OUTDOOR_MESSAGES.length)];
+  const charName = currentChar?.name;
+  if (title) title.textContent = charName
+    ? `Keep chatting with ${charName}`
+    : (type === 'session' ? 'Session limit reached' : 'Weekly limit reached');
+  const resetStr = displayStr ? (type === 'weekly' ? displayStr + '.' : displayStr) : 'soon';
+  if (sub) sub.textContent = `Resets ${resetStr}.`;
   modal.style.display = 'flex';
 }
 
@@ -3851,7 +3851,7 @@ function showWarning(msg, autoCloseMs, persistent) {
 // Always drawn from the CURRENT usage numbers (never from one-off events or saved timestamps), so they are the same after every
 // reload, on every device and in every browser. They use the same steps as the bar colours and the headline: 50%, 75% and 90%.
 const WEEKLY_BANNER_TEXT = { 50: "You're approaching your weekly limit.", 75: "You've used 75% of your weekly limit.", 90: "You've used 90% of your weekly limit — resets next week." };
-const SESSION_BANNER_TEXT = { 90: "You've reached 90% of your session limit." };   // a session is short and resets by itself, so one warning is enough
+const SESSION_BANNER_TEXT = {};   // session 90% uses the toast instead
 function usagePctOf(used, limit) { return (limit > 0 && typeof used === 'number') ? Math.min(100, Math.round(used / limit * 100)) : 0; }   // the same rounding the bars show
 function usageStep(pct) { return pct >= 90 ? 90 : pct >= 75 ? 75 : pct >= 50 ? 50 : 0; }
 function bannerDismissKey() { return 'cm_usage_banner_dismissed_' + (currentUser?.googleId || 'anon'); }
@@ -3860,6 +3860,19 @@ function saveBannerDismissal(kind, level, windowStart) { try { const d = loadBan
 // closing a banner hides that level until the usage reaches a higher level or a new week / session begins
 function bannerDismissed(w) { const d = loadBannerDismissals()[w.kind]; return !!d && d.windowStart === w.windowStart && d.level >= w.level; }
 
+function showSessionToast(msg) {
+  const toast = document.getElementById('sessionWarningToast');
+  const text = document.getElementById('sessionToastText');
+  if (!toast) return;
+  if (text) text.textContent = msg;
+  toast.classList.add('visible');
+}
+function dismissSessionToast() {
+  const toast = document.getElementById('sessionWarningToast');
+  if (toast) toast.classList.remove('visible');
+  try { sessionStorage.setItem('cm_session_toast_dismissed', '1'); } catch (_) {}
+}
+
 function renderUsageBanners(usage) {
   const container = document.getElementById('warningBanners');
   if (!container || !usage) return;
@@ -3867,8 +3880,13 @@ function renderUsageBanners(usage) {
   const isFreeUser = !usage.subscriptionTier || usage.subscriptionTier === 'free';
   const wStep = isFreeUser ? 0 : usageStep(usagePctOf(usage.weeklyTokens, usage.weeklyLimit));
   if (wStep) want.push({ kind: 'weekly', level: wStep, msg: WEEKLY_BANNER_TEXT[wStep], windowStart: usage.weeklyStart || 0, upgrade: true, persistent: wStep === 90 });
-  const sStep = usageStep(usagePctOf(usage.sessionTokens, usage.sessionLimit));
-  if (SESSION_BANNER_TEXT[sStep]) want.push({ kind: 'session', level: sStep, msg: SESSION_BANNER_TEXT[sStep], windowStart: usage.sessionStartedAt || 0, upgrade: false, persistent: false });
+  const sStep = usagePctOf(usage.sessionTokens, usage.sessionLimit);
+  if (sStep >= 90) {
+    const dismissed = (() => { try { return sessionStorage.getItem('cm_session_toast_dismissed') === '1'; } catch (_) { return false; } })();
+    if (!dismissed) showSessionToast("You've used 90% of your session limit. Almost there!");
+  }
+  const sStepBanner = usageStep(sStep);
+  if (SESSION_BANNER_TEXT[sStepBanner]) want.push({ kind: 'session', level: sStepBanner, msg: SESSION_BANNER_TEXT[sStepBanner], windowStart: usage.sessionStartedAt || 0, upgrade: false, persistent: false });
   // "1 image remaining" banner intentionally hidden
   // take down any usage banner that no longer applies (a reset, a new week, a lower level...)
   [...container.querySelectorAll('.warning-banner[data-usage-kind]')].forEach(b => {

@@ -793,30 +793,113 @@
 <div id="limitModal" class="modal-overlay lm-overlay" style="display:none" onclick="if(event.target===this)closeLimitModal()">
   <div class="lm-box">
     <button class="lm-close" onclick="closeLimitModal()" aria-label="Close">
-      <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
     </button>
-    <div class="lm-icon-ring">
-      <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+    <span id="limitOutdoorMsg" hidden></span>
+    <div class="lm-head">
+      <h2 class="lm-title" id="limitModalTitle">Keep chatting</h2>
+      <p class="lm-sub"><span id="limitModalSub">Your limit resets soon.</span> Upgrade for more.</p>
+      <p class="lm-sub2">Plus, get exclusive features:</p>
     </div>
-    <h2 class="lm-title" id="limitModalTitle">Session limit reached</h2>
-    <p class="lm-sub" id="limitModalSub">Come back later to keep chatting.</p>
-    <div class="lm-cards">
-      <div class="lm-card">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
-        <div class="lm-card-text">
-          <div class="lm-card-title">Take a break</div>
-          <div class="lm-card-sub" id="limitOutdoorMsg">Go touch some grass.</div>
+    <div class="lm-tiles">
+      <!-- tile 1: more messages -->
+      <div class="lm-tile">
+        <div class="lm-tile-mock">
+          <div class="lm-mock-win">
+            <div class="lm-mock-dots"><span></span><span></span><span></span></div>
+            <div class="lm-mock-chat-body">
+              <div class="lm-mock-bubble in w70"></div>
+              <div class="lm-mock-bubble out w55"></div>
+              <div class="lm-mock-bubble in w80"></div>
+              <div class="lm-mock-bubble out w65"></div>
+              <div class="lm-mock-bubble in w50"></div>
+              <div class="lm-mock-bubble out w75"></div>
+              <div class="lm-mock-bubble in w60"></div>
+            </div>
+          </div>
+        </div>
+        <div class="lm-tile-info">
+          <div class="lm-tile-name">More messages</div>
+          <div class="lm-tile-desc">3× the session limit with no weekly cap.</div>
         </div>
       </div>
-      <div class="lm-card">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
-        <div class="lm-card-text">
-          <div class="lm-card-title">Limit resets automatically</div>
-          <div class="lm-card-sub">No action needed — just come back.</div>
+      <!-- tile 2: all characters -->
+      <div class="lm-tile">
+        <div class="lm-tile-mock">
+          <div class="lm-mock-win">
+            <div class="lm-mock-dots"><span></span><span></span><span></span></div>
+            <div class="lm-mock-chars-body">
+              <div class="lm-mock-char"><div class="lm-mock-char-av" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed)"></div></div>
+              <div class="lm-mock-char"><div class="lm-mock-char-av" style="background:linear-gradient(135deg,#ec4899,#db2777)"></div></div>
+              <div class="lm-mock-char lm-mock-locked"><div class="lm-mock-char-av" style="background:rgba(255,255,255,.08)"></div><div class="lm-mock-lock">🔒</div></div>
+              <div class="lm-mock-char lm-mock-locked"><div class="lm-mock-char-av" style="background:rgba(255,255,255,.08)"></div><div class="lm-mock-lock">🔒</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="lm-tile-info">
+          <div class="lm-tile-name">All characters</div>
+          <div class="lm-tile-desc">Unlock every character, including exclusives.</div>
+        </div>
+      </div>
+      <!-- tile 3: longer memory -->
+      <div class="lm-tile">
+        <div class="lm-tile-mock">
+          <div class="lm-mock-win">
+            <div class="lm-mock-dots"><span></span><span></span><span></span></div>
+            <div class="lm-mock-mem-body">
+              <div class="lm-mock-bubble in w65 lm-faded"></div>
+              <div class="lm-mock-bubble out w50 lm-faded"></div>
+              <div class="lm-mock-bubble in w75 lm-faded"></div>
+              <div class="lm-mock-mem-divider">↑ Earlier today</div>
+              <div class="lm-mock-bubble in w70"></div>
+              <div class="lm-mock-bubble out w60"></div>
+              <div class="lm-mock-bubble in w55"></div>
+            </div>
+          </div>
+        </div>
+        <div class="lm-tile-info">
+          <div class="lm-tile-name">Longer memory</div>
+          <div class="lm-tile-desc">Characters remember 3× more of your conversations.</div>
+        </div>
+      </div>
+      <!-- tile 4: voice -->
+      <div class="lm-tile">
+        <div class="lm-tile-mock">
+          <div class="lm-mock-win">
+            <div class="lm-mock-dots"><span></span><span></span><span></span></div>
+            <div class="lm-mock-voice-body">
+              <div class="lm-mock-mic">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" style="color:rgba(139,92,246,.6)"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+              </div>
+              <div class="lm-mock-wave">
+                <div class="lm-wbar" style="--h:30%;--d:0s"></div>
+                <div class="lm-wbar" style="--h:70%;--d:.1s"></div>
+                <div class="lm-wbar" style="--h:50%;--d:.2s"></div>
+                <div class="lm-wbar" style="--h:90%;--d:.05s"></div>
+                <div class="lm-wbar" style="--h:60%;--d:.15s"></div>
+                <div class="lm-wbar" style="--h:100%;--d:.25s"></div>
+                <div class="lm-wbar" style="--h:45%;--d:.08s"></div>
+                <div class="lm-wbar" style="--h:80%;--d:.18s"></div>
+                <div class="lm-wbar" style="--h:35%;--d:.3s"></div>
+                <div class="lm-wbar" style="--h:65%;--d:.12s"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="lm-tile-info">
+          <div class="lm-tile-name">Priority voice</div>
+          <div class="lm-tile-desc">Crystal-clear AI voice and faster responses.</div>
         </div>
       </div>
     </div>
-    <button class="lm-got-it" onclick="closeLimitModal()">Got it</button>
+    <div class="lm-footer">
+      <span class="lm-reset-note">Your limit resets automatically — no action needed.</span>
+      <div class="lm-actions">
+        <button class="lm-not-now" onclick="closeLimitModal()">Not now</button>
+        <button class="lm-upgrade" onclick="closeLimitModal();openPricingModal()">Upgrade</button>
+      </div>
+    </div>
+    <p class="lm-cancel-note">Cancel anytime</p>
   </div>
 </div>
 
@@ -1219,6 +1302,15 @@
   <div class="cvt-line"></div>
 </div>
 
-<script src="app.js?v=217"></script>
+<script src="app.js?v=218"></script>
+
+<!-- Session 90% warning toast -->
+<div id="sessionWarningToast">
+  <button class="toast-close" onclick="dismissSessionToast()" aria-label="Dismiss">✕</button>
+  <span class="toast-icon">
+    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+  </span>
+  <span class="toast-text" id="sessionToastText">You've used 90% of your session limit.</span>
+</div>
 </body>
 </html>
