@@ -1445,7 +1445,7 @@ function colorizeNameHtml(name, c) {
   if (!hexes || !hexes.length) return escHtml(name || '');
   const colors = hexes.map(boostColor);
   return [...(name || '')].map(ch =>
-    /\s/.test(ch) ? escHtml(ch) : `<span style="color:${colors[Math.floor(Math.random()*colors.length)]};font-weight:700">${escHtml(ch)}</span>`
+    /\s/.test(ch) ? escHtml(ch) : `<span style="color:${colors[Math.floor(Math.random()*colors.length)]};font-weight:900;text-shadow:0 1px 4px rgba(0,0,0,0.85)">${escHtml(ch)}</span>`
   ).join('');
 }
 // Apply the character's colours per-word — readable cycling palette, bold weight.
@@ -1474,7 +1474,8 @@ function colorizeLetters(bubble, c) {
           if (/\s/.test(ch)) { frag.appendChild(document.createTextNode(ch)); continue; }
           const sp = document.createElement('span');
           sp.style.color = colors[Math.floor(Math.random() * colors.length)];
-          sp.style.fontWeight = '700';
+          sp.style.fontWeight = '900';
+          sp.style.textShadow = '0 1px 4px rgba(0,0,0,0.85)';
           sp.textContent = ch;
           frag.appendChild(sp);
         }
