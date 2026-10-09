@@ -1441,12 +1441,16 @@ function colorizeLetters(bubble, c) {
       for (const tn of nodes) {
         if (tn.parentNode && tn.parentNode.closest && tn.parentNode.closest('code, pre')) continue;
         const frag = document.createDocumentFragment();
-        for (const ch of tn.textContent) {
-          if (/\s/.test(ch)) { frag.appendChild(document.createTextNode(ch)); continue; }
+        // Split by whitespace, color per-word so groups of letters share one color
+        const parts = tn.textContent.split(/(\s+)/);
+        for (const part of parts) {
+          if (/^\s+$/.test(part) || part === '') {
+            frag.appendChild(document.createTextNode(part));
+            continue;
+          }
           const sp = document.createElement('span');
           sp.style.color = colors[Math.floor(Math.random() * colors.length)];
-          sp.style.fontWeight = '800';
-          sp.textContent = ch;
+          sp.textContent = part;
           frag.appendChild(sp);
         }
         tn.parentNode.replaceChild(frag, tn);
@@ -1470,12 +1474,8 @@ function randomizeChatColors() {
     return '#' + [mix(r), mix(g), mix(b)].map(x => x.toString(16).padStart(2, '0')).join('');
   });
   document.querySelectorAll('#messages .bubble').forEach(bubble => {
-    bubble.querySelectorAll('.sp').forEach(el => {
-      el.querySelectorAll('span').forEach(sp => { if (sp.style.color) { sp.style.color = spColors[Math.floor(Math.random() * spColors.length)]; } });
-    });
-    bubble.querySelectorAll('.nr').forEach(el => {
-      el.querySelectorAll('span').forEach(sp => { if (sp.style.color) { sp.style.color = nrColors[Math.floor(Math.random() * nrColors.length)]; } });
-    });
+    bubble.querySelectorAll('.sp > span[style]').forEach(sp => { sp.style.color = spColors[Math.floor(Math.random() * spColors.length)]; });
+    bubble.querySelectorAll('.nr > span[style]').forEach(sp => { sp.style.color = nrColors[Math.floor(Math.random() * nrColors.length)]; });
   });
 }
 document.addEventListener('DOMContentLoaded', () => {
