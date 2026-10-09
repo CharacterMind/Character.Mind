@@ -1524,7 +1524,7 @@ function colorizeLetters(bubble, c) {
   wrapWords(bubble.querySelectorAll('.nr'), spColors);
 }
 
-// Re-randomize word colors in every visible bubble — triggered by click in the chat.
+// Re-randomize word colors in every visible bubble and all name occurrences — triggered by click in the chat.
 function randomizeChatColors() {
   if (!currentChar) return;
   const cbMode = document.documentElement.dataset.colorblind;
@@ -1532,9 +1532,19 @@ function randomizeChatColors() {
   const rawHexes = cbPal ? cbPal.colors : String(currentChar.color || '').match(/#[0-9a-fA-F]{6}/gi);
   if (!rawHexes || !rawHexes.length) return;
   const spColors = rawHexes.map(boostColor);
+  // Re-randomize bubble text
   document.querySelectorAll('#messages .bubble').forEach(bubble => {
     bubble.querySelectorAll('.sp > span[style], .nr > span[style]').forEach(sp => { sp.style.color = spColors[Math.floor(Math.random() * spColors.length)]; });
   });
+  // Re-randomize character name in: chat message headers, mobile header, info panel, active sidebar entry
+  const freshName = colorizeNameHtml(currentChar.name, currentChar.color);
+  document.querySelectorAll('#messages .msg-name').forEach(el => { el.innerHTML = freshName; });
+  const mobNm = document.getElementById('mobChatName');
+  if (mobNm) mobNm.innerHTML = freshName;
+  const infoNm = document.getElementById('infoName');
+  if (infoNm) infoNm.innerHTML = freshName;
+  const sideNm = document.querySelector('.chat-item.active .chat-item-name');
+  if (sideNm) sideNm.innerHTML = freshName;
 }
 document.addEventListener('DOMContentLoaded', () => {
   const msgs = document.getElementById('messages');
