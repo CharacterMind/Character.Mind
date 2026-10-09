@@ -1444,9 +1444,11 @@ function colorizeNameHtml(name, c) {
   const hexes = String(c || '').match(/#[0-9a-fA-F]{6}/gi);
   if (!hexes || !hexes.length) return escHtml(name || '');
   const colors = hexes.map(boostColor);
-  return [...(name || '')].map(ch =>
-    /\s/.test(ch) ? escHtml(ch) : `<span style="color:${colors[Math.floor(Math.random()*colors.length)]};font-weight:900;text-shadow:0 1px 4px rgba(0,0,0,0.85)">${escHtml(ch)}</span>`
-  ).join('');
+  return [...(name || '')].map(ch => {
+    if (/\s/.test(ch)) return escHtml(ch);
+    const col = colors[Math.floor(Math.random() * colors.length)];
+    return `<span style="color:${col};font-weight:900;text-shadow:0 0 8px ${col}55,0 1px 2px rgba(0,0,0,0.6)">${escHtml(ch)}</span>`;
+  }).join('');
 }
 // Apply the character's colours per-word — readable cycling palette, bold weight.
 function colorizeLetters(bubble, c) {
@@ -1473,9 +1475,10 @@ function colorizeLetters(bubble, c) {
         for (const ch of tn.textContent) {
           if (/\s/.test(ch)) { frag.appendChild(document.createTextNode(ch)); continue; }
           const sp = document.createElement('span');
-          sp.style.color = colors[Math.floor(Math.random() * colors.length)];
+          const col = colors[Math.floor(Math.random() * colors.length)];
+          sp.style.color = col;
           sp.style.fontWeight = '900';
-          sp.style.textShadow = '0 1px 4px rgba(0,0,0,0.85)';
+          sp.style.textShadow = '0 0 8px ' + col + '55, 0 1px 2px rgba(0,0,0,0.6)';
           sp.textContent = ch;
           frag.appendChild(sp);
         }
@@ -5977,7 +5980,8 @@ function renderStoryText(text) {
     return parts.map(part => {
       const lm = /^\[([^\]\n]{1,40})\]\((\/terms|\/privacy)\)$/.exec(part);
       if (lm) return '<a class="chat-link" href="' + lm[2] + '" target="_blank" rel="noopener">' + escHtml(lm[1]) + '</a>';
-      return escHtml(part);
+      // Wrap runs of 3+ ALL-CAPS letters in a caps-em span for visual punch
+      return escHtml(part).replace(/\b[A-Z]{3,}\b/g, '<span class="caps-em">$&</span>');
     }).join('');
   };
   return paras.map(p => {
