@@ -5303,29 +5303,37 @@ async function toggleTTS(btn) {
   btn.classList.add('playing');
   activeTTSBtn = btn;
 
+  let serverOk = false;
   try {
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '' })
     });
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({}));
-      stopActiveTTS();
-      if (r.status === 501 || err.error === 'tts_disabled') showWarning('Voice needs a server update — deploy to Render first.', 4000);
-      else showWarning('Voice failed. Try again in a moment.', 3000);
-      return;
+    if (r.ok) {
+      serverOk = true;
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      activeTTSAudio = audio;
+      audio.onended = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
+      audio.onerror = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
+      await audio.play().catch(() => { URL.revokeObjectURL(url); stopActiveTTS(); });
     }
-    const blob = await r.blob();
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    activeTTSAudio = audio;
-    audio.onended = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
-    audio.onerror = () => { URL.revokeObjectURL(url); stopActiveTTS(); showWarning('Audio playback failed.', 3000); };
-    await audio.play().catch(() => { URL.revokeObjectURL(url); stopActiveTTS(); });
-  } catch (e) {
-    stopActiveTTS();
-    showWarning('Voice unavailable right now.', 3000);
+  } catch (_) {}
+
+  if (!serverOk && activeTTSBtn === btn) {
+    if (window.speechSynthesis) {
+      const u = new SpeechSynthesisUtterance(text.slice(0, 300));
+      if (selectedVoice) u.voice = selectedVoice;
+      activeTTSUtterance = u;
+      u.onend = () => stopActiveTTS();
+      u.onerror = () => stopActiveTTS();
+      window.speechSynthesis.speak(u);
+    } else {
+      stopActiveTTS();
+      showWarning('Voice unavailable on this device.', 3000);
+    }
   }
 }
 
