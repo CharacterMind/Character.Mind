@@ -34,7 +34,7 @@ function loadAccountPrefs() {
     const t = localStorage.getItem(userKey('cm_model_tier'));
     if (baseTierOf(t)) selectedModelTier = baseTierOf(t);
     const e = localStorage.getItem(userKey('cm_effort'));
-    if (['low', 'medium', 'high'].includes(e)) selectedEffort = e;
+    if (EFFORT_LEVELS.includes(e)) selectedEffort = e;
   } catch (_) {}
   updateModelBarLabel();
 }
@@ -2469,7 +2469,7 @@ function renderSidebarChats() {
 function filterChats(q) {
   const items = document.querySelectorAll('.chat-item');
   items.forEach(item => {
-    const name = item.querySelector('.chat-item-name').textContent.toLowerCase();
+    const name = item.querySelector('.chat-item-name')?.textContent?.toLowerCase() ?? '';
     item.style.display = name.includes(q.toLowerCase()) ? '' : 'none';
   });
 }
@@ -4477,9 +4477,9 @@ function closeRewindModal() {
 }
 
 function confirmRewindToHere() {
-  closeRewindModal();
   if (!pendingRewindEl) return;
   const msgEl = pendingRewindEl;
+  closeRewindModal();
   const msgs = [...document.getElementById('messages').querySelectorAll('.msg')];
   const idx = msgs.indexOf(msgEl);
   msgs.slice(idx + 1).forEach(m => m.remove());
@@ -4555,7 +4555,7 @@ const liteObserver = (typeof IntersectionObserver !== 'undefined')
         if (!en.isIntersecting) continue;
         const b = en.target;
         liteObserver.unobserve(b);
-        if (b.dataset.lite) { delete b.dataset.lite; if (typeof b.dataset.raw === 'string') { b.innerHTML = renderMarkdown(b.dataset.raw); colorizeLetters(b, currentChar?.color); } }
+        if (b.dataset.lite) { delete b.dataset.lite; if (typeof b.dataset.raw === 'string') { b.innerHTML = renderMarkdown(b.dataset.raw); colorizeLetters(b, b.closest('.msg')?.dataset.charColor || currentChar?.color); } }
       }
     }, { root: document.getElementById('chatBody'), rootMargin: '400px' })
   : null;
@@ -4569,6 +4569,7 @@ function appendHistoryItem(m, lite) {
 function appendMessage(role, text, imgB64, lite) {
   const div = document.createElement('div');
   div.className = `msg ${role}`;
+  if (currentChar?.color) div.dataset.charColor = currentChar.color;
 
   if (role === 'ai') {
     div.innerHTML = `
@@ -6212,6 +6213,8 @@ async function newChat() {
       return;
     }
   }
+  // Guard against user switching to a different character during the 20s wait
+  if (currentChar?.id !== newChatCharId) return;
   savePastChatLocal(newChatCharId, loadHistoryLocal(newChatCharId));
   // If this chat was permanently banned, unlock it so the new conversation can proceed
   if (currentChatLocked) {
@@ -6514,7 +6517,7 @@ async function createCharacter(e) {
 
   submitBtn.textContent = 'Saving…';
 
-  const creatorName = String(currentUser?.name || localStorage.getItem('cm_creator_name') || '@you').slice(0, 40);
+  const creatorName = String(currentUser?.name || localStorage.getItem(userKey('cm_creator_name')) || '@you').slice(0, 40);
   const char = {
     id, name, tagline, creatorName,
     description: desc,

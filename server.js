@@ -57,7 +57,7 @@ const PUSH_DEFAULT_MSGS = [
   { title: 'The story continues...', body: 'Come back for more — your roleplay partner is ready! 🌟' },
 ];
 
-const CRISIS_RE = /\b(hate myself|want to die|kill myself|end it all|end my life|take my life|not worth living|don't want to live|don't want to be here|suicidal|self.?harm|hurt myself|cut myself|hurting myself|worthless|no reason to live|better off dead|can't go on|can't keep going)\b/i;
+const CRISIS_RE = /\b(hate myself|want to die|wanna die|going to die|gonna die|need to die|kill myself|end it all|end my life|take my life|not worth living|don't want to live|don't want to be here|don't want to exist|suicidal|self.?harm|hurt myself|cut myself|hurting myself|worthless|no reason to live|better off dead|can't go on|can't keep going|can't take it anymore|can't do this anymore)\b/i;
 
 function hasCrisisSignal(text) {
   if (!text) return false;
@@ -559,7 +559,11 @@ setInterval(() => {
   const CONV_TTL = 4 * 60 * 60 * 1000;
   for (const key of Object.keys(conversations)) {
     const ts = convLastUsed[key];
-    if (ts && now - ts > CONV_TTL) { delete conversations[key]; delete convLastUsed[key]; convLoaded.delete(key); }
+    if (ts && now - ts > CONV_TTL) {
+      const timer = convPersistTimers.get(key);
+      if (timer) { clearTimeout(timer); convPersistTimers.delete(key); }
+      delete conversations[key]; delete convLastUsed[key]; convLoaded.delete(key);
+    }
   }
 }, 30 * 60 * 1000);
 
@@ -1561,7 +1565,7 @@ function crisisUrlFor(name, countryCode) {
   return /^[A-Z]{2}$/.test(cc) ? `https://findahelpline.com/countries/${cc.toLowerCase()}` : null;
 }
 
-const CRISIS_RE =/\b(i\s+)?(want|wanna|need|going|gonna|am\s+going)\s+to\s+(die|kill\s+myself|end\s+(it|my\s+life|it\s+all)|hurt\s+myself)\b|\bkill\s+myself\b|\bsuicid(al|e)\b|\bself[- ]?harm\b|\bdon'?t\s+want\s+to\s+(live|be\s+here|exist)\b|\bcan'?t\s+(go\s+on|take\s+it|do\s+this)\s*(anymore|any\s+more)?\b|\bend\s+(it\s+all|my\s+life|everything)\b/i;
+// (CRISIS_RE defined at module scope above — no redeclaration here)
 
 // Leet-speak-resistant regex for the most commonly bypassed slurs
 const SLUR_RE = /\bn[i1!|*]+gg[ae3*]+r[sz]?\b|\bk[i1*]+k[e3*]+[sz]?\b|\bch[i1*]+nk[sz]?\b|\bsp[i1*]+c[sz]?\b|\bf[a4@*]+gg[o0*]+t[sz]?\b|\bd[y*]+k[e3*]+[sz]?\b|\br[e3*]+t[a4*]+rd[sz]?\b|\bw[e3*]+tb[a4*]+ck[sz]?\b|\bg[o0*][o0*]k[sz]?\b|\bt[o0*]w[e3*]+lh[e3*]+[a4*]d[sz]?\b|\br[a4*]+gh[e3*]+[a4*]d[sz]?\b|\bjaps?\b|\bb[e3*]+[a4*]n[e3*]+r[sz]?\b|\btr[a4*]+nn[yi*e3*]+[sz]?\b|\bh[y*]+m[i1*]+[e3*]+[sz]?\b|\bh[e3*]+[e3*]b[e3*]*[sz]?\b|\bwops?\b|\bh[o0*]+nk[yi*]+[ez]?\b|\bc[o0*]{2}l[i1*]+[e3*][sz]?\b/i;
@@ -3574,7 +3578,7 @@ async function generatePushMessage(row) {
         : `Write like a real text message — casual, warm, plain sentences only. No asterisk actions, no theatrical language.`;
       const systemPrompt = crisis
         ? `You are ${charName || 'a character'}, ${modeDesc}. They've been away for a few days. Their last message touched on something painful or difficult. Write a short push notification (2-3 sentences) from your character's voice that: (1) gently and warmly checks in on how they're feeling without repeating the exact words they used, (2) invites them back to talk, (3) mentions in one warm natural sentence that real support is out there if they need it. ${styleNote} Write only the notification body text, nothing else.`
-        : `You are ${charName || 'a character'}, ${modeDesc}. They've been away for a few days. Their last message to you was: "${ctx.slice(0, 300)}". Write a short push notification (2-3 sentences) from your character's voice that: (1) references something specific from what they said — make it feel like you actually remember, (2) invites them back naturally. Vary your opener so it doesn't sound like a template. ${styleNote} Write only the notification body text, nothing else.`;
+        : `You are ${charName || 'a character'}, ${modeDesc}. They've been away for a few days. Their last message to you was: [${ctx.slice(0, 300).replace(/[\[\]]/g, '')}]. Write a short push notification (2-3 sentences) from your character's voice that: (1) references something specific from what they said — make it feel like you actually remember, (2) invites them back naturally. Vary your opener so it doesn't sound like a template. ${styleNote} Write only the notification body text, nothing else.`;
 
       const resp = await fetch(`https://${GEMINI_HOST}/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
