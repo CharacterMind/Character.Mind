@@ -640,6 +640,9 @@ html, body {
   color: rgba(255,255,255,.4); cursor: pointer; padding: 4px; border-radius: 6px; font-size: 13px; line-height: 1;
 }
 #sessionWarningToast .toast-close:hover { color: rgba(255,255,255,.75); }
+@media (max-width: 640px) {
+  #sessionWarningToast { bottom: auto; top: 70px; left: 12px; right: 12px; max-width: none; }
+}
 
 .color-row { display: flex; align-items: center; gap: 10px; margin-top: 5px; }
 .color-row input[type=color] { width: 34px; height: 34px; border-radius: var(--r); border: 1px solid var(--border2); cursor: pointer; background: none; padding: 2px; }
@@ -2916,10 +2919,7 @@ body:not(.voice-on) .btn-call::after { content: "Soon"; position: absolute; top:
 .past-chat-del:hover { color: #ef4444; background: rgba(239,68,68,.12); }
 .stream-stats.done { animation: none; opacity: 0.6; }
 
-/* Read-aloud and the browser-voice picker are retired: only the HD call voice remains. */
-/* Read-aloud is not live yet: the speaker next to each reply is always visible with a small "Soon" tag */
-body:not(.voice-on) .tts-btn { opacity: .85; gap: 4px; }
-body:not(.voice-on) .tts-btn::after { content: "Soon"; font-size: 9px; font-weight: 700; letter-spacing: .02em; color: #fff; background: #7c3aed; padding: 1px 6px; border-radius: 8px; line-height: 1.5; }
+/* Read-aloud is live via Edge TTS — no "Soon" badge needed */
 
 .bubble a.chat-link { color: var(--accent-l, #a78bfa); text-decoration: underline; text-underline-offset: 2px; font-weight: 600; }
 .bubble a.chat-link:hover { color: var(--accent, #7c5cbf); }

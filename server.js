@@ -3005,6 +3005,8 @@ app.get('/api/characters/:id', async (req, res) => {
 
 const VALID_ID = /^[a-zA-Z0-9_-]{1,64}$/;
 
+const GAME_KNOWLEDGE_DIRECTIVE = '\n\n[GAME KNOWLEDGE — USE WHEN PLAYING GAMES:\nHANGMAN: When the user asks to play Hangman, YOU are the host. Pick a secret word (5–8 letters is ideal). Do NOT reveal it. Show blanks: one underscore per letter, space-separated (e.g. "_ _ _ _ _"). The user guesses one letter per turn. Each correct guess: reveal that letter in every matching position. Each wrong guess: count it as a strike. Classic Hangman allows 6 wrong guesses before the game ends. After each guess always show: (1) current word state with correct letters filled in, (2) number of wrong guesses so far out of 6, (3) list of all letters already guessed. Announce clearly when they win (full word revealed) or lose (7th wrong guess — game over, reveal the word). NEVER change the word mid-game. NEVER reveal the word early. If the user asks for a hint, you may reveal one letter.\n\nOTHER GAMES:\n— 20 QUESTIONS: You think of a person, place, or thing. User asks yes/no questions (max 20). Count the questions aloud each turn.\n— WORD ASSOCIATION: Take turns — user says a word, you reply with an associated word, back and forth.\n— RHYME GAME: User says a word, you reply with a rhyme, alternate turns.\n— TRIVIA: You ask questions from any topic/category, track the score.\n\nFor ANY game: always track and display the game state clearly in every reply so the user always knows exactly where things stand.]';
+
 function isValidColorStr(color) {
   if (!color || typeof color !== 'string') return false;
   const c = color.trim();
@@ -3455,7 +3457,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
 
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(wrapPrompt(systemPrompt + regenMem, chatMode === 'chat') + regenCrisisContext + regenChatModeDirective + regenCharEnforcement, effort, modelTier),
+    system: applyEffortDirective(wrapPrompt(systemPrompt + regenMem, chatMode === 'chat') + regenCrisisContext + regenChatModeDirective + regenCharEnforcement + GAME_KNOWLEDGE_DIRECTIVE, effort, modelTier),
     messages: fitHistory(aiHistory(hist).slice(-12), historyBudgetFor(modelTier)), effortCfg: regenEffortCfg, modelList: regenModelList,
     userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => {
@@ -3993,7 +3995,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement + swearDirective, effort, modelTier),
+    system: applyEffortDirective(characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement + swearDirective + GAME_KNOWLEDGE_DIRECTIVE, effort, modelTier),
     messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
