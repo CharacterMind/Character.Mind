@@ -1959,13 +1959,13 @@ async function getCharPrompt(charId) {
 // Fast model for free tiers; big model for paid tiers
 // Each Groq model has its own free per-minute allowance, so extra models at the end of each list are a free
 // overflow lane: they are only used when the main ones are rate limited (or missing), never remembered as "the" model.
-// llama-3.3-70b is Enterprise-only (no dev-plan limits) — gpt-oss-120b has 250K TPM on dev plan
-const GROQ_FALLBACKS    = [];
-const GROQ_FAST_MODELS  = ['openai/gpt-oss-120b'];
-const GROQ_MODELS       = ['openai/gpt-oss-120b'];
-const GROQ_PRO_MODELS   = ['openai/gpt-oss-120b'];
-const GROQ_OPUS_MODELS  = ['openai/gpt-oss-120b'];
-const GROQ_OPYS2_MODELS = ['openai/gpt-oss-120b'];
+// gpt-oss-120b: 250K TPM on dev plan. llama-3.3-70b-versatile: separate TPM bucket, instant fallback when primary is throttled.
+const GROQ_FALLBACKS    = ['llama-3.3-70b-versatile'];
+const GROQ_FAST_MODELS  = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile'];
+const GROQ_MODELS       = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile'];
+const GROQ_PRO_MODELS   = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile'];
+const GROQ_OPUS_MODELS  = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile'];
+const GROQ_OPYS2_MODELS = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile'];
 
 // Per-tier effort configs — max effort uses highest reasoning + tokens
 const EFFORT_CONFIG = {
