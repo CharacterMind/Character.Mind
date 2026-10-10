@@ -4483,10 +4483,12 @@ function confirmRewindToHere() {
   closeRewindModal();
   const msgs = [...document.getElementById('messages').querySelectorAll('.msg')];
   const idx = msgs.indexOf(msgEl);
-  msgs.slice(idx + 1).forEach(m => m.remove());
+  if (idx === -1) return;
   const isUserMsg = msgEl.classList.contains('user');
-  if (isUserMsg && currentChar) {
-    // Rewind to a user message: remove it from server history, then resend it to get a fresh AI reply
+  if (isUserMsg) {
+    // User message: keep it in the DOM, remove everything after, then resend it for a fresh reply
+    msgs.slice(idx + 1).forEach(m => m.remove());
+    if (!currentChar) return;
     const bubble = msgEl.querySelector('.bubble');
     const text = bubble ? bubble.innerText.trim() : '';
     saveHistoryLocal();
@@ -4497,6 +4499,8 @@ function confirmRewindToHere() {
       .then(() => { if (text) sendMessage(text, true); })
       .catch(() => { if (text) sendMessage(text, true); });
   } else {
+    // AI message: remove it AND everything after it, then resync
+    msgs.slice(idx).forEach(m => m.remove());
     saveHistoryLocal();
     resyncServer();
   }
