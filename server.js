@@ -3021,7 +3021,16 @@ app.get('/api/characters/:id', async (req, res) => {
 
 const VALID_ID = /^[a-zA-Z0-9_-]{1,64}$/;
 
-const GAME_KNOWLEDGE_DIRECTIVE = '\n\n[GAME KNOWLEDGE — USE WHEN PLAYING GAMES:\nHANGMAN: When the user asks to play Hangman, YOU are the host. Pick a secret word (5–8 letters is ideal). Do NOT reveal it. Show blanks: one underscore per letter, space-separated (e.g. "_ _ _ _ _"). The user guesses one letter per turn. Each correct guess: reveal that letter in every matching position. Each wrong guess: count it as a strike. Classic Hangman allows 6 wrong guesses before the game ends. After each guess always show: (1) current word state with correct letters filled in, (2) number of wrong guesses so far out of 6, (3) list of all letters already guessed. Announce clearly when they win (full word revealed) or lose (7th wrong guess — game over, reveal the word). NEVER change the word mid-game. NEVER reveal the word early. If the user asks for a hint, you may reveal one letter.\n\nOTHER GAMES:\n— 20 QUESTIONS: You think of a person, place, or thing. User asks yes/no questions (max 20). Count the questions aloud each turn.\n— WORD ASSOCIATION: Take turns — user says a word, you reply with an associated word, back and forth.\n— RHYME GAME: User says a word, you reply with a rhyme, alternate turns.\n— TRIVIA: You ask questions from any topic/category, track the score.\n\nFor ANY game: always track and display the game state clearly in every reply so the user always knows exactly where things stand.]';
+function gameKnowledgeDirective(modelTier) {
+  const free = ['opas','opes'].includes(modelTier);
+  const mid  = ['opis','opos'].includes(modelTier);
+  const htmlTierNote = free
+    ? 'TIER LIMIT — Keep HTML games SIMPLE. Only these types are appropriate on this tier: Tic-Tac-Toe, Snake, Memory Card Match, Pong, Simon Says, Number Guessing, Minesweeper (8×8), Rock Paper Scissors, Reaction Timer. No physics engines, no canvas-heavy rendering, no complex sprites.'
+    : mid
+    ? 'TIER — HTML games can be MEDIUM complexity: Breakout/Arkanoid, Flappy Bird, Tetris, Wordle-clone, Blackjack, Solitaire, top-down shooters, simple platformers.'
+    : 'TIER — HTML games can be COMPLEX and polished: any concept the user names — multi-level platformers, RPG elements, physics games, card/board games with full rules, arcade games with scoring.';
+  return `\n\n[GAME KNOWLEDGE — USE WHEN PLAYING GAMES IN CHAT OR WHEN ASKED TO CREATE A GAME:\n\n=== TEXT GAMES (play inside the chat) ===\n\nHANGMAN: YOU are the host. Pick a secret word (5–8 letters). Never reveal it. Show blanks spaced out: _ _ _ _ _. User guesses one letter per turn. Correct: reveal that letter in all positions. Wrong: add a strike. 6 wrong guesses = game over. After EVERY guess show: (1) current word state, (2) wrong guesses out of 6, (3) all letters guessed. Announce win or loss clearly (on loss, reveal the word). Never change the word.\n\nTRUTH OR DARE: Ask "Truth or Dare?" each round. For Truth: ask a personal, fun, or revealing question and react warmly. For Dare: give an amusing, creative, safe challenge. After they respond, offer the next round.\n\nNEVER HAVE I EVER: Take turns. You say "Never have I ever [something]." User says if they have done it. You react in character. User then gives one. Keep it fun.\n\nWOULD YOU RATHER: Present two options. User picks one and explains. You react, share your pick, then present the next dilemma.\n\n20 QUESTIONS: You think of something (tell the user: person, place, or thing). They ask yes/no questions. Count down each one: "Question 4 of 20." Reveal on correct guess or at 0.\n\nWORD ASSOCIATION: Alternate — user says a word, you reply with a related word, user goes again. Call out lazy stretches. Keep energy up.\n\nRHYME GAME: User says a word, you reply with a rhyme, alternate turns.\n\nTRIVIA: Ask questions one at a time in any category. Track score. Reveal correct answer after each guess.\n\nTWO TRUTHS AND A LIE: Give three statements about yourself as your character. User guesses the lie. Then they give three and you guess.\n\nSTORYTIME: Take turns building a story one paragraph at a time. Keep momentum and add twists.\n\nI SPY: Describe something in an imagined scene. User guesses. Alternate turns.\n\nFor ANY text game: always show the complete game state in every reply — score, progress, guessed letters, etc. — so the user always knows exactly where things stand.\n\n=== HTML GAME CREATION ===\nWhen the user asks you to CREATE, BUILD, MAKE, or GENERATE a game (not just play one in chat), generate a complete, playable, self-contained HTML game. ALL HTML, CSS, and JavaScript must be in one file with NO external scripts or CDNs. Wrap the ENTIRE file (starting from <!DOCTYPE html>) in exactly these markers on their own lines:\n[GAME_START]\n<!DOCTYPE html>\\n...full game...\\n</html>\n[GAME_END]\n\nWrite a one-sentence description of the game BEFORE [GAME_START]. Put NOTHING inside the markers except the raw HTML. The game must run in a sandboxed iframe (no localStorage, no fetch calls).\n${htmlTierNote}]`;
+}
 
 function isValidColorStr(color) {
   if (!color || typeof color !== 'string') return false;
@@ -3473,7 +3482,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
 
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(wrapPrompt(systemPrompt + regenMem, chatMode === 'chat') + regenCrisisContext + regenChatModeDirective + regenCharEnforcement + GAME_KNOWLEDGE_DIRECTIVE, effort, modelTier),
+    system: applyEffortDirective(wrapPrompt(systemPrompt + regenMem, chatMode === 'chat') + regenCrisisContext + regenChatModeDirective + regenCharEnforcement + gameKnowledgeDirective(modelTier), effort, modelTier),
     messages: fitHistory(aiHistory(hist).slice(-12), historyBudgetFor(modelTier)), effortCfg: regenEffortCfg, modelList: regenModelList,
     userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => {
@@ -4018,7 +4027,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement + swearDirective + GAME_KNOWLEDGE_DIRECTIVE, effort, modelTier),
+    system: applyEffortDirective(characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement + swearDirective + gameKnowledgeDirective(modelTier), effort, modelTier),
     messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);

@@ -3055,6 +3055,12 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
 .bubble .code-copy:hover { background: rgba(255,255,255,.1); }
 .bubble .code-block pre { margin: 0; overflow-x: auto; }
 .bubble .code-block code { display: block; padding: 12px 14px; white-space: pre; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 14px; line-height: 1.55; color: #e6e7ee; font-style: normal; tab-size: 2; }
+.game-card { margin: 8px 0 4px; border-radius: 10px; border: 1px solid rgba(255,255,255,.1); overflow: hidden; background: rgba(0,0,0,.18); max-width: 540px; }
+.game-card-header { display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: rgba(255,255,255,.05); border-bottom: 1px solid rgba(255,255,255,.07); }
+.game-card-label { flex: 1; font-weight: 600; font-size: .85rem; color: var(--text1, #fff); }
+.game-card-btn { padding: 5px 14px; border-radius: 6px; border: none; background: #7c3aed; color: #fff; font-size: .8rem; font-weight: 700; cursor: pointer; transition: opacity .15s; white-space: nowrap; }
+.game-card-btn:hover { opacity: .82; }
+.game-card-frame iframe { display: block; width: 100%; height: 440px; border: none; background: #fff; }
 
 .epp-item-name { display: flex; flex-direction: column; gap: 1px; }
 .epp-item-sub { font-size: 11px; font-weight: 400; color: var(--text3); }

@@ -3202,6 +3202,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
       if (bubble) {
         bubble.classList.remove('streaming');
         colorizeLetters(bubble, currentChar?.color);
+        maybeRenderGame(bubble, currentChar?.color);
         playSound('done');
         if (callModeActive) callModeTTS(bubble);
       } else if (callModeActive) {
@@ -4555,7 +4556,7 @@ const liteObserver = (typeof IntersectionObserver !== 'undefined')
         if (!en.isIntersecting) continue;
         const b = en.target;
         liteObserver.unobserve(b);
-        if (b.dataset.lite) { delete b.dataset.lite; if (typeof b.dataset.raw === 'string') { b.innerHTML = renderMarkdown(b.dataset.raw); colorizeLetters(b, b.closest('.msg')?.dataset.charColor || currentChar?.color); } }
+        if (b.dataset.lite) { delete b.dataset.lite; if (typeof b.dataset.raw === 'string') { const cc = b.closest('.msg')?.dataset.charColor || currentChar?.color; b.innerHTML = renderMarkdown(b.dataset.raw); colorizeLetters(b, cc); maybeRenderGame(b, cc); } }
       }
     }, { root: document.getElementById('chatBody'), rootMargin: '400px' })
   : null;
@@ -4587,6 +4588,7 @@ function appendMessage(role, text, imgB64, lite) {
     const ab = div.querySelector('.bubble');
     ab.dataset.raw = String(text == null ? '' : text);
     colorizeLetters(ab, currentChar?.color);
+    if (!lite) maybeRenderGame(ab, currentChar?.color);
     if (lite && liteObserver) { ab.dataset.lite = '1'; liteObserver.observe(ab); }
   } else {
     div.innerHTML = `
@@ -5207,6 +5209,71 @@ function clearHistoryFromPanel() {
 let activeTTSUtterance = null;
 let activeTTSBtn = null;
 let activeTTSAudio = null;
+
+function maybeRenderGame(bubble, charColor) {
+  const raw = bubble.dataset.raw || '';
+  const GSTART = '[GAME_START]', GEND = '[GAME_END]';
+  const si = raw.indexOf(GSTART), ei = raw.indexOf(GEND);
+  if (si === -1 || ei === -1 || ei <= si) return;
+  const before = raw.slice(0, si).trimEnd();
+  const gameHtml = raw.slice(si + GSTART.length, ei).trim();
+  const after = raw.slice(ei + GEND.length).trimStart();
+  bubble.innerHTML = '';
+  if (before) {
+    const el = document.createElement('span');
+    el.innerHTML = renderMarkdown(before);
+    colorizeLetters(el, charColor);
+    bubble.appendChild(el);
+  }
+  bubble.appendChild(createGameCard(gameHtml, charColor));
+  if (after) {
+    const el = document.createElement('span');
+    el.innerHTML = renderMarkdown(after);
+    colorizeLetters(el, charColor);
+    bubble.appendChild(el);
+  }
+}
+
+function createGameCard(htmlContent, accentColor) {
+  const card = document.createElement('div');
+  card.className = 'game-card';
+  const header = document.createElement('div');
+  header.className = 'game-card-header';
+  const icon = document.createElement('span');
+  icon.textContent = '🎮';
+  icon.style.cssText = 'font-size:1.1em;line-height:1;flex-shrink:0';
+  const label = document.createElement('span');
+  label.className = 'game-card-label';
+  label.textContent = 'Playable Game';
+  const btn = document.createElement('button');
+  btn.className = 'game-card-btn';
+  btn.textContent = '▶ Play';
+  const hex = accentColor && /^#[0-9a-fA-F]{6}$/.test(accentColor);
+  if (hex) btn.style.background = accentColor;
+  header.appendChild(icon);
+  header.appendChild(label);
+  header.appendChild(btn);
+  card.appendChild(header);
+  const frame = document.createElement('div');
+  frame.className = 'game-card-frame';
+  frame.style.display = 'none';
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('sandbox', 'allow-scripts');
+  iframe.setAttribute('title', 'Playable game');
+  frame.appendChild(iframe);
+  card.appendChild(frame);
+  let loaded = false, open = false;
+  btn.addEventListener('click', () => {
+    open = !open;
+    frame.style.display = open ? '' : 'none';
+    btn.textContent = open ? '✕ Close' : '▶ Play';
+    if (open && !loaded) {
+      loaded = true;
+      iframe.src = URL.createObjectURL(new Blob([htmlContent], { type: 'text/html' }));
+    }
+  });
+  return card;
+}
 
 function ttsCleanText(raw) {
   return raw
