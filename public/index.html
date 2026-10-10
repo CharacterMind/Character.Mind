@@ -903,6 +903,18 @@
   </div>
 </div>
 
+<!-- Rewind Confirmation Modal -->
+<div id="rewindModal" class="modal-overlay lm-overlay" style="display:none" onclick="if(event.target===this)closeRewindModal()">
+  <div class="lm-box" style="max-width:400px">
+    <h2 class="lm-title" style="font-size:20px">Rewind to here?</h2>
+    <p class="lm-sub" style="margin-bottom:24px">All messages after this point will be removed. This cannot be undone.</p>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="lm-not-now" onclick="closeRewindModal()">Cancel</button>
+      <button class="lm-upgrade" style="background:#ef4444" onclick="confirmRewindToHere()">Yes, rewind</button>
+    </div>
+  </div>
+</div>
+
 <!-- ToS Violation Modal (explicit image blocked) -->
 <div id="tosModal" class="modal-overlay lm-overlay" style="display:none" onclick="if(event.target===this)closeTosModal()">
   <div class="lm-box">

@@ -5230,16 +5230,23 @@ async function toggleTTS(btn) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '' })
     });
-    if (!r.ok) throw new Error('server_error');
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      stopActiveTTS();
+      if (r.status === 501 || err.error === 'tts_disabled') showWarning('Voice needs a server update — deploy to Render first.', 4000);
+      else showWarning('Voice failed. Try again in a moment.', 3000);
+      return;
+    }
     const blob = await r.blob();
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     activeTTSAudio = audio;
     audio.onended = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
-    audio.onerror = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
-    audio.play();
-  } catch (_) {
+    audio.onerror = () => { URL.revokeObjectURL(url); stopActiveTTS(); showWarning('Audio playback failed.', 3000); };
+    await audio.play().catch(() => { URL.revokeObjectURL(url); stopActiveTTS(); });
+  } catch (e) {
     stopActiveTTS();
+    showWarning('Voice unavailable right now.', 3000);
   }
 }
 
