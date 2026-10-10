@@ -13,7 +13,7 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const crypto = require('crypto');
 const { matchCharacterTemplate, TEMPLATES } = require('./characterTemplates');
 const webpush = require('web-push');
-const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
+const WebSocket = require('ws');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -2581,6 +2581,47 @@ const EDGE_VOICE_MAP = {
 };
 const EDGE_DEFAULT_VOICE = 'en-US-AriaNeural';
 
+// Direct Edge TTS WebSocket implementation (no msedge-tts package needed)
+const EDGE_TOKEN = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
+const EDGE_WSS   = 'wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1';
+function edgeSecMsGec() {
+  const ticks = Math.floor(Date.now() / 1000) + 11644473600;
+  const rounded = ticks - (ticks % 300);
+  return crypto.createHash('sha256').update(`${rounded * 10000000}${EDGE_TOKEN}`).digest('hex').toUpperCase();
+}
+function edgeSynthesize(text, voice) {
+  return new Promise((resolve, reject) => {
+    const reqId = crypto.randomBytes(16).toString('hex');
+    const url = `${EDGE_WSS}?TrustedClientToken=${EDGE_TOKEN}&Sec-MS-GEC=${edgeSecMsGec()}&Sec-MS-GEC-Version=1-143.0.3650.96&ConnectionId=${reqId}`;
+    const ws = new WebSocket(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0',
+        'Origin': 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold'
+      }
+    });
+    const chunks = [];
+    const AUDIO_HDR = Buffer.from('Path:audio\r\n');
+    const escXml = s => s.replace(/[<>&'"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c]));
+    ws.on('open', () => {
+      const ts = new Date().toISOString();
+      ws.send(`X-Timestamp:${ts}\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}`);
+      const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><voice name='${voice}'>${escXml(text)}</voice></speak>`;
+      ws.send(`X-RequestId:${reqId}\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:${ts}\r\nPath:ssml\r\n\r\n${ssml}`);
+    });
+    ws.on('message', data => {
+      if (typeof data === 'string') {
+        if (data.includes('Path:turn.end')) { ws.close(); resolve(Buffer.concat(chunks)); }
+      } else {
+        const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+        const idx = buf.indexOf(AUDIO_HDR);
+        if (idx !== -1) chunks.push(buf.subarray(idx + AUDIO_HDR.length));
+      }
+    });
+    ws.on('error', reject);
+    ws.on('close', () => { if (!chunks.length) reject(new Error('no audio')); });
+  });
+}
+
 app.get('/api/tts/status', requireAuth, (req, res) => res.json({ enabled: true }));
 
 app.post('/api/tts', requireAuth, async (req, res) => {
@@ -2616,16 +2657,13 @@ app.post('/api/tts', requireAuth, async (req, res) => {
     }
   }
 
-  // Edge TTS free fallback
+  // Edge TTS free fallback (direct WebSocket — no external package)
   const edgeVoice = EDGE_VOICE_MAP[charId] || EDGE_DEFAULT_VOICE;
   try {
-    const tts = new MsEdgeTTS();
-    await tts.setMetadata(edgeVoice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
-    const { audioStream } = tts.toStream(text);
+    const audio = await edgeSynthesize(text, edgeVoice);
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Cache-Control', 'no-store');
-    audioStream.pipe(res);
-    audioStream.on('error', e => { console.warn('[edge-tts] stream error', e.message); if (!res.headersSent) res.status(502).json({ error: 'tts_failed' }); });
+    res.send(audio);
   } catch (e) {
     console.warn('[edge-tts] failed', e.message);
     res.status(502).json({ error: 'tts_failed' });
