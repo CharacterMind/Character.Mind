@@ -2227,9 +2227,9 @@ function parseRetryAfterMs(msg) {
   return Math.round((Number(m[1] || 0) * 60 + Number(m[2] || 0)) * 1000 + Number(m[3] || 0));
 }
 // Gemini SSE: server may ask for a retry; keep waiting up to these limits before giving up
-const RATE_RETRY_MAX_MS = 65000;
-const RATE_RETRY_TOTAL_MS = 130000;
-const RATE_RETRY_MAX_TRIES = 5;
+const RATE_RETRY_MAX_MS = 30000;
+const RATE_RETRY_TOTAL_MS = 60000;
+const RATE_RETRY_MAX_TRIES = 2;
 
 function toGeminiContents(messages) {
   return messages.map(m => ({
