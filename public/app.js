@@ -3217,7 +3217,13 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
     if (!lockoutActiveErr) document.getElementById('sendBtn').disabled = false;
     document.querySelectorAll('.bubble.streaming').forEach(b => b.classList.remove('streaming'));
     const errMsg = err.name === 'AbortError' ? 'The connection went quiet, so the reply stopped. What was written is kept above. Please try again.' : err.message;
-    appendMessage('ai', `⚠️ ${errMsg}`);
+    // Transient service errors (rate limits, AI hiccups) show as a dismissible toast, not a chat bubble
+    const isTransient = /AI service error|AI is busy|rate limit|service.*unavailable|limit for this minute/i.test(errMsg || '');
+    if (isTransient) {
+      showWarning(errMsg, 7000);
+    } else {
+      appendMessage('ai', `⚠️ ${errMsg}`);
+    }
     if (callModeActive) setTimeout(() => listenForSpeech(), 2000);
   }
 }

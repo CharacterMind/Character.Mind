@@ -626,7 +626,7 @@ function saveLimitsToDB(userId) {
 const LIMITS = {
   SESSION_COOLDOWN_MS: Number(process.env.SESSION_COOLDOWN_MS) || (2 * 60 * 60 * 1000 + 3000),
   WEEKLY_MS: 7 * 24 * 60 * 60 * 1000,
-  REGEN_FREE: 3, // free plan: regenerations per day (resets with the other daily counters)
+  REGEN_FREE: 10, // free plan: regenerations per day (resets with the other daily counters)
   CALL_DAILY: 3
 };
 
@@ -2191,7 +2191,7 @@ function startReplyStream(o) {
 function aiErrorMessage(err) {
   if (/empty reply/i.test((err && err.message) || '')) return 'The AI sent back an empty reply. Please try again.';
   return /no working model|429|rate limit|too many requests/i.test((err && err.message) || '')
-    ? 'The AI service is at its limit for this minute. Please wait about 30 seconds and try again. You were not charged.'
+    ? 'The AI is busy right now. Please try again in a few seconds.'
     : 'AI service error';
 }
 
