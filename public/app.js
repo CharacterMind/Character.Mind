@@ -3230,7 +3230,17 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
     } else {
       appendMessage('ai', `⚠️ ${errMsg}`);
     }
-    if (callModeActive) setTimeout(() => listenForSpeech(), 2000);
+    if (callModeActive) {
+      if (isTransient && window.speechSynthesis) {
+        // Speak the problem so the caller isn't just met with silence
+        const u = new SpeechSynthesisUtterance("Sorry, I'm a little busy right now. Give me a moment.");
+        if (selectedVoice) u.voice = selectedVoice;
+        u.onend = u.onerror = () => { if (callModeActive) setTimeout(() => listenForSpeech(), 500); };
+        window.speechSynthesis.speak(u);
+      } else {
+        setTimeout(() => listenForSpeech(), 2000);
+      }
+    }
   }
 }
 
