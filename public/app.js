@@ -4394,7 +4394,7 @@ function editMsgText(btn) {
   if (isAi) {
     ctrl.innerHTML = `<button onclick="saveAiEdit(this)">Save</button><button onclick="cancelEdit(this)">Cancel</button>`;
   } else {
-    ctrl.innerHTML = `<button onclick="saveEdit(this)">Save</button><button onclick="cancelEdit(this)">Cancel</button>`;
+    ctrl.innerHTML = `<button onclick="saveEdit(this)">Save</button><button onclick="saveAndResend(this)">Save &amp; Resend</button><button onclick="cancelEdit(this)">Cancel</button>`;
   }
   bubble.after(ctrl);
 }
@@ -4441,9 +4441,35 @@ function saveEdit(btn) {
   ctrl.remove();
   if (!newText) { msgEl.remove(); resyncServer(); return; }
   bubble.textContent = newText;
-  // Just update in place — use Rewind to here to regenerate from this point
   saveHistoryLocal();
   resyncServer();
+}
+
+let nextMsgIsEdited = false;
+
+function saveAndResend(btn) {
+  if (isStreaming) { showWarning('Wait for the reply to finish first.'); return; }
+  const ctrl = btn.closest('.msg-edit-ctrl');
+  const msgEl = ctrl.closest('.msg');
+  const bubble = msgEl.querySelector('.bubble');
+  const newText = bubble.innerText.trim();
+  bubble.contentEditable = 'false';
+  bubble.classList.remove('editing');
+  ctrl.remove();
+  if (!newText) { msgEl.remove(); resyncServer(); return; }
+  // Remove this message and everything after it, then resend fresh with the edited text
+  const msgs = [...document.getElementById('messages').querySelectorAll('.msg')];
+  const idx = msgs.indexOf(msgEl);
+  if (idx === -1) return;
+  msgs.slice(idx).forEach(m => m.remove());
+  if (!currentChar) return;
+  saveHistoryLocal();
+  const localHistory = loadHistoryLocal(currentChar.id);
+  clearPendingImage();
+  nextMsgIsEdited = true;
+  pushHistoryToServer(currentChar.id, localHistory)
+    .then(() => { if (newText) sendMessage(newText); else nextMsgIsEdited = false; })
+    .catch(() => { if (newText) sendMessage(newText); else nextMsgIsEdited = false; });
 }
 
 // Replace the chat the server holds with this history. The server chat is cleared first, so the new copy must really arrive: if the
@@ -4505,18 +4531,17 @@ function confirmRewindToHere() {
   if (idx === -1) return;
   const isUserMsg = msgEl.classList.contains('user');
   if (isUserMsg) {
-    // User message: keep it in the DOM, remove everything after, then resend it for a fresh reply
-    msgs.slice(idx + 1).forEach(m => m.remove());
-    if (!currentChar) return;
+    // User message: remove it AND everything after so the fresh send adds it back cleanly
     const bubble = msgEl.querySelector('.bubble');
     const text = bubble ? bubble.innerText.trim() : '';
-    saveHistoryLocal();
+    msgs.slice(idx).forEach(m => m.remove());
+    if (!currentChar) return;
+    saveHistoryLocal(); // history no longer contains the removed message
     const localHistory = loadHistoryLocal(currentChar.id);
-    const histWithout = localHistory.slice(0, -1);
     clearPendingImage();
-    pushHistoryToServer(currentChar.id, histWithout)
-      .then(() => { if (text) sendMessage(text, true); })
-      .catch(() => { if (text) sendMessage(text, true); });
+    pushHistoryToServer(currentChar.id, localHistory)
+      .then(() => { if (text) sendMessage(text); })
+      .catch(() => { if (text) sendMessage(text); });
   } else {
     // AI message: remove it AND everything after it, then resync
     msgs.slice(idx).forEach(m => m.remove());
@@ -4614,9 +4639,11 @@ function appendMessage(role, text, imgB64, lite) {
     if (!lite) maybeRenderGame(ab, currentChar?.color);
     if (lite && liteObserver) { ab.dataset.lite = '1'; liteObserver.observe(ab); }
   } else {
+    const editedTag = nextMsgIsEdited ? ' <span class="msg-edited-tag">(edited)</span>' : '';
+    nextMsgIsEdited = false;
     div.innerHTML = `
       <div class="msg-header">
-        <span class="msg-name" style="color:var(--text3)">You</span>
+        <span class="msg-name" style="color:var(--text3)">You</span>${editedTag}
         ${msgMenuHtml('user')}
       </div>
       ${imgB64 ? `<img class="msg-img" src="${imgB64}" alt="attachment">` : ''}
