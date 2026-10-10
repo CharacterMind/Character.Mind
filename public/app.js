@@ -2645,42 +2645,44 @@ async function openChat(charId) {
   } catch (_) {}
   if (chatEpoch !== openEpoch) return;
 
-  // Load conversation history — server first, localStorage fallback
+  // Load conversation history — server is authoritative; localStorage is only used when server is unreachable
   let history = [];
+  let serverResponded = false;
   try {
     const res = await fetch(`/api/conversations/${charId}`);
     if (chatEpoch !== openEpoch) return; // preempted by a newer openChat call
-    if (res.ok) history = await res.json();
-  } catch (_) { /* server temporarily unavailable; use localStorage */ }
+    if (res.ok) { history = await res.json(); serverResponded = true; }
+  } catch (_) { /* server temporarily unavailable; fall back to localStorage below */ }
   if (chatEpoch !== openEpoch) return;
 
   const messagesDiv = document.getElementById('messages');
   warnedThresholds.clear();
   loadUsage();
 
-  // If the server only has part of the chat (it restarted mid-conversation), the fuller local copy wins and is re-synced.
-  if (history.length > 0 && shownLocal.length > history.length) history = [];
   const lastOf = (h) => { const m = h[h.length - 1]; return m ? String(m.content || '') + (m.card || '') : ''; };
   const sameAsShown = history.length > 0 && history.length === shownLocal.length && lastOf(history) === lastOf(shownLocal);
 
-  if (history.length === 0) {
-    const localHistory = shownLocal;                      // already on screen
-    if (localHistory.length > 0) {
-      // Auto-save prior session to local past chats before restoring
-      savePastChatLocal(charId, localHistory);
+  if (!serverResponded) {
+    // Server was unreachable — recover from local cache and re-sync when server is back
+    if (shownLocal.length > 0) {
+      savePastChatLocal(charId, shownLocal);
       document.getElementById('chatWelcome').innerHTML = '';
       updateCtxBar();
-      // Re-sync server so AI has context for next message
       fetch(`/api/conversations/${charId}/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ history: localHistory })
+        body: JSON.stringify({ history: shownLocal })
       }).catch(() => {});
     } else {
       messagesDiv.innerHTML = '';
       document.getElementById('chatWelcome').innerHTML = '';
       generateGreeting();
     }
+  } else if (history.length === 0) {
+    // Server responded with empty — genuinely new or cleared chat (don't resurrect stale local data)
+    messagesDiv.innerHTML = '';
+    document.getElementById('chatWelcome').innerHTML = '';
+    generateGreeting();
   } else if (sameAsShown) {
     document.getElementById('chatWelcome').innerHTML = '';   // what is shown is already right
     // ...but its signatures must be the server's current ones, or a later re-sync would drop these replies
@@ -2688,9 +2690,12 @@ async function openChat(charId) {
     const aiHist = history.filter(m => (m.role === 'assistant' || m.role === 'ai') && !m.card);
     if (aiEls.length === aiHist.length) aiEls.forEach((el, i) => { if (aiHist[i].sig) el.dataset.sig = aiHist[i].sig; else delete el.dataset.sig; });
   } else {
+    // Server has different (newer or fresher) history — replace display and update local cache
     messagesDiv.innerHTML = '';
     document.getElementById('chatWelcome').innerHTML = '';
     history.forEach((m, i) => appendHistoryItem(m, i < history.length - LIVE_COLOUR_MESSAGES));
+    updateCtxBar();
+    saveHistoryLocal(); // sync local cache to server's authoritative state
   }
 
   renderSidebarChats();
