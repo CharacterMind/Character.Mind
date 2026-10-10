@@ -4834,18 +4834,26 @@ function dislikeBtn() {
 
 // ── Voice selection ───────────────────────────────────────────────────────────
 let selectedVoice = null;
+let ttsProvider = 'edge'; // 'edge' | 'gemini' | 'browser'
+let geminiVoiceName = 'Aoede';
 
-function getCharVoiceKey() { return currentChar ? `cm_voice_${currentChar.id}` : null; }
+const GEMINI_TTS_VOICES = ['Aoede','Charon','Fenrir','Kore','Puck','Zephyr','Schedar','Sadaltager'];
+const GEMINI_VOICE_DESC = { Aoede:'Warm, expressive', Charon:'Deep, calm', Fenrir:'Strong, bold', Kore:'Clear, bright', Puck:'Upbeat, playful', Zephyr:'Light, breezy', Schedar:'Authoritative', Sadaltager:'Neutral, conversational' };
+
+function getCharVoiceKey()   { return currentChar ? `cm_voice_${currentChar.id}` : null; }
+function getTTSProviderKey() { return currentChar ? `cm_tts_prov_${currentChar.id}` : null; }
+function getGeminiVoiceKey() { return currentChar ? `cm_gem_voice_${currentChar.id}` : null; }
 
 function loadCharVoice() {
-  selectedVoice = null;
-  const key = getCharVoiceKey();
-  if (!key) return;
+  selectedVoice = null; ttsProvider = 'edge'; geminiVoiceName = 'Aoede';
+  if (!currentChar) return;
   try {
-    const saved = localStorage.getItem(key);
-    if (!saved) return;
-    const voices = window.speechSynthesis.getVoices();
-    selectedVoice = voices.find(v => v.voiceURI === saved) || null;
+    const p = localStorage.getItem(getTTSProviderKey());
+    if (['edge','gemini','browser'].includes(p)) ttsProvider = p;
+    const gv = localStorage.getItem(getGeminiVoiceKey());
+    if (GEMINI_TTS_VOICES.includes(gv)) geminiVoiceName = gv;
+    const saved = localStorage.getItem(getCharVoiceKey());
+    if (saved) { const vs = window.speechSynthesis.getVoices(); selectedVoice = vs.find(v => v.voiceURI === saved) || null; }
   } catch(_) {}
 }
 
@@ -4867,12 +4875,35 @@ function closeVoicePanel() {
   if (overlay) overlay.style.display = 'none';
 }
 
+function setTTSProvider(p, btn) {
+  ttsProvider = p;
+  try { if (getTTSProviderKey()) localStorage.setItem(getTTSProviderKey(), p); } catch(_) {}
+  document.querySelectorAll('.voice-provider-tab').forEach(b => b.classList.toggle('active', b.dataset.provider === p));
+  renderVoiceList();
+}
+
 function renderVoiceList() {
   const list = document.getElementById('voiceList');
   if (!list) return;
+  document.querySelectorAll('.voice-provider-tab').forEach(b => b.classList.toggle('active', b.dataset.provider === ttsProvider));
+
+  if (ttsProvider === 'gemini') {
+    list.innerHTML = GEMINI_TTS_VOICES.map(v =>
+      `<button class="voice-item${geminiVoiceName === v ? ' active' : ''}" onclick="selectGeminiVoice('${v}',this)">
+        <div class="voice-item-main"><div class="voice-item-name">${v}</div><div class="voice-item-lang">${GEMINI_VOICE_DESC[v] || ''}</div></div>
+        <button class="voice-preview-btn" onclick="previewGeminiVoice('${v}',event)" title="Preview">▶</button>
+      </button>`).join('');
+    return;
+  }
+
+  if (ttsProvider === 'edge') {
+    list.innerHTML = '<p style="font-size:.82rem;padding:10px 4px 4px;color:var(--text3,#888);line-height:1.5">Edge HD uses Microsoft Neural voices automatically matched to each character. Switch to Gemini to pick a specific voice.</p>';
+    return;
+  }
+
+  // Browser voices
   const voices = window.speechSynthesis.getVoices();
   if (!voices.length) {
-    // Voices may not be loaded yet — try again shortly (only if panel still open)
     setTimeout(() => { if (document.getElementById('voiceList')) renderVoiceList(); }, 400);
     list.innerHTML = '<div class="voice-empty">Loading voices…</div>';
     return;
@@ -4893,9 +4924,25 @@ function selectVoice(voiceURI, btn) {
   try { voiceURI ? localStorage.setItem(key, voiceURI) : localStorage.removeItem(key); } catch(_) {}
   document.querySelectorAll('#voiceList .voice-item').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  if (voiceURI) {
-    selectedVoice = window.speechSynthesis.getVoices().find(v => v.voiceURI === voiceURI) || null;
-  } else { selectedVoice = null; }
+  selectedVoice = voiceURI ? (window.speechSynthesis.getVoices().find(v => v.voiceURI === voiceURI) || null) : null;
+}
+
+function selectGeminiVoice(v, btn) {
+  geminiVoiceName = v;
+  try { if (getGeminiVoiceKey()) localStorage.setItem(getGeminiVoiceKey(), v); } catch(_) {}
+  document.querySelectorAll('#voiceList .voice-item').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function previewGeminiVoice(v, e) {
+  e?.stopPropagation();
+  try {
+    const r = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: `Hi! I'm ${currentChar?.name || 'your character'}.`, provider: 'gemini', geminiVoice: v, charId: currentChar?.id || '' }) });
+    if (!r.ok) return;
+    const url = URL.createObjectURL(await r.blob());
+    const a = new Audio(url); a.onended = () => URL.revokeObjectURL(url); a.play().catch(() => {});
+  } catch(_) {}
 }
 
 function previewVoiceURI(voiceURI, e) {
@@ -5303,12 +5350,23 @@ async function toggleTTS(btn) {
   btn.classList.add('playing');
   activeTTSBtn = btn;
 
+  if (ttsProvider === 'browser') {
+    if (window.speechSynthesis) {
+      const u = new SpeechSynthesisUtterance(text.slice(0, 300));
+      if (selectedVoice) u.voice = selectedVoice;
+      activeTTSUtterance = u;
+      u.onend = () => stopActiveTTS(); u.onerror = () => stopActiveTTS();
+      window.speechSynthesis.speak(u);
+    } else { stopActiveTTS(); }
+    return;
+  }
+
   let serverOk = false;
   try {
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '' })
+      body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName })
     });
     if (r.ok) {
       serverOk = true;
@@ -5327,13 +5385,9 @@ async function toggleTTS(btn) {
       const u = new SpeechSynthesisUtterance(text.slice(0, 300));
       if (selectedVoice) u.voice = selectedVoice;
       activeTTSUtterance = u;
-      u.onend = () => stopActiveTTS();
-      u.onerror = () => stopActiveTTS();
+      u.onend = () => stopActiveTTS(); u.onerror = () => stopActiveTTS();
       window.speechSynthesis.speak(u);
-    } else {
-      stopActiveTTS();
-      showWarning('Voice unavailable on this device.', 3000);
-    }
+    } else { stopActiveTTS(); }
   }
 }
 
@@ -5386,11 +5440,25 @@ async function playCallBlob(blob) {
 
 async function callModeElevenTTS(text) {
   const gen = callGen;
+  const clean = text.replace(/\*[^*]*\*/g, '').replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim().slice(0, 300);
+  const browserFallback = () => {
+    if (!callModeActive || gen !== callGen) return;
+    if (clean && window.speechSynthesis) {
+      const u = new SpeechSynthesisUtterance(clean);
+      if (selectedVoice) u.voice = selectedVoice;
+      const done = () => { if (callModeActive && callGen === gen) listenForSpeech(); };
+      u.onend = done; u.onerror = done;
+      window.speechSynthesis.speak(u);
+    } else { listenForSpeech(); }
+  };
+
+  if (ttsProvider === 'browser') { browserFallback(); return; }
+
   try {
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, charId: currentChar?.id })
+      body: JSON.stringify({ text: clean, charId: currentChar?.id, provider: ttsProvider, geminiVoice: geminiVoiceName })
     });
     if (!r.ok) {
       if (r.status === 501) elevenTTSOk = false;
@@ -5399,21 +5467,7 @@ async function callModeElevenTTS(text) {
     const blob = await r.blob();
     if (gen !== callGen) return;
     await playCallBlob(blob);
-  } catch (_) {
-    if (!callModeActive || gen !== callGen) return;
-    // Browser speech synthesis fallback — always available, no API key needed
-    const clean = text.replace(/\*[^*]*\*/g, '').replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim().slice(0, 300);
-    if (clean && window.speechSynthesis) {
-      const u = new SpeechSynthesisUtterance(clean);
-      if (selectedVoice) u.voice = selectedVoice;
-      const done = () => { if (callModeActive && callGen === gen) listenForSpeech(); };
-      u.onend = done;
-      u.onerror = done;
-      window.speechSynthesis.speak(u);
-    } else {
-      listenForSpeech();
-    }
-  }
+  } catch (_) { browserFallback(); }
 }
 
 // ── Call mode ─────────────────────────────────────────────────────────────────

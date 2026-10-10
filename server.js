@@ -2589,6 +2589,44 @@ const EDGE_VOICE_MAP = {
 };
 const EDGE_DEFAULT_VOICE = 'en-US-AriaNeural';
 
+const GEMINI_TTS_VOICES = new Set(['Aoede','Charon','Fenrir','Kore','Puck','Zephyr','Schedar','Sadaltager']);
+
+function pcmToWav(pcm, sr = 24000) {
+  const h = Buffer.alloc(44);
+  h.write('RIFF', 0); h.writeUInt32LE(36 + pcm.length, 4); h.write('WAVE', 8);
+  h.write('fmt ', 12); h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20);
+  h.writeUInt16LE(1, 22); h.writeUInt32LE(sr, 24); h.writeUInt32LE(sr * 2, 28);
+  h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34);
+  h.write('data', 36); h.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([h, pcm]);
+}
+
+async function geminiTTSSynthesize(text, voiceName, apiKey) {
+  const voice = GEMINI_TTS_VOICES.has(voiceName) ? voiceName : 'Aoede';
+  const r = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-tts:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text }] }],
+        generationConfig: {
+          responseModalities: ['AUDIO'],
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
+        }
+      })
+    }
+  );
+  if (!r.ok) throw new Error('gemini-tts:' + r.status);
+  const j = await r.json();
+  const part = j?.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+  if (!part?.data) throw new Error('gemini-tts: no audio data');
+  const buf = Buffer.from(part.data, 'base64');
+  const mime = (part.mimeType || '').toLowerCase();
+  if (mime.includes('mp3') || mime.includes('mpeg')) return { audio: buf, ct: 'audio/mpeg' };
+  return { audio: pcmToWav(buf), ct: 'audio/wav' };
+}
+
 // Direct Edge TTS WebSocket implementation (no msedge-tts package needed)
 const EDGE_TOKEN = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
 const EDGE_WSS   = 'wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1';
@@ -2643,9 +2681,11 @@ app.get('/api/tts/status', requireAuth, (req, res) => res.json({ enabled: true }
 app.post('/api/tts', requireAuth, async (req, res) => {
   const text = String(req.body?.text || '').replace(/[*_`#]/g, '').trim().slice(0, 400);
   const charId = String(req.body?.charId || '');
+  const provider = String(req.body?.provider || 'edge');
+  const geminiVoice = String(req.body?.geminiVoice || 'Aoede');
   if (!text) return res.status(400).json({ error: 'no_text' });
 
-  // ElevenLabs path (when key is set)
+  // ElevenLabs path (when key is set, overrides all)
   if (ELEVEN_KEY) {
     const userId = req.user.googleId;
     const ttsU = getLimits(userId);
@@ -2669,6 +2709,21 @@ app.post('/api/tts', requireAuth, async (req, res) => {
     } catch (e) {
       console.warn('[tts] ElevenLabs request failed', e.message);
       refund();
+      return res.status(502).json({ error: 'tts_failed' });
+    }
+  }
+
+  // Gemini TTS path
+  if (provider === 'gemini') {
+    const gKey = process.env.GEMINI_API_KEY;
+    if (!gKey) return res.status(502).json({ error: 'tts_failed' });
+    try {
+      const { audio, ct } = await geminiTTSSynthesize(text, geminiVoice, gKey);
+      res.setHeader('Content-Type', ct);
+      res.setHeader('Cache-Control', 'no-store');
+      return res.send(audio);
+    } catch (e) {
+      console.warn('[gemini-tts] failed', e.message);
       return res.status(502).json({ error: 'tts_failed' });
     }
   }
