@@ -401,7 +401,7 @@
           <button class="btn-send" id="sendBtn" onclick="sendMessage(undefined, undefined, true)" title="Send (empty = let the AI keep talking)">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
           </button>
-          <button class="btn-call" id="callBtn" onclick="toggleCallMode()" title="Voice call (coming soon)">
+          <button class="btn-call" id="callBtn" onclick="toggleCallMode()" title="Voice call">
             <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
           </button>
         </div>
@@ -611,10 +611,10 @@
       </button>
 
       <!-- Voice -->
-      <button class="ip-row" onclick="comingSoon('Voice')">
+      <button class="ip-row" onclick="openVoicePanel()">
         <span class="ip-row-ico"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></span>
         <span class="ip-row-label">Voice</span>
-        <span class="ip-row-right"><span class="ip-badge-new">Soon</span><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></span>
+        <span class="ip-row-right"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></span>
       </button>
 
       <!-- History -->
@@ -759,14 +759,14 @@
       <div class="wf">
         <span class="wf-icon">🎙️</span>
         <div>
-          <div class="wf-name">Voices <span class="welcome-soon-tag">Coming soon</span></div>
+          <div class="wf-name">Voices <span class="welcome-soon-tag">Live</span></div>
           <div class="wf-desc">Hear your characters speak their replies out loud.</div>
         </div>
       </div>
       <div class="wf">
         <span class="wf-icon">📞</span>
         <div>
-          <div class="wf-name">Calling your AI <span class="welcome-soon-tag">Coming soon</span></div>
+          <div class="wf-name">Calling your AI <span class="welcome-soon-tag">Live</span></div>
           <div class="wf-desc">Talk to your characters on a live voice call.</div>
         </div>
       </div>
