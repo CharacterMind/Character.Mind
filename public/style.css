@@ -1139,7 +1139,8 @@ html, body {
   font-variant-numeric: tabular-nums; font-weight: 700;
   color: rgba(255,255,255,.85); letter-spacing: .05em;
 }
-.call-limit-divider { width: 48px; height: 2px; background: rgba(255,255,255,.12); border-radius: 2px; }
+.call-limit-char-msg { font-size: 13px; color: rgba(255,255,255,.6); line-height: 1.55; font-style: italic; margin: 14px 0 4px; padding: 0 4px; }
+.call-limit-divider { width: 48px; height: 2px; background: rgba(255,255,255,.12); border-radius: 2px; margin-top: 10px; }
 .call-limit-upgrade-label { font-size: 14px; color: rgba(255,255,255,.45); }
 .call-limit-upgrade-btn {
   padding: 14px 40px; border-radius: 30px;

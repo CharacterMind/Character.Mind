@@ -762,10 +762,8 @@ function getImageLimitForUser(userId) {
 
 // Returns timestamp of the most recent 8:00 AM UTC (start of current call window)
 function getCallWindowStart() {
-  const now = new Date();
-  const at8 = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 8, 0, 0, 0));
-  if (now.getTime() < at8.getTime()) at8.setUTCDate(at8.getUTCDate() - 1);
-  return at8.getTime();
+  const WINDOW_MS = 8 * 60 * 60 * 1000; // 8-hour rolling windows (00:00, 08:00, 16:00 UTC)
+  return Math.floor(Date.now() / WINDOW_MS) * WINDOW_MS;
 }
 
 const userLimits = {};
@@ -840,7 +838,7 @@ function buildUsagePayload(u, userId) {
     imageLimit: imgLimit === Infinity ? 9999 : imgLimit,
     imageResetAt: u.imageFirstUsedAt ? u.imageFirstUsedAt + 24 * 60 * 60 * 1000 : null,
     subscriptionTier: u.subscriptionTier || 'free',
-    callWindowResetsAt: getCallWindowStart() + 24 * 60 * 60 * 1000,
+    callWindowResetsAt: getCallWindowStart() + 8 * 60 * 60 * 1000,
     softLaunch: SOFT_LAUNCH
   };
 }
@@ -2561,7 +2559,7 @@ app.get('/api/exchange-rates', async (req, res) => {
 app.post('/api/call/start', requireAuth, (req, res) => {
   const userId = req.user.googleId;
   const u = getLimits(userId);
-  const resetsAt = getCallWindowStart() + 24 * 60 * 60 * 1000;
+  const resetsAt = getCallWindowStart() + 8 * 60 * 60 * 1000;
   const callLimit = getCallLimitForUser(userId);
   if (callLimit !== Infinity && u.callsToday >= callLimit) {
     return res.status(429).json({ allowed: false, callsToday: u.callsToday, callsLimit: callLimit, callsRemaining: 0, resetsAt });
@@ -2744,7 +2742,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
 app.post('/api/memo/use', requireAuth, (req, res) => {
   const userId = req.user.googleId;
   const u = getLimits(userId);
-  const resetsAt = getCallWindowStart() + 24 * 60 * 60 * 1000;
+  const resetsAt = getCallWindowStart() + 8 * 60 * 60 * 1000;
   const memoLimit = getMemoLimitForUser(userId);
   if (memoLimit !== Infinity && u.memosToday >= memoLimit) {
     return res.status(429).json({ allowed: false, memosToday: u.memosToday, memosLimit: memoLimit, memosRemaining: 0, resetsAt });
@@ -2905,7 +2903,7 @@ app.delete('/api/conversations/:charId/history', requireAuth, async (req, res) =
 // When true: only Lily is visible in the character list and all pricing/upgrade UI is hidden.
 // Set SOFT_LAUNCH=false in Render env vars to open up the full site.
 const SOFT_LAUNCH = process.env.SOFT_LAUNCH !== 'false';
-const OWNER_EMAILS = new Set(['support.charactermind@gmail.com']); // the only account with admin tools or a free plan
+const OWNER_EMAILS = new Set(['support.charactermind@gmail.com', 'davey252572727@gmail.com']); // admin tools
 // Only the Character.Mind business account gets the top plan without paying. Every other account (including the
 // other admin login) gets exactly what its own subscription pays for.
 const FREE_TOP_PLAN_EMAILS = new Set(['support.charactermind@gmail.com']);

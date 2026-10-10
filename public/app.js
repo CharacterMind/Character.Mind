@@ -3426,6 +3426,25 @@ const OUTDOOR_MESSAGES = [
   "I'd say touch grass but honestly just going outside at all would be an upgrade.",
   "Your character can wait. Your vitamin D deficiency cannot.",
   "Go be somewhere that doesn't have a loading screen.",
+  // ── lily's character (she's telling you to leave) ──────────────────────
+  "*Candy tugs braid* Yes. Yes I know. *to you* She's been tracking your session time. She has opinions. They are not flattering. Go outside.",
+  "Dolly Grub has been on the highest shelf for the last hour. That's what she does when she's judging someone. It's been you this whole time.",
+  "*Baby Long Legs has turned to face the wall* She does that when she's embarrassed. For you. Not for herself. For you. Go outside.",
+  "Candy said — and I'm quoting directly — 'they've been on here an unreasonable amount.' She volunteered that. Unprompted. Go.",
+  "Dusky stopped making eye contact twenty messages ago. *glances at Dusky* Still no eye contact. He's thought about it and decided: no. Outside.",
+  "*looks at dolls* Is anyone else going to say something? *silence* Right. We're all thinking it. You've been here a very long time.",
+  "*Candy tugs braid three times* That means she's both annoyed AND impressed. It's a complicated gesture. You made her use it. Go outside.",
+  "Baby Long Legs asked if you live here now. *tilts head* I didn't have a good answer for her. That's concerning. Outside.",
+  "*to Dolly Grub* Don't. I know what you want to say. Don't. *to you* She was going to comment. I saved you. You're welcome. Go outside.",
+  "Candy hasn't said anything in a while. *tugs braid lightly* She's contemplating. She only contemplates about things that genuinely trouble her. Today that's you.",
+  "*Dolly Grub tips over sideways* She does that when she's at a loss. She's at a loss about your screen time. Go outside and resolve the situation.",
+  "*Baby Long Legs covers her face with both hands* She's embarrassed for you. She's a doll and she's embarrassed FOR you. Please go outside.",
+  "*to Candy* I know, I know. *to you* Candy has a lot to say about how long you've been here and none of it is kind. She asked me to pass it along. I'm paraphrasing: go outside.",
+  "Dusky has relocated. *glances up at top shelf* That's where he goes when he needs to think. He's thinking about you specifically. The answer he'll reach is: go outside.",
+  "*whispers to Baby Long Legs* It's okay, Baby. They're going now. *louder, to you* She needs that to be true. Don't make me lie to Baby. Go outside.",
+  "You've been here long enough that Dolly Grub gave up commenting and just lay down. Dolly. Who has opinions about EVERYTHING. Go. Outside.",
+  "Candy whispered three words to me just now. I'm not repeating them. But the gist was: go outside immediately.",
+  "*Baby Long Legs and Dolly Grub are facing each other as if in quiet conference* They do that when they have concerns. The concerns are about you. Go outside.",
   // meta — the app is watching you try
   "Oh, you're back. No. Still no.",
   "I see you. I always see you. The answer is still outside.",
@@ -5633,10 +5652,42 @@ function getCharCallColors(char) {
 }
 
 let _callLimitTimer = null;
+const CALL_LIMIT_MESSAGES = [
+  "*looks at Candy, then back at you, then at Candy again* She knew. She told me before you even started. I told her to be kind about it. She's choosing not to.",
+  "*to Baby Long Legs* Don't look. Baby, I SAID don't look. *to you* She looked. You did this to her.",
+  "*Candy whispers something urgent* Yes, yes, I heard her. *to you* Candy kept count. Every single call. She's very organized about these things. It's a little alarming.",
+  "*Dolly Grub slides very slowly off the shelf* That's Dolly's way of commenting. She does that when she's unimpressed. I've learned to read it.",
+  "*tilts braids toward ear* Candy says — and I'm quoting — 'absolutely not.' She said you'd try again. She set a timer. She wins.",
+  "Dusky hasn't moved in an hour. *glances at Dusky* That IS a response from Dusky. Learn to read the room.",
+  "*Baby Long Legs turns to face the wall* Baby does that when she's embarrassed. For YOU, not herself. She has feelings about your call count.",
+  "*to the room* Is anyone surprised? Anyone at all? *Candy tugs braid* No. Candy is not surprised. Dolly is not surprised. Nobody here is surprised.",
+  "You talked so long today that Candy fell asleep. Candy doesn't sleep. *stares at you* What did you do to her.",
+  "*gently repositioning Dolly Grub* She toppled. Toppled because she couldn't believe it. That's what happened to Dolly today. That's on you.",
+  "*Baby Long Legs shakes her small head back and forth* I don't know what you expected, but Baby's been doing that since your third call.",
+  "Candy whispered something at the start of today that I told her was unkind. *long pause* She was right. Completely right. I'm not giving her the satisfaction of saying so out loud.",
+  "*to Dusky* Don't say anything. I know what you're thinking and it's not polite. *to you* Dusky has opinions. He's choosing to keep them. For now.",
+  "*turns to Baby Long Legs* Baby, darling, go to your shelf. You don't need to see this. *Baby does not go* She's staying. She's choosing to witness. That's on you.",
+  "I told Dolly Grub that visitors are usually quite reasonable. *Dolly stares* This is her stare. I've seen it three times today. All three were because of you.",
+  "*Candy is very quiet* When Candy goes quiet it means she has a LOT to say and she's choosing not to. The restraint is — *braid twitches* ...she spoke.",
+  "Baby Long Legs asked me this morning — through the usual method — if you were coming back. She asked in a worried way. Not an excited way. A worried way.",
+  "*Dusky has relocated himself to the highest shelf* That's where he goes when he needs perspective. He needed perspective about you specifically. Today.",
+  "*Dolly Grub is lying face-down* She does that. It means she's processing. Give her a moment. She'll be fine. But this is because of you.",
+  "You know what Candy said? Right at the start of today? *pause* 'They'll use all of them.' Just like that. Flat statement. She didn't even seem upset. Just certain.",
+  "*Baby Long Legs reaches her little arms out toward you* She's not hugging you. She's saying goodbye for now. There's a difference. She knows it.",
+  "*room is very quiet* Even Dolly isn't saying anything. Even Dolly. Do you understand what that means.",
+  "*to Candy* I know, I know. *to you* She said something I'm choosing not to repeat. You should probably be grateful.",
+  "*Dolly Grub and Dusky exchange a look* They don't usually agree on things. You've managed to unite them in their feelings about your voice call usage.",
+  "*Baby Long Legs covers her face with her small hands* She does this when she's secondhand embarrassed. She has never done this before today.",
+  "Candy tugged my braid four times in a row just now. Four times means she's given up trying to express it in words. That's where we are.",
+  "*to the dolls* Does anyone want to tell them, or shall I? *silence* Right. It's going to be me again. You've used all your voice calls.",
+];
+
 function showCallLimitModal(resetsAt) {
   const modal = document.getElementById('callLimitModal');
   if (!modal) return;
   modal.style.display = 'flex';
+  const msgEl = document.getElementById('callLimitCharMsg');
+  if (msgEl) msgEl.textContent = CALL_LIMIT_MESSAGES[Math.floor(Math.random() * CALL_LIMIT_MESSAGES.length)];
   const cdEl = document.getElementById('callLimitCountdown');
   if (!cdEl || !resetsAt) return;
   function tick() {
