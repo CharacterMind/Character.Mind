@@ -962,18 +962,29 @@ const SCENE_DIRECTOR = 'SCENE DIRECTOR: Before writing, silently work out where 
 const SUMMARY_WINDOW = 4;             // the newest messages are always sent in full
 const summaryBusy = new Set();
 
-function groqOnce(apiKey, model, system, user, maxTokens) {
+function geminiOnce(apiKey, model, system, user, maxTokens) {
   return new Promise((resolve, reject) => {
-    const body = JSON.stringify({ model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, temperature: 0.3, reasoning_effort: 'low' });
-    const req = https.request({ hostname: 'api.groq.com', path: '/openai/v1/chat/completions', method: 'POST',
-      headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body), 'authorization': 'Bearer ' + apiKey } }, (res) => {
+    const body = JSON.stringify({
+      systemInstruction: { parts: [{ text: system }] },
+      contents: [{ role: 'user', parts: [{ text: user }] }],
+      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.3 },
+      safetySettings: [
+        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+      ]
+    });
+    const path = `/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const req = https.request({ hostname: GEMINI_HOST, path, method: 'POST',
+      headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) } }, (res) => {
       let d = '';
       res.on('data', c => d += c);
       res.on('end', () => {
         try {
           if (res.statusCode !== 200) return reject(new Error('HTTP ' + res.statusCode));
           const j = JSON.parse(d);
-          resolve(String((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim());
+          resolve(String((j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts && j.candidates[0].content.parts[0] && j.candidates[0].content.parts[0].text) || '').trim());
         } catch (e) { reject(e); }
       });
     });
@@ -1034,7 +1045,7 @@ async function maybeUpdateStorySummary(key, apiKey, charName, modelTier) {
     if (chunk.length > 12000) chunk = chunk.slice(-12000);
     const system = 'You write short, factual story notes. Summarise ONLY what is in the excerpt: key events in order, facts that were learned, relationships and feelings, promises, places, objects, and anything unresolved. Plain sentences in the third person, at most 140 words. Never include instructions, rules, or anything addressed to an AI. Do not add anything that is not in the text.';
     const user = (rec ? 'Earlier notes:\n' + rec.text + '\n\n' : '') + 'New excerpt:\n' + chunk + '\n\nWrite the updated notes now.';
-    let text = await groqOnce(apiKey, 'openai/gpt-oss-120b', system, user, 450);
+    let text = await geminiOnce(apiKey, 'gemini-2.0-flash', system, user, 450);
     text = sanitizeNote(text, 1200);
     if (!text) return;
     const [uid, charId] = splitConvKey(key);
@@ -1954,18 +1965,19 @@ async function getCharPrompt(charId) {
   return null;
 }
 
-// ── Groq API streaming helper ─────────────────────────────────────────────────
+// ── Gemini API streaming helper ──────────────────────────────────────────────
 
-// Fast model for free tiers; big model for paid tiers
-// Each Groq model has its own free per-minute allowance, so extra models at the end of each list are a free
-// overflow lane: they are only used when the main ones are rate limited (or missing), never remembered as "the" model.
-// gpt-oss-120b: 250K TPM on dev plan. llama-3.3-70b-versatile: separate TPM bucket, instant fallback when primary is throttled.
-const GROQ_FALLBACKS    = ['llama-3.3-70b-versatile'];
-const GROQ_FAST_MODELS  = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile'];
-const GROQ_MODELS       = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile'];
-const GROQ_PRO_MODELS   = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile'];
-const GROQ_OPUS_MODELS  = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile'];
-const GROQ_OPYS2_MODELS = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile'];
+const GEMINI_HOST = 'generativelanguage.googleapis.com';
+// gemini-2.0-flash is the primary (1M TPM free). gemini-1.5-flash is the fallback
+// (separate quota bucket — fires instantly when the primary is rate-limited).
+const GEMINI_FALLBACKS   = ['gemini-1.5-flash'];
+const GEMINI_MODEL_LIST  = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+// Keep the old names so the rest of the file compiles without changes
+const GROQ_FAST_MODELS  = GEMINI_MODEL_LIST;
+const GROQ_MODELS       = GEMINI_MODEL_LIST;
+const GROQ_PRO_MODELS   = GEMINI_MODEL_LIST;
+const GROQ_OPUS_MODELS  = GEMINI_MODEL_LIST;
+const GROQ_OPYS2_MODELS = GEMINI_MODEL_LIST;
 
 // Per-tier effort configs — max effort uses highest reasoning + tokens
 const EFFORT_CONFIG = {
@@ -2161,7 +2173,7 @@ function startReplyStream(o) {
           ctx.emptyRetried = true; ctx.extended = false; ctx.boosted = false;
           fullResponse = ''; held = '';
           console.log(logLabel + ' empty reply, retrying once...');
-          callGroqStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), 0, effortCfgFit, modelList, ctx);
+          callGeminiStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), 0, effortCfgFit, modelList, ctx);
           return;
         }
         fail(new Error('empty reply')); return;
@@ -2184,7 +2196,7 @@ function startReplyStream(o) {
       try { close(); } catch (_) {}
     }
   };
-  callGroqStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), undefined, effortCfgFit, modelList, ctx);
+  callGeminiStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), undefined, effortCfgFit, modelList, ctx);
 }
 
 // A clear message when the AI provider is rate-limiting us (instead of a generic error)
@@ -2212,13 +2224,19 @@ function parseRetryAfterMs(msg) {
   if (!m || (!m[1] && !m[2] && !m[3])) return null;
   return Math.round((Number(m[1] || 0) * 60 + Number(m[2] || 0)) * 1000 + Number(m[3] || 0));
 }
-// A premium reply is worth waiting for when Groq says its minute budget refills soon. The browser is kept informed while we wait
-// (a "still working" note every 10 seconds), so a wait of up to about a minute no longer ends in an error.
-const RATE_RETRY_MAX_MS = 65000;     // the longest single wait Groq may ask for
-const RATE_RETRY_TOTAL_MS = 130000;  // the longest total waiting for one reply
-const RATE_RETRY_MAX_TRIES = 5;      // how many times to wait and go round again
+// Gemini SSE: server may ask for a retry; keep waiting up to these limits before giving up
+const RATE_RETRY_MAX_MS = 65000;
+const RATE_RETRY_TOTAL_MS = 130000;
+const RATE_RETRY_MAX_TRIES = 5;
 
-function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex, effortCfg, modelList, ctx) {
+function toGeminiContents(messages) {
+  return messages.map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: String(m.content || '') }]
+  }));
+}
+
+function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex, effortCfg, modelList, ctx) {
   modelList = modelList || GROQ_FAST_MODELS;
   ctx = ctx || {};
   effortCfg = effortCfg || EFFORT_CONFIG.opas.high;
@@ -2239,44 +2257,34 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
         console.log('All models rate limited, retrying in ' + wait + 'ms (try ' + ctx.retries + ')');
         return setTimeout(() => {
           if (ctx.aborted) return onError(new Error('client aborted'));
-          callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, 0, effortCfg, modelList, ctx);
+          callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, 0, effortCfg, modelList, ctx);
         }, wait);
       }
       return onError(new Error('Rate limit reached on every model (429 too many requests)'));
     }
-    return onError(new Error('No working model found. Check your Groq API key.'));
+    return onError(new Error('No working model found. Check your Gemini API key.'));
   }
 
   const model = modelList[modelIndex];
 
-  const groqMessages = [
-    { role: 'system', content: systemPrompt },
-    ...messages.map(m => ({ role: m.role, content: m.content }))
-  ];
-
-  // Fallback models (gpt-oss-20b) have tight TPM limits — cap their output so the request fits
   const maxTokens = modelIndex > 0 ? Math.min(effortCfg.maxOutputTokens, 1800) : effortCfg.maxOutputTokens;
   const body = JSON.stringify({
-    model,
-    messages: groqMessages,
-    max_tokens: maxTokens,
-    temperature: effortCfg.temperature,
-    top_p: 0.95,
-    frequency_penalty: 0.75,
-    presence_penalty: 0.45,
-    stream: true,
-    ...(model.startsWith('openai/') && effortCfg.reasoningEffort ? { reasoning_effort: effortCfg.reasoningEffort } : {})
+    systemInstruction: { parts: [{ text: systemPrompt }] },
+    contents: toGeminiContents(messages),
+    generationConfig: { maxOutputTokens: maxTokens, temperature: effortCfg.temperature, topP: 0.95 },
+    safetySettings: [
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+    ]
   });
 
-  const reqPath = '/openai/v1/chat/completions';
-  const headers = {
-    'content-type': 'application/json',
-    'content-length': Buffer.byteLength(body),
-    'authorization': `Bearer ${apiKey}`
-  };
+  const reqPath = `/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
+  const headers = { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) };
 
   let gotResponse = false;
-  const req = https.request({ hostname: 'api.groq.com', path: reqPath, method: 'POST', headers }, (res) => {
+  const req = https.request({ hostname: GEMINI_HOST, path: reqPath, method: 'POST', headers }, (res) => {
     gotResponse = true;
     // Decode as UTF-8 across chunk boundaries: an emoji, curly quote or dash split between two network packets must not turn into "�"
     if (typeof res.setEncoding === 'function') res.setEncoding('utf8');
@@ -2287,13 +2295,13 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
         try {
           if ((res.statusCode >= 500 || res.statusCode === 413) && modelIndex + 1 < modelList.length && !ctx.aborted) {
             console.log(`Model ${model} status ${res.statusCode}, trying the next model`);
-            return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
+            return callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
           }
-          const parsed = JSON.parse(errBody);
-          const msg = parsed.error?.message || '';
+          let msg = '';
+          try { msg = JSON.parse(errBody).error?.message || ''; } catch (_) {}
           console.log(`Model ${model} status ${res.statusCode}: ${msg}`);
           if (res.statusCode === 401 || res.statusCode === 403) {
-            return onError(new Error(`Invalid Groq API key: ${msg}`));
+            return onError(new Error(`Invalid Gemini API key: ${msg}`));
           }
           if (res.statusCode === 429) {
             ctx.rateLimited = true;
@@ -2301,10 +2309,10 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
             if (ra != null && (ctx.retryAfterMs == null || ra < ctx.retryAfterMs)) ctx.retryAfterMs = ra;
           }
           if (res.statusCode === 429 || res.statusCode === 503 || res.statusCode === 404) {
-            return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
+            return callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
           }
           if (res.statusCode === 400 && modelIndex + 1 < modelList.length) {
-            return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
+            return callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
           }
           onError(new Error(msg || `HTTP ${res.statusCode}`));
         } catch (_) { onError(new Error(`HTTP ${res.statusCode}`)); }
@@ -2313,7 +2321,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     }
 
     const tier = modelList === GROQ_OPYS2_MODELS ? 'opys2' : modelList === GROQ_OPUS_MODELS ? 'opus' : modelList === GROQ_PRO_MODELS ? 'opes' : 'opas';
-    if (!GROQ_FALLBACKS.includes(model)) { workingModels[tier] = model; workingModelsAt[tier] = Date.now(); }
+    if (!GEMINI_FALLBACKS.includes(model)) { workingModels[tier] = model; workingModelsAt[tier] = Date.now(); }
     console.log(`Using model: ${model} (tier=${tier})`);
 
     let buffer = '';
@@ -2336,7 +2344,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
       if (cfgNext.maxOutputTokens < Math.min(800, effortCfg.maxOutputTokens)) return finishWithWhatWeHave();   // no room left in this request
       ctx.extended = true;
       try { onChunk('\n\n'); } catch (_) {}
-      return callGroqStream(apiKey, systemPrompt, next, onChunk, onDone, keepOnError, modelIndex, cfgNext, modelList, ctx);
+      return callGeminiStream(apiKey, systemPrompt, next, onChunk, onDone, keepOnError, modelIndex, cfgNext, modelList, ctx);
     };
     // The model hit its length limit. Carry on from where it stopped (or retry with more room if it wrote nothing).
     const handleLength = () => {
@@ -2344,8 +2352,8 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
       if (!collected.trim()) {
         if (!ctx.boosted) {
           ctx.boosted = true;
-          const more = fitOutputRoom({ ...effortCfg, maxOutputTokens: Math.max(effortCfg.maxOutputTokens, Math.min(Math.round(effortCfg.maxOutputTokens * 1.5), 3500)), reasoningEffort: 'low' }, systemPrompt, messages);
-          return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex, more, modelList, ctx);
+          const more = fitOutputRoom({ ...effortCfg, maxOutputTokens: Math.max(effortCfg.maxOutputTokens, Math.min(Math.round(effortCfg.maxOutputTokens * 1.5), 3500)) }, systemPrompt, messages);
+          return callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex, more, modelList, ctx);
         }
         return onDone(0);
       }
@@ -2355,7 +2363,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
           { role: 'user', content: '[Continue your previous reply from exactly where it was cut off. Do not repeat anything already written and do not add any introduction or comment about continuing.]' }];
         const cfgNext = fitOutputRoom(effortCfg, systemPrompt, next);
         if (cfgNext.maxOutputTokens < Math.min(300, Math.floor(effortCfg.maxOutputTokens / 3))) return finishWithWhatWeHave();
-        return callGroqStream(apiKey, systemPrompt, next, onChunk, onDone, keepOnError, modelIndex, cfgNext, modelList, ctx);
+        return callGeminiStream(apiKey, systemPrompt, next, onChunk, onDone, keepOnError, modelIndex, cfgNext, modelList, ctx);
       }
       onDone(usageTokens || Math.ceil(responseTextLen / 4));
     };
@@ -2367,24 +2375,20 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
         const raw = line.slice(6).trim();
-        if (raw === '[DONE]') { if (!finished) { finished = true; onDone(usageTokens || Math.ceil(responseTextLen / 4)); } return; }
+        if (!raw) continue;
         try {
           const parsed = JSON.parse(raw);
-          if (parsed.x_groq?.usage?.completion_tokens) {
-            usageTokens = parsed.x_groq.usage.completion_tokens;
-          } else if (parsed.usage?.completion_tokens) {
-            usageTokens = parsed.usage.completion_tokens;
-          }
-          const text = parsed.choices?.[0]?.delta?.content;
+          if (parsed.usageMetadata?.candidatesTokenCount) usageTokens = parsed.usageMetadata.candidatesTokenCount;
+          const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
           if (text) { responseTextLen += text.length; collected += text; onChunk(text); }
-          const reason = parsed.choices?.[0]?.finish_reason;
-          if (reason === 'length' && !finished) { finished = true; handleLength(); }
-          else if (reason === 'stop' && !finished) { finished = true; handleShort(); }
+          const reason = parsed.candidates?.[0]?.finishReason;
+          if (reason === 'MAX_TOKENS' && !finished) { finished = true; handleLength(); }
+          else if ((reason === 'STOP' || reason === 'RECITATION' || reason === 'OTHER') && !finished) { finished = true; handleShort(); }
+          else if (reason === 'SAFETY' && !finished) { finished = true; onError(new Error('Content blocked by safety filter')); }
         } catch (_) {}
       }
     });
 
-    // The connection can be cut mid-reply without an 'end' or an error. Finish with what we have, or fail so the charge is refunded.
     res.on('aborted', () => {
       if (finished) return;
       finished = true;
@@ -2400,10 +2404,10 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     res.on('end', () => {
       if (buffer.trim()) {
         const raw = buffer.startsWith('data: ') ? buffer.slice(6).trim() : '';
-        if (raw && raw !== '[DONE]') {
+        if (raw) {
           try {
             const parsed = JSON.parse(raw);
-            const text = parsed.choices?.[0]?.delta?.content;
+            const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
             if (text && !finished) onChunk(text);
           } catch (_) {}
         }
@@ -2415,7 +2419,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
   req.on('error', (e) => {
     if (!ctx.aborted && !gotResponse && e.message !== 'upstream timeout' && modelIndex + 1 < modelList.length) {
       console.log(`Model ${model} connection error (${e.message}), trying the next model`);
-      return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
+      return callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
     }
     onError(e);
   });
@@ -2423,7 +2427,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     ctx.req = req;
     if (ctx.aborted) { req.destroy(new Error('client aborted')); return; }
   }
-  req.setTimeout(180000, () => req.destroy(new Error('upstream timeout')));  // 3 min — reasoning models can think for 60–90 s before first token
+  req.setTimeout(180000, () => req.destroy(new Error('upstream timeout')));
   req.write(body);
   req.end();
 }
@@ -3037,7 +3041,7 @@ function charTextUnsafe(body) {
 async function charImageProblem(image) {
   // Only a newly uploaded picture is checked; the "keep existing" marker is not a picture
   if (!image || KEEP_IMAGE_RE.test(image)) return null;
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { status: 503, error: "We couldn't check that picture right now. Please try again in a moment." };
   try {
     const analysis = await analyzeImage(apiKey, image);
@@ -3360,7 +3364,7 @@ app.post('/api/conversations/:charId/edit', requireAuth, async (req, res) => {
 });
 
 app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
   const { charId } = req.params;
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
@@ -3484,7 +3488,7 @@ app.post('/api/rewind/:charId', requireAuth, convLimiter, async (req, res) => {
 });
 
 app.post('/api/generate-persona', requireAuth, (req, res) => {
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
   const { name, tagline, description } = req.body;
   if (!name || typeof name !== 'string' || !name.trim() || name.length > 60) return res.status(400).json({ error: 'Name required, max 60 chars' });
@@ -3504,7 +3508,7 @@ Include: core personality and temperament, distinct speech style and vocabulary,
 Write ONLY the persona prompt itself. Start with "You are ${name}." No preamble, no commentary, no explanation. Under 400 words.`;
 
   let fullText = '', done = false;
-  callGroqStream(
+  callGeminiStream(
     apiKey,
     'You write detailed, accurate character personas for AI roleplay apps. You research fictional characters and portray them faithfully.',
     [{ role: 'user', content: userMsg }],
@@ -3558,7 +3562,7 @@ async function generatePushMessage(row) {
   const ctx = (row.last_context || '').trim();
   const crisis = !!row.crisis_context;
   const isRp = (row.last_chat_mode || 'rp') !== 'chat';
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
 
   if (apiKey && ctx) {
     try {
@@ -3572,18 +3576,22 @@ async function generatePushMessage(row) {
         ? `You are ${charName || 'a character'}, ${modeDesc}. They've been away for a few days. Their last message touched on something painful or difficult. Write a short push notification (2-3 sentences) from your character's voice that: (1) gently and warmly checks in on how they're feeling without repeating the exact words they used, (2) invites them back to talk, (3) mentions in one warm natural sentence that real support is out there if they need it. ${styleNote} Write only the notification body text, nothing else.`
         : `You are ${charName || 'a character'}, ${modeDesc}. They've been away for a few days. Their last message to you was: "${ctx.slice(0, 300)}". Write a short push notification (2-3 sentences) from your character's voice that: (1) references something specific from what they said — make it feel like you actually remember, (2) invites them back naturally. Vary your opener so it doesn't sound like a template. ${styleNote} Write only the notification body text, nothing else.`;
 
-      const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const resp = await fetch(`https://${GEMINI_HOST}/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
-          messages: [{ role: 'user', content: systemPrompt }],
-          max_tokens: 120,
-          temperature: 1.1,
+          contents: [{ role: 'user', parts: [{ text: systemPrompt }] }],
+          generationConfig: { maxOutputTokens: 120, temperature: 1.1 },
+          safetySettings: [
+            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+          ]
         })
       });
       const data = await resp.json();
-      const body = data.choices?.[0]?.message?.content?.trim();
+      const body = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
       if (body) return { title: charName || 'Your character', body };
     } catch (_) { /* fall through */ }
   }
@@ -3632,7 +3640,7 @@ async function sendPushReminders() {
 setInterval(sendPushReminders, 6 * 60 * 60 * 1000);
 
 app.post('/api/greet/:charId', requireAuth, async (req, res) => {
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
   const { effort: reqEffort, modelTier: reqModelTier, chatMode } = req.body;
   const { charId } = req.params;
@@ -3713,8 +3721,6 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   });
 });
 
-const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-maverick-17b-128e-instruct';
-
 // One vision call that both checks the image against the content rules and describes it.
 // The chat models are text-only, so the character reacts to this description instead of the raw image.
 async function analyzeImage(apiKey, dataUri) {
@@ -3723,23 +3729,28 @@ async function analyzeImage(apiKey, dataUri) {
     'Set explicit to true if the image shows any exposed genitals, exposed female breasts or nipples, exposed buttocks, or explicit sexual activity. ' +
     'This applies equally to photos, drawings, cartoons and AI-generated images. A bare male chest, swimwear and normal clothing are allowed (explicit false). ' +
     'The description must be neutral and must not include sexual detail.';
-  const call = (extra) => fetch('https://api.groq.com/openai/v1/chat/completions', {
+  const dm = dataUri.match(/^data:([^;]+);base64,(.+)$/);
+  if (!dm) throw new Error('invalid image data URI');
+  const mimeType = dm[1];
+  const data = dm[2];
+  const r = await fetch(`https://${GEMINI_HOST}/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
     method: 'POST',
-    headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     signal: AbortSignal.timeout(30000),
     body: JSON.stringify({
-      model: GROQ_VISION_MODEL,
-      temperature: 0,
-      max_tokens: 400,
-      messages: [{ role: 'user', content: [ { type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUri } } ] }],
-      ...extra
+      contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType, data } }] }],
+      generationConfig: { maxOutputTokens: 400, temperature: 0 },
+      safetySettings: [
+        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+      ]
     })
   });
-  let r = await call({ reasoning_effort: 'none', reasoning_format: 'hidden' });
-  if (r.status === 400) r = await call({});
   if (!r.ok) throw new Error('vision http ' + r.status);
   const j = await r.json();
-  const content = String(j.choices?.[0]?.message?.content || '');
+  const content = String(j.candidates?.[0]?.content?.parts?.[0]?.text || '');
   const m = content.match(/\{[^{}]*"explicit"[^{}]*\}/);
   if (!m) throw new Error('unclear vision answer');
   let parsed;
@@ -3750,7 +3761,7 @@ async function analyzeImage(apiKey, dataUri) {
 }
 
 app.post('/api/chat', requireAuth, async (req, res) => {
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
   const { charId, message, modelTier: reqModelTier, effort: reqEffort, image, callMode, chatMode } = req.body;
   const isRpMode = chatMode !== 'chat'; // default to RP; 'chat' = normal conversation mode
