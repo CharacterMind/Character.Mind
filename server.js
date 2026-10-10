@@ -2600,13 +2600,21 @@ function edgeSecMsGec() {
 function edgeSynthesize(text, voice) {
   return new Promise((resolve, reject) => {
     const reqId = crypto.randomBytes(16).toString('hex');
-    const url = `${EDGE_WSS}?TrustedClientToken=${EDGE_TOKEN}&Sec-MS-GEC=${edgeSecMsGec()}&Sec-MS-GEC-Version=1-143.0.3650.96&ConnectionId=${reqId}`;
+    const url = `${EDGE_WSS}?TrustedClientToken=${EDGE_TOKEN}&Sec-MS-GEC=${edgeSecMsGec()}&Sec-MS-GEC-Version=1-130.0.2849.68&ConnectionId=${reqId}`;
     const ws = new WebSocket(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.2849.68',
         'Origin': 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold'
       }
     });
+    let done = false;
+    const finish = (err, result) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      err ? reject(err) : resolve(result);
+    };
+    const timer = setTimeout(() => { try { ws.close(); } catch(_){} finish(new Error('edge-tts timeout')); }, 10000);
     const chunks = [];
     const AUDIO_HDR = Buffer.from('Path:audio\r\n');
     const escXml = s => s.replace(/[<>&'"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c]));
@@ -2618,15 +2626,15 @@ function edgeSynthesize(text, voice) {
     });
     ws.on('message', data => {
       if (typeof data === 'string') {
-        if (data.includes('Path:turn.end')) { ws.close(); resolve(Buffer.concat(chunks)); }
+        if (data.includes('Path:turn.end')) { ws.close(); finish(null, Buffer.concat(chunks)); }
       } else {
         const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
         const idx = buf.indexOf(AUDIO_HDR);
         if (idx !== -1) chunks.push(buf.subarray(idx + AUDIO_HDR.length));
       }
     });
-    ws.on('error', reject);
-    ws.on('close', () => { if (!chunks.length) reject(new Error('no audio')); });
+    ws.on('error', e => finish(e));
+    ws.on('close', () => finish(new Error('no audio')));
   });
 }
 

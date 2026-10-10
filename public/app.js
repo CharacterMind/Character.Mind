@@ -5322,10 +5322,22 @@ async function callModeElevenTTS(text) {
       throw new Error('tts ' + r.status);
     }
     const blob = await r.blob();
-    if (gen !== callGen) return; // call ended or interrupted while the voice was loading
+    if (gen !== callGen) return;
     await playCallBlob(blob);
   } catch (_) {
-    if (callModeActive) listenForSpeech();
+    if (!callModeActive || gen !== callGen) return;
+    // Browser speech synthesis fallback — always available, no API key needed
+    const clean = text.replace(/\*[^*]*\*/g, '').replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim().slice(0, 300);
+    if (clean && window.speechSynthesis) {
+      const u = new SpeechSynthesisUtterance(clean);
+      if (selectedVoice) u.voice = selectedVoice;
+      const done = () => { if (callModeActive && callGen === gen) listenForSpeech(); };
+      u.onend = done;
+      u.onerror = done;
+      window.speechSynthesis.speak(u);
+    } else {
+      listenForSpeech();
+    }
   }
 }
 
