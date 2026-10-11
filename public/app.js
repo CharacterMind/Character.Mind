@@ -5618,7 +5618,7 @@ let callFirstConnect = false;
 let callInactivityTimer = null;
 let callStarting = false; // mutex: prevents double-start race condition
 const CALL_INACTIVITY_MS = 15 * 60 * 1000;
-const CALL_DAILY_MAX_SECS = 5 * 60; // 5 minutes per day
+const CALL_DAILY_MAX_SECS = 15 * 60; // 15 minutes per day
 let callDurationTimer = null;
 let callSessionStartedAt = null;
 
