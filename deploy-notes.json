@@ -1,4 +1,4 @@
 {
-  "message": "Fix deploy email: force IPv4 SMTP to fix ENETUNREACH on Render free tier\n\n- Render free instances have no IPv6; smtp.gmail.com was resolving to\n  IPv6 (2607:f8b0:...) and failing with ENETUNREACH\n- Switch from service:'gmail' to explicit host/port/family:4 to force IPv4\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
-  "timestamp": "2026-10-11T20:00:25.256Z"
+  "message": "Fix deploy email: pre-resolve smtp.gmail.com to IPv4 via dns.lookup\n\n- nodemailer family:4 option was not preventing IPv6 DNS resolution\n- Render free has no IPv6; smtp.gmail.com kept resolving to 2607:f8b0:...\n- Pre-resolve to IPv4 with dns.lookup({family:4}) then pass raw IP to\n  nodemailer with tls.servername for correct SNI handshake\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
+  "timestamp": "2026-10-11T20:08:43.703Z"
 }

@@ -98,7 +98,9 @@ async function sendDeployNotification() {
     notes = data.message || notes;
   } catch (e) { /* no file */ }
   const nodemailer = require('nodemailer');
-  const t = nodemailer.createTransport({ host: 'smtp.gmail.com', port: 587, secure: false, family: 4, auth: { user, pass } });
+  const dns = require('dns');
+  const smtpIp = await new Promise((res) => dns.lookup('smtp.gmail.com', { family: 4 }, (e, a) => res(e ? 'smtp.gmail.com' : a)));
+  const t = nodemailer.createTransport({ host: smtpIp, port: 587, secure: false, auth: { user, pass }, tls: { servername: 'smtp.gmail.com' } });
   const timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' });
   const escaped = notes.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   await t.sendMail({
