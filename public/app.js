@@ -513,9 +513,6 @@ function closePaypalCheckout() {
   currentCheckoutPlan = null;
 }
 
-function coPayBtnClick() {
-  document.getElementById('card-submit-btn').click();
-}
 
 function updateSettingsPlanCard(tier) {
   const t = tier || lastKnownUsage?.subscriptionTier || 'free';
@@ -3731,6 +3728,7 @@ function startCooldown(until, type, showModal) {
   bar.style.display = 'flex';
   if (inp) inp.disabled = true;
   // keep send button enabled so clicks re-show the limit modal with a new message
+  if (btn) btn.disabled = false;
 
   const cd = document.getElementById('lockoutCountdown');
 
