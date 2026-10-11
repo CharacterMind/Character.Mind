@@ -100,7 +100,8 @@ async function sendDeployNotification() {
   const nodemailer = require('nodemailer');
   const dns = require('dns');
   const smtpIp = await new Promise((res) => dns.lookup('smtp.gmail.com', { family: 4 }, (e, a) => res(e ? 'smtp.gmail.com' : a)));
-  const t = nodemailer.createTransport({ host: smtpIp, port: 587, secure: false, auth: { user, pass }, tls: { servername: 'smtp.gmail.com' } });
+  console.log('[deploy-email] Resolved smtp.gmail.com ->', smtpIp);
+  const t = nodemailer.createTransport({ host: smtpIp, port: 465, secure: true, auth: { user, pass }, tls: { servername: 'smtp.gmail.com' } });
   const timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' });
   const escaped = notes.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   await t.sendMail({

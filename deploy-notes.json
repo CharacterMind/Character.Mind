@@ -1,4 +1,4 @@
 {
-  "message": "Fix deploy email: pre-resolve smtp.gmail.com to IPv4 via dns.lookup\n\n- nodemailer family:4 option was not preventing IPv6 DNS resolution\n- Render free has no IPv6; smtp.gmail.com kept resolving to 2607:f8b0:...\n- Pre-resolve to IPv4 with dns.lookup({family:4}) then pass raw IP to\n  nodemailer with tls.servername for correct SNI handshake\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
-  "timestamp": "2026-10-11T20:08:43.703Z"
+  "message": "Try port 465/SMTPS — port 587 timed out on Render free tier\n\n- Port 587 (STARTTLS) connection timed out even over IPv4\n- Switching to port 465 (SMTPS/SSL) which may not be filtered\n- Also log the resolved IPv4 address for diagnostics\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
+  "timestamp": "2026-10-11T20:16:07.288Z"
 }
