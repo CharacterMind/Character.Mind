@@ -5438,6 +5438,7 @@ window.addEventListener('message', function(ev) {
 });
 
 function addSwipeGesture(msgEl) {
+  // ── Touch (mobile) ──
   let sx = 0, sy = 0, st = 0;
   msgEl.addEventListener('touchstart', e => {
     sx = e.touches[0].clientX; sy = e.touches[0].clientY; st = Date.now();
@@ -5446,21 +5447,39 @@ function addSwipeGesture(msgEl) {
     const dx = e.changedTouches[0].clientX - sx;
     const dy = e.changedTouches[0].clientY - sy;
     if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx) * 0.8 || Date.now() - st > 500) return;
-    const id = msgEl.dataset.regenId;
-    const store = id ? regenStore.get(id) : null;
-    if (dx > 0) {
-      // swipe right → show next version or regenerate
-      if (store && store.idx < store.texts.length - 1) {
-        regenNavStep(id, 1);
-      } else {
-        const allAi = [...document.getElementById('messages').querySelectorAll('.msg.ai')];
-        if (allAi[allAi.length - 1] === msgEl) regenerate();
-      }
-    } else {
-      // swipe left → show previous version
-      if (store && store.idx > 0) regenNavStep(id, -1);
-    }
+    handleSwipe(msgEl, dx);
   }, { passive: true });
+
+  // ── Mouse drag (desktop) ──
+  let mx = 0, my = 0, mt = 0, dragging = false;
+  msgEl.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    mx = e.clientX; my = e.clientY; mt = Date.now(); dragging = true;
+  });
+  msgEl.addEventListener('mouseup', e => {
+    if (!dragging) return;
+    dragging = false;
+    const dx = e.clientX - mx;
+    const dy = e.clientY - my;
+    if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx) * 0.8 || Date.now() - mt > 600) return;
+    handleSwipe(msgEl, dx);
+  });
+  msgEl.addEventListener('mouseleave', () => { dragging = false; });
+}
+
+function handleSwipe(msgEl, dx) {
+  const id = msgEl.dataset.regenId;
+  const store = id ? regenStore.get(id) : null;
+  if (dx > 0) {
+    if (store && store.idx < store.texts.length - 1) {
+      regenNavStep(id, 1);
+    } else {
+      const allAi = [...document.getElementById('messages').querySelectorAll('.msg.ai')];
+      if (allAi[allAi.length - 1] === msgEl) regenerate();
+    }
+  } else {
+    if (store && store.idx > 0) regenNavStep(id, -1);
+  }
 }
 
 function ttsCleanText(raw) {

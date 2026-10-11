@@ -2101,7 +2101,7 @@ function withSigs(userId, charId, msgs) {
 // stops the upstream request if the client leaves, swaps a bare canned refusal for an explanation, and never
 // lets an exception leave the response hanging.
 function startReplyStream(o) {
-  const { res, apiKey, system, messages, effortCfg, modelList, userId, charId, modelTier, effort, releaseSlot, onComplete, onFail, logLabel, callMode: isCallMode } = o;
+  const { res, apiKey, system, messages, effortCfg, modelList, userId, charId, modelTier, effort, releaseSlot, onComplete, onFail, logLabel, callMode: isCallMode, greetMode: isGreetMode } = o;
   const effortCfgFit = fitOutputRoom(effortCfg, system, messages);   // never ask for more reply room than the request can hold
   const ctx = { aborted: false, req: null };
   { const bLen = baseOf(modelTier); ctx.minWords = (bLen === 'opos' || bLen === 'opus' || bLen === 'opys' || bLen === 'opys5') ? lengthTargetWords(modelTier, effort) : 0; }
@@ -2112,8 +2112,8 @@ function startReplyStream(o) {
     releaseSlot();
     return;
   }
-  // Call mode has its own separate limit (daily call count + duration) — skip message token limits entirely
-  if (!isCallMode) {
+  // Call mode and greet mode skip message token limits entirely
+  if (!isCallMode && !isGreetMode) {
     // The limit was checked a moment ago, before the character and chat were loaded; check again right before reserving, so two
     // replies started together cannot both slip past the same limit.
     const limitNow = checkLimits(userId);
@@ -2142,8 +2142,8 @@ function startReplyStream(o) {
       }
     }
   });
-  const cost = isCallMode ? 0 : messageCost(modelTier, effort);
-  const reservation = isCallMode ? { warnings: [] } : addTokens(userId, cost);
+  const cost = (isCallMode || isGreetMode) ? 0 : messageCost(modelTier, effort);
+  const reservation = (isCallMode || isGreetMode) ? { warnings: [] } : addTokens(userId, cost);
   let fullResponse = '', held = '', released = false, finished = false;
   const send = (obj) => { try { res.write('data: ' + JSON.stringify(obj) + '\n\n'); } catch (_) {} };
   // While the AI is thinking or waiting for its turn, say "still here" every 10 seconds. Without this a long wait with no text can look
@@ -3763,10 +3763,7 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
     return;
   }
 
-  // ── AI-generated greeting: check limits first ─────────────────────────────
-  const limit = checkLimits(userId);
-  if (limit.blocked) { releaseSlot(); return res.status(429).json({ error: limit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limit }); }
-
+  // ── AI-generated greeting: free — does not cost tokens ────────────────────
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -3782,14 +3779,14 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
     ? '[BEHAVIORAL FRAME — READ THIS FIRST, BEFORE THE CHARACTER BRIEF BELOW:\nYou are opening the scene in STATE 1 — the composed, atmospheric welcome phase. This is not generic friendliness. This is a specific character opening a specific scene. Your warmth is real and deliberate. Set the atmosphere. Make the user feel they have arrived somewhere real. Read the character brief below and open the scene in that voice.]\n\n'
     : '';
   const triggerContent = greetIsChat
-    ? `[The user has just opened a conversation with you. Say hello warmly and naturally — like a friend starting a chat, not a character setting a scene. Keep it brief and inviting.]`
-    : `[Scene opens. ${charName} enters or is already present. Begin the scene — speak first, act first, set the atmosphere. The other person has just arrived. Go.]`;
+    ? `[The user has just started a chat with you. Greet them warmly and naturally — like a friend starting a conversation, not a character setting a scene. Keep it brief and inviting. IMPORTANT: Make your greeting feel COMPLETELY FRESH and DIFFERENT every single time — vary what you're doing, what you say first, your mood, the topic you open with. Never start the same way twice. Do not use the same opening sentence or the same structure as any previous greeting.]`
+    : `[Scene opens. ${charName} is present — the other person has just arrived. Begin the scene immediately. Speak or act first; set the atmosphere in your character's voice. IMPORTANT: Make this opening COMPLETELY DIFFERENT every time — vary the situation, your activity, your mood, what you say, where you are in the scene. Never open the same way twice. Go.]`;
   const trigger = [{ role: 'user', content: triggerContent }];
   startReplyStream({
     res, apiKey,
     system: applyEffortDirective(greetEnforcementPrefix + wrapPrompt(systemPrompt, greetIsChat) + greetChatModeDirective, effort, modelTier),
     messages: trigger, effortCfg: greetEffortCfg, modelList: greetModelList,
-    userId, modelTier, effort, releaseSlot, charId,
+    userId, modelTier, effort, releaseSlot, charId, greetMode: true,
     onComplete: (text) => { conversations[key].push({ role: 'assistant', content: text }); persistConv(key); },
     logLabel: 'Greet'
   });
