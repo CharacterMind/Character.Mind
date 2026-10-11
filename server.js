@@ -86,11 +86,12 @@ if (!process.env.DATABASE_URL) {
 }
 
 async function sendDeployNotification() {
-  if (!process.env.RENDER) return;
+  console.log('[deploy-email] RENDER=' + process.env.RENDER + ' OWNER_EMAIL=' + (process.env.OWNER_EMAIL ? 'set' : 'MISSING') + ' DEPLOY_GMAIL_USER=' + (process.env.DEPLOY_GMAIL_USER ? 'set' : 'MISSING') + ' DEPLOY_GMAIL_APP_PASSWORD=' + (process.env.DEPLOY_GMAIL_APP_PASSWORD ? 'set' : 'MISSING'));
+  if (!process.env.RENDER) { console.log('[deploy-email] Skipped — not on Render'); return; }
   const to = process.env.OWNER_EMAIL;
   const user = process.env.DEPLOY_GMAIL_USER || process.env.GMAIL_USER;
   const pass = process.env.DEPLOY_GMAIL_APP_PASSWORD || process.env.GMAIL_APP_PASSWORD;
-  if (!to || !user || !pass) return;
+  if (!to || !user || !pass) { console.log('[deploy-email] Skipped — missing env vars: to=' + !!to + ' user=' + !!user + ' pass=' + !!pass); return; }
   let notes = 'Deploy completed — no notes file found.';
   try {
     const data = JSON.parse(require('fs').readFileSync('./deploy-notes.json', 'utf8'));

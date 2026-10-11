@@ -1,4 +1,4 @@
 {
-  "message": "Fix deploy email: move sendDeployNotification before app.listen\n\n- Function was defined at line 4130 but called at line 91 inside\n  app.listen callback; moved definition to before app.listen so it\n  is guaranteed to exist when the callback fires\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
-  "timestamp": "2026-10-11T19:49:06.527Z"
+  "message": "Add diagnostic logging to deploy email to trace missing env vars\n\n- Log which env vars are present/missing on startup so we can see\n  exactly why the email silently skipped on previous deploys\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
+  "timestamp": "2026-10-11T19:53:57.278Z"
 }
