@@ -2289,14 +2289,36 @@ function setFilter(btn, tag) {
   renderDiscover();
 }
 
+// ── Announcements (add new entries at the top of this array) ─────────────────
+const ANNOUNCEMENTS = [
+  {
+    id: 'ann_20261011_poppy_games',
+    date: 'Oct 11, 2026',
+    title: 'Poppy is here — and the AI plays games now',
+    body: 'Poppy Playtime has arrived on Character.Mind. Chat with her directly from the character list. Also new: every AI character can now build and play mini-games with you mid-conversation — ask them to start a game and they will.',
+    badge: 'NEW',
+  },
+];
+
 // ── Render Feed ───────────────────────────────────────────────────────────────
 function renderFeed() {
   const feedList = document.getElementById('feedList');
+
+  const annHtml = ANNOUNCEMENTS.map(a => `
+    <div class="ann-card">
+      <div class="ann-header">
+        <span class="ann-badge">${escHtml(a.badge || 'UPDATE')}</span>
+        <span class="ann-date">${escHtml(a.date)}</span>
+      </div>
+      <div class="ann-title">${escHtml(a.title)}</div>
+      <div class="ann-body">${escHtml(a.body)}</div>
+    </div>`).join('');
+
   if (characters.length === 0) {
-    feedList.innerHTML = `<div class="empty-state"><div class="empty-icon">◆</div><div class="empty-title">Nothing here yet</div><div class="empty-sub">Create some characters first.</div></div>`;
+    feedList.innerHTML = annHtml + `<div class="empty-state"><div class="empty-icon">◆</div><div class="empty-title">Nothing here yet</div><div class="empty-sub">Create some characters first.</div></div>`;
     return;
   }
-  feedList.innerHTML = characters.map(c => {
+  feedList.innerHTML = annHtml + characters.map(c => {
     const av = c.image
       ? `<div class="feed-avatar" style="background:#111;overflow:hidden"><img src="${c.image}" style="width:100%;height:100%;object-fit:cover"></div>`
       : `<div class="feed-avatar" style="background:${safeColor(c.color)}">${escHtml(c.name[0]||'?')}</div>`;

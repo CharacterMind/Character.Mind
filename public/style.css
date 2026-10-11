@@ -460,6 +460,19 @@ html, body {
 
 /* ── Feed ────────────────────────────────────────────────────────────────── */
 .feed-list { display: flex; flex-direction: column; gap: 10px; max-width: 540px; }
+.ann-card {
+  background: linear-gradient(135deg, rgba(124,58,237,.12), rgba(99,102,241,.08));
+  border: 1px solid rgba(124,58,237,.35); border-radius: var(--rl);
+  padding: 16px; margin-bottom: 4px;
+}
+.ann-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ann-badge {
+  font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  background: var(--accent); color: #fff; padding: 2px 7px; border-radius: 20px;
+}
+.ann-date { font-size: 11px; color: var(--text3); }
+.ann-title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.ann-body { font-size: 13px; color: var(--text2); line-height: 1.6; }
 .feed-card {
   background: var(--bg2); border: 1px solid var(--border); border-radius: var(--rl);
   padding: 16px; transition: border-color .18s;
