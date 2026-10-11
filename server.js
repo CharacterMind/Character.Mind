@@ -1972,8 +1972,8 @@ async function getCharPrompt(charId) {
 const GEMINI_HOST = 'generativelanguage.googleapis.com';
 // Each model is a separate quota bucket — if one is rate-limited, the next fires instantly.
 // Order: best quality first, then progressively lighter/faster fallbacks.
-const GEMINI_FALLBACKS   = ['gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
-const GEMINI_MODEL_LIST  = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
+const GEMINI_FALLBACKS   = ['gemini-3.5-flash-lite'];
+const GEMINI_MODEL_LIST  = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'];
 // Keep the old names so the rest of the file compiles without changes
 const GROQ_FAST_MODELS  = GEMINI_MODEL_LIST;
 const GROQ_MODELS       = GEMINI_MODEL_LIST;
