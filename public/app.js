@@ -5455,16 +5455,17 @@ function addSwipeGesture(msgEl) {
   msgEl.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     mx = e.clientX; my = e.clientY; mt = Date.now(); dragging = true;
+    e.preventDefault(); // prevent text selection from swallowing mouseup
   });
-  msgEl.addEventListener('mouseup', e => {
+  const onDocUp = e => {
     if (!dragging) return;
     dragging = false;
     const dx = e.clientX - mx;
     const dy = e.clientY - my;
     if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx) * 0.8 || Date.now() - mt > 600) return;
     handleSwipe(msgEl, dx);
-  });
-  msgEl.addEventListener('mouseleave', () => { dragging = false; });
+  };
+  document.addEventListener('mouseup', onDocUp);
 }
 
 function handleSwipe(msgEl, dx) {
