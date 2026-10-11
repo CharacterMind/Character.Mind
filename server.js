@@ -90,6 +90,7 @@ if (!process.env.DATABASE_URL) {
 // the maintenance page. Once ready, serverReady flips true and the site opens.
 app.listen(PORT, () => {
   console.log(`\nAI Character Site bound on port ${PORT} — initializing (maintenance active)...\n`);
+  sendDeployNotification().catch(e => console.error('Deploy email failed:', e.message));
   if (!db) {
     serverReady = true;
     loadOwnerIds();
@@ -4124,6 +4125,31 @@ function getMailTransporter() {
     service: 'gmail',
     auth: { user, pass }
   });
+}
+
+async function sendDeployNotification() {
+  if (!process.env.RENDER) return;
+  const to = process.env.OWNER_EMAIL;
+  const user = process.env.DEPLOY_GMAIL_USER || process.env.GMAIL_USER;
+  const pass = process.env.DEPLOY_GMAIL_APP_PASSWORD || process.env.GMAIL_APP_PASSWORD;
+  if (!to || !user || !pass) return;
+  let notes = 'Deploy completed — no notes file found.';
+  try {
+    const data = JSON.parse(require('fs').readFileSync('./deploy-notes.json', 'utf8'));
+    notes = data.message || notes;
+  } catch (e) { /* no file */ }
+  const nodemailer = require('nodemailer');
+  const t = nodemailer.createTransport({ service: 'gmail', auth: { user, pass } });
+  const timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' });
+  const escaped = notes.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  await t.sendMail({
+    from: `"Character Mind" <${user}>`,
+    to,
+    subject: `Character Mind deployed — ${timestamp}`,
+    text: notes,
+    html: `<div style="font-family:sans-serif;max-width:600px"><h2 style="color:#7c3aed">Character Mind — Deploy Complete</h2><p style="color:#666">${timestamp}</p><pre style="background:#f4f4f4;padding:16px;border-radius:8px;font-size:13px;white-space:pre-wrap">${escaped}</pre></div>`
+  });
+  console.log('Deploy notification sent to', to);
 }
 
 async function sendReceiptEmail(userName, email, planKey, subscriptionId, period) {

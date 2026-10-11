@@ -1,0 +1,4 @@
+{
+  "message": "Add deploy email notifications; fix Lily & Poppy prompts\n\n- Server sends email to owner on every Render startup with deploy notes\n- Poppy: full rewrite with factory lore, voice rules, hidden agenda\n- Lily: Candy Cat corrected to hand puppet; 122 days; Prototype as\n  special guest; exile/starvation rations context added\n- characterTemplates.js now included in push file list\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
+  "timestamp": "2026-10-11T18:10:39.646Z"
+}
