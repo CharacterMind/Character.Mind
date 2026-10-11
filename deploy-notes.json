@@ -1,4 +1,4 @@
 {
-  "message": "Add diagnostic logging to deploy email to trace missing env vars\n\n- Log which env vars are present/missing on startup so we can see\n  exactly why the email silently skipped on previous deploys\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
-  "timestamp": "2026-10-11T19:53:57.278Z"
+  "message": "Fix deploy email: hardcode owner email fallback; add diagnostics\n\n- OWNER_EMAIL was not set on Render, causing silent early return\n- Hardcode davey252572727@gmail.com as fallback so email always sends\n- Added [deploy-email] log lines to trace env var state on startup\n- Fallback chain: DEPLOY_GMAIL_USER -> GMAIL_USER for sending creds\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
+  "timestamp": "2026-10-11T19:56:15.576Z"
 }
