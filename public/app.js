@@ -4658,6 +4658,7 @@ function appendMessage(role, text, imgB64, lite) {
       ${text ? `<div class="bubble">${escHtml(text)}</div>` : ''}`;
   }
   document.getElementById('messages').appendChild(div);
+  if (role === 'ai') addSwipeGesture(div);
   return div;
 }
 
@@ -4683,6 +4684,7 @@ function createAiMessage() {
       ${regenBtn()}${likeBtn()}${dislikeBtn()}
     </div>`;
   document.getElementById('messages').appendChild(div);
+  addSwipeGesture(div);
   return div;
 }
 
@@ -5374,10 +5376,36 @@ function createGameCard(htmlContent, accentColor) {
     btn.textContent = open ? '✕ Close' : '▶ Play';
     if (open && !loaded) {
       loaded = true;
-      iframe.src = URL.createObjectURL(new Blob([htmlContent], { type: 'text/html' }));
+      iframe.srcdoc = htmlContent;
     }
   });
   return card;
+}
+
+function addSwipeGesture(msgEl) {
+  let sx = 0, sy = 0, st = 0;
+  msgEl.addEventListener('touchstart', e => {
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY; st = Date.now();
+  }, { passive: true });
+  msgEl.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - sx;
+    const dy = e.changedTouches[0].clientY - sy;
+    if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx) * 0.8 || Date.now() - st > 500) return;
+    const id = msgEl.dataset.regenId;
+    const store = id ? regenStore.get(id) : null;
+    if (dx > 0) {
+      // swipe right → show next version or regenerate
+      if (store && store.idx < store.texts.length - 1) {
+        regenNavStep(id, 1);
+      } else {
+        const allAi = [...document.getElementById('messages').querySelectorAll('.msg.ai')];
+        if (allAi[allAi.length - 1] === msgEl) regenerate();
+      }
+    } else {
+      // swipe left → show previous version
+      if (store && store.idx > 0) regenNavStep(id, -1);
+    }
+  }, { passive: true });
 }
 
 function ttsCleanText(raw) {
