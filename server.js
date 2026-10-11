@@ -98,7 +98,7 @@ async function sendDeployNotification() {
     notes = data.message || notes;
   } catch (e) { /* no file */ }
   const nodemailer = require('nodemailer');
-  const t = nodemailer.createTransport({ service: 'gmail', auth: { user, pass } });
+  const t = nodemailer.createTransport({ host: 'smtp.gmail.com', port: 587, secure: false, family: 4, auth: { user, pass } });
   const timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' });
   const escaped = notes.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   await t.sendMail({

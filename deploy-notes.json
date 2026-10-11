@@ -1,4 +1,4 @@
 {
-  "message": "Fix deploy email: hardcode owner email fallback; add diagnostics\n\n- OWNER_EMAIL was not set on Render, causing silent early return\n- Hardcode davey252572727@gmail.com as fallback so email always sends\n- Added [deploy-email] log lines to trace env var state on startup\n- Fallback chain: DEPLOY_GMAIL_USER -> GMAIL_USER for sending creds\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
-  "timestamp": "2026-10-11T19:56:15.576Z"
+  "message": "Fix deploy email: force IPv4 SMTP to fix ENETUNREACH on Render free tier\n\n- Render free instances have no IPv6; smtp.gmail.com was resolving to\n  IPv6 (2607:f8b0:...) and failing with ENETUNREACH\n- Switch from service:'gmail' to explicit host/port/family:4 to force IPv4\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
+  "timestamp": "2026-10-11T20:00:25.256Z"
 }
