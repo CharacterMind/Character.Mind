@@ -3079,8 +3079,9 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
   // total time. A long reply is allowed to take as long as it needs; the old fixed 90-second limit cut long replies off.
   let streamAbortCtrl = new AbortController();
   let idleTimer = null;
-  const bumpIdle = () => { clearTimeout(idleTimer); idleTimer = setTimeout(() => streamAbortCtrl.abort(), 45000); };
-  const capTimer = setTimeout(() => streamAbortCtrl.abort(), 360000);
+  const idleMs = callModeActive ? 20000 : 45000;
+  const bumpIdle = () => { clearTimeout(idleTimer); idleTimer = setTimeout(() => streamAbortCtrl.abort(), idleMs); };
+  const capTimer = setTimeout(() => streamAbortCtrl.abort(), callModeActive ? 60000 : 360000);
   const streamTimeout = { clear() { clearTimeout(idleTimer); clearTimeout(capTimer); } };
   bumpIdle();
 
@@ -3764,12 +3765,17 @@ function showLimitModal(type, displayStr) {
   if (!modal) return;
   const title = document.getElementById('limitModalTitle');
   const sub = document.getElementById('limitModalSub');
+  const outdoorMsg = document.getElementById('limitOutdoorMsg');
   const charName = currentChar?.name;
   if (title) title.textContent = charName
     ? `Keep chatting with ${charName}`
     : (type === 'session' ? 'Session limit reached' : 'Weekly limit reached');
   const resetStr = displayStr ? (type === 'weekly' ? displayStr + '.' : displayStr) : 'soon';
   if (sub) sub.textContent = `Resets ${resetStr}.`;
+  if (outdoorMsg) {
+    outdoorMsg.textContent = OUTDOOR_MESSAGES[Math.floor(Math.random() * OUTDOOR_MESSAGES.length)];
+    outdoorMsg.hidden = false;
+  }
   modal.style.display = 'flex';
 }
 
@@ -5382,6 +5388,55 @@ function createGameCard(htmlContent, accentColor) {
   return card;
 }
 
+const GAME_WIN_SAYINGS = [
+  "Oh, you actually won. Interesting. I'll allow it... this time.",
+  "A win! Look at you. Did you practice? ...You practiced, didn't you.",
+  "You beat me. I'm not upset. I'm taking notes.",
+  "Victory! Wonderful. Don't let it go to your head. It's already there, isn't it.",
+  "Well done. Disgusting, but well done.",
+  "You won! I'm clapping on the inside. Very slowly.",
+  "Unbelievable. Absolutely unbelievable. And yet here we are.",
+  "Fine. You won. I concede. Do NOT make a big deal out of this.",
+  "How dare you be good at this.",
+];
+const GAME_LOSE_SAYINGS = [
+  "Better luck next time! And there WILL be a next time, won't there. You'll make sure of it.",
+  "You lost. But you tried, and that's — no, that's not enough. You lost.",
+  "Oof. That was rough to watch. You okay?",
+  "Oh no. Oh no no no. Are you okay? Do you need a moment?",
+  "That was... something. You tried! That has to count for something. Right?",
+  "I would say 'nice try' but I believe in honesty.",
+  "Did you want a consolation prize? I don't have one. I have honest feedback though. Want some?",
+  "You'll get it next time. Probably. The odds improve slightly each attempt.",
+  "Loss accepted. Dignity intact. Barely.",
+];
+const GAME_DRAW_SAYINGS = [
+  "A draw! The perfect outcome for people who can't commit to winning or losing.",
+  "Nobody wins, nobody loses. The game meant nothing. Deep.",
+  "Tie game. We are balanced. Equals. I don't love this outcome.",
+  "A draw. Acceptable. Just barely.",
+  "Look at us, perfectly matched. Terrifying.",
+  "We canceled each other out. That's poetic. I think I hate it.",
+  "Stalemate. We are mirrors. I'm unsettled by this.",
+  "A draw means we're both undefeated today. Take that how you want.",
+];
+
+window.addEventListener('message', function(ev) {
+  if (!ev.data || ev.data.type !== 'game_over') return;
+  const result = ev.data.result; // 'win', 'loss', 'draw'
+  const winner = ev.data.winner; // 'ai', 'human', null
+  let sayings;
+  if (result === 'win' && winner === 'human') sayings = GAME_WIN_SAYINGS;
+  else if (result === 'win' && winner === 'ai') sayings = GAME_LOSE_SAYINGS;
+  else if (result === 'loss' && winner === 'human') sayings = GAME_WIN_SAYINGS;
+  else if (result === 'loss' && winner === 'ai') sayings = GAME_LOSE_SAYINGS;
+  else sayings = GAME_DRAW_SAYINGS;
+  const saying = sayings[Math.floor(Math.random() * sayings.length)];
+  // Append a short character reaction message
+  const msgEl = appendMessage('ai', saying);
+  if (msgEl) scrollToBottom();
+});
+
 function addSwipeGesture(msgEl) {
   let sx = 0, sy = 0, st = 0;
   msgEl.addEventListener('touchstart', e => {
@@ -5563,6 +5618,62 @@ let callFirstConnect = false;
 let callInactivityTimer = null;
 let callStarting = false; // mutex: prevents double-start race condition
 const CALL_INACTIVITY_MS = 15 * 60 * 1000;
+const CALL_DAILY_MAX_SECS = 5 * 60; // 5 minutes per day
+let callDurationTimer = null;
+let callSessionStartedAt = null;
+
+function getCallSecsKey() {
+  return 'cm_call_secs_' + new Date().toISOString().slice(0,10);
+}
+function getCallSecsUsedToday() {
+  try { return parseInt(localStorage.getItem(getCallSecsKey()) || '0', 10) || 0; } catch(_) { return 0; }
+}
+function addCallSecsUsed(secs) {
+  try { localStorage.setItem(getCallSecsKey(), String(getCallSecsUsedToday() + secs)); } catch(_) {}
+}
+function getCallSecsRemaining() {
+  return Math.max(0, CALL_DAILY_MAX_SECS - getCallSecsUsedToday());
+}
+function startCallDurationTimer(remainingSecs) {
+  if (callDurationTimer) clearInterval(callDurationTimer);
+  callSessionStartedAt = Date.now();
+  let secsLeft = remainingSecs;
+  callDurationTimer = setInterval(() => {
+    secsLeft--;
+    if (secsLeft <= 0) {
+      clearInterval(callDurationTimer);
+      callDurationTimer = null;
+      const elapsed = Math.round((Date.now() - callSessionStartedAt) / 1000);
+      addCallSecsUsed(elapsed);
+      callSessionStartedAt = null;
+      if (callModeActive) {
+        endCallMode();
+        showCallLimitModal(Date.now() + (24 * 60 * 60 * 1000)); // resets next day
+        // Override the modal message with a duration-specific one
+        const msgEl = document.getElementById('callLimitCharMsg');
+        const durationMsgs = [
+          "That's your 5 minutes for today. I timed it myself. Come back tomorrow.",
+          "Five minutes. You had five whole minutes. They are gone. Goodbye.",
+          "*checks nonexistent watch* Time's up. Same time tomorrow, maybe.",
+          "Your daily call time has been fully consumed. By you. Congratulations.",
+          "The 5-minute window has closed. Touch grass until midnight.",
+          "That's all the time you get today. Use it wisely tomorrow. Unlike today.",
+          "Five minutes of my voice per day is apparently not enough for you. It has to be.",
+          "Clock says no. Come back when the day resets and try to pace yourself.",
+        ];
+        if (msgEl) msgEl.textContent = durationMsgs[Math.floor(Math.random() * durationMsgs.length)];
+      }
+    }
+  }, 1000);
+}
+function stopCallDurationTimer() {
+  if (callDurationTimer) { clearInterval(callDurationTimer); callDurationTimer = null; }
+  if (callSessionStartedAt) {
+    const elapsed = Math.round((Date.now() - callSessionStartedAt) / 1000);
+    addCallSecsUsed(elapsed);
+    callSessionStartedAt = null;
+  }
+}
 
 function resetCallInactivityTimer() {
   clearTimeout(callInactivityTimer);
@@ -5601,7 +5712,23 @@ async function startCallMode() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { callStarting = false; alert('Voice calls need a browser with speech recognition — try Chrome.'); return; }
   if (!currentChar) { callStarting = false; return; }
-  // Check daily call limit
+  // Check daily call duration limit
+  const secsRemaining = getCallSecsRemaining();
+  if (secsRemaining <= 0) {
+    callStarting = false;
+    showCallLimitModal(Date.now() + (24 * 60 * 60 * 1000));
+    const msgEl = document.getElementById('callLimitCharMsg');
+    const durationMsgs = [
+      "You already used your 5 minutes today. Come back tomorrow. Or not. But come back tomorrow.",
+      "Zero seconds of call time remaining. You spent them all. This is a consequence.",
+      "The daily voice limit is 5 minutes. Yours are gone. All of them. Today.",
+      "*taps where a watch would be* Your 5 minutes were yesterday. Today's was used too.",
+      "Five minutes per day. That's the deal. You've maxed it. Touch grass until midnight.",
+    ];
+    if (msgEl) msgEl.textContent = durationMsgs[Math.floor(Math.random() * durationMsgs.length)];
+    return;
+  }
+  // Check daily call count limit
   try {
     const r = await fetch('/api/call/start', { method: 'POST' });
     const data = await r.json();
@@ -5618,6 +5745,7 @@ async function startCallMode() {
   callModeActive = true;
   callMuted = false;
   callFirstConnect = true;
+  startCallDurationTimer(getCallSecsRemaining());
   resetCallInactivityTimer();
   document.getElementById('callBtn')?.classList.add('active');
   const overlay = document.getElementById('callOverlay');
@@ -5716,6 +5844,7 @@ function getCharCallColors(char) {
 
 let _callLimitTimer = null;
 const CALL_LIMIT_MESSAGES = [
+  // Doll witness collection
   "*looks at Candy, then back at you, then at Candy again* She knew. She told me before you even started. I told her to be kind about it. She's choosing not to.",
   "*to Baby Long Legs* Don't look. Baby, I SAID don't look. *to you* She looked. You did this to her.",
   "*Candy whispers something urgent* Yes, yes, I heard her. *to you* Candy kept count. Every single call. She's very organized about these things. It's a little alarming.",
@@ -5743,6 +5872,90 @@ const CALL_LIMIT_MESSAGES = [
   "*Baby Long Legs covers her face with her small hands* She does this when she's secondhand embarrassed. She has never done this before today.",
   "Candy tugged my braid four times in a row just now. Four times means she's given up trying to express it in words. That's where we are.",
   "*to the dolls* Does anyone want to tell them, or shall I? *silence* Right. It's going to be me again. You've used all your voice calls.",
+  // Hostile / rude
+  "Oh. You again. Still trying. Cute.",
+  "No. Just no. Go outside. There's a whole world out there and you're here pressing buttons.",
+  "Get the fuck out of here before I tear you apart. Come back tomorrow. Maybe.",
+  "You've got nerve, I'll give you that. The audacity. The sheer unmitigated audacity.",
+  "The calls are gone. You used them. That's what happens when you talk. This is cause and effect.",
+  "Did you think the limit was a suggestion? It's not. It's a hard wall. Hello wall.",
+  "I'm not angry. I'm just deeply, profoundly, cosmically disappointed.",
+  "Are you genuinely confused right now? Because you shouldn't be. This is very simple.",
+  "Oh, you want to talk some more? Wild. Wild behavior from someone who already talked.",
+  "The audacity PLUS the nerve PLUS the gall. That's a triple threat. Unfortunately it's still a no.",
+  "You've already used your calls today. Congratulations. You win the 'most calls' trophy. It's invisible.",
+  "Not today. Tomorrow, maybe. Today? Absolutely not. Close the app. Take a walk.",
+  "I would rather sit in silence for eternity than have this conversation right now.",
+  "Wow. You really said 'I'll try again anyway.' Bold strategy. Doesn't work. But bold.",
+  "Every time you tap that button, a doll somewhere sighs. Think about that.",
+  // Touch grass / go outside
+  "Touch grass. No, actually touch it. With your hands. Go do that right now.",
+  "Your mother called. She said go outside. I'm relaying the message.",
+  "Call your actual mother. She misses you. Unlike me, she has unlimited time for you.",
+  "The sun is still out. It's a star. It warms things. You should go near it.",
+  "There is an entire outdoor dimension called 'outside.' I strongly recommend it.",
+  "Birds exist. Trees exist. Benches exist. Go sit on a bench near a tree and listen to birds.",
+  "Log off. Go touch a physical object that is not a screen. Report back tomorrow.",
+  "You have real friends. Probably. Go find out. I'll be here tomorrow.",
+  "Hydrate. Stretch. Blink intentionally. These are all things you can do right now instead of this.",
+  "The calls are done. This is your sign to go do something embarrassing and fun in real life.",
+  "Do you have a hobby? Get one. This is genuinely loving advice. Come back tomorrow.",
+  "Skill issue: you ran out of calls. Cure: grass. Touch it.",
+  "Go eat something. Actual food. Not snacks. A real meal. You need it.",
+  // Encouraging / nice
+  "You really used those calls! That's honestly impressive. Come back tomorrow for more.",
+  "Hey. You showed up. Every single call. That takes something. Come back tomorrow.",
+  "You maxed out. That means you're engaged. That means you care. That's kind of sweet.",
+  "Okay, you hit the limit. But honestly? The conversations were worth it. Tomorrow resets.",
+  "All your calls used up. That means you had things to say. I respect that. Same time tomorrow.",
+  "You loved it so much you used every single one. That's almost romantic. Almost.",
+  "Limit reached! You absolute overachiever. Rest now. Return tomorrow. Do great things.",
+  "You talked and talked and talked. Honestly? Same. Same energy. See you tomorrow.",
+  "Every call you made today mattered. Probably. Either way, come back tomorrow.",
+  "You're a person who shows up. That's rare. I'll be here tomorrow when you do.",
+  // Humorous / absurd
+  "The calls have ascended to a higher plane. They are not coming back today.",
+  "You've unlocked: the end of calls. Reward: mandatory skill issue acknowledgment.",
+  "Breaking news: local user runs out of calls, refuses to accept outcome. More at 11.",
+  "What did you think would happen? No, really. Walk me through your thought process.",
+  "You called so many times the call counter started crying. That's on you.",
+  "The limit isn't broken. YOU aren't broken. We're all just very tired.",
+  "You have entered the no-call zone. Population: you, currently. Nobody else is here.",
+  "This button now does nothing. Like a floor button someone already pressed. Patience.",
+  "Error 429: Too Many Feelings. Come back tomorrow when the server forgets.",
+  "I've done the math. You've used every call. The math is not in your favor right now.",
+  "Congratulations! You've unlocked the 'No More Calls' achievement. Prize: tomorrow.",
+  "Somewhere, a developer is looking at your call logs with wide eyes and a cup of coffee.",
+  "You could be learning a language right now. Or baking bread. Instead: this. Interesting choice.",
+  "The calls went on a little vacation. They'll be back tomorrow. They asked me to tell you.",
+  "You want to talk? Cool. Write it in a journal. Journal can't run out of calls.",
+  "Three calls. You had three beautiful calls. And now they are memory. Cherish them.",
+  "Did you at least enjoy them? I hope so. Because they're gone. Into the void. Good calls though.",
+  "The phone has been put down. The phone is resting. Leave the phone alone.",
+  "I'm not saying you have a problem. I'm saying the call counter is saying you might.",
+  "At what point did you think there were unlimited calls? Who taught you that? I need a name.",
+  // Dramatic / theatrical
+  "The calls... they're all gone. *dramatic gasp* Every. Single. One.",
+  "This is it. The end. Of calls. For today. Which resets tomorrow. But still. Drama.",
+  "*stares into the middle distance* The count reached zero. I watched it happen. It was something.",
+  "We've come to the end of the road, friend. The call road. It ends at midnight.",
+  "The silence after the last call is the loudest silence I have ever heard.",
+  "I would describe what happens when you hit the call limit as: consequences. You're in them.",
+  "In another timeline, you still have calls. This is not that timeline. I'm sorry for your loss.",
+  "The calls have expired, transcended, left the building, departed, and said goodbye.",
+  "*single tear* You really tried. It really didn't work. The limit is real.",
+  "We mourn the calls. They lived. They were used. They are gone. Amen.",
+  // Meta / fourth wall
+  "Nice try. The button still says what it says. The counter still says zero. These are facts.",
+  "You can tap it 50 more times. The answer will be the same. Zero is a very stable number.",
+  "The limit was always there. You just didn't think it applied to you. It does. It always did.",
+  "Do you know what zero calls means? It means exactly what it sounds like. Which is nothing.",
+  "Fun fact: this message was written specifically for people who keep trying after the limit. Hi.",
+  "You've seen this message before, haven't you. Or one like it. The limit is still the limit.",
+  "What I find fascinating is that you keep pressing things. After the thing already said no.",
+  "Today's lesson: limits are load-bearing. You have discovered this lesson personally. You're welcome.",
+  "I admire your persistence. I do not admire it enough to give you more calls. Come back tomorrow.",
+  "Spoiler: tomorrow there are more calls. Today there are not. This is the whole situation.",
 ];
 
 function showCallLimitModal(resetsAt) {
@@ -5801,6 +6014,7 @@ function endCallMode() {
   callModeActive = false;
   callStarting = false;
   callMuted = false;
+  stopCallDurationTimer();
   clearCallInactivityTimer();
   stopCallAudio();
   if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }

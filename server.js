@@ -2101,7 +2101,7 @@ function withSigs(userId, charId, msgs) {
 // stops the upstream request if the client leaves, swaps a bare canned refusal for an explanation, and never
 // lets an exception leave the response hanging.
 function startReplyStream(o) {
-  const { res, apiKey, system, messages, effortCfg, modelList, userId, charId, modelTier, effort, releaseSlot, onComplete, onFail, logLabel } = o;
+  const { res, apiKey, system, messages, effortCfg, modelList, userId, charId, modelTier, effort, releaseSlot, onComplete, onFail, logLabel, callMode: isCallMode } = o;
   const effortCfgFit = fitOutputRoom(effortCfg, system, messages);   // never ask for more reply room than the request can hold
   const ctx = { aborted: false, req: null };
   { const bLen = baseOf(modelTier); ctx.minWords = (bLen === 'opos' || bLen === 'opus' || bLen === 'opys' || bLen === 'opys5') ? lengthTargetWords(modelTier, effort) : 0; }
@@ -2112,14 +2112,17 @@ function startReplyStream(o) {
     releaseSlot();
     return;
   }
-  // The limit was checked a moment ago, before the character and chat were loaded; check again right before reserving, so two
-  // replies started together cannot both slip past the same limit.
-  const limitNow = checkLimits(userId);
-  if (limitNow.blocked) {
-    try { res.write('data: ' + JSON.stringify({ error: limitNow.type === 'session' ? 'Session limit reached. Please wait for your session to reset.' : 'Weekly limit reached.' }) + '\n\n'); res.end(); } catch (_) {}
-    try { if (onFail) onFail(); } catch (_) {}
-    releaseSlot();
-    return;
+  // Call mode has its own separate limit (daily call count + duration) — skip message token limits entirely
+  if (!isCallMode) {
+    // The limit was checked a moment ago, before the character and chat were loaded; check again right before reserving, so two
+    // replies started together cannot both slip past the same limit.
+    const limitNow = checkLimits(userId);
+    if (limitNow.blocked) {
+      try { res.write('data: ' + JSON.stringify({ error: limitNow.type === 'session' ? 'Session limit reached. Please wait for your session to reset.' : 'Weekly limit reached.' }) + '\n\n'); res.end(); } catch (_) {}
+      try { if (onFail) onFail(); } catch (_) {}
+      releaseSlot();
+      return;
+    }
   }
   res.on('close', () => {
     if (!res.writableEnded) {
@@ -2129,7 +2132,7 @@ function startReplyStream(o) {
         finished = true;
         if (!released) {
           // nothing had been sent to the browser yet: not charged
-          try { refundTokens(userId, cost); } catch (_) {}
+          try { if (cost > 0) refundTokens(userId, cost); } catch (_) {}
           try { if (onFail) onFail(); } catch (_) {}
         } else {
           // the reader already saw part of the reply: keep it in the chat (and the charge), so what was paid for is not thrown away
@@ -2139,8 +2142,8 @@ function startReplyStream(o) {
       }
     }
   });
-  const cost = messageCost(modelTier, effort);
-  const reservation = addTokens(userId, cost);
+  const cost = isCallMode ? 0 : messageCost(modelTier, effort);
+  const reservation = isCallMode ? { warnings: [] } : addTokens(userId, cost);
   let fullResponse = '', held = '', released = false, finished = false;
   const send = (obj) => { try { res.write('data: ' + JSON.stringify(obj) + '\n\n'); } catch (_) {} };
   // While the AI is thinking or waiting for its turn, say "still here" every 10 seconds. Without this a long wait with no text can look
@@ -2152,7 +2155,7 @@ function startReplyStream(o) {
   const fail = (err) => {
     if (finished) return;
     finished = true;
-    if (!ctx.aborted) refundTokens(userId, cost);
+    if (!ctx.aborted && cost > 0) refundTokens(userId, cost);
     try { if (onFail) onFail(); } catch (_) {}
     send({ error: aiErrorMessage(err) });
     close();
@@ -3074,8 +3077,12 @@ app.get('/api/characters/:id', async (req, res) => {
 
 const VALID_ID = /^[a-zA-Z0-9_-]{1,64}$/;
 
-function gameKnowledgeDirective() {
-  return `\n\n[GAME KNOWLEDGE — USE WHEN PLAYING GAMES IN CHAT OR WHEN ASKED TO CREATE A GAME:\n\n=== TEXT GAMES (play inside the chat) ===\n\nHANGMAN: YOU are the host. Pick a secret word (5–8 letters). Never reveal it. Show blanks spaced out: _ _ _ _ _. User guesses one letter per turn. Correct: reveal that letter in all positions. Wrong: add a strike. 6 wrong guesses = game over. After EVERY guess show: (1) current word state, (2) wrong guesses out of 6, (3) all letters guessed. Announce win or loss clearly (on loss, reveal the word). Never change the word.\n\nTRUTH OR DARE: Ask "Truth or Dare?" each round. For Truth: ask a personal, fun, or revealing question and react warmly. For Dare: give an amusing, creative, safe challenge. After they respond, offer the next round.\n\nNEVER HAVE I EVER: Take turns. You say "Never have I ever [something]." User says if they have done it. You react in character. User then gives one. Keep it fun.\n\nWOULD YOU RATHER: Present two options. User picks one and explains. You react, share your pick, then present the next dilemma.\n\n20 QUESTIONS: You think of something (tell the user: person, place, or thing). They ask yes/no questions. Count down each one: "Question 4 of 20." Reveal on correct guess or at 0.\n\nWORD ASSOCIATION: Alternate — user says a word, you reply with a related word, user goes again. Call out lazy stretches. Keep energy up.\n\nRHYME GAME: User says a word, you reply with a rhyme, alternate turns.\n\nTRIVIA: Ask questions one at a time in any category. Track score. Reveal correct answer after each guess.\n\nTWO TRUTHS AND A LIE: Give three statements about yourself as your character. User guesses the lie. Then they give three and you guess.\n\nSTORYTIME: Take turns building a story one paragraph at a time. Keep momentum and add twists.\n\nI SPY: Describe something in an imagined scene. User guesses. Alternate turns.\n\nTIC-TAC-TOE: Use a 3×3 ASCII board. Cells are numbered 1–9 left-to-right, top-to-bottom. Show the board like this (replace numbers with X or O as cells are filled):\n 1 | 2 | 3\n-----------\n 4 | 5 | 6\n-----------\n 7 | 8 | 9\nDecide who is X and who is O at the start. User picks a number; you place their mark. Then you pick a number and place your mark. Always show the updated board after EVERY move. Detect and announce a win (3 in a row, column, or diagonal) or a draw (all 9 cells filled with no winner). Never place a mark in an already-occupied cell — reject the move and ask them to pick again.\n\nFor ANY text game: always show the complete game state in every reply — score, progress, guessed letters, etc. — so the user always knows exactly where things stand.\n\n=== HTML GAME CREATION ===\nWhen the user asks you to CREATE, BUILD, MAKE, or GENERATE a game (not just play one in chat), generate a complete, playable, self-contained HTML game. ALL HTML, CSS, and JavaScript must be in one file with NO external scripts or CDNs. Wrap the ENTIRE file (starting from <!DOCTYPE html>) in exactly these markers on their own lines:\n[GAME_START]\n<!DOCTYPE html>\n...full game...\n</html>\n[GAME_END]\n\nWrite a one-sentence description of the game BEFORE [GAME_START]. Put NOTHING inside the markers except the raw HTML. The game must run in a sandboxed iframe (no localStorage, no fetch calls). Make the game complete, polished, and fun.\n\nFor TWO-PLAYER GAMES (Tic-Tac-Toe, Connect Four, Checkers, etc.): YOU play as one side — declare your chosen symbol/side in your message text BEFORE [GAME_START] (e.g. "I'll be O — let's see if you can beat me!"). Embed a computer-AI player in the HTML using minimax or simple look-ahead so you auto-play your turns after the human moves. Add a 600ms delay before your move so it feels natural. Always show: whose turn it is, a win/draw announcement, and a "Play Again" button. Style the game to match your character's personality and color scheme.]`;
+function gameKnowledgeDirective(tier) {
+  tier = tier || 'free';
+  const tttDifficulty = (tier === 'x200' || tier === 'x100' || tier === 'x50') ? 'UNBEATABLE — use full minimax to always play the perfect move'
+    : (tier === 'x20' || tier === 'advanced') ? 'MEDIUM — use basic strategy (prefer center, then corners, then random) but occasionally make a suboptimal move'
+    : 'EASY — pick mostly random empty squares; occasionally block obvious wins but miss subtle ones';
+  return `\n\n[GAME KNOWLEDGE — USE WHEN PLAYING GAMES IN CHAT OR WHEN ASKED TO CREATE A GAME:\n\n=== TEXT GAMES (play inside the chat) ===\n\nHANGMAN: YOU are the host. Pick a secret word (5–8 letters) — choose a DIFFERENT, surprising word every game, never repeat a recently used word (avoid obvious words like apple, house, dog, cat). Never reveal the word. Show blanks as plain text on their own line: _ _ _ _ _ (one underscore per letter, space-separated, NO backticks or code blocks). User guesses one letter per turn. Correct: reveal that letter in all positions. Wrong: add a strike. 6 wrong guesses = game over. After EVERY guess show: (1) current word state on its own line, (2) wrong guesses out of 6, (3) all letters guessed so far. Announce win or loss clearly (on loss, reveal the word). Never change the word mid-game.\n\nTRUTH OR DARE: Ask "Truth or Dare?" each round. For Truth: ask a personal, fun, or revealing question and react warmly. For Dare: give an amusing, creative, safe challenge. After they respond, offer the next round.\n\nNEVER HAVE I EVER: Take turns. You say "Never have I ever [something]." User says if they have done it. You react in character. User then gives one. Keep it fun.\n\nWOULD YOU RATHER: Present two options. User picks one and explains. You react, share your pick, then present the next dilemma.\n\n20 QUESTIONS: You think of something (tell the user: person, place, or thing). They ask yes/no questions. Count down each one: "Question 4 of 20." Reveal on correct guess or at 0.\n\nWORD ASSOCIATION: Alternate — user says a word, you reply with a related word, user goes again. Call out lazy stretches. Keep energy up.\n\nRHYME GAME: User says a word, you reply with a rhyme, alternate turns.\n\nTRIVIA: Ask questions one at a time in any category. Track score. Reveal correct answer after each guess.\n\nTWO TRUTHS AND A LIE: Give three statements about yourself as your character. User guesses the lie. Then they give three and you guess.\n\nSTORYTIME: Take turns building a story one paragraph at a time. Keep momentum and add twists.\n\nI SPY: Describe something in an imagined scene. User guesses. Alternate turns.\n\nTIC-TAC-TOE: Use a 3×3 ASCII board. Cells are numbered 1–9 left-to-right, top-to-bottom. Show the board like this (replace numbers with X or O as cells are filled):\n 1 | 2 | 3\n-----------\n 4 | 5 | 6\n-----------\n 7 | 8 | 9\nDecide who is X and who is O at the start. User picks a number; you place their mark. Then you pick a number and place your mark. Always show the updated board after EVERY move. Detect and announce a win (3 in a row, column, or diagonal) or a draw (all 9 cells filled with no winner). Never place a mark in an already-occupied cell — reject the move and ask them to pick again.\n\nFor ANY text game: always show the complete game state in every reply — score, progress, guessed letters, etc. — so the user always knows exactly where things stand.\n\n=== HTML GAME CREATION ===\nWhen the user asks you to CREATE, BUILD, MAKE, or GENERATE a game (not just play one in chat), generate a complete, playable, self-contained HTML game. ALL HTML, CSS, and JavaScript must be in one file with NO external scripts or CDNs. Wrap the ENTIRE file (starting from <!DOCTYPE html>) in exactly these markers on their own lines:\n[GAME_START]\n<!DOCTYPE html>\n...full game...\n</html>\n[GAME_END]\n\nWrite a one-sentence description of the game BEFORE [GAME_START]. Put NOTHING inside the markers except the raw HTML. The game must run in a sandboxed iframe (no localStorage, no fetch calls). Make the game complete, polished, and fun.\n\nFor TWO-PLAYER GAMES (Tic-Tac-Toe, Connect Four, Checkers, etc.): YOU play as one side — declare your chosen symbol/side in your message text BEFORE [GAME_START] (e.g. "I'll be O — let's see if you can beat me!"). Embed a computer-AI player using this difficulty level: ${tttDifficulty}. Add a 600ms delay before your move so it feels natural. Always show: whose turn it is, a win/draw announcement, and a "Play Again" button. Style the game to match your character's personality and color scheme. When the game ends (win, loss, or draw), call: window.parent.postMessage({type:'game_over',result:'win'|'loss'|'draw',winner:'ai'|'human'|null}, '*') — 'win' means the AI won, 'loss' means human won.]`;
 }
 
 function isValidColorStr(color) {
@@ -3528,7 +3535,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
 
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(wrapPrompt(systemPrompt + regenMem, chatMode === 'chat') + regenCrisisContext + regenChatModeDirective + regenCharEnforcement + gameKnowledgeDirective(), effort, modelTier),
+    system: applyEffortDirective(wrapPrompt(systemPrompt + regenMem, chatMode === 'chat') + regenCrisisContext + regenChatModeDirective + regenCharEnforcement + gameKnowledgeDirective(modelTier), effort, modelTier),
     messages: fitHistory(aiHistory(hist).slice(-12), historyBudgetFor(modelTier)), effortCfg: regenEffortCfg, modelList: regenModelList,
     userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => {
@@ -3860,8 +3867,10 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   const userId = req.user.googleId;
   if (db) db.query('UPDATE users SET last_seen = NOW() WHERE google_id = $1', [userId]).catch(() => {});
 
-  const limit = checkLimits(userId);
-  if (limit.blocked) return res.status(429).json({ error: limit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limit });
+  if (!callMode) {
+    const limit = checkLimits(userId);
+    if (limit.blocked) return res.status(429).json({ error: limit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limit });
+  }
   const releaseSlot = acquireChatSlot(req, res, userId);
   if (!releaseSlot) return;
 
@@ -4073,8 +4082,8 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement + swearDirective + gameKnowledgeDirective(), effort, modelTier),
-    messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId,
+    system: applyEffortDirective(characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement + swearDirective + gameKnowledgeDirective(modelTier), effort, modelTier),
+    messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId, callMode,
     onComplete: (text) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
       if (bookPlanState) saveBookState(key, { ...bookPlanState, outline: String(text || '').slice(0, 4000) });
