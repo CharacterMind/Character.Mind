@@ -92,9 +92,10 @@ async function sendDeployNotification() {
   if (!apiKey) { console.log('[deploy-email] Skipped — RESEND_API_KEY not set'); return; }
   const to = process.env.OWNER_EMAIL || 'davey252572727@gmail.com';
   let notes = 'Deploy completed — no notes file found.';
+  let deployData = {};
   try {
-    const data = JSON.parse(require('fs').readFileSync('./deploy-notes.json', 'utf8'));
-    notes = data.message || notes;
+    deployData = JSON.parse(require('fs').readFileSync('./deploy-notes.json', 'utf8'));
+    notes = deployData.message || notes;
   } catch (e) { /* no file */ }
   const timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' });
   const escaped = notes.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -111,6 +112,78 @@ async function sendDeployNotification() {
   });
   if (!res.ok) throw new Error(await res.text());
   console.log('[deploy-email] Sent to', to);
+  if (deployData.patch_email && deployData.timestamp) {
+    sendPatchEmailToUsers(deployData.patch_email, deployData.timestamp).catch(e => console.error('[patch-email] Failed:', e.message));
+  }
+}
+
+async function sendPatchEmailToUsers(patch, deployTs) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey || !db) return;
+  const configKey = 'patch_email_sent_' + deployTs;
+  try {
+    const check = await db.query('SELECT value FROM app_config WHERE key = $1', [configKey]);
+    if (check.rows.length > 0) { console.log('[patch-email] Already sent for this deploy — skipping'); return; }
+  } catch (_) {}
+  const { rows } = await db.query(
+    "SELECT DISTINCT email FROM users WHERE email IS NOT NULL AND email != '' AND email_opt_in = TRUE"
+  ).catch(() => ({ rows: [] }));
+  if (!rows.length) { console.log('[patch-email] No opted-in users with email'); return; }
+
+  const SITE_URL = process.env.SITE_URL || 'https://charactermind.onrender.com';
+  const accentColor = patch.charColor || '#7c3aed';
+  const darkerColor = accentColor; // used for gradient
+  const imgTag = patch.charImage
+    ? `<img src="${patch.charImage}" alt="${patch.charName}" width="72" height="72" style="flex-shrink:0;width:72px;height:72px;border-radius:50%;object-fit:cover;border:2px solid ${accentColor}">`
+    : `<div style="flex-shrink:0;width:72px;height:72px;border-radius:50%;background:${accentColor};display:flex;align-items:center;justify-content:center;font-size:28px">✨</div>`;
+
+  const bodyHtml = patch.bodyHtml || `<p style="margin:0;font-size:15px;line-height:1.7;color:#d1c4e9">${(patch.body || '').replace(/\n/g, '<br>')}</p>`;
+  const html = `
+<div style="font-family:'Segoe UI',Arial,sans-serif;background:#0d0d0f;color:#e8e0f0;max-width:600px;margin:0 auto;border-radius:12px;overflow:hidden">
+  <div style="background:linear-gradient(135deg,#1a0a2e 0%,#2d1155 50%,#1a0a2e 100%);padding:36px 32px 32px;text-align:center;border-bottom:1px solid #3d1f6e">
+    <img src="${SITE_URL}/logo.png" alt="Character Mind" width="140" style="display:block;margin:0 auto 20px;height:auto">
+    <h1 style="margin:0 0 8px;font-size:28px;font-weight:700;color:#fff">${patch.headline || 'New update'}</h1>
+    <p style="margin:0;font-size:14px;color:#c4b5fd">${patch.subheadline || 'Something got better today.'}</p>
+  </div>
+  <div style="padding:32px;background:#111118">
+    <div style="background:#1a1a2e;border:1px solid #2d2050;border-radius:10px;padding:20px;margin-bottom:24px">
+      <div style="display:flex;align-items:flex-start;gap:16px">
+        ${imgTag}
+        <div>
+          <div style="font-size:13px;color:#a78bfa;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Message from</div>
+          <div style="font-size:19px;font-weight:700;color:#fff;margin-bottom:10px">${patch.charName || 'Character Mind'}</div>
+          ${bodyHtml}
+        </div>
+      </div>
+    </div>
+    <div style="text-align:center;margin:24px 0 8px">
+      <a href="${SITE_URL}" style="display:inline-block;background:linear-gradient(135deg,${accentColor},#4f46e5);color:#fff;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:15px;font-weight:600;letter-spacing:0.5px">Chat with ${patch.charName || 'them'} →</a>
+    </div>
+  </div>
+  <div style="background:#0d0d0f;padding:20px 32px;text-align:center;border-top:1px solid #1e1e2e">
+    <p style="margin:0;font-size:12px;color:#6b7280">Character Mind · You're receiving this because you have an account.</p>
+  </div>
+</div>`.trim();
+
+  const text = `${patch.charName || 'Character Mind'}: ${patch.body || patch.headline || 'New update available'}\n\n${SITE_URL}`;
+
+  let sent = 0;
+  for (const row of rows) {
+    try {
+      const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: 'Character Mind <onboarding@resend.dev>', to: [row.email], subject: patch.subject, html, text })
+      });
+      if (r.ok) sent++;
+      else console.error('[patch-email] Failed for', row.email, ':', await r.text());
+    } catch (e) { console.error('[patch-email] Error for', row.email, ':', e.message); }
+    await new Promise(r => setTimeout(r, 120));
+  }
+  try {
+    await db.query('INSERT INTO app_config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value=$2, updated_at=NOW()', [configKey, new Date().toISOString()]);
+  } catch (e) { console.error('[patch-email] Could not mark as sent:', e.message); }
+  console.log(`[patch-email] Sent to ${sent}/${rows.length} users`);
 }
 
 // Bind to the port immediately so Render routes traffic here during startup.
@@ -270,6 +343,14 @@ if (db) {
       PRIMARY KEY (user_id, char_id)
     )
   `).catch(err => console.error('book_states table init error:', err));
+
+  db.query(`
+    CREATE TABLE IF NOT EXISTS app_config (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).catch(err => console.error('app_config table init error:', err));
 } else {
   console.warn('No DATABASE_URL — characters will not be persisted');
 }
