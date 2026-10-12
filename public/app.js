@@ -2887,6 +2887,13 @@ async function generateGreeting() {
       document.getElementById('chatWelcome').innerHTML = `
         <div class="chat-welcome-name">${escHtml(currentChar.name)}</div>
         <div style="color:var(--text3);font-size:14px;margin-top:8px">${escHtml(err.name === 'AbortError' ? 'The connection went quiet. Try sending a message.' : (err.message || 'Failed to generate greeting. Try sending a message.'))}</div>`;
+    } else if (bubble) {
+      const errMsg = err.name === 'AbortError' ? 'The connection dropped.' : (err.message || 'Something went wrong.');
+      const errSpan = document.createElement('span');
+      errSpan.style.cssText = 'display:block;margin-top:8px;font-size:12px;color:var(--text3);opacity:0.7';
+      errSpan.textContent = '⚠ ' + errMsg + ' Try again.';
+      bubble.appendChild(errSpan);
+      colorizeLetters(bubble, currentChar?.color);
     }
   } finally {
     if (myEpoch === chatEpoch) showTyping(false);

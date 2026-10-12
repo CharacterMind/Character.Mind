@@ -4144,20 +4144,25 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
 // ── Email helpers ─────────────────────────────────────────────────────────────
 
-function getMailTransporter() {
-  const user = process.env.GMAIL_USER;
-  const pass = process.env.GMAIL_APP_PASSWORD;
-  if (!user || !pass) return null;
-  const nodemailer = require('nodemailer');
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: { user, pass }
-  });
+async function sendResendEmail(to, subject, html, text) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) { console.warn('[email] RESEND_API_KEY not set — skipping'); return false; }
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'Character Mind <onboarding@resend.dev>', to: [to], subject, html, text })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    return true;
+  } catch (e) {
+    console.error('[email] Failed to send to', to, ':', e.message);
+    return false;
+  }
 }
 
 async function sendReceiptEmail(userName, email, planKey, subscriptionId, period) {
-  const transporter = getMailTransporter();
-  if (!transporter || !email) return;
+  if (!email) return;
   const planNames  = { advanced: 'Advanced Plan', x20: 'X20 Plan', x50: 'X50 Plan', x100: 'X100 Plan', x200: 'X200 Plan' };
   const planPrices = { advanced: '$9.99/month', x20: '$39.99/month', x50: '$79.99/month', x100: '$159.99/month', x200: '$399.99/month' };
   const planName  = planNames[planKey]  || planKey;
@@ -4186,23 +4191,12 @@ async function sendReceiptEmail(userName, email, planKey, subscriptionId, period
   </td></tr>
 </table></body></html>`;
   const text = `Hi ${firstName},\n\nThanks for subscribing to Character.Mind!\n\nPlan: ${planName}\nBilling: ${planPrice}\nDate: ${date}\nSubscription ID: ${subscriptionId}\n\nYour new limits are active immediately. Cancel anytime via PayPal or email support.charactermind@gmail.com.\n\n— Character.Mind`;
-  try {
-    await transporter.sendMail({
-      from: `"Character.Mind" <${process.env.GMAIL_USER}>`,
-      to: email,
-      subject: `Your ${planName} receipt — Character.Mind`,
-      html,
-      text,
-    });
-    console.log('Receipt email sent');
-  } catch (err) {
-    console.error('Receipt email error:', err.message);
-  }
+  const ok = await sendResendEmail(email, `Your ${planName} receipt — Character.Mind`, html, text);
+  if (ok) console.log('[email] Receipt sent to', email);
 }
 
 async function sendPlanWelcomeEmail(userName, email, planKey) {
-  const transporter = getMailTransporter();
-  if (!transporter || !email) return;
+  if (!email) return;
   const firstName = (userName || 'there').split(' ')[0];
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const siteUrl = process.env.SITE_URL || 'https://charactermind.onrender.com';
@@ -4312,36 +4306,18 @@ async function sendPlanWelcomeEmail(userName, email, planKey) {
   const perksText = plan.perks.map(p => `  • ${p.label} — ${p.sub}`).join('\n');
   const text = `Welcome to ${plan.name}, ${firstName}.\n\n${plan.tagline}\n\nWhat's unlocked:\n${perksText}\n\nYour limits are active right now. Start chatting: ${siteUrl}\n\nCancel anytime via PayPal or email support.charactermind@gmail.com.\n\n— Character.Mind\n\n(This is an automated message. Please do not reply directly to this email.)`;
 
-  try {
-    await transporter.sendMail({
-      from: `"Character.Mind" <${process.env.GMAIL_USER}>`,
-      to: email,
-      subject: `Welcome to ${plan.name} — here's what you unlocked`,
-      html,
-      text,
-    });
-    console.log('Plan welcome email sent');
-  } catch (err) {
-    console.error('Plan welcome email error:', err.message);
-  }
+  const ok = await sendResendEmail(email, `Welcome to ${plan.name} — here's what you unlocked`, html, text);
+  if (ok) console.log('[email] Plan welcome sent to', email);
 }
 
 async function sendWelcomeEmail(userName, email) {
-  const transporter = getMailTransporter();
-  if (!transporter) return;
-  try {
-    const firstName = (userName || 'there').split(' ')[0];
-    await transporter.sendMail({
-      from: `"Character.Mind" <${process.env.GMAIL_USER}>`,
-      to: email,
-      replyTo: process.env.GMAIL_USER,
-      subject: `Hey ${firstName}, you're in`,
-      text: `Hey ${firstName},\n\nYou're all set on Character.Mind. Log in whenever you're ready:\n\n${process.env.SITE_URL || 'https://charactermind.onrender.com'}\n\n— Character.Mind\n\n(This is an automated message. Please do not reply to this email.)`
-    });
-    console.log('Welcome email sent');
-  } catch (err) {
-    console.error('Welcome email error:', err.message);
-  }
+  if (!email) return;
+  const firstName = (userName || 'there').split(' ')[0];
+  const siteUrl = process.env.SITE_URL || 'https://charactermind.onrender.com';
+  const text = `Hey ${firstName},\n\nYou're all set on Character.Mind. Log in whenever you're ready:\n\n${siteUrl}\n\n— Character.Mind\n\n(This is an automated message. Please do not reply to this email.)`;
+  const html = `<div style="font-family:sans-serif;max-width:520px;background:#111;color:#f0f0f0;padding:32px;border-radius:12px"><p style="color:#a78bfa;font-size:12px;letter-spacing:.08em;text-transform:uppercase;margin:0 0 16px">Character Mind</p><h2 style="margin:0 0 12px">Hey ${firstName}, you're in.</h2><p style="color:#aaa">You're all set. <a href="${siteUrl}" style="color:#a78bfa">Log in whenever you're ready.</a></p><p style="color:#555;font-size:12px;margin-top:24px">This is an automated message. Please do not reply to this email.</p></div>`;
+  const ok = await sendResendEmail(email, `Hey ${firstName}, you're in`, html, text);
+  if (ok) console.log('[email] Welcome sent to', email);
 }
 
 
@@ -4380,8 +4356,7 @@ function buildPolicyEmailHtml(userName, message) {
 app.post('/api/admin/notify-policy-update', requireAuth, async (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
 
-  const transporter = getMailTransporter();
-  if (!transporter) return res.status(503).json({ error: 'Email service not configured — add GMAIL_USER and GMAIL_APP_PASSWORD to .env' });
+  if (!process.env.RESEND_API_KEY) return res.status(503).json({ error: 'Email service not configured — add RESEND_API_KEY to environment' });
 
   if (!db) return res.status(503).json({ error: 'No database configured' });
 
@@ -4404,12 +4379,7 @@ app.post('/api/admin/notify-policy-update', requireAuth, async (req, res) => {
   for (let i = 0; i < users.length; i += BATCH) {
     const batch = users.slice(i, i + BATCH);
     const results = await Promise.allSettled(batch.map(user =>
-      transporter.sendMail({
-        from: `"Character.Mind" <${process.env.GMAIL_USER}>`,
-        to: user.email,
-        subject,
-        html: buildPolicyEmailHtml(user.name, message)
-      })
+      sendResendEmail(user.email, subject, buildPolicyEmailHtml(user.name, message))
     ));
     for (const r of results) {
       if (r.status === 'fulfilled') sent++;

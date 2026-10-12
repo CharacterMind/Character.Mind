@@ -1,4 +1,4 @@
 {
-  "message": "Add Poppy to soft-launch character list\n\n- SOFT_LAUNCH filter now allows lily|poppy — Doey stays hidden\n- Poppy is now interactable on the home page\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
-  "timestamp": "2026-10-12T00:46:24.577Z"
+  "message": "Fix broken email system + mid-stream error UX\n\n- Replace all nodemailer/Gmail SMTP with Resend HTTP API\n  (Gmail SMTP ports 465/587 are blocked on Render free tier IPs)\n- sendReceiptEmail, sendPlanWelcomeEmail, sendWelcomeEmail,\n  notify-policy-update endpoint all now use sendResendEmail()\n- Add sendResendEmail() helper using RESEND_API_KEY env var\n- Mid-stream AI error: append error note to partial reply bubble\n  instead of silently swallowing it (gotFirst=true case in app.js)\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
+  "timestamp": "2026-10-12T01:07:18.922Z"
 }
