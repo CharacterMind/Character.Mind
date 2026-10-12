@@ -5453,7 +5453,7 @@ function addSwipeGesture(msgEl) {
   msgEl.addEventListener('touchend', e => {
     const dx = e.changedTouches[0].clientX - sx;
     const dy = e.changedTouches[0].clientY - sy;
-    if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx) * 0.8 || Date.now() - st > 500) return;
+    if (Math.abs(dx) < 40 || Math.abs(dy) > Math.abs(dx) * 0.9 || Date.now() - st > 700) return;
     handleSwipe(msgEl, dx);
   }, { passive: true });
 
@@ -5468,7 +5468,7 @@ function addSwipeGesture(msgEl) {
     dragging = false;
     const dx = e.clientX - mx;
     const dy = e.clientY - my;
-    if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx) * 0.8 || Date.now() - mt > 600) return;
+    if (Math.abs(dx) < 40 || Math.abs(dy) > Math.abs(dx) * 0.9 || Date.now() - mt > 700) return;
     handleSwipe(msgEl, dx);
   });
   msgEl.addEventListener('mouseleave', () => { dragging = false; });
@@ -5763,7 +5763,7 @@ async function startCallMode() {
       showCallLimitModal(data.resetsAt);
       return;
     }
-    if (data.callsRemaining <= 1) showCallWarningBanner();
+    if (data.callsRemaining === 0) showCallWarningBanner();
   } catch(e) { /* offline — allow call anyway */ }
 
   if (startGen !== callGen) { callStarting = false; return; } // call was cancelled while starting
@@ -5799,7 +5799,7 @@ async function startCallMode() {
     const vob = document.getElementById('callVoiceOnBadge');
     if (vob) { vob.style.display = ''; setTimeout(() => { if (callModeActive) vob.style.display = 'none'; }, 5000); }
     setCallState('calling');
-    setTimeout(() => { if (callModeActive) listenForSpeech(); }, 500);
+    setTimeout(() => { if (callModeActive) listenForSpeech(); }, 150);
   }
 }
 
