@@ -4891,7 +4891,7 @@ function regenNavStep(id, dir) {
   const msgEl = document.querySelector(`[data-regen-id="${id}"]`);
   if (!msgEl) return;
   const bubble = msgEl.querySelector('.bubble');
-  if (bubble) { setBubbleRaw(bubble, store.texts[store.idx]); colorizeLetters(bubble, currentChar?.color); }
+  if (bubble) { setBubbleRaw(bubble, store.texts[store.idx]); colorizeLetters(bubble, currentChar?.color); maybeRenderGame(bubble, currentChar?.color); }
   if (store.sigs && store.sigs[store.idx]) msgEl.dataset.sig = store.sigs[store.idx]; else delete msgEl.dataset.sig;   // the signature of the version shown
   msgEl.querySelectorAll('.like-btn.active, .dislike-btn.active').forEach(b => b.classList.remove('active'));
   regenNavUpdate(msgEl);
@@ -5338,6 +5338,8 @@ let activeTTSUtterance = null;
 let activeTTSBtn = null;
 let activeTTSAudio = null;
 
+const gameIframeSet = new Set();
+
 function maybeRenderGame(bubble, charColor) {
   const raw = bubble.dataset.raw || '';
   const GSTART = '[GAME_START]', GEND = '[GAME_END]';
@@ -5345,6 +5347,7 @@ function maybeRenderGame(bubble, charColor) {
   if (si === -1 || ei === -1 || ei <= si) return;
   const before = raw.slice(0, si).trimEnd();
   const gameHtml = raw.slice(si + GSTART.length, ei).trim();
+  if (!gameHtml) return;
   const after = raw.slice(ei + GEND.length).trimStart();
   bubble.innerHTML = '';
   if (before) {
@@ -5388,6 +5391,7 @@ function createGameCard(htmlContent, accentColor) {
   const iframe = document.createElement('iframe');
   iframe.setAttribute('sandbox', 'allow-scripts');
   iframe.setAttribute('title', 'Playable game');
+  gameIframeSet.add(iframe);
   frame.appendChild(iframe);
   card.appendChild(frame);
   let loaded = false, open = false;
@@ -5438,6 +5442,7 @@ const GAME_DRAW_SAYINGS = [
 
 window.addEventListener('message', function(ev) {
   if (!ev.data || ev.data.type !== 'game_over') return;
+  if (![...gameIframeSet].some(f => f.contentWindow === ev.source)) return;
   const result = ev.data.result; // 'win', 'loss', 'draw'
   const winner = ev.data.winner; // 'ai', 'human', null
   let sayings;

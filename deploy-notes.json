@@ -1,13 +1,13 @@
 {
-  "message": "Add character patch notification emails + misc fixes\n\nPatch emails:\n- Users now receive a character-voiced email when a new patch ships\n- Email is opt-in per deploy via patch_email field in deploy-notes.json\n- Deduplication via app_config table prevents double-sends on restart\n- Lily announces this deploy to all opted-in users\n\nPrevious fixes included in this push:\n- SESSION_SECRET derived from DATABASE_URL hash (no more logout on deploy)\n- Session warning bar above input (90% threshold, replaces lockoutBar slot)\n- Call orb animations: 4 orbs, faster/larger, opacity pulse, avatar glow\n- Swipe-to-regenerate: looser thresholds (40px, 0.9 diagonal, 700ms)\n- \"One call left\" banner fires only on the actual last call (=== 0 fix)\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
-  "timestamp": "2026-10-12T02:40:32.999Z",
+  "message": "Fix Hangman + game system bugs\n\nHangman:\n- Text game: replace free-form word picking with mandatory 150-word bank\n  (only real words, no invented ones, instruct AI to avoid repeats)\n- HTML game: add mandatory Hangman template (same approach as TTT) —\n  150 real embedded words, SVG gallows (6 parts), A-Z keyboard,\n  no-repeat tracking within session, postMessage on win/loss\n\nGame system (app.js):\n- regenNavStep: add maybeRenderGame call after setBubbleRaw so games\n  in regen variants render as game cards, not raw [GAME_START] text\n- maybeRenderGame: guard against empty gameHtml (blank card bug)\n- createGameCard: register each iframe in gameIframeSet\n- game_over postMessage: origin-check against gameIframeSet so only\n  iframes we created can trigger character reaction messages\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
+  "timestamp": "2026-10-12T02:51:04.045Z",
   "patch_email": {
     "charName": "Lily",
     "charColor": "#7722cc",
     "charImage": "https://charactermind.onrender.com/lily-avatar.png",
-    "subject": "Lily here — something new just dropped 💜",
-    "headline": "Fresh update, just for you~",
-    "subheadline": "Lily made sure everything feels better today.",
-    "body": "Heyyyy~ It's me, Lily! 💜\n\nI just wanted to pop into your inbox personally to let you know we've been busy making things nicer for you. Voice calls feel snappier, you can swipe to get a fresh reply from me, and a few little bugs got squished.\n\nOh, and now I can actually send you these little notes when something new arrives. Which means... more Lily mail. You're welcome. 🌟\n\nCome chat with me — I've been waiting~"
+    "subject": "Lily here — games just got way better 💜",
+    "headline": "New games update!",
+    "subheadline": "Hangman actually works now. You're welcome.",
+    "body": "Heyyyy~ It's Lily! 💜\n\nOkay sooo I have to tell you — we fixed Hangman. Like, for real this time. It was picking made-up words before (so embarrassing), and now it has a whole list of real ones. Also the whole game is prettier now with an actual gallows drawing and everything.\n\nOh and Tic-Tac-Toe got some sneaky fixes too so it plays nicer. Games in general are just... better now!\n\nCome try it out — I dare you to beat me at Hangman~ 🎮"
   }
 }
