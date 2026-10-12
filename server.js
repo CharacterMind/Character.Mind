@@ -113,7 +113,8 @@ async function sendDeployNotification() {
   if (!res.ok) throw new Error(await res.text());
   console.log('[deploy-email] Sent to', to);
   if (deployData.patch_email && deployData.timestamp) {
-    sendPatchEmailToUsers(deployData.patch_email, deployData.timestamp).catch(e => console.error('[patch-email] Failed:', e.message));
+    pendingPatchEmail = { patch: deployData.patch_email, ts: deployData.timestamp };
+    console.log('[patch-email] Queued — will send after DB init');
   }
 }
 
@@ -245,6 +246,9 @@ if (db) {
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS hidden_recents TEXT[] NOT NULL DEFAULT '{}'`)
     .catch(err => console.error('Add hidden_recents column error:', err));
 
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_opt_in BOOLEAN DEFAULT TRUE`)
+    .catch(err => console.error('Add email_opt_in column error:', err));
+
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS recent_chats JSONB NOT NULL DEFAULT '{}'`)
     .catch(err => console.error('Add recent_chats column error:', err));
 
@@ -267,6 +271,11 @@ if (db) {
       serverReady = true;
       loadOwnerIds();
       console.log('\nAI Character Site ready — maintenance lifted.\n');
+      if (pendingPatchEmail) {
+        const { patch, ts } = pendingPatchEmail;
+        pendingPatchEmail = null;
+        sendPatchEmailToUsers(patch, ts).catch(e => console.error('[patch-email] Failed:', e.message));
+      }
     });
 
   db.query(`
@@ -399,6 +408,7 @@ const chatBurstLimiter = rateLimit({ windowMs: 60 * 1000, max: 40, standardHeade
 // Set MAINTENANCE=1 in Render env vars to force maintenance mode for planned work; remove to lift it.
 // The page checks /api/maintenance-status every 12 s and redirects users back automatically once off.
 let serverReady = false;
+let pendingPatchEmail = null;
 const maintenanceOn = () => !serverReady || /^(1|true|on)$/i.test(String(process.env.MAINTENANCE || '').trim());
 app.get('/api/maintenance-status', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
