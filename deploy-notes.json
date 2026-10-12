@@ -1,4 +1,4 @@
 {
-  "message": "Switch deploy email from nodemailer/SMTP to Resend HTTP API\n\n- Gmail SMTP (ports 465 + 587) both blocked by Google for Render free IPs\n- Resend uses port 443 (HTTPS) which is not blocked\n- Reads RESEND_API_KEY env var; no Gmail credentials needed\n- Sends from onboarding@resend.dev, delivers to owner email\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
-  "timestamp": "2026-10-12T00:37:34.880Z"
+  "message": "Add Poppy to soft-launch character list\n\n- SOFT_LAUNCH filter now allows lily|poppy — Doey stays hidden\n- Poppy is now interactable on the home page\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
+  "timestamp": "2026-10-12T00:46:24.577Z"
 }

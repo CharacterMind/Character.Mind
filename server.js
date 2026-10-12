@@ -3046,7 +3046,7 @@ app.get('/api/characters', charReadLimiter, async (req, res) => {
       'SELECT id, name, tagline, description, system_prompt, greeting, greeting_mode, color, creator_name, device_id, (image IS NOT NULL AND length(image) > 0) AS has_image, COALESCE(length(image), 0) AS image_len, tags, interactions, created_at FROM characters ORDER BY created_at DESC'
     )).rows;
     if (rows !== charListCache.rows && gen === charListGen) charListCache = { at: Date.now(), rows };
-    if (SOFT_LAUNCH) rows = rows.filter(r => /lily/i.test(r.name));
+    if (SOFT_LAUNCH) rows = rows.filter(r => /lily|poppy/i.test(r.name));
     const authed = !!req.user;
     const isOwnerUser = !!(userId && ownerGoogleIds.has(userId));
     res.json(rows.map(r => {
