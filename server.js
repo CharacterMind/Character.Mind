@@ -86,32 +86,31 @@ if (!process.env.DATABASE_URL) {
 }
 
 async function sendDeployNotification() {
-  console.log('[deploy-email] RENDER=' + process.env.RENDER + ' OWNER_EMAIL=' + (process.env.OWNER_EMAIL ? 'set' : 'MISSING') + ' DEPLOY_GMAIL_USER=' + (process.env.DEPLOY_GMAIL_USER ? 'set' : 'MISSING') + ' DEPLOY_GMAIL_APP_PASSWORD=' + (process.env.DEPLOY_GMAIL_APP_PASSWORD ? 'set' : 'MISSING'));
+  console.log('[deploy-email] RENDER=' + process.env.RENDER + ' RESEND_API_KEY=' + (process.env.RESEND_API_KEY ? 'set' : 'MISSING'));
   if (!process.env.RENDER) { console.log('[deploy-email] Skipped — not on Render'); return; }
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) { console.log('[deploy-email] Skipped — RESEND_API_KEY not set'); return; }
   const to = process.env.OWNER_EMAIL || 'davey252572727@gmail.com';
-  const user = process.env.DEPLOY_GMAIL_USER || process.env.GMAIL_USER;
-  const pass = process.env.DEPLOY_GMAIL_APP_PASSWORD || process.env.GMAIL_APP_PASSWORD;
-  if (!user || !pass) { console.log('[deploy-email] Skipped — missing Gmail credentials: user=' + !!user + ' pass=' + !!pass); return; }
   let notes = 'Deploy completed — no notes file found.';
   try {
     const data = JSON.parse(require('fs').readFileSync('./deploy-notes.json', 'utf8'));
     notes = data.message || notes;
   } catch (e) { /* no file */ }
-  const nodemailer = require('nodemailer');
-  const dns = require('dns');
-  const smtpIp = await new Promise((res) => dns.lookup('smtp.gmail.com', { family: 4 }, (e, a) => res(e ? 'smtp.gmail.com' : a)));
-  console.log('[deploy-email] Resolved smtp.gmail.com ->', smtpIp);
-  const t = nodemailer.createTransport({ host: smtpIp, port: 465, secure: true, auth: { user, pass }, tls: { servername: 'smtp.gmail.com' } });
   const timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' });
   const escaped = notes.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  await t.sendMail({
-    from: `"Character Mind" <${user}>`,
-    to,
-    subject: `Character Mind deployed — ${timestamp}`,
-    text: notes,
-    html: `<div style="font-family:sans-serif;max-width:600px"><h2 style="color:#7c3aed">Character Mind — Deploy Complete</h2><p style="color:#666">${timestamp}</p><pre style="background:#f4f4f4;padding:16px;border-radius:8px;font-size:13px;white-space:pre-wrap">${escaped}</pre></div>`
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from: 'Character Mind <onboarding@resend.dev>',
+      to: [to],
+      subject: `Character Mind deployed — ${timestamp}`,
+      text: notes,
+      html: `<div style="font-family:sans-serif;max-width:600px"><h2 style="color:#7c3aed">Character Mind — Deploy Complete</h2><p style="color:#666">${timestamp}</p><pre style="background:#f4f4f4;padding:16px;border-radius:8px;font-size:13px;white-space:pre-wrap">${escaped}</pre></div>`
+    })
   });
-  console.log('Deploy notification sent to', to);
+  if (!res.ok) throw new Error(await res.text());
+  console.log('[deploy-email] Sent to', to);
 }
 
 // Bind to the port immediately so Render routes traffic here during startup.

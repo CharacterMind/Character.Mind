@@ -1,4 +1,4 @@
 {
-  "message": "Try port 465/SMTPS — port 587 timed out on Render free tier\n\n- Port 587 (STARTTLS) connection timed out even over IPv4\n- Switching to port 465 (SMTPS/SSL) which may not be filtered\n- Also log the resolved IPv4 address for diagnostics\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
-  "timestamp": "2026-10-11T20:16:07.288Z"
+  "message": "Switch deploy email from nodemailer/SMTP to Resend HTTP API\n\n- Gmail SMTP (ports 465 + 587) both blocked by Google for Render free IPs\n- Resend uses port 443 (HTTPS) which is not blocked\n- Reads RESEND_API_KEY env var; no Gmail credentials needed\n- Sends from onboarding@resend.dev, delivers to owner email\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
+  "timestamp": "2026-10-12T00:37:34.880Z"
 }
