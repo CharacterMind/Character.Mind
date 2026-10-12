@@ -3734,6 +3734,7 @@ function startCooldown(until, type, showModal) {
 
   msg.textContent = type === 'session' ? 'Session limit reached' : 'Weekly limit reached';
   bar.style.display = 'flex';
+  if (type === 'session') { const sw = document.getElementById('sessionWarnBar'); if (sw) sw.style.display = 'none'; }
   if (inp) inp.disabled = true;
   // keep send button enabled so clicks re-show the limit modal with a new message
   if (btn) btn.disabled = false;
@@ -3933,9 +3934,16 @@ function renderUsageBanners(usage) {
   const wStep = isFreeUser ? 0 : usageStep(usagePctOf(usage.weeklyTokens, usage.weeklyLimit));
   if (wStep) want.push({ kind: 'weekly', level: wStep, msg: WEEKLY_BANNER_TEXT[wStep], windowStart: usage.weeklyStart || 0, upgrade: true, persistent: wStep === 90 });
   const sStep = usagePctOf(usage.sessionTokens, usage.sessionLimit);
-  if (sStep >= 90) {
-    const dismissed = (() => { try { return sessionStorage.getItem('cm_session_toast_dismissed') === '1'; } catch (_) { return false; } })();
-    if (!dismissed) showSessionToast("You've used 90% of your session limit. Almost there!");
+  const swBar = document.getElementById('sessionWarnBar');
+  const swMsg = document.getElementById('sessionWarnMsg');
+  const lockoutVisible = document.getElementById('lockoutBar')?.style.display !== 'none';
+  if (swBar) {
+    if (sStep >= 90 && !lockoutVisible) {
+      if (swMsg) swMsg.textContent = sStep >= 95 ? "Almost at your session limit — wrap up soon" : "You've used 90% of your session limit";
+      swBar.style.display = 'flex';
+    } else {
+      swBar.style.display = 'none';
+    }
   }
   const sStepBanner = usageStep(sStep);
   if (SESSION_BANNER_TEXT[sStepBanner]) want.push({ kind: 'session', level: sStepBanner, msg: SESSION_BANNER_TEXT[sStepBanner], windowStart: usage.sessionStartedAt || 0, upgrade: false, persistent: false });
