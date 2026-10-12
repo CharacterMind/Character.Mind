@@ -349,8 +349,9 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
-const SESSION_SECRET = process.env.SESSION_SECRET;
-if (!SESSION_SECRET) console.warn('WARNING: SESSION_SECRET env var not set — using insecure fallback.');
+const SESSION_SECRET = process.env.SESSION_SECRET ||
+  crypto.createHash('sha256').update('cm-session-2026-' + (process.env.DATABASE_URL || '')).digest('hex');
+if (!process.env.SESSION_SECRET) console.warn('SESSION_SECRET env var not set — using stable derived fallback (set the var for best security).');
 
 // Persist sessions to Postgres so they survive server restarts
 if (db) {
