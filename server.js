@@ -2003,12 +2003,12 @@ const GEMINI_HOST = 'generativelanguage.googleapis.com';
 // Order: best quality first, then progressively lighter/faster fallbacks.
 const GEMINI_FALLBACKS   = ['gemini-3.5-flash-lite'];
 const GEMINI_MODEL_LIST  = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'];
-// Keep the old names so the rest of the file compiles without changes
-const GROQ_FAST_MODELS  = GEMINI_MODEL_LIST;
-const GROQ_MODELS       = GEMINI_MODEL_LIST;
-const GROQ_PRO_MODELS   = GEMINI_MODEL_LIST;
-const GROQ_OPUS_MODELS  = GEMINI_MODEL_LIST;
-const GROQ_OPYS2_MODELS = GEMINI_MODEL_LIST;
+// Each tier alias gets its own array so object-identity comparison in callGeminiStream works correctly
+const GROQ_FAST_MODELS  = [...GEMINI_MODEL_LIST];
+const GROQ_MODELS       = [...GEMINI_MODEL_LIST];
+const GROQ_PRO_MODELS   = [...GEMINI_MODEL_LIST];
+const GROQ_OPUS_MODELS  = [...GEMINI_MODEL_LIST];
+const GROQ_OPYS2_MODELS = [...GEMINI_MODEL_LIST];
 
 // Per-tier effort configs — max effort uses highest reasoning + tokens
 const EFFORT_CONFIG = {
@@ -2281,14 +2281,14 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
     modelIndex = wi >= 0 ? wi : 0;
   }
   if (modelIndex >= modelList.length) {
-    if (ctx.rateLimited) {
-      // Every model was out of tokens for this minute. If the wait is not too long, wait and go round again (a few times, within a total limit).
-      const wait = Math.max(500, (ctx.retryAfterMs || 0) + 300);
+    if (ctx.rateLimited || ctx.serviceUnavailable) {
+      // Every model was rate-limited (429) or temporarily unavailable (503). Wait and retry up to the limits.
+      const wait = ctx.serviceUnavailable ? 2000 : Math.max(500, (ctx.retryAfterMs || 0) + 300);
       if (!ctx.aborted && (ctx.retryAfterMs == null || ctx.retryAfterMs <= RATE_RETRY_MAX_MS) && (ctx.retries || 0) < RATE_RETRY_MAX_TRIES && (ctx.waitedMs || 0) + wait <= RATE_RETRY_TOTAL_MS) {
         ctx.retries = (ctx.retries || 0) + 1;
         ctx.waitedMs = (ctx.waitedMs || 0) + wait;
-        ctx.rateLimited = false; ctx.retryAfterMs = null;
-        console.log('All models rate limited, retrying in ' + wait + 'ms (try ' + ctx.retries + ')');
+        ctx.rateLimited = false; ctx.serviceUnavailable = false; ctx.retryAfterMs = null;
+        console.log('All models unavailable, retrying in ' + wait + 'ms (try ' + ctx.retries + ')');
         return setTimeout(() => {
           if (ctx.aborted) return onError(new Error('client aborted'));
           callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, 0, effortCfg, modelList, ctx);
@@ -2342,6 +2342,7 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
             const ra = parseRetryAfterMs(msg);
             if (ra != null && (ctx.retryAfterMs == null || ra < ctx.retryAfterMs)) ctx.retryAfterMs = ra;
           }
+          if (res.statusCode === 503) ctx.serviceUnavailable = true;
           if (res.statusCode === 429 || res.statusCode === 503 || res.statusCode === 404) {
             return callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
           }
@@ -2442,7 +2443,13 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
           try {
             const parsed = JSON.parse(raw);
             const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (text && !finished) onChunk(text);
+            if (text && !finished) { responseTextLen += text.length; collected += text; onChunk(text); }
+            const reason = parsed.candidates?.[0]?.finishReason;
+            if (!finished) {
+              if (reason === 'MAX_TOKENS') { finished = true; handleLength(); return; }
+              else if (reason === 'SAFETY') { finished = true; onError(new Error('Content blocked by safety filter')); return; }
+              else if (reason === 'STOP' || reason === 'RECITATION' || reason === 'OTHER') { finished = true; handleShort(); return; }
+            }
           } catch (_) {}
         }
       }
