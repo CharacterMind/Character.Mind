@@ -2264,8 +2264,8 @@ function startReplyStream(o) {
       }
     }
   });
-  const cost = (isCallMode || isGreetMode) ? 0 : messageCost(modelTier, effort);
-  const reservation = (isCallMode || isGreetMode) ? { warnings: [] } : addTokens(userId, cost);
+  const cost = isGreetMode ? 0 : messageCost(modelTier, effort);
+  const reservation = isGreetMode ? { warnings: [] } : addTokens(userId, cost);
   let fullResponse = '', held = '', released = false, finished = false;
   const send = (obj) => { try { res.write('data: ' + JSON.stringify(obj) + '\n\n'); } catch (_) {} };
   // While the AI is thinking or waiting for its turn, say "still here" every 10 seconds. Without this a long wait with no text can look
@@ -2880,6 +2880,7 @@ app.post('/api/memo/use', requireAuth, (req, res) => {
     return res.status(429).json({ allowed: false, memosToday: u.memosToday, memosLimit: memoLimit, memosRemaining: 0, resetsAt });
   }
   u.memosToday = (u.memosToday || 0) + 1;
+  addTokens(userId, 300);
   saveLimitsToDB(userId);
   const remaining = memoLimit === Infinity ? 9999 : memoLimit - u.memosToday;
   res.json({ allowed: true, memosToday: u.memosToday, memosLimit: memoLimit === Infinity ? 9999 : memoLimit, memosRemaining: remaining, resetsAt });
@@ -4045,6 +4046,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     }
     if (!imgU.imageFirstUsedAt) { imgU.imageFirstUsedAt = Date.now(); imgU.imageDayStart = imgU.imageFirstUsedAt; }
     imgU.imagesDay = (imgU.imagesDay || 0) + 1; // attempts count toward the cap, including blocked ones
+    addTokens(userId, 1200);
     saveLimitsToDB(userId); // persist immediately so a restart doesn't grant free extra images
     let explicit;
     try {
