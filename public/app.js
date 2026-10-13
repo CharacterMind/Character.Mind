@@ -3065,6 +3065,23 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
     skipAppend = true;
   }
 
+  // ── Game trigger detection ─────────────────────────────────────────────────
+  if (!overrideText && text && currentChar) {
+    const t = text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').trim();
+    const isHangman = /\bhangman\b/.test(t);
+    const isTTT = /tic[\s]*tac[\s]*toe/.test(text.toLowerCase()) || /\bttt\b/.test(t);
+    if (isHangman || isTTT) {
+      appendMessage('user', text);
+      touchRecentChat(currentChar.id);
+      document.getElementById('chatWelcome').innerHTML = '';
+      playSound('send');
+      scrollToBottom();
+      if (isHangman) launchHangman();
+      else launchTicTacToe();
+      return;
+    }
+  }
+
   if (!skipAppend) {
     if (text || imgB64) {
       appendMessage('user', text, imgB64);
@@ -7522,4 +7539,179 @@ function maybePromptPush() {
   `;
   document.body.appendChild(banner);
   setTimeout(() => { try { banner.remove(); } catch (_) {} }, 15000);
+}
+
+// ── Hangman widget ────────────────────────────────────────────────────────────
+
+function buildHangmanSVG(wrong) {
+  const parts = [
+    wrong >= 1 ? '<circle cx="100" cy="30" r="12" stroke="var(--text1)" stroke-width="3" fill="none"/>' : '',
+    wrong >= 2 ? '<line x1="100" y1="42" x2="100" y2="90" stroke="var(--text1)" stroke-width="3"/>' : '',
+    wrong >= 3 ? '<line x1="100" y1="55" x2="74" y2="75" stroke="var(--text1)" stroke-width="3"/>' : '',
+    wrong >= 4 ? '<line x1="100" y1="55" x2="126" y2="75" stroke="var(--text1)" stroke-width="3"/>' : '',
+    wrong >= 5 ? '<line x1="100" y1="90" x2="74" y2="120" stroke="var(--text1)" stroke-width="3"/>' : '',
+    wrong >= 6 ? '<line x1="100" y1="90" x2="126" y2="120" stroke="var(--text1)" stroke-width="3"/>' : '',
+  ].join('');
+  return `<svg viewBox="0 0 200 140" class="hangman-svg">
+    <line x1="20" y1="135" x2="180" y2="135" stroke="var(--text1)" stroke-width="3"/>
+    <line x1="60" y1="135" x2="60" y2="5" stroke="var(--text1)" stroke-width="3"/>
+    <line x1="60" y1="5" x2="100" y2="5" stroke="var(--text1)" stroke-width="3"/>
+    <line x1="100" y1="5" x2="100" y2="18" stroke="var(--text1)" stroke-width="3"/>
+    ${parts}
+  </svg>`;
+}
+
+async function launchHangman() {
+  const msgEl = document.createElement('div');
+  msgEl.className = 'msg game-widget';
+  msgEl.innerHTML = '<div class="game-loading">Setting up Hangman…</div>';
+  document.getElementById('messages').appendChild(msgEl);
+  scrollToBottom();
+
+  let word;
+  try {
+    const r = await fetch('/api/game/hangman/word');
+    const d = await r.json();
+    word = d.word.toLowerCase();
+  } catch (_) {
+    msgEl.innerHTML = '<div class="game-loading">Couldn\'t load game. Try again.</div>';
+    return;
+  }
+
+  const guessed = new Set();
+  let wrongCount = 0;
+  const maxWrong = 6;
+
+  function renderHangman() {
+    const isWin = [...word].every(c => guessed.has(c));
+    const isLoss = wrongCount >= maxWrong;
+    const gameOver = isWin || isLoss;
+
+    const wordDisplay = [...word].map(c =>
+      `<span class="h-letter ${guessed.has(c) ? 'revealed' : 'blank'}">${guessed.has(c) ? c : '_'}</span>`
+    ).join('');
+
+    const wrongLetters = [...guessed].filter(c => !word.includes(c)).join(' ').toUpperCase();
+
+    const keys = 'abcdefghijklmnopqrstuvwxyz'.split('').map(c => {
+      const used = guessed.has(c);
+      const cls = used ? (word.includes(c) ? ' correct' : ' wrong') : '';
+      return `<button class="h-key${cls}" onclick="hangmanGuess(this,'${c}')" ${used || gameOver ? 'disabled' : ''}>${c.toUpperCase()}</button>`;
+    }).join('');
+
+    let statusHtml = '';
+    if (isWin) statusHtml = `<div class="game-status win">🎉 You got it! The word was <strong>${word.toUpperCase()}</strong>!</div>`;
+    else if (isLoss) statusHtml = `<div class="game-status lose">💀 Game over! The word was <strong>${word.toUpperCase()}</strong>.</div>`;
+
+    msgEl.innerHTML = `
+      <div class="game-header">
+        <span class="game-title">🎮 Hangman</span>
+        <span class="hangman-score">Wrong: ${wrongCount}/${maxWrong}</span>
+      </div>
+      <div class="hangman-figure">${buildHangmanSVG(wrongCount)}</div>
+      <div class="hangman-word">${wordDisplay}</div>
+      ${wrongLetters ? `<div class="hangman-wrong-list">✗ ${wrongLetters}</div>` : ''}
+      <div class="hangman-keyboard">${keys}</div>
+      ${statusHtml}
+      ${gameOver ? `<button class="game-new-btn" onclick="launchHangman();this.closest('.game-widget').remove()">Play Again</button>` : ''}
+    `;
+    scrollToBottom();
+
+    if (gameOver && currentChar) {
+      const result = isWin
+        ? `[The user just won a game of Hangman — they correctly guessed the word "${word}". React briefly in character, keep it natural and short.]`
+        : `[The user just lost a game of Hangman — the word was "${word}" and they ran out of guesses. React briefly in character, keep it natural and short.]`;
+      setTimeout(() => sendMessage(result, true), 800);
+    }
+  }
+
+  window.hangmanGuess = function(btn, letter) {
+    if (guessed.has(letter)) return;
+    guessed.add(letter);
+    if (!word.includes(letter)) wrongCount++;
+    renderHangman();
+  };
+
+  renderHangman();
+}
+
+// ── Tic-Tac-Toe widget ────────────────────────────────────────────────────────
+
+function tttClientCheck(board) {
+  const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  for (const [a,b,c] of lines) {
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) return { winner: board[a], line: [a,b,c] };
+  }
+  if (board.every(c => c)) return { winner: 'draw', line: [] };
+  return null;
+}
+
+function launchTicTacToe() {
+  let board = Array(9).fill(null);
+  let waiting = false;
+
+  const msgEl = document.createElement('div');
+  msgEl.className = 'msg game-widget';
+  document.getElementById('messages').appendChild(msgEl);
+  scrollToBottom();
+
+  function renderTTT(winData) {
+    const cells = board.map((val, i) => {
+      const inWin = winData && winData.line && winData.line.includes(i);
+      return `<button class="ttt-cell${val ? ' taken' : ''}${inWin ? ' win-cell' : ''}"
+        onclick="tttMove(${i})" ${val || waiting || winData ? 'disabled' : ''}>
+        ${val ? `<span class="${val === 'X' ? 'ttt-x' : 'ttt-o'}">${val}</span>` : ''}
+      </button>`;
+    }).join('');
+
+    let status = waiting ? 'Thinking…' : 'Your turn (X)';
+    if (winData) {
+      if (winData.winner === 'X') status = '🎉 You win!';
+      else if (winData.winner === 'O') status = '😤 You lose!';
+      else status = "🤝 It's a draw!";
+    }
+
+    msgEl.innerHTML = `
+      <div class="game-header">
+        <span class="game-title">🎮 Tic-Tac-Toe</span>
+        <span class="ttt-status-text">${status}</span>
+      </div>
+      <div class="ttt-board">${cells}</div>
+      ${winData ? `<button class="game-new-btn" onclick="launchTicTacToe();this.closest('.game-widget').remove()">Play Again</button>` : ''}
+    `;
+    scrollToBottom();
+
+    if (winData && currentChar) {
+      let result;
+      if (winData.winner === 'X') result = `[The user just beat you at Tic-Tac-Toe! React briefly in character — stay in your persona, be a good sport or dramatic. Short response only.]`;
+      else if (winData.winner === 'draw') result = `[You and the user just tied at Tic-Tac-Toe. React briefly in character. Short response only.]`;
+      else result = `[You just beat the user at Tic-Tac-Toe! React briefly in character — stay in your persona. Short response only.]`;
+      setTimeout(() => sendMessage(result, true), 800);
+    }
+  }
+
+  window.tttMove = async function(idx) {
+    if (board[idx] || waiting) return;
+    board[idx] = 'X';
+    waiting = true;
+    let winCheck = tttClientCheck(board);
+    renderTTT(winCheck);
+    if (winCheck) return;
+
+    try {
+      const r = await fetch('/api/game/tictactoe/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ board })
+      });
+      const { move } = await r.json();
+      if (move >= 0 && move < 9 && board[move] === null) board[move] = 'O';
+    } catch (_) {}
+
+    waiting = false;
+    winCheck = tttClientCheck(board);
+    renderTTT(winCheck);
+  };
+
+  renderTTT(null);
 }

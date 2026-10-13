@@ -2093,8 +2093,8 @@ async function getCharPrompt(charId) {
 const GEMINI_HOST = 'generativelanguage.googleapis.com';
 // Each model is a separate quota bucket — if one is rate-limited, the next fires instantly.
 // Order: best quality first, then progressively lighter/faster fallbacks.
-const GEMINI_FALLBACKS   = ['gemini-3.5-flash-lite'];
-const GEMINI_MODEL_LIST  = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'];
+const GEMINI_FALLBACKS   = ['gemini-2.0-flash'];
+const GEMINI_MODEL_LIST  = ['gemini-2.0-flash', 'gemini-1.5-flash'];
 // Each tier alias gets its own array so object-identity comparison in callGeminiStream works correctly
 const GROQ_FAST_MODELS  = [...GEMINI_MODEL_LIST];
 const GROQ_MODELS       = [...GEMINI_MODEL_LIST];
@@ -4733,6 +4733,130 @@ function loadOwnerIds() {
     .then(r => r.rows.forEach(row => ownerGoogleIds.add(row.google_id)))
     .catch(() => {});
 }
+
+// ── Game endpoints ─────────────────────────────────────────────────────────────
+
+const HANGMAN_WORDS = [
+  'apple','arrow','beach','brain','bread','brick','bride','brush','buddy','cable',
+  'camel','candy','chair','chalk','charm','chase','chest','chief','child','china',
+  'choir','civic','civil','claim','clash','class','clean','clear','clerk','click',
+  'cliff','clock','clone','close','cloud','clown','coach','coast','cobra','comet',
+  'comic','coral','couch','count','court','cover','crane','crazy','cream','creek',
+  'creep','crime','crisp','cross','crowd','crown','crush','crust','curve','cycle',
+  'daily','dance','debut','delta','depot','depth','derby','drift','drink','drive',
+  'drone','drool','drops','drove','drown','drums','dwarf','eagle','early','earth',
+  'eight','elder','elect','elite','ember','empty','enemy','entry','equal','error',
+  'event','every','exact','exert','exile','extra','fable','fairy','faith','false',
+  'fancy','fault','feast','fence','fever','field','fifth','fifty','fight','finch',
+  'first','fixed','flame','flank','flash','flask','fleet','flesh','float','flood',
+  'floor','flour','fluid','flute','focus','force','forge','forth','forum','found',
+  'frame','frank','fraud','freak','freed','fresh','front','frost','fruit','fully',
+  'funny','ghost','giant','given','gland','glass','gleam','glide','globe','gloom',
+  'glory','gloss','glove','going','grace','grade','grain','grand','grant','grape',
+  'grasp','grass','gravel','great','green','greet','grief','grind','groan','group',
+  'guard','guest','guide','guild','guilt','guise','gummy','happy','harsh','haven',
+  'heart','heavy','hedge','herbs','hinge','hippo','hoist','holly','honor','horse',
+  'hotel','house','hover','human','humor','image','inbox','indie','inner','input',
+  'irony','ivory','jelly','jewel','joker','joust','judge','juice','juicy','jumbo',
+  'karma','knack','kneel','knife','knock','koala','label','lance','large','laser',
+  'later','laugh','layer','leapt','learn','lease','legal','lemon','level','light',
+  'lilac','limit','linen','lingo','links','liter','liver','llama','lodge','logic',
+  'loose','lotus','lower','lucid','lucky','lunar','lunch','lyric','magic','major',
+  'maker','manga','manor','maple','march','match','mayor','media','mercy','merge',
+  'merit','metal','model','money','month','moose','moral','morph','motif','motor',
+  'mouse','mouth','movie','mural','music','myth','naive','naval','nerve','never',
+  'newt','night','ninja','noise','north','noted','novel','nurse','nymph','ocean',
+  'offer','often','olive','omega','onset','opera','orbit','order','other','otter',
+  'outer','owned','oxide','ozone','paint','panic','paper','party','pasta','patch',
+  'pause','peace','peach','pearl','piano','pilot','pinch','pixel','pizza','place',
+  'plain','plane','plant','plaza','plead','plumb','plume','plunk','point','polar',
+  'poppy','potty','pound','power','press','price','pride','prime','print','prize',
+  'probe','prone','proof','prose','proud','prove','proxy','pupil','pygmy','queen',
+  'quest','queue','quick','quiet','quota','quote','radar','radio','rainy','rally',
+  'ranch','range','rapid','raven','reach','ready','realm','rebel','recap','reign',
+  'relax','renew','repay','repel','rerun','rider','ridge','rifle','right','risky',
+  'rival','river','rivet','robot','rocky','rodeo','rouge','rough','round','route',
+  'royal','rugby','ruler','rumor','rusty','saint','salad','sandy','sauce','savor',
+  'scary','scene','scout','seize','serve','seven','shade','shake','shall','shark',
+  'sharp','sheen','sheep','sheer','sheet','shelf','shell','shift','shirt','shock',
+  'shore','short','shout','shove','siege','sight','silly','since','sixth','sixty',
+  'sized','skate','skill','skull','skunk','slate','sleek','sleet','slice','slide',
+  'slime','slope','small','smart','smash','smell','smoke','snail','snake','snare',
+  'sneak','solar','solid','solve','sorry','south','space','speak','speed','spell',
+  'spend','spice','spill','spine','spite','split','spoon','sport','spray','squad',
+  'staff','stair','stake','stale','stand','stare','start','state','steam','steel',
+  'steep','steer','stern','stick','stiff','still','sting','stock','stomp','stone',
+  'store','storm','story','stout','stove','strap','straw','stray','strip','strum',
+  'study','style','sugar','super','surge','swamp','sweep','sweet','swept','swift',
+  'swirl','sword','synth','table','talon','tango','taunt','teach','teeth','tempo',
+  'tense','tenth','thaw','theft','thick','think','third','thorn','those','three',
+  'threw','throw','thumb','tidal','tiger','tight','timer','tired','title','toast',
+  'today','token','torch','total','touch','tough','tower','toxic','trace','track',
+  'trade','train','trait','trash','trail','trend','trial','tribe','trick','tried',
+  'troop','trout','trove','truce','truck','trunk','truth','tumor','tuned','twice',
+  'twist','tying','ultra','uncle','unify','union','unity','until','upper','urban',
+  'usage','usual','vague','valid','value','vapor','vault','venom','verse','video',
+  'vigor','viral','virus','visor','visit','vista','vital','vivid','vocal','voice',
+  'voila','voter','waltz','waste','watch','water','weave','weigh','weird','wheat',
+  'wheel','where','while','whirl','white','whole','wider','width','witch','woman',
+  'world','worry','worse','worth','would','wound','wrath','write','wrote','yacht',
+  'yield','young','youth','zebra','zesty','zingy','zombi','zoned'
+];
+
+function requireAuthJson(req, res, next) {
+  if (!req.session || !req.session.userId) return res.status(401).json({ error: 'Not authenticated' });
+  next();
+}
+
+app.get('/api/game/hangman/word', requireAuthJson, (req, res) => {
+  const word = HANGMAN_WORDS[Math.floor(Math.random() * HANGMAN_WORDS.length)];
+  res.json({ word });
+});
+
+function tttCheckWinner(board) {
+  const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  for (const [a,b,c] of lines) {
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) return board[a];
+  }
+  return null;
+}
+
+function tttMinimax(board, isMaximizing) {
+  const winner = tttCheckWinner(board);
+  if (winner === 'O') return 10;
+  if (winner === 'X') return -10;
+  if (board.every(c => c)) return 0;
+  if (isMaximizing) {
+    let best = -Infinity;
+    for (let i = 0; i < 9; i++) {
+      if (!board[i]) { board[i] = 'O'; best = Math.max(best, tttMinimax(board, false)); board[i] = null; }
+    }
+    return best;
+  } else {
+    let best = Infinity;
+    for (let i = 0; i < 9; i++) {
+      if (!board[i]) { board[i] = 'X'; best = Math.min(best, tttMinimax(board, true)); board[i] = null; }
+    }
+    return best;
+  }
+}
+
+app.post('/api/game/tictactoe/move', requireAuthJson, (req, res) => {
+  const { board } = req.body;
+  if (!Array.isArray(board) || board.length !== 9) return res.status(400).json({ error: 'Invalid board' });
+  if (board.some(c => c !== null && c !== 'X' && c !== 'O')) return res.status(400).json({ error: 'Invalid board values' });
+  if (tttCheckWinner(board) || board.every(c => c)) return res.json({ move: -1 });
+  let bestVal = -Infinity, bestMove = -1;
+  for (let i = 0; i < 9; i++) {
+    if (!board[i]) {
+      board[i] = 'O';
+      const val = tttMinimax(board, false);
+      board[i] = null;
+      if (val > bestVal) { bestVal = val; bestMove = i; }
+    }
+  }
+  res.json({ move: bestMove });
+});
 
 // Clear JSON errors (e.g. an upload that is too large) instead of an HTML error page
 app.use((err, req, res, next) => {

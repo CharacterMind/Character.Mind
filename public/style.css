@@ -3162,3 +3162,37 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
 .cvt-line {
   font-size: 13.5px; color: #eae8f4; line-height: 1.55; font-style: italic;
 }
+
+/* ── Game widgets ─────────────────────────────────────────────────────────── */
+.game-widget { background: var(--bg2); border: 1px solid var(--border1); border-radius: 16px; padding: 18px 16px; max-width: 420px; margin: 6px 0; user-select: none; }
+.game-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.game-title { font-weight: 700; font-size: 15px; color: var(--text1); }
+.game-new-btn { display: block; margin-top: 14px; background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 8px 20px; font-size: 13px; font-weight: 600; cursor: pointer; width: 100%; }
+.game-new-btn:hover { opacity: 0.85; }
+.game-status { padding: 8px 12px; border-radius: 8px; margin-top: 10px; font-size: 13px; font-weight: 600; text-align: center; }
+.game-status.win { background: #1a3a2a; color: #52b788; }
+.game-status.lose { background: #3a1a1a; color: #e07070; }
+.game-loading { color: var(--text2); font-size: 13px; text-align: center; padding: 20px 0; }
+.hangman-figure { text-align: center; }
+.hangman-svg { display: block; width: 140px; height: 100px; margin: 0 auto 12px; }
+.hangman-score { font-size: 12px; color: var(--text2); }
+.hangman-word { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin: 12px 0; }
+.h-letter { font-size: 22px; font-weight: 700; min-width: 22px; text-align: center; padding-bottom: 3px; }
+.h-letter.blank { color: transparent; border-bottom: 2px solid var(--text2); }
+.h-letter.revealed { color: var(--text1); border-bottom: 2px solid var(--accent); }
+.hangman-wrong-list { font-size: 12px; color: var(--text2); text-align: center; margin-bottom: 8px; letter-spacing: .08em; }
+.hangman-keyboard { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin-top: 10px; }
+.h-key { width: 34px; height: 34px; border-radius: 7px; background: var(--bg3); border: 1px solid var(--border2); color: var(--text1); font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s; }
+.h-key:hover:not(:disabled) { background: var(--accent); color: #fff; }
+.h-key.correct { background: #2d6a4f !important; color: #fff; border-color: #2d6a4f; }
+.h-key.wrong { background: var(--bg3) !important; color: var(--text3); opacity: 0.5; }
+.h-key:disabled { cursor: default; }
+.ttt-board { display: grid; grid-template-columns: repeat(3, 78px); grid-template-rows: repeat(3, 78px); gap: 6px; justify-content: center; margin: 4px 0; }
+.ttt-cell { background: var(--bg3); border: 1px solid var(--border2); border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .15s; }
+.ttt-cell:hover:not(:disabled):not(.taken) { background: var(--bg2); border-color: var(--accent); }
+.ttt-cell.taken { cursor: default; }
+.ttt-cell.win-cell { background: #1a3a2a !important; border-color: #2d6a4f !important; }
+.ttt-cell:disabled { cursor: default; }
+.ttt-x { font-size: 32px; font-weight: 900; color: var(--accent); }
+.ttt-o { font-size: 32px; font-weight: 900; color: var(--text2); }
+.ttt-status-text { font-size: 13px; color: var(--text2); font-style: italic; }
