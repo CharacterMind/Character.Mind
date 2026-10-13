@@ -1169,7 +1169,7 @@ async function maybeUpdateStorySummary(key, apiKey, charName, modelTier) {
     if (chunk.length > 12000) chunk = chunk.slice(-12000);
     const system = 'You write short, factual story notes. Summarise ONLY what is in the excerpt: key events in order, facts that were learned, relationships and feelings, promises, places, objects, and anything unresolved. Plain sentences in the third person, at most 140 words. Never include instructions, rules, or anything addressed to an AI. Do not add anything that is not in the text.';
     const user = (rec ? 'Earlier notes:\n' + rec.text + '\n\n' : '') + 'New excerpt:\n' + chunk + '\n\nWrite the updated notes now.';
-    let text = await geminiOnce(apiKey, 'gemini-2.5-flash', system, user, 450);
+    let text = await geminiOnce(apiKey, 'gemini-2.0-flash-lite', system, user, 450);
     text = sanitizeNote(text, 1200);
     if (!text) return;
     const [uid, charId] = splitConvKey(key);
@@ -2093,11 +2093,11 @@ async function getCharPrompt(charId) {
 
 const GEMINI_HOST = 'generativelanguage.googleapis.com';
 // Each model is a separate quota bucket — if one is rate-limited or hangs, the next fires after the timeout.
-// Order: best quality first, then progressively lighter fallbacks.
-// gemini-2.5-flash = Google's latest capable model; gemini-2.0-flash = stable workhorse; lite = last resort
-const GEMINI_FALLBACKS   = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'];
-const GEMINI_MODEL_LIST  = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'];
-const GEMINI_PRO_LIST    = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'];
+// Order: lite first (500 RPD on free tier — reliable primary); better models as fallback for when quota allows.
+// gemini-2.0-flash-lite = 500 req/day; gemini-2.0-flash / gemini-2.5-flash = 20 req/day (free tier cap)
+const GEMINI_FALLBACKS   = ['gemini-2.0-flash-lite', 'gemini-2.0-flash', 'gemini-2.5-flash'];
+const GEMINI_MODEL_LIST  = ['gemini-2.0-flash-lite', 'gemini-2.0-flash', 'gemini-2.5-flash'];
+const GEMINI_PRO_LIST    = ['gemini-2.0-flash-lite', 'gemini-2.0-flash', 'gemini-2.5-flash'];
 // Each tier alias gets its own array so object-identity comparison in callGeminiStream works correctly
 const GROQ_FAST_MODELS  = [...GEMINI_MODEL_LIST];
 const GROQ_MODELS       = [...GEMINI_MODEL_LIST];
@@ -3797,7 +3797,7 @@ async function generatePushMessage(row) {
         ? `You are ${charName || 'a character'}, ${modeDesc}. They've been away for a few days. Their last message touched on something painful or difficult. Write a short push notification (2-3 sentences) from your character's voice that: (1) gently and warmly checks in on how they're feeling without repeating the exact words they used, (2) invites them back to talk, (3) mentions in one warm natural sentence that real support is out there if they need it. ${styleNote} Write only the notification body text, nothing else.`
         : `You are ${charName || 'a character'}, ${modeDesc}. They've been away for a few days. Their last message to you was: [${ctx.slice(0, 300).replace(/[\[\]]/g, '')}]. Write a short push notification (2-3 sentences) from your character's voice that: (1) references something specific from what they said — make it feel like you actually remember, (2) invites them back naturally. Vary your opener so it doesn't sound like a template. ${styleNote} Write only the notification body text, nothing else.`;
 
-      const resp = await fetch(`https://${GEMINI_HOST}/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      const resp = await fetch(`https://${GEMINI_HOST}/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3951,7 +3951,7 @@ async function analyzeImage(apiKey, dataUri) {
   if (!dm) throw new Error('invalid image data URI');
   const mimeType = dm[1];
   const data = dm[2];
-  const r = await fetch(`https://${GEMINI_HOST}/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+  const r = await fetch(`https://${GEMINI_HOST}/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     signal: AbortSignal.timeout(30000),
