@@ -2234,8 +2234,8 @@ function startReplyStream(o) {
     releaseSlot();
     return;
   }
-  // Call mode and greet mode skip message token limits entirely
-  if (!isCallMode && !isGreetMode) {
+  // Greet mode skips message token limits (call mode now charges, so it respects limits too)
+  if (!isGreetMode) {
     // The limit was checked a moment ago, before the character and chat were loaded; check again right before reserving, so two
     // replies started together cannot both slip past the same limit.
     const limitNow = checkLimits(userId);
@@ -2880,8 +2880,7 @@ app.post('/api/memo/use', requireAuth, (req, res) => {
     return res.status(429).json({ allowed: false, memosToday: u.memosToday, memosLimit: memoLimit, memosRemaining: 0, resetsAt });
   }
   u.memosToday = (u.memosToday || 0) + 1;
-  addTokens(userId, 300);
-  saveLimitsToDB(userId);
+  addTokens(userId, 300); // addTokens already persists via saveLimitsToDB internally
   const remaining = memoLimit === Infinity ? 9999 : memoLimit - u.memosToday;
   res.json({ allowed: true, memosToday: u.memosToday, memosLimit: memoLimit === Infinity ? 9999 : memoLimit, memosRemaining: remaining, resetsAt });
 });
@@ -4046,8 +4045,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     }
     if (!imgU.imageFirstUsedAt) { imgU.imageFirstUsedAt = Date.now(); imgU.imageDayStart = imgU.imageFirstUsedAt; }
     imgU.imagesDay = (imgU.imagesDay || 0) + 1; // attempts count toward the cap, including blocked ones
-    addTokens(userId, 1200);
-    saveLimitsToDB(userId); // persist immediately so a restart doesn't grant free extra images
+    addTokens(userId, 1200); // addTokens already persists via saveLimitsToDB internally
     let explicit;
     try {
       const analysis = await analyzeImage(apiKey, image);
@@ -4055,6 +4053,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       imageDescription = analysis.description;
     } catch (e) {
       imgU.imagesDay = Math.max(0, imgU.imagesDay - 1); // our failure, not the user's
+      refundTokens(userId, 1200);
       console.warn('[image-safety] check failed, blocking image:', e.message);
       return res.status(503).json({ error: "We couldn't check that image right now. Please try again in a moment or send your message without it." });
     }
@@ -4823,13 +4822,14 @@ app.get('/api/game/hangman/word', requireAuthGame, (req, res) => {
   const cooldown = checkGameCooldown(userId);
   if (cooldown.blocked) return res.status(429).json({ error: 'Game cooldown active', gameNextAvailableAt: cooldown.gameNextAvailableAt, remainingMs: cooldown.remainingMs });
 
+  // Stamp cooldown before charging — if addTokens somehow throws, the cooldown prevents a free retry
+  gameLastPlayed.set(userId, Date.now());
+
   // Charge upfront game session fee (equivalent to one max-effort message)
   const u = getLimits(userId);
   const modelTier = resolveModelTier(userId, u.subscriptionTier === 'free' ? 'opas' : 'opes');
   const fee = messageCost(modelTier, 'max');
   addTokens(userId, fee);
-
-  gameLastPlayed.set(userId, Date.now());
 
   const word = HANGMAN_WORDS[Math.floor(Math.random() * HANGMAN_WORDS.length)];
   res.json({ word });
@@ -4877,12 +4877,13 @@ app.post('/api/game/tictactoe/move', requireAuthGame, (req, res) => {
     const cooldown = checkGameCooldown(userId);
     if (cooldown.blocked) return res.status(429).json({ error: 'Game cooldown active', gameNextAvailableAt: cooldown.gameNextAvailableAt, remainingMs: cooldown.remainingMs });
 
+    // Stamp cooldown before charging — if addTokens somehow throws, the cooldown prevents a free retry
+    gameLastPlayed.set(userId, Date.now());
+
     const u = getLimits(userId);
     const modelTier = resolveModelTier(userId, u.subscriptionTier === 'free' ? 'opas' : 'opes');
     const fee = messageCost(modelTier, 'max');
     addTokens(userId, fee);
-
-    gameLastPlayed.set(userId, Date.now());
   }
 
   if (tttCheckWinnerGame(board) || board.every(c => c)) return res.json({ move: -1 });
