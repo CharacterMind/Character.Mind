@@ -4210,32 +4210,45 @@ function updateUsageModal(u) {
   const wSubEl = document.getElementById('usageWeeklySub');
   if (wSubEl) wSubEl.textContent = u.weeklyLimit ? (u.weeklyResetsAt ? formatResetTime(u.weeklyResetsAt) : 'Resets weekly') : 'No weekly limit on the free tier';
 
-  // Calls
-  const callsEl = document.getElementById('usageCallsStat');
-  if (callsEl) {
-    if (!u.callsLimit || u.callsLimit >= 9999) callsEl.textContent = 'Unlimited';
-    else callsEl.textContent = `${u.callsRemaining} / ${u.callsLimit} left`;
-    callsEl.className = 'usage-stat-val' + ((u.callsRemaining === 0) ? ' cooldown' : '');
+  // ── Daily bars ────────────────────────────────────────────────────────────
+
+  function setBar(barId, pctId, subId, pct, subText, unlimited) {
+    const bar = document.getElementById(barId);
+    const pctEl = document.getElementById(pctId);
+    const subEl = document.getElementById(subId);
+    if (unlimited) {
+      if (pctEl) pctEl.textContent = '∞';
+      if (bar) { bar.style.width = '0%'; bar.className = 'usage-fill-modal green'; }
+    } else {
+      if (pctEl) pctEl.textContent = pct + '%';
+      if (bar) { bar.style.width = pct + '%'; bar.className = 'usage-fill-modal ' + usageFillClass(pct); }
+    }
+    if (subEl && subText !== undefined) subEl.textContent = subText;
   }
+
+  // Calls
+  const callsUnlimited = !u.callsLimit || u.callsLimit >= 9999;
+  const callsUsed = callsUnlimited ? 0 : Math.max(0, u.callsLimit - (u.callsRemaining || 0));
+  const callsPct = callsUnlimited ? 0 : Math.min(100, Math.round(callsUsed / u.callsLimit * 100));
+  setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct,
+    callsUnlimited ? 'Unlimited' : `${u.callsRemaining} of ${u.callsLimit} remaining`, callsUnlimited);
 
   // Memos
-  const memosEl = document.getElementById('usageMemosStat');
-  if (memosEl) {
-    if (!u.memosLimit || u.memosLimit >= 9999) memosEl.textContent = 'Unlimited';
-    else memosEl.textContent = `${u.memosRemaining} / ${u.memosLimit} left`;
-    memosEl.className = 'usage-stat-val' + ((u.memosRemaining === 0) ? ' cooldown' : '');
-  }
+  const memosUnlimited = !u.memosLimit || u.memosLimit >= 9999;
+  const memosUsed = memosUnlimited ? 0 : Math.max(0, u.memosLimit - (u.memosRemaining || 0));
+  const memosPct = memosUnlimited ? 0 : Math.min(100, Math.round(memosUsed / u.memosLimit * 100));
+  setBar('usageMemosBar', 'usageMemosPct', 'usageMemosSub', memosPct,
+    memosUnlimited ? 'Unlimited' : `${u.memosRemaining} of ${u.memosLimit} remaining`, memosUnlimited);
 
   // Images
-  const imagesEl = document.getElementById('usageImagesStat');
-  if (imagesEl) {
-    if (!u.imageLimit || u.imageLimit >= 9999) imagesEl.textContent = 'Unlimited';
-    else {
-      const imgLeft = Math.max(0, u.imageLimit - (u.imagesDay || 0));
-      imagesEl.textContent = `${imgLeft} / ${u.imageLimit} left`;
-      imagesEl.className = 'usage-stat-val' + ((imgLeft === 0) ? ' cooldown' : '');
-    }
-  }
+  const imgUnlimited = !u.imageLimit || u.imageLimit >= 9999;
+  const imgUsed = imgUnlimited ? 0 : (u.imagesDay || 0);
+  const imgLeft = imgUnlimited ? 0 : Math.max(0, u.imageLimit - imgUsed);
+  const imgPct = imgUnlimited ? 0 : Math.min(100, Math.round(imgUsed / u.imageLimit * 100));
+  const imgSub = imgUnlimited ? 'Unlimited' : (u.imageResetAt && imgUsed > 0
+    ? `${imgLeft} of ${u.imageLimit} remaining · resets ${formatResetTime(u.imageResetAt)}`
+    : `${imgLeft} of ${u.imageLimit} remaining`);
+  setBar('usageImagesBar', 'usageImagesPct', 'usageImagesSub', imgPct, imgSub, imgUnlimited);
 
   // Daily resets subtitle
   const dailyResetsEl = document.getElementById('usageDailyResetsSub');
@@ -4243,23 +4256,23 @@ function updateUsageModal(u) {
     dailyResetsEl.textContent = `Calls & memos reset ${formatResetTime(u.callWindowResetsAt)}`;
   }
 
-  // Game cooldown
-  const gameEl = document.getElementById('usageGameStat');
-  const gameSubEl = document.getElementById('usageGameSub');
-  if (gameEl) {
-    const now = Date.now();
-    if (u.gameNextAvailableAt && u.gameNextAvailableAt > now) {
-      const secsLeft = Math.ceil((u.gameNextAvailableAt - now) / 1000);
-      const m = Math.floor(secsLeft / 60);
-      const s = secsLeft % 60;
-      gameEl.textContent = `Ready in ${m}:${String(s).padStart(2, '0')}`;
-      gameEl.className = 'usage-stat-val cooldown';
-      if (gameSubEl) gameSubEl.textContent = '5-minute cooldown between game sessions';
-    } else {
-      gameEl.textContent = 'Ready';
-      gameEl.className = 'usage-stat-val ready';
-      if (gameSubEl) gameSubEl.textContent = '5-minute cooldown between game sessions';
-    }
+  // Game cooldown bar — fills green when ready, drains to orange/yellow while waiting
+  const gamePctEl = document.getElementById('usageGamePct');
+  const gameBar = document.getElementById('usageGameBar');
+  const now = Date.now();
+  if (u.gameNextAvailableAt && u.gameNextAvailableAt > now) {
+    const COOLDOWN_MS = 5 * 60 * 1000;
+    const remaining = u.gameNextAvailableAt - now;
+    const elapsed = COOLDOWN_MS - remaining;
+    const elapsedPct = Math.min(100, Math.round(elapsed / COOLDOWN_MS * 100));
+    const secsLeft = Math.ceil(remaining / 1000);
+    const m = Math.floor(secsLeft / 60);
+    const s = secsLeft % 60;
+    if (gamePctEl) gamePctEl.textContent = `${m}:${String(s).padStart(2, '0')}`;
+    if (gameBar) { gameBar.style.width = elapsedPct + '%'; gameBar.className = 'usage-fill-modal ' + (elapsedPct >= 75 ? 'yellow' : 'orange'); }
+  } else {
+    if (gamePctEl) gamePctEl.textContent = 'Ready';
+    if (gameBar) { gameBar.style.width = '100%'; gameBar.className = 'usage-fill-modal green'; }
   }
 }
 
