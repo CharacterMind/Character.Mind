@@ -960,7 +960,8 @@ function buildUsagePayload(u, userId) {
     imageResetAt: u.imageFirstUsedAt ? u.imageFirstUsedAt + 24 * 60 * 60 * 1000 : null,
     subscriptionTier: u.subscriptionTier || 'free',
     callWindowResetsAt: getCallWindowStart() + 8 * 60 * 60 * 1000,
-    softLaunch: SOFT_LAUNCH
+    softLaunch: SOFT_LAUNCH,
+    gameNextAvailableAt: (() => { const last = userId && gameLastPlayed ? gameLastPlayed.get(userId) : null; return last ? last + GAME_COOLDOWN_MS : null; })()
   };
 }
 
@@ -3965,7 +3966,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   const { charId, message, modelTier: reqModelTier, effort: reqEffort, image, callMode, chatMode } = req.body;
   const isRpMode = chatMode !== 'chat'; // default to RP; 'chat' = normal conversation mode
   const effortUserId = req.user.googleId;
-  const effort = callMode ? 'low' : resolveEffort(effortUserId, reqEffort);
+  let effort = callMode ? 'low' : resolveEffort(effortUserId, reqEffort);
   const modelTier = resolveModelTier(effortUserId, reqModelTier);
   if (message !== undefined && typeof message !== 'string') return res.status(400).json({ error: 'Invalid request' });
   // Book mode: a book is planned, then written one chapter per reply. Only Opys 5 (X100) can do it.
@@ -3984,6 +3985,14 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     if (!ALLOWED_IMG.some(t => image.startsWith(t))) return res.status(400).json({ error: 'Invalid image format' });
     if (image.length > 1400000) return res.status(400).json({ error: 'Image too large (max ~1MB)' });
   }
+  // Coding requests automatically use at least 'high' effort — they deserve richer, more detailed responses
+  const CODE_DETECT_RE = /\b(code|coding|program|script|html|css|javascript|python|lua|c#|unity|roblox|unreal|algorithm|debug|function|class|api)\b/i;
+  const isGameMsg = typeof message === 'string' && /^\[The user (just |wants )|(just beat|just (lost|drew)|just won)/.test(message);
+  if (!callMode && !isGameMsg && typeof message === 'string' && CODE_DETECT_RE.test(message)) {
+    const ORDER = ['low','medium','high','extra','max','ultracode'];
+    if (ORDER.indexOf(effort) < ORDER.indexOf('high')) effort = 'high';
+  }
+
   const modelList = getModelList(modelTier);
   const effortCfg = getEffortCfg(effort, modelTier);
   if (!charId) return res.status(400).json({ error: 'charId required' });
@@ -4722,6 +4731,18 @@ app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'public', 'p
 
 // ── Game endpoints ─────────────────────────────────────────────────────────────
 
+const gameLastPlayed = new Map();
+const GAME_COOLDOWN_MS = 5 * 60 * 1000; // 5-minute cooldown between game sessions
+
+function checkGameCooldown(userId) {
+  const last = gameLastPlayed.get(userId);
+  if (!last) return { blocked: false };
+  const nextAvailableAt = last + GAME_COOLDOWN_MS;
+  const remaining = nextAvailableAt - Date.now();
+  if (remaining > 0) return { blocked: true, remainingMs: remaining, gameNextAvailableAt: nextAvailableAt };
+  return { blocked: false };
+}
+
 const HANGMAN_WORDS = [
   'apple','arrow','beach','brain','bread','brick','bride','brush','buddy','cable',
   'camel','candy','chair','chalk','charm','chase','chest','chief','child','china',
@@ -4795,6 +4816,22 @@ function requireAuthGame(req, res, next) {
 }
 
 app.get('/api/game/hangman/word', requireAuthGame, (req, res) => {
+  const userId = req.session.userId;
+
+  const limits = checkLimits(userId);
+  if (limits.blocked) return res.status(429).json({ error: 'Token limit reached', ...limits });
+
+  const cooldown = checkGameCooldown(userId);
+  if (cooldown.blocked) return res.status(429).json({ error: 'Game cooldown active', gameNextAvailableAt: cooldown.gameNextAvailableAt, remainingMs: cooldown.remainingMs });
+
+  // Charge upfront game session fee (equivalent to one max-effort message)
+  const u = getLimits(userId);
+  const modelTier = resolveModelTier(userId, u.subscriptionTier === 'free' ? 'opas' : 'opes');
+  const fee = messageCost(modelTier, 'max');
+  addTokens(userId, fee);
+
+  gameLastPlayed.set(userId, Date.now());
+
   const word = HANGMAN_WORDS[Math.floor(Math.random() * HANGMAN_WORDS.length)];
   res.json({ word });
 });
@@ -4828,9 +4865,27 @@ function tttMinimaxGame(board, isMaximizing) {
 }
 
 app.post('/api/game/tictactoe/move', requireAuthGame, (req, res) => {
+  const userId = req.session.userId;
   const { board } = req.body;
   if (!Array.isArray(board) || board.length !== 9) return res.status(400).json({ error: 'Invalid board' });
   if (board.some(c => c !== null && c !== 'X' && c !== 'O')) return res.status(400).json({ error: 'Invalid board values' });
+
+  // First move of the game — apply cooldown + limit check + upfront fee
+  if (board.filter(c => c !== null).length === 1) {
+    const limits = checkLimits(userId);
+    if (limits.blocked) return res.status(429).json({ error: 'Token limit reached', ...limits });
+
+    const cooldown = checkGameCooldown(userId);
+    if (cooldown.blocked) return res.status(429).json({ error: 'Game cooldown active', gameNextAvailableAt: cooldown.gameNextAvailableAt, remainingMs: cooldown.remainingMs });
+
+    const u = getLimits(userId);
+    const modelTier = resolveModelTier(userId, u.subscriptionTier === 'free' ? 'opas' : 'opes');
+    const fee = messageCost(modelTier, 'max');
+    addTokens(userId, fee);
+
+    gameLastPlayed.set(userId, Date.now());
+  }
+
   if (tttCheckWinnerGame(board) || board.every(c => c)) return res.json({ move: -1 });
   let bestVal = -Infinity, bestMove = -1;
   for (let i = 0; i < 9; i++) {

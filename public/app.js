@@ -7572,6 +7572,13 @@ async function launchHangman() {
   try {
     const r = await fetch('/api/game/hangman/word');
     const d = await r.json();
+    if (r.status === 429 && d.gameNextAvailableAt) {
+      const secsLeft = Math.ceil((d.gameNextAvailableAt - Date.now()) / 1000);
+      const minsLeft = Math.ceil(secsLeft / 60);
+      msgEl.innerHTML = `<div class="game-loading">⏳ Game cooldown — come back in ${minsLeft} minute${minsLeft !== 1 ? 's' : ''}.</div>`;
+      return;
+    }
+    if (!r.ok) { msgEl.innerHTML = '<div class="game-loading">Couldn\'t load game. Try again.</div>'; return; }
     word = d.word.toLowerCase();
   } catch (_) {
     msgEl.innerHTML = '<div class="game-loading">Couldn\'t load game. Try again.</div>';
@@ -7580,7 +7587,7 @@ async function launchHangman() {
 
   if (currentChar) {
     const intro = `[The user wants to play Hangman with you. Announce the game in your character's voice — build suspense, tease the mystery word, describe the blank dashes dramatically. This is a big theatrical moment. Be elaborate and immersive.]`;
-    setTimeout(() => sendMessage(intro, true, false, 'extra'), 200);
+    setTimeout(() => sendMessage(intro, true, false, 'max'), 200);
   }
 
   const guessed = new Set();
@@ -7626,7 +7633,7 @@ async function launchHangman() {
       const result = isWin
         ? `[The user just won Hangman — they correctly guessed the word "${word.toUpperCase()}"! React with a full, dramatic, immersive response in character. Make it a big deal: celebration, shock, disbelief, whatever fits your persona — but go all out. Rich detail, multiple beats, stay completely in character.]`
         : `[The user just lost Hangman — they ran out of guesses and the word was "${word.toUpperCase()}". React with a full, dramatic, immersive response in character. Revel in it, console them, taunt them — whatever fits your persona. But go all out. Rich detail, multiple beats, stay completely in character.]`;
-      setTimeout(() => sendMessage(result, true, false, 'extra'), 800);
+      setTimeout(() => sendMessage(result, true, false, 'max'), 800);
     }
   }
 
@@ -7662,7 +7669,7 @@ function launchTicTacToe() {
 
   if (currentChar) {
     const intro = `[The user wants to play Tic-Tac-Toe against you. Announce the game in your character's voice — confident, dramatic, maybe a little menacing or playful depending on your persona. Set the scene. This is a big moment. Be elaborate and immersive.]`;
-    setTimeout(() => sendMessage(intro, true, false, 'extra'), 200);
+    setTimeout(() => sendMessage(intro, true, false, 'max'), 200);
   }
 
   function renderTTT(winData) {
@@ -7696,7 +7703,7 @@ function launchTicTacToe() {
       if (winData.winner === 'X') result = `[The user just beat you at Tic-Tac-Toe! React with a full, immersive, dramatic response in character. Don't just be a good sport — really FEEL this loss. Let your persona come through with intensity, every emotion, every beat. Go all out — elaborate, rich detail, completely in character.]`;
       else if (winData.winner === 'draw') result = `[You and the user just drew at Tic-Tac-Toe — a perfect stalemate. React with a full, immersive response in character. A draw is its own drama. Make it feel significant and elaborate. Stay completely in character, go all out.]`;
       else result = `[You just beat the user at Tic-Tac-Toe! React with a full, dramatic, immersive victory response in character. Revel in the win, make it theatrical and elaborate — every beat, every gesture, completely in character. Go all out.]`;
-      setTimeout(() => sendMessage(result, true, false, 'extra'), 800);
+      setTimeout(() => sendMessage(result, true, false, 'max'), 800);
     }
   }
 
@@ -7714,8 +7721,15 @@ function launchTicTacToe() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ board })
       });
-      const { move } = await r.json();
-      if (move >= 0 && move < 9 && board[move] === null) board[move] = 'O';
+      const d = await r.json();
+      if (r.status === 429 && d.gameNextAvailableAt) {
+        const secsLeft = Math.ceil((d.gameNextAvailableAt - Date.now()) / 1000);
+        const minsLeft = Math.ceil(secsLeft / 60);
+        msgEl.innerHTML = `<div class="game-widget"><div class="game-loading">⏳ Game cooldown — come back in ${minsLeft} minute${minsLeft !== 1 ? 's' : ''}.</div></div>`;
+        scrollToBottom();
+        return;
+      }
+      if (r.ok && d.move >= 0 && d.move < 9 && board[d.move] === null) board[d.move] = 'O';
     } catch (_) {}
 
     waiting = false;
