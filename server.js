@@ -2346,6 +2346,9 @@ function getModelList(tier) {
 
 const workingModels = {};
 const workingModelsAt = {};
+// When a model returns 429, remember it here so future calls skip it without a round-trip.
+// Value = timestamp after which we'll try the model again (daily quota resets at midnight).
+const modelBlockedUntil = {};
 
 // Groq says "Please try again in 1.5s" / "2m3.4s" / "450ms" when a model is out of tokens-per-minute
 function parseRetryAfterMs(msg) {
@@ -2371,9 +2374,17 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
   effortCfg = effortCfg || EFFORT_CONFIG.opas.high;
   if (modelIndex === undefined) {
     const tier = (modelList === GROQ_OPYS2_MODELS) ? 'opys2' : (modelList === GROQ_OPUS_MODELS) ? 'opus' : (modelList === GROQ_PRO_MODELS) ? 'opes' : 'opas';
-    const wm = (workingModelsAt[tier] || 0) > Date.now() - 60000 ? workingModels[tier] : null;
+    const now = Date.now();
+    // Find the first model that isn't currently blocked (rate-limited), then honour the
+    // last-working hint so we skip models we already know are failing.
+    let startIdx = 0;
+    for (let i = 0; i < modelList.length; i++) {
+      if ((modelBlockedUntil[modelList[i]] || 0) > now) startIdx = i + 1;
+      else break;
+    }
+    const wm = (workingModelsAt[tier] || 0) > Date.now() - 30 * 60 * 1000 ? workingModels[tier] : null;
     const wi = wm ? modelList.indexOf(wm) : -1;
-    modelIndex = wi >= 0 ? wi : 0;
+    modelIndex = Math.max(startIdx, wi >= 0 ? wi : 0);
   }
   if (modelIndex >= modelList.length) {
     if (ctx.rateLimited || ctx.serviceUnavailable) {
@@ -2436,6 +2447,10 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
             ctx.rateLimited = true;
             const ra = parseRetryAfterMs(msg);
             if (ra != null && (ctx.retryAfterMs == null || ra < ctx.retryAfterMs)) ctx.retryAfterMs = ra;
+            // Block this specific model for 4 hours (daily quota exhausted) so future calls
+            // skip it immediately rather than burning a round-trip on a guaranteed failure.
+            const blockMs = (ra && ra > RATE_RETRY_MAX_MS) ? Math.min(ra, 4 * 3600 * 1000) : 4 * 3600 * 1000;
+            modelBlockedUntil[model] = Math.max(modelBlockedUntil[model] || 0, Date.now() + blockMs);
           }
           if (res.statusCode === 503) ctx.serviceUnavailable = true;
           if (res.statusCode === 429 || res.statusCode === 503 || res.statusCode === 404) {
@@ -2451,7 +2466,8 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
     }
 
     const tier = modelList === GROQ_OPYS2_MODELS ? 'opys2' : modelList === GROQ_OPUS_MODELS ? 'opus' : modelList === GROQ_PRO_MODELS ? 'opes' : 'opas';
-    if (!GEMINI_FALLBACKS.includes(model)) { workingModels[tier] = model; workingModelsAt[tier] = Date.now(); }
+    workingModels[tier] = model; workingModelsAt[tier] = Date.now();
+    modelBlockedUntil[model] = 0; // clear any stale block — model is responding again
     console.log(`Using model: ${model} (tier=${tier})`);
 
     let buffer = '';
