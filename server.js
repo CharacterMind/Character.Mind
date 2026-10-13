@@ -4720,20 +4720,6 @@ app.post('/api/webhooks/paypal', async (req, res) => {
 app.get('/terms', (req, res) => res.sendFile(path.join(__dirname, 'public', 'terms.html')));
 app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy.html')));
 
-// A mistyped API address should say so, not answer with the home page
-app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
-
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-function loadOwnerIds() {
-  if (!db) return;
-  db.query('SELECT google_id FROM users WHERE email = ANY($1)', [[...OWNER_EMAILS]])
-    .then(r => r.rows.forEach(row => ownerGoogleIds.add(row.google_id)))
-    .catch(() => {});
-}
-
 // ── Game endpoints ─────────────────────────────────────────────────────────────
 
 const HANGMAN_WORDS = [
@@ -4753,67 +4739,67 @@ const HANGMAN_WORDS = [
   'frame','frank','fraud','freak','freed','fresh','front','frost','fruit','fully',
   'funny','ghost','giant','given','gland','glass','gleam','glide','globe','gloom',
   'glory','gloss','glove','going','grace','grade','grain','grand','grant','grape',
-  'grasp','grass','gravel','great','green','greet','grief','grind','groan','group',
-  'guard','guest','guide','guild','guilt','guise','gummy','happy','harsh','haven',
+  'grasp','grass','great','green','greet','grief','grind','groan','group',
+  'guard','guest','guide','guild','guilt','guise','happy','harsh','haven',
   'heart','heavy','hedge','herbs','hinge','hippo','hoist','holly','honor','horse',
-  'hotel','house','hover','human','humor','image','inbox','indie','inner','input',
-  'irony','ivory','jelly','jewel','joker','joust','judge','juice','juicy','jumbo',
-  'karma','knack','kneel','knife','knock','koala','label','lance','large','laser',
-  'later','laugh','layer','leapt','learn','lease','legal','lemon','level','light',
-  'lilac','limit','linen','lingo','links','liter','liver','llama','lodge','logic',
+  'hotel','house','hover','human','humor','image','indie','inner','input',
+  'irony','ivory','jelly','jewel','joker','judge','juice','jumbo',
+  'karma','knack','kneel','knife','knock','label','lance','large','laser',
+  'later','laugh','layer','learn','lease','legal','lemon','level','light',
+  'lilac','limit','linen','lingo','links','liver','lodge','logic',
   'loose','lotus','lower','lucid','lucky','lunar','lunch','lyric','magic','major',
   'maker','manga','manor','maple','march','match','mayor','media','mercy','merge',
   'merit','metal','model','money','month','moose','moral','morph','motif','motor',
-  'mouse','mouth','movie','mural','music','myth','naive','naval','nerve','never',
-  'newt','night','ninja','noise','north','noted','novel','nurse','nymph','ocean',
+  'mouse','mouth','movie','mural','music','naive','naval','nerve','never',
+  'night','ninja','noise','north','noted','novel','nurse','ocean',
   'offer','often','olive','omega','onset','opera','orbit','order','other','otter',
-  'outer','owned','oxide','ozone','paint','panic','paper','party','pasta','patch',
+  'outer','oxide','ozone','paint','panic','paper','party','pasta','patch',
   'pause','peace','peach','pearl','piano','pilot','pinch','pixel','pizza','place',
-  'plain','plane','plant','plaza','plead','plumb','plume','plunk','point','polar',
-  'poppy','potty','pound','power','press','price','pride','prime','print','prize',
-  'probe','prone','proof','prose','proud','prove','proxy','pupil','pygmy','queen',
+  'plain','plane','plant','plaza','plead','point','polar',
+  'poppy','pound','power','press','price','pride','prime','print','prize',
+  'probe','prone','proof','prose','proud','prove','proxy','pupil','queen',
   'quest','queue','quick','quiet','quota','quote','radar','radio','rainy','rally',
   'ranch','range','rapid','raven','reach','ready','realm','rebel','recap','reign',
   'relax','renew','repay','repel','rerun','rider','ridge','rifle','right','risky',
-  'rival','river','rivet','robot','rocky','rodeo','rouge','rough','round','route',
+  'rival','river','rivet','robot','rocky','rodeo','rough','round','route',
   'royal','rugby','ruler','rumor','rusty','saint','salad','sandy','sauce','savor',
-  'scary','scene','scout','seize','serve','seven','shade','shake','shall','shark',
-  'sharp','sheen','sheep','sheer','sheet','shelf','shell','shift','shirt','shock',
+  'scary','scene','scout','seize','serve','seven','shade','shake','shark',
+  'sharp','sheen','sheep','sheet','shelf','shell','shift','shirt','shock',
   'shore','short','shout','shove','siege','sight','silly','since','sixth','sixty',
-  'sized','skate','skill','skull','skunk','slate','sleek','sleet','slice','slide',
-  'slime','slope','small','smart','smash','smell','smoke','snail','snake','snare',
-  'sneak','solar','solid','solve','sorry','south','space','speak','speed','spell',
+  'skate','skill','skull','slate','sleek','slice','slide',
+  'slope','small','smart','smash','smell','smoke','snail','snake','snare',
+  'sneak','solar','solid','solve','south','space','speak','speed','spell',
   'spend','spice','spill','spine','spite','split','spoon','sport','spray','squad',
-  'staff','stair','stake','stale','stand','stare','start','state','steam','steel',
+  'staff','stair','stake','stand','stare','start','state','steam','steel',
   'steep','steer','stern','stick','stiff','still','sting','stock','stomp','stone',
   'store','storm','story','stout','stove','strap','straw','stray','strip','strum',
-  'study','style','sugar','super','surge','swamp','sweep','sweet','swept','swift',
-  'swirl','sword','synth','table','talon','tango','taunt','teach','teeth','tempo',
-  'tense','tenth','thaw','theft','thick','think','third','thorn','those','three',
-  'threw','throw','thumb','tidal','tiger','tight','timer','tired','title','toast',
+  'study','style','sugar','super','surge','swamp','sweep','sweet','swift',
+  'swirl','sword','table','talon','tango','taunt','teach','teeth','tempo',
+  'tense','tenth','theft','thick','think','third','thorn','three',
+  'throw','thumb','tiger','tight','timer','tired','title','toast',
   'today','token','torch','total','touch','tough','tower','toxic','trace','track',
   'trade','train','trait','trash','trail','trend','trial','tribe','trick','tried',
-  'troop','trout','trove','truce','truck','trunk','truth','tumor','tuned','twice',
-  'twist','tying','ultra','uncle','unify','union','unity','until','upper','urban',
+  'troop','trout','trove','truce','truck','trunk','truth','twice',
+  'twist','ultra','uncle','unify','union','unity','until','upper','urban',
   'usage','usual','vague','valid','value','vapor','vault','venom','verse','video',
   'vigor','viral','virus','visor','visit','vista','vital','vivid','vocal','voice',
-  'voila','voter','waltz','waste','watch','water','weave','weigh','weird','wheat',
-  'wheel','where','while','whirl','white','whole','wider','width','witch','woman',
-  'world','worry','worse','worth','would','wound','wrath','write','wrote','yacht',
-  'yield','young','youth','zebra','zesty','zingy','zombi','zoned'
+  'voter','waltz','waste','watch','water','weave','weigh','weird','wheat',
+  'wheel','while','whirl','white','whole','wider','width','witch','woman',
+  'world','worry','worse','worth','wound','wrath','write','yacht',
+  'yield','young','youth','zebra','zesty','zoned'
 ];
 
-function requireAuthJson(req, res, next) {
+function requireAuthGame(req, res, next) {
   if (!req.session || !req.session.userId) return res.status(401).json({ error: 'Not authenticated' });
   next();
 }
 
-app.get('/api/game/hangman/word', requireAuthJson, (req, res) => {
+app.get('/api/game/hangman/word', requireAuthGame, (req, res) => {
   const word = HANGMAN_WORDS[Math.floor(Math.random() * HANGMAN_WORDS.length)];
   res.json({ word });
 });
 
-function tttCheckWinner(board) {
+function tttCheckWinnerGame(board) {
   const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
   for (const [a,b,c] of lines) {
     if (board[a] && board[a] === board[b] && board[a] === board[c]) return board[a];
@@ -4821,42 +4807,56 @@ function tttCheckWinner(board) {
   return null;
 }
 
-function tttMinimax(board, isMaximizing) {
-  const winner = tttCheckWinner(board);
+function tttMinimaxGame(board, isMaximizing) {
+  const winner = tttCheckWinnerGame(board);
   if (winner === 'O') return 10;
   if (winner === 'X') return -10;
   if (board.every(c => c)) return 0;
   if (isMaximizing) {
     let best = -Infinity;
     for (let i = 0; i < 9; i++) {
-      if (!board[i]) { board[i] = 'O'; best = Math.max(best, tttMinimax(board, false)); board[i] = null; }
+      if (!board[i]) { board[i] = 'O'; best = Math.max(best, tttMinimaxGame(board, false)); board[i] = null; }
     }
     return best;
   } else {
     let best = Infinity;
     for (let i = 0; i < 9; i++) {
-      if (!board[i]) { board[i] = 'X'; best = Math.min(best, tttMinimax(board, true)); board[i] = null; }
+      if (!board[i]) { board[i] = 'X'; best = Math.min(best, tttMinimaxGame(board, true)); board[i] = null; }
     }
     return best;
   }
 }
 
-app.post('/api/game/tictactoe/move', requireAuthJson, (req, res) => {
+app.post('/api/game/tictactoe/move', requireAuthGame, (req, res) => {
   const { board } = req.body;
   if (!Array.isArray(board) || board.length !== 9) return res.status(400).json({ error: 'Invalid board' });
   if (board.some(c => c !== null && c !== 'X' && c !== 'O')) return res.status(400).json({ error: 'Invalid board values' });
-  if (tttCheckWinner(board) || board.every(c => c)) return res.json({ move: -1 });
+  if (tttCheckWinnerGame(board) || board.every(c => c)) return res.json({ move: -1 });
   let bestVal = -Infinity, bestMove = -1;
   for (let i = 0; i < 9; i++) {
     if (!board[i]) {
       board[i] = 'O';
-      const val = tttMinimax(board, false);
+      const val = tttMinimaxGame(board, false);
       board[i] = null;
       if (val > bestVal) { bestVal = val; bestMove = i; }
     }
   }
   res.json({ move: bestMove });
 });
+
+// A mistyped API address should say so, not answer with the home page
+app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+function loadOwnerIds() {
+  if (!db) return;
+  db.query('SELECT google_id FROM users WHERE email = ANY($1)', [[...OWNER_EMAILS]])
+    .then(r => r.rows.forEach(row => ownerGoogleIds.add(row.google_id)))
+    .catch(() => {});
+}
 
 // Clear JSON errors (e.g. an upload that is too large) instead of an HTML error page
 app.use((err, req, res, next) => {
