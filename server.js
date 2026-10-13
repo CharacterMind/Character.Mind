@@ -4431,35 +4431,32 @@ async function sendWelcomeEmail(userName, email) {
 
 // ── Policy notification email ─────────────────────────────────────────────────
 
-function buildPolicyEmailHtml(userName, message) {
-  const name = userName || 'there';
+function buildUpdateEmailHtml(userName, subject, message) {
+  const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const name = esc(userName || 'there');
+  const siteUrl = process.env.SITE_URL || 'https://charactermind.onrender.com';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:40px 16px">
   <tr><td align="center">
     <table width="100%" style="max-width:560px;background:#111111;border-radius:12px;border:1px solid #222222;padding:40px">
       <tr><td>
-        <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#7c5cbf">Character.Mind</p>
-        <h1 style="margin:0 0 24px;font-size:22px;font-weight:700;color:#f0f0f0;letter-spacing:-.02em">Policy Update</h1>
-        <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">Hi ${name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')},</p>
-        <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">We've updated our Terms of Service and/or Privacy Policy. Here's a summary of what changed:</p>
-        <div style="background:#0a0a0a;border:1px solid #222222;border-radius:8px;padding:20px;margin:0 0 24px">
-          <p style="margin:0;font-size:15px;color:#f0f0f0;line-height:1.6;white-space:pre-wrap">${message.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>
+        <p style="margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#7c5cbf">Character.Mind</p>
+        <h1 style="margin:0 0 24px;font-size:22px;font-weight:700;color:#f0f0f0;letter-spacing:-.02em">${esc(subject)}</h1>
+        <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">Hi ${name},</p>
+        <div style="background:#0a0a0a;border:1px solid #222222;border-radius:8px;padding:20px;margin:0 0 28px">
+          <p style="margin:0;font-size:15px;color:#f0f0f0;line-height:1.7;white-space:pre-wrap">${esc(message)}</p>
         </div>
-        <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">You can read the full policies any time:</p>
-        <table cellpadding="0" cellspacing="0" style="margin:0 0 32px">
-          <tr>
-            <td style="padding-right:12px"><a href="${process.env.SITE_URL || 'https://charactermind.onrender.com'}/terms.html" style="display:inline-block;padding:10px 20px;background:#7c5cbf;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500">Terms of Service</a></td>
-            <td><a href="${process.env.SITE_URL || 'https://charactermind.onrender.com'}/privacy.html" style="display:inline-block;padding:10px 20px;border:1px solid #444;color:#f0f0f0;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500">Privacy Policy</a></td>
-          </tr>
-        </table>
-        <p style="margin:0 0 4px;font-size:13px;color:#666666;line-height:1.5">By continuing to use Character.Mind after these changes, you accept the updated policies. If you have questions, reply to this email.</p>
-        <p style="margin:16px 0 0;font-size:13px;color:#444444">— Character.Mind</p>
+        <a href="${siteUrl}" style="display:inline-block;padding:11px 24px;background:#7c5cbf;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;margin-bottom:28px">Open Character.Mind</a>
+        <hr style="border:none;border-top:1px solid #222222;margin:0 0 20px">
+        <p style="margin:0 0 4px;font-size:12px;color:#555555;line-height:1.5">Questions? Reply to this email or reach us at <a href="mailto:support.charactermind@gmail.com" style="color:#7c5cbf;text-decoration:none">support.charactermind@gmail.com</a></p>
+        <p style="margin:12px 0 0;font-size:12px;color:#444444">— Character.Mind</p>
       </td></tr>
     </table>
   </td></tr>
 </table>
 </body></html>`;
 }
+function buildPolicyEmailHtml(userName, message) { return buildUpdateEmailHtml(userName, 'Policy Update', message); }
 
 app.post('/api/admin/notify-policy-update', requireAuth, async (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
@@ -4487,7 +4484,7 @@ app.post('/api/admin/notify-policy-update', requireAuth, async (req, res) => {
   for (let i = 0; i < users.length; i += BATCH) {
     const batch = users.slice(i, i + BATCH);
     const results = await Promise.allSettled(batch.map(user =>
-      sendResendEmail(user.email, subject, buildPolicyEmailHtml(user.name, message))
+      sendResendEmail(user.email, subject, buildUpdateEmailHtml(user.name, subject, message))
     ));
     for (const r of results) {
       if (r.status === 'fulfilled') sent++;
