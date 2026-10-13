@@ -3034,7 +3034,7 @@ function updateImageAttachState(usage) {
 }
 
 // ── Send Message ──────────────────────────────────────────────────────────────
-async function sendMessage(overrideText, skipAppend, allowEmpty) {
+async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort) {
   if (!currentChar) return;
   const myEpoch = chatEpoch;   // taken BEFORE any waiting, so a chat switch during the request is noticed
   // If we're locked out (limit reached), re-show the modal with a new message every attempt
@@ -3113,7 +3113,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ charId: currentChar.id, message: text, modelTier: callModeActive ? 'opas' : selectedModelTier, effort: callModeActive ? 'low' : selectedEffort, ...(imgB64 ? { image: imgB64 } : {}), ...(callModeActive ? { callMode: true } : {}), ...(bookExtra ? { book: bookExtra } : {}), chatMode: rpMode ? 'rp' : 'chat' }),
+      body: JSON.stringify({ charId: currentChar.id, message: text, modelTier: callModeActive ? 'opas' : selectedModelTier, effort: callModeActive ? 'low' : (overrideEffort || selectedEffort), ...(imgB64 ? { image: imgB64 } : {}), ...(callModeActive ? { callMode: true } : {}), ...(bookExtra ? { book: bookExtra } : {}), chatMode: rpMode ? 'rp' : 'chat' }),
       signal: streamAbortCtrl.signal
     });
 
@@ -7578,6 +7578,11 @@ async function launchHangman() {
     return;
   }
 
+  if (currentChar) {
+    const intro = `[The user wants to play Hangman with you. Announce the game in your character's voice — build suspense, tease the mystery word, describe the blank dashes dramatically. This is a big theatrical moment. Be elaborate and immersive.]`;
+    setTimeout(() => sendMessage(intro, true, false, 'extra'), 200);
+  }
+
   const guessed = new Set();
   let wrongCount = 0;
   const maxWrong = 6;
@@ -7619,9 +7624,9 @@ async function launchHangman() {
 
     if (gameOver && currentChar) {
       const result = isWin
-        ? `[The user just won a game of Hangman — they correctly guessed the word "${word}". React briefly in character, keep it natural and short.]`
-        : `[The user just lost a game of Hangman — the word was "${word}" and they ran out of guesses. React briefly in character, keep it natural and short.]`;
-      setTimeout(() => sendMessage(result, true), 800);
+        ? `[The user just won Hangman — they correctly guessed the word "${word.toUpperCase()}"! React with a full, dramatic, immersive response in character. Make it a big deal: celebration, shock, disbelief, whatever fits your persona — but go all out. Rich detail, multiple beats, stay completely in character.]`
+        : `[The user just lost Hangman — they ran out of guesses and the word was "${word.toUpperCase()}". React with a full, dramatic, immersive response in character. Revel in it, console them, taunt them — whatever fits your persona. But go all out. Rich detail, multiple beats, stay completely in character.]`;
+      setTimeout(() => sendMessage(result, true, false, 'extra'), 800);
     }
   }
 
@@ -7655,6 +7660,11 @@ function launchTicTacToe() {
   document.getElementById('messages').appendChild(msgEl);
   scrollToBottom();
 
+  if (currentChar) {
+    const intro = `[The user wants to play Tic-Tac-Toe against you. Announce the game in your character's voice — confident, dramatic, maybe a little menacing or playful depending on your persona. Set the scene. This is a big moment. Be elaborate and immersive.]`;
+    setTimeout(() => sendMessage(intro, true, false, 'extra'), 200);
+  }
+
   function renderTTT(winData) {
     const cells = board.map((val, i) => {
       const inWin = winData && winData.line && winData.line.includes(i);
@@ -7683,10 +7693,10 @@ function launchTicTacToe() {
 
     if (winData && currentChar) {
       let result;
-      if (winData.winner === 'X') result = `[The user just beat you at Tic-Tac-Toe! React briefly in character — stay in your persona, be a good sport or dramatic. Short response only.]`;
-      else if (winData.winner === 'draw') result = `[You and the user just tied at Tic-Tac-Toe. React briefly in character. Short response only.]`;
-      else result = `[You just beat the user at Tic-Tac-Toe! React briefly in character — stay in your persona. Short response only.]`;
-      setTimeout(() => sendMessage(result, true), 800);
+      if (winData.winner === 'X') result = `[The user just beat you at Tic-Tac-Toe! React with a full, immersive, dramatic response in character. Don't just be a good sport — really FEEL this loss. Let your persona come through with intensity, every emotion, every beat. Go all out — elaborate, rich detail, completely in character.]`;
+      else if (winData.winner === 'draw') result = `[You and the user just drew at Tic-Tac-Toe — a perfect stalemate. React with a full, immersive response in character. A draw is its own drama. Make it feel significant and elaborate. Stay completely in character, go all out.]`;
+      else result = `[You just beat the user at Tic-Tac-Toe! React with a full, dramatic, immersive victory response in character. Revel in the win, make it theatrical and elaborate — every beat, every gesture, completely in character. Go all out.]`;
+      setTimeout(() => sendMessage(result, true, false, 'extra'), 800);
     }
   }
 
