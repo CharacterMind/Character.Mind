@@ -4253,7 +4253,7 @@ function updateUsageModal(u) {
   // Daily resets subtitle
   const dailyResetsEl = document.getElementById('usageDailyResetsSub');
   if (dailyResetsEl && u.callWindowResetsAt) {
-    dailyResetsEl.textContent = `Calls & memos reset ${formatResetTime(u.callWindowResetsAt)}`;
+    dailyResetsEl.textContent = `Calls & memos · ${formatResetTime(u.callWindowResetsAt)}`;
   }
 
   // Game cooldown bar — fills green when ready, drains to orange/yellow while waiting

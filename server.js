@@ -2561,7 +2561,7 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
     ctx.req = req;
     if (ctx.aborted) { req.destroy(new Error('client aborted')); return; }
   }
-  req.setTimeout(180000, () => req.destroy(new Error('upstream timeout')));
+  req.setTimeout(30000, () => req.destroy(new Error('upstream timeout')));
   req.write(body);
   req.end();
 }
