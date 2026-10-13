@@ -3966,7 +3966,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   const { charId, message, modelTier: reqModelTier, effort: reqEffort, image, callMode, chatMode } = req.body;
   const isRpMode = chatMode !== 'chat'; // default to RP; 'chat' = normal conversation mode
   const effortUserId = req.user.googleId;
-  let effort = callMode ? 'low' : resolveEffort(effortUserId, reqEffort);
+  let effort = callMode ? 'medium' : resolveEffort(effortUserId, reqEffort);
   const modelTier = resolveModelTier(effortUserId, reqModelTier);
   if (message !== undefined && typeof message !== 'string') return res.status(400).json({ error: 'Invalid request' });
   // Book mode: a book is planned, then written one chapter per reply. Only Opys 5 (X100) can do it.

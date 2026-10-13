@@ -4209,6 +4209,58 @@ function updateUsageModal(u) {
 
   const wSubEl = document.getElementById('usageWeeklySub');
   if (wSubEl) wSubEl.textContent = u.weeklyLimit ? (u.weeklyResetsAt ? formatResetTime(u.weeklyResetsAt) : 'Resets weekly') : 'No weekly limit on the free tier';
+
+  // Calls
+  const callsEl = document.getElementById('usageCallsStat');
+  if (callsEl) {
+    if (!u.callsLimit || u.callsLimit >= 9999) callsEl.textContent = 'Unlimited';
+    else callsEl.textContent = `${u.callsRemaining} / ${u.callsLimit} left`;
+    callsEl.className = 'usage-stat-val' + ((u.callsRemaining === 0) ? ' cooldown' : '');
+  }
+
+  // Memos
+  const memosEl = document.getElementById('usageMemosStat');
+  if (memosEl) {
+    if (!u.memosLimit || u.memosLimit >= 9999) memosEl.textContent = 'Unlimited';
+    else memosEl.textContent = `${u.memosRemaining} / ${u.memosLimit} left`;
+    memosEl.className = 'usage-stat-val' + ((u.memosRemaining === 0) ? ' cooldown' : '');
+  }
+
+  // Images
+  const imagesEl = document.getElementById('usageImagesStat');
+  if (imagesEl) {
+    if (!u.imageLimit || u.imageLimit >= 9999) imagesEl.textContent = 'Unlimited';
+    else {
+      const imgLeft = Math.max(0, u.imageLimit - (u.imagesDay || 0));
+      imagesEl.textContent = `${imgLeft} / ${u.imageLimit} left`;
+      imagesEl.className = 'usage-stat-val' + ((imgLeft === 0) ? ' cooldown' : '');
+    }
+  }
+
+  // Daily resets subtitle
+  const dailyResetsEl = document.getElementById('usageDailyResetsSub');
+  if (dailyResetsEl && u.callWindowResetsAt) {
+    dailyResetsEl.textContent = `Calls & memos reset ${formatResetTime(u.callWindowResetsAt)}`;
+  }
+
+  // Game cooldown
+  const gameEl = document.getElementById('usageGameStat');
+  const gameSubEl = document.getElementById('usageGameSub');
+  if (gameEl) {
+    const now = Date.now();
+    if (u.gameNextAvailableAt && u.gameNextAvailableAt > now) {
+      const secsLeft = Math.ceil((u.gameNextAvailableAt - now) / 1000);
+      const m = Math.floor(secsLeft / 60);
+      const s = secsLeft % 60;
+      gameEl.textContent = `Ready in ${m}:${String(s).padStart(2, '0')}`;
+      gameEl.className = 'usage-stat-val cooldown';
+      if (gameSubEl) gameSubEl.textContent = '5-minute cooldown between game sessions';
+    } else {
+      gameEl.textContent = 'Ready';
+      gameEl.className = 'usage-stat-val ready';
+      if (gameSubEl) gameSubEl.textContent = '5-minute cooldown between game sessions';
+    }
+  }
 }
 
 function startUsageModalTimer() {

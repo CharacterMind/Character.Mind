@@ -94,6 +94,37 @@
     </div>
 
     <div class="usage-modal-rule" id="usageWeeklyRule2" style="display:none"></div>
+
+    <!-- Daily limits: calls, memos, images -->
+    <div class="usage-modal-rule"></div>
+    <div class="usage-section" style="padding-bottom:12px">
+      <div class="usage-sec-label" style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);margin-bottom:10px">Daily</div>
+      <div class="usage-stat-row">
+        <span class="usage-stat-label">Calls</span>
+        <span class="usage-stat-val" id="usageCallsStat">—</span>
+      </div>
+      <div class="usage-stat-row">
+        <span class="usage-stat-label">Memos</span>
+        <span class="usage-stat-val" id="usageMemosStat">—</span>
+      </div>
+      <div class="usage-stat-row">
+        <span class="usage-stat-label">Images</span>
+        <span class="usage-stat-val" id="usageImagesStat">—</span>
+      </div>
+      <div class="usage-sec-sub" id="usageDailyResetsSub" style="margin-top:6px"></div>
+    </div>
+
+    <!-- Game cooldown -->
+    <div class="usage-modal-rule"></div>
+    <div class="usage-section" style="padding-top:14px;padding-bottom:14px">
+      <div class="usage-stat-row">
+        <span class="usage-stat-label">🎮 Games</span>
+        <span class="usage-stat-val" id="usageGameStat">—</span>
+      </div>
+      <div class="usage-sec-sub" id="usageGameSub" style="margin-top:4px"></div>
+    </div>
+
+    <div class="usage-modal-rule"></div>
     <div class="usage-updated-row">
       <span id="usageUpdatedText"></span>
       <button class="usage-refresh-btn" onclick="refreshUsageManual()" title="Refresh">
