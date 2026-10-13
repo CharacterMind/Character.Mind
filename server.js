@@ -728,7 +728,8 @@ async function loadLimitsFromDB() {
         ttsDayStart: d.ttsDayStart || null,
         swearsToday: d.swearsToday || 0,
         swearDayStart: d.swearDayStart || null,
-        subscriptionTier: d.subscriptionTier || 'free'
+        subscriptionTier: d.subscriptionTier || 'free',
+        tierLoaded: true
       };
     }
     if (Object.keys(userLimits).length) console.log(`[limits] Loaded ${Object.keys(userLimits).length} user limit records from DB`);
@@ -858,7 +859,7 @@ function resolveModelTier(userId, requested) {
   if (!requested) return 'opas';
   const plan = getLimits(userId).subscriptionTier || 'free';
   const allowed = PLAN_MODEL_TIERS[plan] || PLAN_MODEL_TIERS.free;
-  return allowed.includes(requested) ? requested : 'opes';
+  return allowed.includes(requested) ? requested : 'opas';
 }
 function sessionLimitFor(u) { return tokenLimitsFor(u).session; }
 function weeklyLimitFor(u) { return tokenLimitsFor(u).weekly; }
@@ -2300,7 +2301,7 @@ function startReplyStream(o) {
     try {
       if (!fullResponse.trim()) {
         if (!ctx.emptyRetried && !ctx.aborted) {
-          ctx.emptyRetried = true; ctx.extended = false; ctx.boosted = false;
+          ctx.emptyRetried = true; ctx.extended = false; ctx.boosted = false; ctx.continuations = 0;
           fullResponse = ''; held = '';
           console.log(logLabel + ' empty reply, retrying once...');
           callGeminiStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), 0, effortCfgFit, modelList, ctx);
@@ -3844,7 +3845,7 @@ async function sendPushReminders() {
         try {
           const msg = await generatePushMessage(row);
           await webpush.sendNotification(
-            JSON.parse(row.subscription),
+            row.subscription,
             JSON.stringify({ title: msg.title, body: msg.body, icon: '/logo.png', url: '/' })
           );
           await db.query('UPDATE push_subscriptions SET last_notified_at = NOW() WHERE id = $1', [row.id]);
@@ -3873,9 +3874,9 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   const greetEffortCfg = getEffortCfg(effort, modelTier);
   const greetModelList = getModelList(modelTier);
 
+  if (!db) return res.status(503).json({ error: 'Service temporarily unavailable' });
   const releaseSlot = acquireChatSlot(req, res, userId);
   if (!releaseSlot) return;
-  if (!db) return res.status(503).json({ error: 'Service temporarily unavailable' });
   const greetMod = await getModStatus(userId, charId);
   if (greetMod.locked) return res.status(403).json({ error: 'This chat has been ended.' });
 
@@ -4077,6 +4078,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       return res.status(503).json({ error: "We couldn't check that image right now. Please try again in a moment or send your message without it." });
     }
     if (explicit) {
+      refundTokens(userId, 1200);
       return res.status(451).json({ error: 'explicit_image' });
     }
   }

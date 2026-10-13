@@ -1535,7 +1535,7 @@ function randomizeChatColors() {
   });
   // Re-randomize character name in: chat message headers, mobile header, info panel, active sidebar entry
   const freshName = colorizeNameHtml(currentChar.name, currentChar.color);
-  document.querySelectorAll('#messages .msg-name').forEach(el => { el.innerHTML = freshName; });
+  document.querySelectorAll('#messages .msg.ai .msg-name').forEach(el => { el.innerHTML = freshName; });
   const mobNm = document.getElementById('mobChatName');
   if (mobNm) mobNm.innerHTML = freshName;
   const infoNm = document.getElementById('infoName');
@@ -2544,6 +2544,7 @@ function abandonStream() {
 async function openChat(charId) {
   const nextChar = characters.find(c => c.id === charId);
   if (!nextChar) return;
+  bookClose();
   abandonStream();
   releaseChatInput();
   clearPendingImage();   // an attached picture belongs to the chat it was attached in
@@ -6790,6 +6791,7 @@ function autoResize(el) {
 
 async function newChat() {
   if (!currentChar) return;
+  bookClose();
   abandonStream();
   releaseChatInput();
   const newChatCharId = currentChar.id; // capture before any async wait
