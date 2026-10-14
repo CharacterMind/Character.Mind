@@ -2141,6 +2141,59 @@ async function getCharPrompt(charId) {
   return null;
 }
 
+// ── Playtime Mind (HuggingFace) streaming helper ─────────────────────────────
+
+const PLAYTIME_MIND_CHAR_IDS = new Set(['custom_1790897425575_lily', 'custom_1790776698867']);
+const HF_INFERENCE_HOST = 'api-inference.huggingface.co';
+const HF_MODEL_PATH = '/models/CharacterMind/playtime-mind';
+
+function formatPhi3Prompt(systemPrompt, messages) {
+  let p = `<|system|>\n${systemPrompt}<|end|>\n`;
+  for (const m of messages) {
+    if (m.role === 'user') p += `<|user|>\n${String(m.content || '')}<|end|>\n`;
+    else if (m.role === 'assistant') p += `<|assistant|>\n${String(m.content || '')}<|end|>\n`;
+  }
+  return p + `<|assistant|>\n`;
+}
+
+function callHuggingFaceStream(systemPrompt, messages, onChunk, onDone, onError, ctx) {
+  const hfToken = process.env.HF_TOKEN;
+  if (!hfToken) return onError(new Error('HF_TOKEN not configured'));
+  ctx = ctx || {};
+  const prompt = formatPhi3Prompt(systemPrompt, messages);
+  const body = JSON.stringify({
+    inputs: prompt,
+    parameters: { max_new_tokens: 700, temperature: 0.9, return_full_text: false, do_sample: true },
+  });
+  const headers = {
+    'Authorization': `Bearer ${hfToken}`,
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(body),
+    'x-wait-for-model': 'true',
+  };
+  const req = https.request({ hostname: HF_INFERENCE_HOST, path: HF_MODEL_PATH, method: 'POST', headers }, (res) => {
+    let data = '';
+    if (typeof res.setEncoding === 'function') res.setEncoding('utf8');
+    res.on('data', d => { data += d; });
+    res.on('end', () => {
+      try {
+        if (res.statusCode !== 200) return onError(new Error(`HF API ${res.statusCode}: ${data.slice(0, 300)}`));
+        const parsed = JSON.parse(data);
+        const text = (Array.isArray(parsed) ? parsed[0]?.generated_text : parsed?.generated_text) || '';
+        if (!text.trim()) return onError(new Error('HF returned empty response'));
+        const STEP = 30;
+        for (let i = 0; i < text.length; i += STEP) onChunk(text.slice(i, i + STEP));
+        onDone();
+      } catch (e) { onError(e); }
+    });
+  });
+  req.setTimeout(60000, () => { req.destroy(); onError(new Error('HF request timeout')); });
+  req.on('error', (e) => onError(e));
+  if (ctx) ctx.req = req;
+  req.write(body);
+  req.end();
+}
+
 // ── Gemini API streaming helper ──────────────────────────────────────────────
 
 const GEMINI_HOST = 'generativelanguage.googleapis.com';
@@ -2378,7 +2431,16 @@ function startReplyStream(o) {
       try { close(); } catch (_) {}
     }
   };
-  callGeminiStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), undefined, effortCfgFit, modelList, ctx);
+  if (PLAYTIME_MIND_CHAR_IDS.has(charId) && process.env.HF_TOKEN) {
+    callHuggingFaceStream(system, messages, handleChunk, handleDone, (hfErr) => {
+      if (released) return fail(hfErr);
+      fullResponse = ''; held = '';
+      console.log('[playtime-mind] HF failed, falling back to Gemini:', hfErr && hfErr.message);
+      callGeminiStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), undefined, effortCfgFit, modelList, ctx);
+    }, ctx);
+  } else {
+    callGeminiStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), undefined, effortCfgFit, modelList, ctx);
+  }
 }
 
 // A clear message when the AI provider is rate-limiting us (instead of a generic error)
