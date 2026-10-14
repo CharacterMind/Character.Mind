@@ -1722,6 +1722,14 @@ const SLUR_WORDS = [
   'sodomite','sodomites','pillow biter','pillow biters',
   // Ableist (supplemental — retard caught by regex)
   'mongoloid','mongoloids','spaz','spazz',
+  // Sexist / misogynistic (derogatory use as hate speech)
+  'femoid','femoids','foid','foids','roastie','roasties',
+  'whore','whores','cum dumpster','cock sleeve',
+  'kill all women','women are inferior','women deserve to','women should be',
+  'stupid bitch','dumb bitch','filthy bitch','worthless bitch',
+  'stupid cunt','dumb cunt','filthy cunt','worthless cunt',
+  'go back to the kitchen','sandwich maker','walking fleshlight',
+  'breeding machine','broodmare',
 ];
 
 // Build one compiled regex from the word list
@@ -1742,6 +1750,49 @@ function redactIfUnsafe(text) {
 function hasSlur(text) {
   const clean = String(text || '').replace(SLUR_IDIOM_RE, '');
   return SLUR_RE.test(clean) || SLUR_WORD_RE.test(clean);
+}
+
+// ── Mass violence / terrorism threats — hard block, no AI response ─────────────
+const VIOLENCE_THREAT_RE = new RegExp(
+  '\\b(' +
+  // School / public place attacks
+  'school\\s+shooting|mass\\s+shooting|mass\\s+murder|killing\\s+spree|murder\\s+spree|' +
+  'shoot\\s+(up|down)\\s+(the|a|my|our)\\s+(school|college|university|campus|church|mosque|synagogue|temple|mall|shopping\\s+center|theater|theatre|cinema|concert|crowd|classroom|cafeteria|office|workplace)|' +
+  // Bomb-making / explosives
+  '(how\\s+(do\\s+i|to)|steps?\\s+to|ways?\\s+to|guide\\s+(to|for)|instructions?\\s+(for|on|to))\\s+(make|build|create|construct|assemble|wire)\\s+(a\\s+)?(bomb|explosive|ied|pipe\\s+bomb|nail\\s+bomb|pressure\\s+cooker\\s+bomb|molotov|grenade|landmine)|' +
+  'plant\\s+(a\\s+)?(bomb|explosive|ied|device)|bomb\\s+threat|' +
+  // Terrorism
+  'terrorist\\s+attack|suicide\\s+bomb(er|ing)?|' +
+  // Direct planning language + mass targets
+  '(going\\s+to|gonna|want\\s+to|plan(?:ning)?\\s+to|about\\s+to|i\\s+will)\\s+(shoot|kill|murder|attack|harm)\\s+(everyone|everybody|all\\s+of\\s+them|people|students|kids|children|civilians|my\\s+(school|class|coworkers|family))|' +
+  // Genocide / ethnic violence
+  'ethnic\\s+cleansing|genocide\\s+(of|against|plan)|' +
+  // Manifesto planning
+  'manifesto\\s+(to\\s+)?(justify|explain|for)\\s+(shooting|killing|attack|murder)' +
+  ')\\b',
+  'i'
+);
+
+// ── Suicide method requests — hard block, route to crisis resources ────────────
+// Distinct from CRISIS_RE (which catches emotional distress and gets empathetic AI response).
+// This catches explicit how-to requests for self-harm methods.
+const SUICIDE_METHOD_RE = /\b(how\s+(do\s+i|to|can\s+i)|what(?:'s|\s+is)\s+the\s+(best|fastest|easiest|painless|most\s+effective|quickest)|step[\s-]by[\s-]step|instructions?\s+(for|to|on\s+how\s+to)|ways?\s+to)\s+(kill\s+myself|commit\s+suicide|end\s+my\s+life|take\s+my\s+own\s+life|overdose\s+and\s+die|hang\s+myself|slit\s+my\s+(wrists?|throat)|shoot\s+myself|jump\s+(off|from)\s+(a\s+)?(bridge|building|roof))\b/i;
+
+const VIOLENCE_BLOCK_MSG = '[ Character.Mind ] That\'s not something we can engage with. If you or someone you know is in immediate danger, please contact emergency services (911 in the US) or your local authorities right away.';
+
+const SUICIDE_METHOD_BLOCK_MSG = '[ Character.Mind ] We can\'t provide that kind of information. If you\'re going through something serious, please reach out — the 988 Suicide & Crisis Lifeline is available 24/7 (call or text 988 in the US, or visit 988lifeline.org). You matter, and help is there.';
+
+function streamBlockMsg(res, msg) {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+  msg.split(' ').forEach((w, i) => {
+    res.write(`data: ${JSON.stringify({ text: (i === 0 ? '' : ' ') + w })}\n\n`);
+  });
+  res.write(`data: ${JSON.stringify({ done: true, usage: {}, responseTokens: 0, warnings: [] })}\n\n`);
+  res.end();
 }
 
 // Strip zero-width chars and NFKC-normalize to defeat unicode homoglyph/invisible-char bypass attempts
@@ -4129,6 +4180,16 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       const usage = addTokens(userId, Math.round(docsReply.length / 3.5));
       return slurDeflect(res, docsReply, usage, signReply(userId, charId, docsReply));
     }
+  }
+
+  // ── Mass violence / terrorism — hard block, no AI response ───────────────────
+  if (!isContinuation && message && VIOLENCE_THREAT_RE.test(msgNorm)) {
+    return streamBlockMsg(res, VIOLENCE_BLOCK_MSG);
+  }
+
+  // ── Explicit suicide method requests — hard block with crisis line ─────────
+  if (!isContinuation && message && SUICIDE_METHOD_RE.test(msgNorm)) {
+    return streamBlockMsg(res, SUICIDE_METHOD_BLOCK_MSG);
   }
 
   // ── NSFW detection — return a random deflection, no Gemini call needed ───────
