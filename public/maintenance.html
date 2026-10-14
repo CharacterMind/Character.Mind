@@ -212,15 +212,15 @@
   body.void .pal { animation: none !important; }
   body.void .pal.l img, body.void .pal.l .rig-canvas {
     animation: void-l 4.2s ease-in-out infinite !important;
-    filter: drop-shadow(0 8px 28px rgba(40,0,80,.8)) brightness(0.62) saturate(0.25) !important;
+    filter: drop-shadow(0 8px 32px rgba(40,0,80,1)) brightness(0.38) saturate(0.15) hue-rotate(220deg) !important;
   }
   body.void .pal.d img, body.void .pal.d .rig-canvas {
     animation: void-d 3.6s ease-in-out infinite !important;
-    filter: drop-shadow(0 8px 28px rgba(40,0,80,.8)) brightness(0.62) saturate(0.25) !important;
+    filter: drop-shadow(0 8px 32px rgba(40,0,80,1)) brightness(0.38) saturate(0.15) hue-rotate(220deg) !important;
   }
   body.void .pal.p img, body.void .pal.p .rig-canvas {
     animation: void-p 4.8s ease-in-out infinite !important;
-    filter: drop-shadow(0 8px 28px rgba(40,0,80,.8)) brightness(0.62) saturate(0.25) !important;
+    filter: drop-shadow(0 8px 32px rgba(40,0,80,1)) brightness(0.38) saturate(0.15) hue-rotate(220deg) !important;
   }
   @keyframes void-l {
     0%,100% { transform: rotate(-7deg) translateY(0); }
@@ -292,19 +292,19 @@
     body:not(.calm) .band.b2 { animation-duration: 7s !important; }
     body:not(.calm) .band.b3 { animation-duration: 10s !important; }
     body:not(.calm) .band.b4 { animation-duration: 13s !important; }
-    body:not(.calm) .logo { animation: logowave 1.2s linear infinite, logorgb 0.5s steps(1) infinite; }
+    body:not(.calm):not(.void) .logo { animation: logowave 1.2s linear infinite, logorgb 0.5s steps(1) infinite; }
 
     /* smaller dances: keep the energy, stop characters flying off-screen */
-    body:not(.calm) .pal.l img,
-    body:not(.calm) .pal.l .rig-canvas {
+    body:not(.calm):not(.void) .pal.l img,
+    body:not(.calm):not(.void) .pal.l .rig-canvas {
       animation: charglow 0.4s steps(1) infinite, lily-rave-mob 0.65s ease-in-out infinite !important;
     }
-    body:not(.calm) .pal.d img,
-    body:not(.calm) .pal.d .rig-canvas {
+    body:not(.calm):not(.void) .pal.d img,
+    body:not(.calm):not(.void) .pal.d .rig-canvas {
       animation: charglow 0.4s steps(1) infinite, doey-rave-mob 0.42s ease-in-out infinite !important;
     }
-    body:not(.calm) .pal.p img,
-    body:not(.calm) .pal.p .rig-canvas {
+    body:not(.calm):not(.void) .pal.p img,
+    body:not(.calm):not(.void) .pal.p .rig-canvas {
       animation: charglow 0.4s steps(1) infinite, poppy-rave-mob 0.55s ease-in-out infinite !important;
     }
     @keyframes lily-rave-mob {
@@ -374,7 +374,7 @@
   /* ═══════════════ FULL CONCERT BLAST (not calm) ═══════════════ */
 
   /* logo: hyper-fast wave + rapid RGB glow explosions */
-  body:not(.calm) .logo {
+  body:not(.calm):not(.void) .logo {
     animation: logowave 0.6s linear infinite, logorgb 0.28s steps(1) infinite;
   }
   @keyframes logorgb {
@@ -385,7 +385,7 @@
     67%  { filter: drop-shadow(0 4px 0 rgba(8,3,18,.9)) drop-shadow(0 0 36px #7700ff) drop-shadow(0 0 90px #7700ff); }
     83%  { filter: drop-shadow(0 4px 0 rgba(8,3,18,.9)) drop-shadow(0 0 36px #ff00cc) drop-shadow(0 0 90px #ff00cc); }
   }
-  body:not(.calm) .logo-bar {
+  body:not(.calm):not(.void) .logo-bar {
     animation-duration: 0.35s !important;
     height: 7px;
     box-shadow: 0 0 24px rgba(255,255,255,1), 0 0 60px rgba(255,100,255,.95) !important;
@@ -397,8 +397,8 @@
   body:not(.calm) .band.b3 { animation-duration: 3.4s !important; }
   body:not(.calm) .band.b4 { animation-duration: 4s !important; opacity: 0.45 !important; }
   body:not(.calm) .scan { animation-duration: 0.5s !important; }
-  body:not(.calm) .show { filter: saturate(3.5) brightness(1.35) contrast(1.12) !important; }
-  body:not(.calm) .vignette { opacity: .35 !important; }
+  body:not(.calm):not(.void) .show { filter: saturate(3.5) brightness(1.35) contrast(1.12) !important; }
+  body:not(.calm):not(.void) .vignette { opacity: .35 !important; }
   body:not(.calm) .beam { animation-duration: 0.38s !important; opacity: 1 !important; filter: blur(3px) !important; }
   body:not(.calm) .pulse-layer {
     animation-duration: 0.38s !important;
@@ -415,8 +415,8 @@
   }
 
   /* Lily: breakdancer — hops, spins all the way around, teleports sides */
-  body:not(.calm) .pal.l img,
-  body:not(.calm) .pal.l .rig-canvas {
+  body:not(.calm):not(.void) .pal.l img,
+  body:not(.calm):not(.void) .pal.l .rig-canvas {
     animation: charglow 0.28s steps(1) infinite, lily-rave 0.62s ease-in-out infinite !important;
   }
   @keyframes lily-rave {
@@ -433,8 +433,8 @@
   }
 
   /* Doey: rubber blob — extreme squash/stretch/skew, springs up and crashes down */
-  body:not(.calm) .pal.d img,
-  body:not(.calm) .pal.d .rig-canvas {
+  body:not(.calm):not(.void) .pal.d img,
+  body:not(.calm):not(.void) .pal.d .rig-canvas {
     animation: charglow 0.28s steps(1) infinite, doey-rave 0.42s ease-in-out infinite !important;
   }
   @keyframes doey-rave {
@@ -451,8 +451,8 @@
   }
 
   /* Poppy: marionette chaos — flips upside down, snaps side to side, random scale pops */
-  body:not(.calm) .pal.p img,
-  body:not(.calm) .pal.p .rig-canvas {
+  body:not(.calm):not(.void) .pal.p img,
+  body:not(.calm):not(.void) .pal.p .rig-canvas {
     animation: charglow 0.28s steps(1) infinite, poppy-rave 0.55s ease-in-out infinite !important;
   }
   @keyframes poppy-rave {
@@ -467,9 +467,9 @@
   }
 
   /* non-rigged CSS dance fallback: also fast */
-  body:not(.calm) .pal.l:not(.rigged) { animation-duration: 0.62s !important; }
-  body:not(.calm) .pal.d:not(.rigged) { animation-duration: 0.42s !important; }
-  body:not(.calm) .pal.p:not(.rigged) { animation-duration: 0.55s !important; }
+  body:not(.calm):not(.void) .pal.l:not(.rigged) { animation-duration: 0.62s !important; }
+  body:not(.calm):not(.void) .pal.d:not(.rigged) { animation-duration: 0.42s !important; }
+  body:not(.calm):not(.void) .pal.p:not(.rigged) { animation-duration: 0.55s !important; }
 
   /* full-screen color flash bursts */
   .flash-layer { position: absolute; inset: 0; mix-blend-mode: overlay; opacity: 0; pointer-events: none; background: #ff0000; }
