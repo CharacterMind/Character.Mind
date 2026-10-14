@@ -2198,12 +2198,10 @@ function callHuggingFaceStream(systemPrompt, messages, onChunk, onDone, onError,
 
 const GEMINI_HOST = 'generativelanguage.googleapis.com';
 // Each model is a separate quota bucket — if one is rate-limited or hangs, the next fires after the timeout.
-// Order: lite models first (500 RPD on free tier); heavier models as fallback for when quota allows.
-// gemini-2.0-flash-lite / gemini-1.5-flash-8b = 500 req/day each (free tier)
-// gemini-2.0-flash / gemini-2.5-flash = 20 req/day (free tier cap)
-const GEMINI_FALLBACKS   = ['gemini-2.0-flash-lite', 'gemini-1.5-flash-8b', 'gemini-2.0-flash', 'gemini-2.5-flash'];
-const GEMINI_MODEL_LIST  = ['gemini-2.0-flash-lite', 'gemini-1.5-flash-8b', 'gemini-2.0-flash', 'gemini-2.5-flash'];
-const GEMINI_PRO_LIST    = ['gemini-2.0-flash-lite', 'gemini-1.5-flash-8b', 'gemini-2.0-flash', 'gemini-2.5-flash'];
+// gemini-3.5-flash-lite = high RPD free tier; gemini-3.8-flash = lower RPD but stronger
+const GEMINI_FALLBACKS   = ['gemini-3.5-flash-lite', 'gemini-3.8-flash'];
+const GEMINI_MODEL_LIST  = ['gemini-3.5-flash-lite', 'gemini-3.8-flash'];
+const GEMINI_PRO_LIST    = ['gemini-3.5-flash-lite', 'gemini-3.8-flash'];
 // Each tier alias gets its own array so object-identity comparison in callGeminiStream works correctly
 const GROQ_FAST_MODELS  = [...GEMINI_MODEL_LIST];
 const GROQ_MODELS       = [...GEMINI_MODEL_LIST];
