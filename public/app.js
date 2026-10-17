@@ -5421,7 +5421,7 @@ let activeTTSUtterance = null;
 let activeTTSBtn = null;
 let activeTTSAudio = null;
 
-const gameIframeSet = new Set();
+const gameIframeMap = new Map();
 
 function maybeRenderGame(bubble, charColor) {
   const raw = bubble.dataset.raw || '';
@@ -5474,14 +5474,18 @@ function createGameCard(htmlContent, accentColor) {
   const iframe = document.createElement('iframe');
   iframe.setAttribute('sandbox', 'allow-scripts');
   iframe.setAttribute('title', 'Playable game');
-  gameIframeSet.add(iframe);
+  const resultBanner = document.createElement('div');
+  resultBanner.className = 'game-result-banner';
   frame.appendChild(iframe);
   card.appendChild(frame);
+  card.appendChild(resultBanner);
+  gameIframeMap.set(iframe, card);
   let loaded = false, open = false;
   btn.addEventListener('click', () => {
     open = !open;
     frame.style.display = open ? '' : 'none';
     btn.textContent = open ? '✕ Close' : '▶ Play';
+    if (!open) resultBanner.classList.remove('shown');
     if (open && !loaded) {
       loaded = true;
       iframe.srcdoc = htmlContent;
@@ -5525,7 +5529,9 @@ const GAME_DRAW_SAYINGS = [
 
 window.addEventListener('message', function(ev) {
   if (!ev.data || ev.data.type !== 'game_over') return;
-  if (![...gameIframeSet].some(f => f.contentWindow === ev.source)) return;
+  const sourceIframe = [...gameIframeMap.keys()].find(f => f.contentWindow === ev.source);
+  if (!sourceIframe) return;
+  const gameCard = gameIframeMap.get(sourceIframe);
   const result = ev.data.result; // 'win', 'loss', 'draw'
   const winner = ev.data.winner; // 'ai', 'human', null
   let sayings;
@@ -5535,9 +5541,15 @@ window.addEventListener('message', function(ev) {
   else if (result === 'loss' && winner === 'ai') sayings = GAME_LOSE_SAYINGS;
   else sayings = GAME_DRAW_SAYINGS;
   const saying = sayings[Math.floor(Math.random() * sayings.length)];
-  // Append a short character reaction message
-  const msgEl = appendMessage('ai', saying);
-  if (msgEl) scrollToBottom();
+  const banner = gameCard && gameCard.querySelector('.game-result-banner');
+  if (banner) { banner.textContent = saying; banner.classList.add('shown'); }
+  // Charge session tokens for this completed game
+  if (currentUser) {
+    fetch('/api/game/played', { method: 'POST' })
+      .then(r => r.json())
+      .then(usage => { if (usage && usage.sessionLimit) updateUsageBars(usage); })
+      .catch(() => {});
+  }
 });
 
 function addSwipeGesture(msgEl) {
@@ -5701,6 +5713,35 @@ async function playCallBlob(blob) {
   try { await audio.play(); } catch (_) { finish(); }
 }
 
+async function speakAndHangUp(text, resetsAt) {
+  stopCallAudio();
+  window.speechSynthesis.cancel();
+  const gen = callGen;
+  const clean = text.replace(/\*[^*]*\*/g, '').replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim().slice(0, 250);
+  const finish = () => {
+    if (gen !== callGen) return;
+    endCallMode();
+    showCallLimitModal(resetsAt);
+  };
+  try {
+    const r = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: clean, charId: currentChar?.id, provider: ttsProvider, geminiVoice: geminiVoiceName })
+    });
+    if (r.ok) {
+      const blob = await r.blob();
+      if (gen !== callGen) return;
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      callAudio = audio;
+      audio.onended = () => { URL.revokeObjectURL(url); callAudio = null; finish(); };
+      audio.onerror = () => { URL.revokeObjectURL(url); callAudio = null; finish(); };
+      await audio.play().catch(finish);
+    } else { finish(); }
+  } catch (_) { finish(); }
+}
+
 async function callModeElevenTTS(text) {
   const gen = callGen;
   const clean = text.replace(/\*[^*]*\*/g, '').replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim().slice(0, 300);
@@ -5769,21 +5810,19 @@ function startCallDurationTimer(remainingSecs) {
       addCallSecsUsed(elapsed);
       callSessionStartedAt = null;
       if (callModeActive) {
-        endCallMode();
-        showCallLimitModal(Date.now() + (24 * 60 * 60 * 1000)); // resets next day
-        // Override the modal message with a duration-specific one
-        const msgEl = document.getElementById('callLimitCharMsg');
-        const durationMsgs = [
-          "That's your 5 minutes for today. I timed it myself. Come back tomorrow.",
-          "Five minutes. You had five whole minutes. They are gone. Goodbye.",
-          "*checks nonexistent watch* Time's up. Same time tomorrow, maybe.",
-          "Your daily call time has been fully consumed. By you. Congratulations.",
-          "The 5-minute window has closed. Touch grass until midnight.",
-          "That's all the time you get today. Use it wisely tomorrow. Unlike today.",
-          "Five minutes of my voice per day is apparently not enough for you. It has to be.",
-          "Clock says no. Come back when the day resets and try to pace yourself.",
+        const resetsAt = Date.now() + 8 * 60 * 60 * 1000;
+        const diffMs = resetsAt - Date.now();
+        const h = Math.floor(diffMs / 3600000);
+        const m = Math.floor((diffMs % 3600000) / 60000);
+        const timeStr = h > 0 ? `${h} hour${h !== 1 ? 's' : ''} and ${m} minute${m !== 1 ? 's' : ''}` : `${m} minute${m !== 1 ? 's' : ''}`;
+        const farewellMsgs = [
+          `That's all the call time for now. Come back in ${timeStr}.`,
+          `We've used up our voice time. See you in ${timeStr}.`,
+          `Call time's up. I'll be here in ${timeStr}.`,
+          `Time's out for calls today. Come find me in ${timeStr}.`,
         ];
-        if (msgEl) msgEl.textContent = durationMsgs[Math.floor(Math.random() * durationMsgs.length)];
+        const msg = farewellMsgs[Math.floor(Math.random() * farewellMsgs.length)];
+        speakAndHangUp(msg, resetsAt);
       }
     }
   }, 1000);
@@ -6099,8 +6138,10 @@ function showCallLimitModal(resetsAt) {
     if (diff <= 0) { cdEl.textContent = 'now'; return; }
     const h = Math.floor(diff / 3600000);
     const m = Math.floor((diff % 3600000) / 60000);
-    const s = Math.floor((diff % 60000) / 1000);
-    cdEl.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    const parts = [];
+    if (h > 0) parts.push(`${h} hour${h !== 1 ? 's' : ''}`);
+    parts.push(`${m} minute${m !== 1 ? 's' : ''}`);
+    cdEl.textContent = parts.join(' and ');
   }
   tick();
   if (_callLimitTimer) clearInterval(_callLimitTimer);

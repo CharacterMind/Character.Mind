@@ -577,6 +577,14 @@ html, body {
 .lm-mock-char-av { width: 22px; height: 22px; border-radius: 50%; }
 .lm-mock-locked .lm-mock-char-av { filter: blur(1px); }
 .lm-mock-lock { position: absolute; inset: 0; background: rgba(0,0,0,.5); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 11px; }
+/* limits tile */
+.lm-mock-limits-body { flex: 1; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+.lm-mock-limit-row { display: flex; align-items: center; gap: 5px; font-size: 10px; }
+.lm-mock-limit-icon { font-size: 11px; }
+.lm-mock-limit-free { color: rgba(255,255,255,.4); font-weight: 600; }
+.lm-mock-limit-arrow { color: rgba(255,255,255,.3); }
+.lm-mock-limit-paid { color: #a78bfa; font-weight: 700; }
+.lm-mock-limit-label { color: rgba(255,255,255,.35); font-size: 9px; }
 /* memory tile */
 .lm-mock-mem-body { flex: 1; padding: 6px 10px; display: flex; flex-direction: column; gap: 5px; overflow: hidden; }
 .lm-mock-mem-divider { font-size: 8px; color: rgba(255,255,255,.3); text-align: center; border-top: 1px solid rgba(255,255,255,.08); padding-top: 4px; margin: 2px 0; }
@@ -3109,7 +3117,9 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
 .game-card-label { flex: 1; font-weight: 600; font-size: .85rem; color: var(--text1, #fff); }
 .game-card-btn { padding: 5px 14px; border-radius: 6px; border: none; background: #7c3aed; color: #fff; font-size: .8rem; font-weight: 700; cursor: pointer; transition: opacity .15s; white-space: nowrap; }
 .game-card-btn:hover { opacity: .82; }
-.game-card-frame iframe { display: block; width: 100%; height: 440px; border: none; background: #fff; }
+.game-card-frame iframe { display: block; width: 100%; height: 520px; border: none; background: #fff; }
+.game-result-banner { display: none; padding: 10px 14px; font-size: .87rem; color: var(--text1, #fff); background: rgba(255,255,255,.05); border-top: 1px solid rgba(255,255,255,.1); }
+.game-result-banner.shown { display: block; }
 
 .epp-item-name { display: flex; flex-direction: column; gap: 1px; }
 .epp-item-sub { font-size: 11px; font-weight: 400; color: var(--text3); }

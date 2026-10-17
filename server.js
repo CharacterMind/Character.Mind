@@ -4972,12 +4972,23 @@ const HANGMAN_WORDS = [
 ];
 
 function requireAuthGame(req, res, next) {
-  if (!req.session || !req.session.userId) return res.status(401).json({ error: 'Not authenticated' });
+  if (!req.isAuthenticated || !req.isAuthenticated() || !req.user || !req.user.googleId) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
   next();
 }
 
+const GAME_PLAY_TOKENS = messageCost('opes', 'medium');
+app.post('/api/game/played', requireAuth, async (req, res) => {
+  try {
+    const uid = req.user.googleId;
+    const result = addTokens(uid, GAME_PLAY_TOKENS);
+    res.json(result);
+  } catch (e) { console.error('[game/played]', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
 app.get('/api/game/hangman/word', requireAuthGame, (req, res) => {
-  const userId = req.session.userId;
+  const userId = req.user.googleId;
 
   const limits = checkLimits(userId);
   if (limits.blocked) return res.status(429).json({ error: 'Token limit reached', ...limits });
@@ -5027,7 +5038,7 @@ function tttMinimaxGame(board, isMaximizing) {
 }
 
 app.post('/api/game/tictactoe/move', requireAuthGame, (req, res) => {
-  const userId = req.session.userId;
+  const userId = req.user.googleId;
   const { board } = req.body;
   if (!Array.isArray(board) || board.length !== 9) return res.status(400).json({ error: 'Invalid board' });
   if (board.some(c => c !== null && c !== 'X' && c !== 'O')) return res.status(400).json({ error: 'Invalid board values' });
