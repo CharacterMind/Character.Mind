@@ -1935,6 +1935,13 @@ html, body {
 .settings-usage-header .settings-usage-label { font-size: 13px; font-weight: 500; color: var(--text); min-width: unset; }
 .settings-usage-meta { font-size: 12px; color: var(--text3); white-space: nowrap; }
 .settings-usage-section { margin-top: 18px; display: flex; flex-direction: column; gap: 4px; }
+/* ── Coin card in settings ──────────────────────────────────────────────── */
+.settings-coin-card { display: flex; align-items: center; gap: 12px; background: var(--bg3); border: 1px solid var(--border1); border-radius: 10px; padding: 12px 14px; margin-top: 14px; }
+.settings-coin-icon { font-size: 22px; flex-shrink: 0; }
+.settings-coin-info { display: flex; flex-direction: column; gap: 2px; }
+.settings-coin-label { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; }
+.settings-coin-balance { font-size: 18px; font-weight: 700; color: var(--text1); }
+.settings-coin-daily { font-size: 12px; color: var(--text3); }
 /* ── Settings plan cards (Anthropic-style) ─────────────────────────────────── */
 .settings-tiers-section { margin-top: 16px; }
 .st2-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
@@ -2664,6 +2671,10 @@ html, body {
 .pc-cta.pc-cta-current {
   background: var(--bg4); color: var(--text3); cursor: default;
 }
+.pc-cta.pc-cta-coin { background: linear-gradient(135deg, #78350f, #a16207); color: #fef3c7; margin-top: 6px; }
+.pc-cta.pc-cta-coin:hover:not(:disabled) { opacity: .88; }
+.st2-btn.st2-btn-coin { background: linear-gradient(135deg, #78350f, #a16207); color: #fef3c7; margin-top: 6px; }
+.st2-btn.st2-btn-coin:hover:not(:disabled) { opacity: .88; }
 .pricing-footer { font-size: 12px; color: var(--text3); text-align: center; margin: 0; }
 .pc-local-price { font-size: 11px; color: var(--text3); margin: -4px 0 6px; }
 

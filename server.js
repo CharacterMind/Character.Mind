@@ -259,6 +259,17 @@ if (db) {
     .then(() => db.query('CREATE UNIQUE INDEX IF NOT EXISTS users_paypal_sub_uniq ON users (paypal_subscription_id) WHERE paypal_subscription_id IS NOT NULL'))
     .catch(err => console.error('Add paypal_subscription_id column/index error:', err));
 
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS cm_coins INTEGER NOT NULL DEFAULT 0`)
+    .catch(err => console.error('Add cm_coins column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS coins_earned_today INTEGER NOT NULL DEFAULT 0`)
+    .catch(err => console.error('Add coins_earned_today column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS coins_day_reset BIGINT NOT NULL DEFAULT 0`)
+    .catch(err => console.error('Add coins_day_reset column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS coin_tier TEXT`)
+    .catch(err => console.error('Add coin_tier column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS coin_tier_expires BIGINT NOT NULL DEFAULT 0`)
+    .catch(err => console.error('Add coin_tier_expires column error:', err));
+
   db.query(`
     CREATE TABLE IF NOT EXISTS user_limits (
       user_id TEXT PRIMARY KEY,
@@ -519,11 +530,17 @@ if (GOOGLE_AUTH_ENABLED) {
     // Cache this account's own subscription tier in userLimits so limit checks don't need a DB hit.
     // Every account gets only what its own subscription pays for, except the Character.Mind account (planFor).
     if (db) {
-      db.query('SELECT subscription_tier FROM users WHERE google_id = $1', [user.googleId])
+      db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, coins_earned_today, coins_day_reset FROM users WHERE google_id = $1', [user.googleId])
         .then(r => {
-          const tier = planFor(user.email, r.rows[0]?.subscription_tier);
+          const row = r.rows[0] || {};
           const lim = getLimits(user.googleId);
-          lim.subscriptionTier = tier;
+          lim.paypalTier = planFor(user.email, row.subscription_tier);
+          lim.coinTier = row.coin_tier || null;
+          lim.coinTierExpires = Number(row.coin_tier_expires) || 0;
+          lim.cmCoins = row.cm_coins || 0;
+          lim.coinsEarnedToday = row.coins_earned_today || 0;
+          lim.coinsDayReset = Number(row.coins_day_reset) || 0;
+          lim.subscriptionTier = effectiveTier(lim);
           lim.tierLoaded = true;
         }).catch(() => {});
     }
@@ -623,8 +640,15 @@ async function ensureTierLoaded(user) {
   if (u.tierLoaded) return;
   if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId); // admin tools; the plan comes from planFor()
   if (!db) return;
-  const r = await db.query('SELECT subscription_tier FROM users WHERE google_id = $1', [user.googleId]);
-  u.subscriptionTier = planFor(user.email, r.rows[0]?.subscription_tier);
+  const r = await db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, coins_earned_today, coins_day_reset FROM users WHERE google_id = $1', [user.googleId]);
+  const row = r.rows[0] || {};
+  u.paypalTier = planFor(user.email, row.subscription_tier);
+  u.coinTier = row.coin_tier || null;
+  u.coinTierExpires = Number(row.coin_tier_expires) || 0;
+  u.cmCoins = row.cm_coins || 0;
+  u.coinsEarnedToday = row.coins_earned_today || 0;
+  u.coinsDayReset = Number(row.coins_day_reset) || 0;
+  u.subscriptionTier = effectiveTier(u);
   u.tierLoaded = true;
 }
 
@@ -869,6 +893,11 @@ const TIER_CALL_LIMITS  = { free: 6,   advanced: 10,  x20: 100,  x50: 250,  x100
 const TIER_MEMO_LIMITS  = { free: 30,  advanced: 50,  x20: 1000, x50: 2500, x100: 5000, x200: 15000 };
 const TIER_IMAGE_LIMITS = { free: 3,   advanced: 15,  x20: 200,  x50: 500,  x100: 1000, x200: 3000  };
 
+const COIN_EARN_PER_WIN = { free: 10, advanced: 15, x20: 20, x50: 30, x100: 40, x200: 50 };
+const COIN_DAILY_CAP    = 100;
+const COIN_MONTHLY_COST = { advanced: 2000, x20: 8000, x50: 20000, x100: 50000, x200: 150000 };
+const TIER_RANK         = { free: 0, advanced: 1, x20: 2, x50: 3, x100: 4, x200: 5 };
+
 function getCallLimitForUser(userId) {
   const tier = userLimits[userId]?.subscriptionTier || 'free';
   return TIER_CALL_LIMITS[tier] ?? TIER_CALL_LIMITS.free;
@@ -962,7 +991,12 @@ function buildUsagePayload(u, userId) {
     subscriptionTier: u.subscriptionTier || 'free',
     callWindowResetsAt: getCallWindowStart() + 8 * 60 * 60 * 1000,
     softLaunch: SOFT_LAUNCH,
-    gameNextAvailableAt: (() => { const last = userId && gameLastPlayed ? gameLastPlayed.get(userId) : null; return last ? last + GAME_COOLDOWN_MS : null; })()
+    gameNextAvailableAt: (() => { const last = userId && gameLastPlayed ? gameLastPlayed.get(userId) : null; return last ? last + GAME_COOLDOWN_MS : null; })(),
+    cmCoins: u.cmCoins || 0,
+    coinsEarnedToday: u.coinsEarnedToday || 0,
+    coinDailyLimit: COIN_DAILY_CAP,
+    coinTier: u.coinTier || null,
+    coinTierExpires: u.coinTierExpires || 0
   };
 }
 
@@ -3191,6 +3225,15 @@ const OWNER_EMAILS = new Set(['support.charactermind@gmail.com', 'davey252572727
 // other admin login) gets exactly what its own subscription pays for.
 const FREE_TOP_PLAN_EMAILS = new Set(['support.charactermind@gmail.com']);
 function planFor(email, dbTier) { return FREE_TOP_PLAN_EMAILS.has(email) ? 'x100' : (dbTier || 'free'); }
+
+function effectiveTier(u) {
+  const paypal = u.paypalTier || 'free';
+  if (u.coinTier && (u.coinTierExpires || 0) > Date.now()) {
+    return (TIER_RANK[u.coinTier] || 0) > (TIER_RANK[paypal] || 0) ? u.coinTier : paypal;
+  }
+  return paypal;
+}
+
 const ownerGoogleIds = new Set(); // populated at runtime when owners authenticate
 app.post('/api/admin/reset-limits', requireAuth, (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
@@ -4985,6 +5028,59 @@ app.post('/api/game/played', requireAuth, async (req, res) => {
     const result = addTokens(uid, GAME_PLAY_TOKENS);
     res.json(result);
   } catch (e) { console.error('[game/played]', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
+// CM Coins — award on game win
+app.post('/api/coins/award', requireAuth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'No database' });
+  try {
+    await ensureTierLoaded(req.user);
+    const uid = req.user.googleId;
+    const u = getLimits(uid);
+    const tier = u.paypalTier || 'free';
+    const earnPerWin = COIN_EARN_PER_WIN[tier] ?? COIN_EARN_PER_WIN.free;
+    const utcMidnight = new Date(); utcMidnight.setUTCHours(0, 0, 0, 0);
+    const dayStart = utcMidnight.getTime();
+    if ((u.coinsDayReset || 0) < dayStart) { u.coinsEarnedToday = 0; u.coinsDayReset = dayStart; }
+    if ((u.coinsEarnedToday || 0) >= COIN_DAILY_CAP) {
+      return res.json({ awarded: 0, balance: u.cmCoins || 0, earnedToday: u.coinsEarnedToday, dailyCap: COIN_DAILY_CAP, capped: true });
+    }
+    const toAward = Math.min(earnPerWin, COIN_DAILY_CAP - (u.coinsEarnedToday || 0));
+    u.cmCoins = (u.cmCoins || 0) + toAward;
+    u.coinsEarnedToday = (u.coinsEarnedToday || 0) + toAward;
+    await db.query(
+      'UPDATE users SET cm_coins=$1, coins_earned_today=$2, coins_day_reset=$3 WHERE google_id=$4',
+      [u.cmCoins, u.coinsEarnedToday, dayStart, uid]
+    );
+    res.json({ awarded: toAward, balance: u.cmCoins, earnedToday: u.coinsEarnedToday, dailyCap: COIN_DAILY_CAP, capped: false });
+  } catch (e) { console.error('[coins/award]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
+});
+
+// CM Coins — redeem for a subscription month
+app.post('/api/coins/redeem', requireAuth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'No database' });
+  try {
+    const { tier } = req.body;
+    const cost = COIN_MONTHLY_COST[tier];
+    if (!cost) return res.status(400).json({ error: 'Invalid tier' });
+    await ensureTierLoaded(req.user);
+    const uid = req.user.googleId;
+    const u = getLimits(uid);
+    if ((u.cmCoins || 0) < cost) return res.status(400).json({ error: 'Not enough coins', balance: u.cmCoins || 0, cost });
+    const now = Date.now();
+    const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+    const base = (u.coinTier === tier && (u.coinTierExpires || 0) > now) ? u.coinTierExpires : now;
+    const newExpires = base + ONE_MONTH_MS;
+    u.cmCoins -= cost;
+    u.coinTier = tier;
+    u.coinTierExpires = newExpires;
+    u.subscriptionTier = effectiveTier(u);
+    await db.query(
+      'UPDATE users SET cm_coins=$1, coin_tier=$2, coin_tier_expires=$3 WHERE google_id=$4',
+      [u.cmCoins, tier, newExpires, uid]
+    );
+    res.json({ ok: true, balance: u.cmCoins, coinTier: tier, coinTierExpires: newExpires, effectiveTier: u.subscriptionTier });
+  } catch (e) { console.error('[coins/redeem]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
 });
 
 app.get('/api/game/hangman/word', requireAuthGame, (req, res) => {

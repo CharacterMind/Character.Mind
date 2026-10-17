@@ -1052,6 +1052,14 @@
           <button class="settings-plan-upgrade-btn" onclick="openPricingModal()" style="display:none">View plans</button>
         </div>
         <div id="settingsTiersSection" class="settings-tiers-section"></div>
+        <div class="settings-coin-card">
+          <div class="settings-coin-icon">🪙</div>
+          <div class="settings-coin-info">
+            <div class="settings-coin-label">C.M. Coins</div>
+            <div class="settings-coin-balance"><span id="settingsCoinBalance">0</span> coins</div>
+            <div class="settings-coin-daily" id="settingsCoinDaily">0 / 100 today</div>
+          </div>
+        </div>
         <div class="settings-usage-section">
           <div class="settings-usage-row">
             <span class="settings-usage-label">Session</span>
@@ -1353,7 +1361,7 @@
   <div class="cvt-line"></div>
 </div>
 
-<script src="app.js?v=221"></script>
+<script src="app.js?v=222"></script>
 
 <!-- Session 90% warning toast -->
 <div id="sessionWarningToast">

@@ -177,7 +177,7 @@ function showUpgradeModal() { openPricingModal(); }
 // ── Subscription tier data ────────────────────────────────────────────────────
 const PLAN_DATA = [
   {
-    key: 'free', name: 'Free', monthly: 0, annual: 0,
+    key: 'free', name: 'Free', monthly: 0, annual: 0, coinsPerMonth: 0,
     callsPerDay: 3, memosPerDay: 30,
     features: [
       'Opas & Opes: quick-witted, weirdly capable, zero fluff',
@@ -187,7 +187,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'advanced', name: 'Advanced', monthly: 9.99, annual: 59.99,
+    key: 'advanced', name: 'Advanced', monthly: 9.99, annual: 59.99, coinsPerMonth: 2000,
     callsPerDay: 5, memosPerDay: 50,
     features: [
       'Opis: sharper logic, built for mystery, never loses the thread',
@@ -198,7 +198,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'x20', name: 'X20', badge: 'Recommended', monthly: 39.99, annual: 239.99,
+    key: 'x20', name: 'X20', badge: 'Recommended', monthly: 39.99, annual: 239.99, coinsPerMonth: 8000,
     callsPerDay: 100, memosPerDay: 1000,
     features: [
       'Opus: proper emotional weight — subtext, inner conflict, the whole thing',
@@ -209,7 +209,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'x50', name: 'X50', badge: 'Best Value', monthly: 79.99, annual: 479.99,
+    key: 'x50', name: 'X50', badge: 'Best Value', monthly: 79.99, annual: 479.99, coinsPerMonth: 20000,
     callsPerDay: 250, memosPerDay: 2500,
     features: [
       'Opys: plans the scene before it writes it — tension beats, pacing, full arcs',
@@ -220,7 +220,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'x100', name: 'X100', badge: 'Ultimate', monthly: 159.99, annual: 959.99,
+    key: 'x100', name: 'X100', badge: 'Ultimate', monthly: 159.99, annual: 959.99, coinsPerMonth: 50000,
     callsPerDay: 500, memosPerDay: 5000,
     features: [
       'Opys 5: the flagship model, gated here on purpose',
@@ -232,7 +232,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'x200', name: 'X200', badge: 'Legend', monthly: 399.99, annual: 2399.99,
+    key: 'x200', name: 'X200', badge: 'Legend', monthly: 399.99, annual: 2399.99, coinsPerMonth: 150000,
     callsPerDay: 1500, memosPerDay: 15000,
     features: [
       'Opys 6: next-generation, exclusive — nothing else gets you here',
@@ -354,6 +354,7 @@ function renderPricingCards() {
   const container = document.getElementById('pricingCards');
   if (!container) return;
   const currentTier = lastKnownUsage?.subscriptionTier || 'free';
+  const userCoins = lastKnownUsage?.cmCoins || 0;
   container.innerHTML = PLAN_DATA.map(plan => {
     const isCurrent = plan.key === currentTier;
     const price = pricingPeriod === 'annual' ? plan.annual : plan.monthly;
@@ -367,18 +368,62 @@ function renderPricingCards() {
     }
     const badge = plan.badge ? `<div class="pc-badge">${escHtml(plan.badge)}</div>` : '';
     const features = plan.features.map(f => `<li>✓ ${escHtml(f)}</li>`).join('');
+    const coinCost = plan.coinsPerMonth || 0;
+    let coinBtn = '';
+    if (coinCost > 0 && !isCurrent) {
+      if (userCoins >= coinCost) {
+        coinBtn = `<button class="pc-cta pc-cta-coin" onclick="subscribeWithCoins('${plan.key}')">🪙 Use ${coinCost.toLocaleString()} coins</button>`;
+      } else {
+        const need = (coinCost - userCoins).toLocaleString();
+        coinBtn = `<button class="pc-cta pc-cta-current" disabled title="Need ${need} more coins">🪙 ${coinCost.toLocaleString()} coins</button>`;
+      }
+    }
     const soon = !isCurrent && plan.key !== 'free';
-    const ctaText = isCurrent ? 'Current plan' : soon ? 'Coming soon' : 'Upgrade';
-    const ctaClass = 'pc-cta' + (isCurrent || soon ? ' pc-cta-current' : '');
+    const ctaText = isCurrent ? 'Current plan' : soon ? 'Subscribe' : 'Upgrade';
+    const ctaClass = 'pc-cta' + (isCurrent ? ' pc-cta-current' : '');
     return `<div class="pricing-card${isCurrent ? ' pc-current' : ''}${plan.badge ? ' pc-featured' : ''}">
       ${badge}
       <div class="pc-name">${escHtml(plan.name)}</div>
       <div class="pc-price">${priceStr}<span class="pc-period"> ${periodStr}</span></div>
       ${perMonth}
       <ul class="pc-features">${features}</ul>
-      <button class="${ctaClass}" ${isCurrent || soon ? 'disabled' : `onclick="handleUpgradeCta('${plan.key}')"`}>${ctaText}</button>
+      <button class="${ctaClass}" ${isCurrent ? 'disabled' : `onclick="handleUpgradeCta('${plan.key}')"`}>${ctaText}</button>
+      ${coinBtn}
     </div>`;
   }).join('');
+}
+
+const COIN_MONTHLY_COST_CLIENT = { advanced: 2000, x20: 8000, x50: 20000, x100: 50000, x200: 150000 };
+
+async function subscribeWithCoins(planKey) {
+  const plan = PLAN_DATA.find(p => p.key === planKey);
+  if (!plan || !plan.coinsPerMonth) return;
+  try {
+    const r = await fetch('/api/coins/redeem', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier: planKey })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      if (lastKnownUsage) {
+        lastKnownUsage.cmCoins = d.balance;
+        lastKnownUsage.coinTier = d.coinTier;
+        lastKnownUsage.coinTierExpires = d.coinTierExpires;
+        lastKnownUsage.subscriptionTier = d.effectiveTier;
+      }
+      updateSettingsCoinDisplay(d.balance);
+      updateSettingsPlanCard(d.effectiveTier);
+      renderPricingCards();
+      closePricingModal();
+    } else {
+      alert(d.error === 'Not enough coins'
+        ? `You need ${(d.cost - d.balance).toLocaleString()} more C.M Coins to subscribe.`
+        : (d.error || 'Something went wrong. Please try again.'));
+    }
+  } catch(e) {
+    console.error('[subscribeWithCoins]', e);
+  }
 }
 
 // PayPal plan IDs (sandbox)
@@ -535,6 +580,7 @@ function renderSettingsTiers(currentTier) {
   if (!el) return;
   const t = currentTier || lastKnownUsage?.subscriptionTier || 'free';
   const period = pricingPeriod;
+  const userCoins = lastKnownUsage?.cmCoins || 0;
   const icons = {
     advanced: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M13 2.05v2.02c3.95.49 7 3.85 7 7.93 0 3.21-1.81 6-4.72 7.72L13 18v4l-1.73-1-1.27.73V18l-2.28 1.65C4.78 18 3 15.21 3 12c0-4.08 3.05-7.44 7-7.93V2.05h3zm-1 2.96C9.03 5.44 7 8.5 7 12c0 2.42 1.17 4.65 3 6.07V14h4v4.07c1.83-1.42 3-3.65 3-6.07 0-3.5-2.03-6.56-5-7z"/></svg>`,
     x20: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`,
@@ -562,6 +608,7 @@ function renderSettingsTiers(currentTier) {
           <div class="st2-price-row"><span class="st2-price">${formatLocalPrice(price)}</span><span class="st2-period">${period === 'annual' ? '/yr' : '/mo'}</span></div>
           <ul class="st2-feats">${feats}</ul>
           <button class="st2-btn${isCurrent || !planBuyable(p.key) ? ' st2-btn-current' : ''}" ${isCurrent || !planBuyable(p.key) ? 'disabled' : `onclick="handleUpgradeCta('${p.key}')"`}>${isCurrent ? 'Current' : !planBuyable(p.key) ? 'Coming soon' : 'Subscribe'}</button>
+          ${!isCurrent && (p.coinsPerMonth || 0) > 0 ? userCoins >= (p.coinsPerMonth || 0) ? `<button class="st2-btn st2-btn-coin" onclick="subscribeWithCoins('${p.key}')">🪙 ${(p.coinsPerMonth||0).toLocaleString()}</button>` : `<button class="st2-btn st2-btn-current" disabled title="Need ${((p.coinsPerMonth||0)-userCoins).toLocaleString()} more coins">🪙 ${(p.coinsPerMonth||0).toLocaleString()}</button>` : ''}
         </div>`;
       }).join('')}
     </div>`;
@@ -3988,6 +4035,14 @@ function renderUsageBanners(usage) {
   }
 }
 
+function updateSettingsCoinDisplay(balance, earnedToday, dailyCap) {
+  const balEl = document.getElementById('settingsCoinBalance');
+  if (balEl) balEl.textContent = (balance || 0).toLocaleString();
+  const dailyEl = document.getElementById('settingsCoinDaily');
+  if (dailyEl) dailyEl.textContent = `${earnedToday || 0} / ${dailyCap || 100} today`;
+  renderSettingsTiers();
+}
+
 async function loadUsage() {
   if (!currentUser) return;
   try {
@@ -4003,6 +4058,7 @@ async function loadUsage() {
     updateSettingsPlanCard(usage.subscriptionTier);
     renderUserBadge();
     updateModelPickerLocks();
+    updateSettingsCoinDisplay(usage.cmCoins || 0, usage.coinsEarnedToday || 0, usage.coinDailyLimit || 100);
   } catch (_) {}
 }
 
@@ -5549,6 +5605,18 @@ window.addEventListener('message', function(ev) {
       .then(r => r.json())
       .then(usage => { if (usage && usage.sessionLimit) updateUsageBars(usage); })
       .catch(() => {});
+    // Award coins if the human won
+    if (winner === 'human') {
+      fetch('/api/coins/award', { method: 'POST' })
+        .then(r => r.json())
+        .then(d => {
+          if (d && typeof d.balance === 'number') {
+            if (lastKnownUsage) lastKnownUsage.cmCoins = d.balance;
+            updateSettingsCoinDisplay(d.balance, d.earnedToday, d.dailyCap);
+          }
+        })
+        .catch(() => {});
+    }
   }
 });
 
