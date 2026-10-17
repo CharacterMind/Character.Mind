@@ -34,7 +34,7 @@ function loadAccountPrefs() {
     const t = localStorage.getItem(userKey('cm_model_tier'));
     if (baseTierOf(t)) selectedModelTier = baseTierOf(t);
     const e = localStorage.getItem(userKey('cm_effort'));
-    if (['low', 'medium', 'high'].includes(e)) selectedEffort = e;
+    if (EFFORT_LEVELS.includes(e)) selectedEffort = e;
   } catch (_) {}
   updateModelBarLabel();
 }
@@ -177,7 +177,7 @@ function showUpgradeModal() { openPricingModal(); }
 // ── Subscription tier data ────────────────────────────────────────────────────
 const PLAN_DATA = [
   {
-    key: 'free', name: 'Free', monthly: 0, annual: 0,
+    key: 'free', name: 'Free', monthly: 0, annual: 0, coinsPerMonth: 0,
     callsPerDay: 3, memosPerDay: 30,
     features: [
       'Opas & Opes: quick-witted, weirdly capable, zero fluff',
@@ -187,7 +187,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'advanced', name: 'Advanced', monthly: 9.99, annual: 59.99,
+    key: 'advanced', name: 'Advanced', monthly: 9.99, annual: 59.99, coinsPerMonth: 2000,
     callsPerDay: 5, memosPerDay: 50,
     features: [
       'Opis: sharper logic, built for mystery, never loses the thread',
@@ -198,7 +198,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'x20', name: 'X20', badge: 'Recommended', monthly: 39.99, annual: 239.99,
+    key: 'x20', name: 'X20', badge: 'Recommended', monthly: 39.99, annual: 239.99, coinsPerMonth: 8000,
     callsPerDay: 100, memosPerDay: 1000,
     features: [
       'Opus: proper emotional weight — subtext, inner conflict, the whole thing',
@@ -209,7 +209,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'x50', name: 'X50', badge: 'Best Value', monthly: 79.99, annual: 479.99,
+    key: 'x50', name: 'X50', badge: 'Best Value', monthly: 79.99, annual: 479.99, coinsPerMonth: 20000,
     callsPerDay: 250, memosPerDay: 2500,
     features: [
       'Opys: plans the scene before it writes it — tension beats, pacing, full arcs',
@@ -220,7 +220,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'x100', name: 'X100', badge: 'Ultimate', monthly: 159.99, annual: 959.99,
+    key: 'x100', name: 'X100', badge: 'Ultimate', monthly: 159.99, annual: 959.99, coinsPerMonth: 50000,
     callsPerDay: 500, memosPerDay: 5000,
     features: [
       'Opys 5: the flagship model, gated here on purpose',
@@ -232,7 +232,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'x200', name: 'X200', badge: 'Legend', monthly: 399.99, annual: 2399.99,
+    key: 'x200', name: 'X200', badge: 'Legend', monthly: 399.99, annual: 2399.99, coinsPerMonth: 150000,
     callsPerDay: 1500, memosPerDay: 15000,
     features: [
       'Opys 6: next-generation, exclusive — nothing else gets you here',
@@ -337,20 +337,19 @@ function formatLocalPrice(usdPrice) {
 }
 
 function openPricingModal() {
-  loadPaypalConfig().then(() => { setPricingPeriod(pricingPeriod); });
+  const m = document.getElementById('pricingModal');
+  if (!m) return;
+  m.style.display = 'flex';
   renderPricingCards();
-  document.getElementById('pricingModal').style.display = 'flex';
-  Promise.all([loadExchangeRates(), ensurePricingCountry()]).then(() => renderPricingCards());
 }
 function closePricingModal() {
-  document.getElementById('pricingModal').style.display = 'none';
+  const m = document.getElementById('pricingModal');
+  if (m) m.style.display = 'none';
 }
 function setPricingPeriod(period) {
-  // Yearly prices are only shown when yearly PayPal plans really exist (otherwise the person would be charged the monthly price).
-  if (!yearlyAvailable) period = 'monthly';
   pricingPeriod = period;
-  document.getElementById('pricingBtnMonthly').classList.toggle('pt-active', period === 'monthly');
-  document.getElementById('pricingBtnAnnual').classList.toggle('pt-active', period === 'annual');
+  document.getElementById('pricingBtnMonthly')?.classList.toggle('pt-active', period === 'monthly');
+  document.getElementById('pricingBtnAnnual')?.classList.toggle('pt-active', period === 'annual');
   renderPricingCards();
 }
 
@@ -358,31 +357,62 @@ function renderPricingCards() {
   const container = document.getElementById('pricingCards');
   if (!container) return;
   const currentTier = lastKnownUsage?.subscriptionTier || 'free';
+  const userCoins   = lastKnownUsage?.cmCoins || 0;
   container.innerHTML = PLAN_DATA.map(plan => {
     const isCurrent = plan.key === currentTier;
-    const price = pricingPeriod === 'annual' ? plan.annual : plan.monthly;
-    const priceStr = formatLocalPrice(price);
-    const periodStr = price === 0 ? 'forever' : pricingPeriod === 'annual' ? '/ year' : '/ month';
-    let perMonth = '<div class="pc-per-month"></div>';
-    if (plan.annual > 0 && pricingPeriod === 'annual') {
-      const savePct = Math.round((1 - plan.annual / (plan.monthly * 12)) * 100);
-      const perMonthLocal = formatLocalPrice(plan.annual / 12);
-      perMonth = `<div class="pc-per-month">~${perMonthLocal}/mo &nbsp;<span class="pc-save-pct">Save ${savePct}%</span></div>`;
-    }
-    const badge = plan.badge ? `<div class="pc-badge">${escHtml(plan.badge)}</div>` : '';
+    const cost = plan.coinsPerMonth || 0;
+    const priceStr = cost === 0 ? 'Free' : `🪙 ${cost.toLocaleString()}`;
+    const periodStr = cost === 0 ? 'forever' : '/ month';
+    const badge    = plan.badge ? `<div class="pc-badge">${escHtml(plan.badge)}</div>` : '';
     const features = plan.features.map(f => `<li>✓ ${escHtml(f)}</li>`).join('');
-    const soon = !isCurrent && !planBuyable(plan.key);
-    const ctaText = isCurrent ? 'Current plan' : soon ? 'Coming soon' : 'Upgrade';
-    const ctaClass = 'pc-cta' + (isCurrent || soon ? ' pc-cta-current' : '');
+    let ctaText, ctaClass, ctaAttr;
+    if (isCurrent) {
+      ctaText = 'Current plan'; ctaClass = 'pc-cta pc-cta-current'; ctaAttr = 'disabled';
+    } else if (cost === 0) {
+      ctaText = 'Free plan'; ctaClass = 'pc-cta pc-cta-current'; ctaAttr = 'disabled';
+    } else if (userCoins < cost) {
+      const need = (cost - userCoins).toLocaleString();
+      ctaText = `Need ${need} more coins`; ctaClass = 'pc-cta pc-cta-current'; ctaAttr = 'disabled';
+    } else {
+      ctaText = 'Subscribe'; ctaClass = 'pc-cta'; ctaAttr = `onclick="subscribeWithCoins('${plan.key}')"`;
+    }
     return `<div class="pricing-card${isCurrent ? ' pc-current' : ''}${plan.badge ? ' pc-featured' : ''}">
       ${badge}
       <div class="pc-name">${escHtml(plan.name)}</div>
       <div class="pc-price">${priceStr}<span class="pc-period"> ${periodStr}</span></div>
-      ${perMonth}
       <ul class="pc-features">${features}</ul>
-      <button class="${ctaClass}" ${isCurrent || soon ? 'disabled' : `onclick="handleUpgradeCta('${plan.key}')"`}>${ctaText}</button>
+      <button class="${ctaClass}" ${ctaAttr}>${ctaText}</button>
     </div>`;
   }).join('');
+}
+
+async function subscribeWithCoins(planKey) {
+  const plan = PLAN_DATA.find(p => p.key === planKey);
+  if (!plan || !plan.coinsPerMonth) return;
+  try {
+    const r = await fetch('/api/coins/redeem', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier: planKey })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      if (lastKnownUsage) {
+        lastKnownUsage.cmCoins = d.balance;
+        lastKnownUsage.coinTier = d.coinTier;
+        lastKnownUsage.coinTierExpires = d.coinTierExpires;
+        lastKnownUsage.subscriptionTier = d.effectiveTier;
+      }
+      updateSettingsCoinDisplay(d.balance);
+      closePricingModal();
+    } else {
+      alert(d.error === 'Not enough coins'
+        ? `You need ${(d.cost - d.balance).toLocaleString()} more C.M Coins to subscribe.`
+        : (d.error || 'Something went wrong. Please try again.'));
+    }
+  } catch(e) {
+    console.error('[subscribeWithCoins]', e);
+  }
 }
 
 // PayPal plan IDs (sandbox)
@@ -517,9 +547,6 @@ function closePaypalCheckout() {
   currentCheckoutPlan = null;
 }
 
-function coPayBtnClick() {
-  document.getElementById('card-submit-btn').click();
-}
 
 function updateSettingsPlanCard(tier) {
   const t = tier || lastKnownUsage?.subscriptionTier || 'free';
@@ -533,41 +560,44 @@ function updateSettingsPlanCard(tier) {
 }
 
 function renderSettingsTiers(currentTier) {
-  if (!paypalConfigLoaded) loadPaypalConfig().then(() => renderSettingsTiers(currentTier));
-  if (!exchangeRates) {
-    Promise.all([loadExchangeRates(), ensurePricingCountry()]).then(() => renderSettingsTiers(currentTier));
-  }
   const el = document.getElementById('settingsTiersSection');
   if (!el) return;
   const t = currentTier || lastKnownUsage?.subscriptionTier || 'free';
-  const period = pricingPeriod;
+  const userCoins = lastKnownUsage?.cmCoins || 0;
   const icons = {
     advanced: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M13 2.05v2.02c3.95.49 7 3.85 7 7.93 0 3.21-1.81 6-4.72 7.72L13 18v4l-1.73-1-1.27.73V18l-2.28 1.65C4.78 18 3 15.21 3 12c0-4.08 3.05-7.44 7-7.93V2.05h3zm-1 2.96C9.03 5.44 7 8.5 7 12c0 2.42 1.17 4.65 3 6.07V14h4v4.07c1.83-1.42 3-3.65 3-6.07 0-3.5-2.03-6.56-5-7z"/></svg>`,
     x20: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`,
     x50: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/></svg>`,
     x100: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/></svg>`,
+    x200: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>`,
   };
   const plans = PLAN_DATA.filter(p => p.key !== 'free');
   el.innerHTML = `
-    <div class="st2-header">
-      <span class="st2-title">Plans</span>
-      ${yearlyAvailable ? `<div class="st2-toggle"><button class="st2-toggle-btn${period === 'monthly' ? ' st2-toggle-active' : ''}" onclick="setSettingsPeriod('monthly')">Monthly</button><button class="st2-toggle-btn${period === 'annual' ? ' st2-toggle-active' : ''}" onclick="setSettingsPeriod('annual')">Yearly</button></div>` : ''}
-    </div>
+    <div class="st2-header"><span class="st2-title">Plans</span></div>
     <div class="st2-cards-wrap">
       ${plans.map(p => {
         const isCurrent = p.key === t;
-        const price = period === 'annual' ? p.annual : p.monthly;
+        const cost = p.coinsPerMonth || 0;
         const badge = p.badge ? `<div class="st2-badge">${escHtml(p.badge)}</div>` : '';
         const feats = p.features.slice(0, 3).map(f =>
           `<li class="st2-feat"><svg viewBox="0 0 12 12" width="10" height="10" fill="none" style="flex-shrink:0;margin-top:2px"><path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>${escHtml(f)}</li>`
         ).join('');
+        let btnText, btnClass, btnAttr;
+        if (isCurrent) {
+          btnText = 'Current'; btnClass = 'st2-btn st2-btn-current'; btnAttr = 'disabled';
+        } else if (userCoins < cost) {
+          const need = (cost - userCoins).toLocaleString();
+          btnText = `Need ${need} more`; btnClass = 'st2-btn st2-btn-current'; btnAttr = 'disabled';
+        } else {
+          btnText = 'Subscribe'; btnClass = 'st2-btn'; btnAttr = `onclick="subscribeWithCoins('${p.key}')"`;
+        }
         return `<div class="st2-card${isCurrent ? ' st2-current' : ''}${p.badge ? ' st2-featured' : ''}">
           ${badge}
           <div class="st2-icon-wrap">${icons[p.key] || ''}</div>
           <div class="st2-plan-name">${escHtml(p.name)}</div>
-          <div class="st2-price-row"><span class="st2-price">${formatLocalPrice(price)}</span><span class="st2-period">${period === 'annual' ? '/yr' : '/mo'}</span></div>
+          <div class="st2-price-row"><span class="st2-price">🪙 ${cost.toLocaleString()}</span><span class="st2-period">/mo</span></div>
           <ul class="st2-feats">${feats}</ul>
-          <button class="st2-btn${isCurrent || !planBuyable(p.key) ? ' st2-btn-current' : ''}" ${isCurrent || !planBuyable(p.key) ? 'disabled' : `onclick="handleUpgradeCta('${p.key}')"`}>${isCurrent ? 'Current' : !planBuyable(p.key) ? 'Coming soon' : 'Subscribe'}</button>
+          <button class="${btnClass}" ${btnAttr}>${btnText}</button>
         </div>`;
       }).join('')}
     </div>`;
@@ -702,6 +732,40 @@ setInterval(checkForUpdate, 90000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
 
 window.addEventListener('DOMContentLoaded', async () => {
+  // Re-pop limit modal on ANY input interaction when locked out
+  const inputEl = document.getElementById('messageInput');
+  if (inputEl) {
+    function interceptIfLocked(e) {
+      const bar = document.getElementById('lockoutBar');
+      if (!bar || bar.style.display === 'none') return;
+      e.preventDefault();
+      e.stopPropagation();
+      const type = currentLockoutType || 'session';
+      const displayStr = document.getElementById('lockoutCountdown')?.textContent || '';
+      showLimitModal(type, displayStr);
+    }
+    inputEl.addEventListener('mousedown', interceptIfLocked, true);
+    inputEl.addEventListener('touchstart', interceptIfLocked, { capture: true, passive: false });
+    inputEl.addEventListener('keydown', interceptIfLocked, true);
+  }
+  // Delegate hover + click on .msg-avatar (dynamic elements) to trigger voice lines
+  document.addEventListener('click', (e) => {
+    const av = e.target.closest('.msg-avatar');
+    if (!av || !currentChar) return;
+    e.stopPropagation();
+    clickCharVoice(currentChar.name, currentChar.color, av);
+  });
+  document.addEventListener('mouseover', (e) => {
+    const av = e.target.closest('.msg-avatar');
+    if (!av || !currentChar) return;
+    showCharVoice(currentChar.name, currentChar.color, av);
+  });
+  document.addEventListener('mouseout', (e) => {
+    const av = e.target.closest('.msg-avatar');
+    if (!av) return;
+    hideCharVoice();
+  });
+
   loadColorblindMode();
   initSidebarContextMenu();
   initGradientPicker('#7c3aed');
@@ -750,6 +814,25 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (authParam === 'fail') showWarning('Sign-in failed. Please try again.');
     if (authParam === 'unavailable') showWarning('Google sign-in is not set up yet. Check back soon!');
     if (authParam) history.replaceState({}, '', '/');
+
+    // Inside an iframe (e.g. itch.io): Google won't load in the iframe, so open auth as a popup instead
+    if (window.self !== window.top) {
+      const googleBtn = document.querySelector('.auth-google-btn');
+      if (googleBtn) {
+        googleBtn.href = '#';
+        googleBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const popup = window.open('/auth/google?popup=1', 'cm_auth', 'width=500,height=600,left=200,top=100');
+          window.addEventListener('message', function onMsg(ev) {
+            if (ev.data && ev.data.type === 'auth-success') {
+              window.removeEventListener('message', onMsg);
+              if (popup && !popup.closed) popup.close();
+              location.reload();
+            }
+          });
+        });
+      }
+    }
   }
 });
 
@@ -813,9 +896,31 @@ const CB_PALETTES = {
   },
   achromatopsia: {
     label: 'High-contrast grayscale',
-    // Only luminance — no hue is visible, only brightness difference matters
-    colors: ['#ffffff','#d4d4d4','#a3a3a3','#737373','#404040','#1a1a1a','#e5e5e5','#525252'],
-    defaults: ['#d4d4d4','#525252']
+    // Only luminance — no hue is visible; keep all values bright so they read on dark bubbles
+    colors: ['#ffffff','#e8e8e8','#d4d4d4','#c4c4c4','#b5b5b5','#f5f5f5','#dcdcdc','#cccccc'],
+    defaults: ['#e5e5e5','#cccccc']
+  },
+  // Partial / anomaly types — same safe hue families as the full types, labelled as mild
+  protanomaly: {
+    label: 'Red-weak safe palette (mild)',
+    colors: ['#0ea5e9','#1d4ed8','#eab308','#f97316','#7c3aed','#06b6d4','#facc15','#a78bfa'],
+    defaults: ['#0ea5e9','#eab308']
+  },
+  deuteranomaly: {
+    label: 'Green-weak safe palette (mild)',
+    colors: ['#0ea5e9','#1d4ed8','#f97316','#fb923c','#7c3aed','#06b6d4','#facc15','#c084fc'],
+    defaults: ['#0ea5e9','#f97316']
+  },
+  tritanomaly: {
+    label: 'Blue-yellow safe palette (mild)',
+    colors: ['#ef4444','#dc2626','#22c55e','#16a34a','#ec4899','#db2777','#f43f5e','#4ade80'],
+    defaults: ['#ef4444','#22c55e']
+  },
+  achromatomaly: {
+    label: 'Near-monochromacy palette',
+    // Very pale pastels — achromatomaly users see some hue; bright values read on dark bubbles
+    colors: ['#f0e8ff','#fff3cc','#e8fff0','#cce8ff','#ffe8cc','#ffd4f0','#ccfff5','#fff8e8'],
+    defaults: ['#f0e8ff','#e8fff0']
   }
 };
 
@@ -825,8 +930,8 @@ function _applyGCPalette(mode) {
   const achroNote = document.getElementById('gcAchroNote');
   const strip = document.getElementById('gcPaletteStrip');
 
-  // Achromatopsia — hide the whole picker, show a note instead
-  if (mode === 'achromatopsia') {
+  // Achromatopsia / Achromatomaly — hide the color picker, show note instead
+  if (mode === 'achromatopsia' || mode === 'achromatomaly') {
     if (colorRow) colorRow.style.display = 'none';
     if (strip) strip.style.display = 'none';
     if (achroNote) achroNote.style.display = 'flex';
@@ -1110,6 +1215,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeConta
 
 async function signOut() {
   // Only show "signed out" once the server really ended the session; otherwise a reload would sign the person straight back in
+  clearLockout();
   const r = await fetch('/auth/logout', { method: 'POST' }).catch(() => null);
   if (!r || !r.ok) { showWarning("Couldn't sign you out. Please try again in a moment."); return; }
   currentUser = null;
@@ -1378,39 +1484,52 @@ function randomCharColor(c) {
 function boostColor(hex) {
   const n = parseInt(hex.slice(1), 16);
   if (n === 0) return '#181818';
-  let r = (n >> 16) & 0xff;
-  let g = (n >> 8) & 0xff;
-  let b = n & 0xff;
-  // Ensure minimum perceived brightness so colors are legible on dark backgrounds
-  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  if (lum < 70) {
-    const scale = 70 / Math.max(lum, 1);
-    r = Math.min(255, Math.round(r * scale));
-    g = Math.min(255, Math.round(g * scale));
-    b = Math.min(255, Math.round(b * scale));
+  const r = (n >> 16) & 0xff, g = (n >> 8) & 0xff, b = n & 0xff;
+  // Convert to HSL, clamp lightness to ≥65%, convert back — hue stays exact
+  const rn = r/255, gn = g/255, bn = b/255;
+  const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn), d = max - min;
+  let h = 0, s = 0, l = (max + min) / 2;
+  if (d > 0) {
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case rn: h = ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6; break;
+      case gn: h = ((bn - rn) / d + 2) / 6; break;
+      default:  h = ((rn - gn) / d + 4) / 6;
+    }
   }
-  return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+  if (l < 0.65) l = 0.65;
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+  const h2r = (t) => {
+    const tt = ((t % 1) + 1) % 1;
+    if (tt < 1/6) return p + (q - p) * 6 * tt;
+    if (tt < 1/2) return q;
+    if (tt < 2/3) return p + (q - p) * (2/3 - tt) * 6;
+    return p;
+  };
+  const clamp = v => Math.max(0, Math.min(255, Math.round(v * 255)));
+  return '#' + [h2r(h + 1/3), h2r(h), h2r(h - 1/3)].map(clamp).map(x => x.toString(16).padStart(2, '0')).join('');
 }
 // Build name HTML with each non-space character wrapped in a random-color span.
 function colorizeNameHtml(name, c) {
-  const hexes = String(c || '').match(/#[0-9a-fA-F]{6}/gi);
-  if (!hexes || !hexes.length) return escHtml(name || '');
-  const colors = hexes.map(boostColor);
-  return [...(name || '')].map(ch =>
-    /\s/.test(ch) ? escHtml(ch) : `<span style="color:${colors[Math.floor(Math.random()*colors.length)]};font-weight:700">${escHtml(ch)}</span>`
-  ).join('');
+  const cbMode = document.documentElement.dataset.colorblind;
+  const cbPal = cbMode && CB_PALETTES[cbMode];
+  const rawHexes = cbPal ? cbPal.colors : String(c || '').match(/#[0-9a-fA-F]{6}/gi);
+  if (!rawHexes || !rawHexes.length) return escHtml(name || '');
+  const colors = rawHexes.map(boostColor);
+  return [...(name || '')].map(ch => {
+    if (/\s/.test(ch)) return escHtml(ch);
+    const col = colors[Math.floor(Math.random() * colors.length)];
+    return `<span style="color:${col};font-weight:900;text-shadow:0 0 8px ${col}55,0 1px 2px rgba(0,0,0,0.6)">${escHtml(ch)}</span>`;
+  }).join('');
 }
 // Apply the character's colours per-word — readable cycling palette, bold weight.
 function colorizeLetters(bubble, c) {
   if (!bubble) return;
-  const hexes = String(c || '').match(/#[0-9a-fA-F]{6}/gi);
-  if (!hexes || !hexes.length) return;
-  const spColors = hexes.map(boostColor);
-  const nrColors = spColors.map(hex => {
-    const n = parseInt(hex.slice(1), 16);
-    const [r, g, b] = [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
-    return 'rgba(' + r + ',' + g + ',' + b + ',0.78)';
-  });
+  const cbMode = document.documentElement.dataset.colorblind;
+  const cbPal = cbMode && CB_PALETTES[cbMode];
+  const rawHexes = cbPal ? cbPal.colors : String(c || '').match(/#[0-9a-fA-F]{6}/gi);
+  if (!rawHexes || !rawHexes.length) return;
+  const spColors = rawHexes.map(boostColor);
   const wrapWords = (spans, colors) => {
     spans.forEach(el => {
       const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
@@ -1423,8 +1542,10 @@ function colorizeLetters(bubble, c) {
         for (const ch of tn.textContent) {
           if (/\s/.test(ch)) { frag.appendChild(document.createTextNode(ch)); continue; }
           const sp = document.createElement('span');
-          sp.style.color = colors[Math.floor(Math.random() * colors.length)];
-          sp.style.fontWeight = '700';
+          const col = colors[Math.floor(Math.random() * colors.length)];
+          sp.style.color = col;
+          sp.style.fontWeight = '900';
+          sp.style.textShadow = '0 0 8px ' + col + '55, 0 1px 2px rgba(0,0,0,0.6)';
           sp.textContent = ch;
           frag.appendChild(sp);
         }
@@ -1433,28 +1554,30 @@ function colorizeLetters(bubble, c) {
     });
   };
   wrapWords(bubble.querySelectorAll('.sp'), spColors);
-  wrapWords(bubble.querySelectorAll('.nr'), nrColors);
+  wrapWords(bubble.querySelectorAll('.nr'), spColors);
 }
 
-// Re-randomize word colors in every visible bubble — triggered by click in the chat.
+// Re-randomize word colors in every visible bubble and all name occurrences — triggered by click in the chat.
 function randomizeChatColors() {
   if (!currentChar) return;
-  const hexes = String(currentChar.color || '').match(/#[0-9a-fA-F]{6}/gi);
-  if (!hexes || !hexes.length) return;
-  const spColors = hexes.map(boostColor);
-  const nrColors = spColors.map(hex => {
-    const n = parseInt(hex.slice(1), 16);
-    const [r, g, b] = [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
-    return 'rgba(' + r + ',' + g + ',' + b + ',0.78)';
-  });
+  const cbMode = document.documentElement.dataset.colorblind;
+  const cbPal = cbMode && CB_PALETTES[cbMode];
+  const rawHexes = cbPal ? cbPal.colors : String(currentChar.color || '').match(/#[0-9a-fA-F]{6}/gi);
+  if (!rawHexes || !rawHexes.length) return;
+  const spColors = rawHexes.map(boostColor);
+  // Re-randomize bubble text (use descendant selector so .caps-em chars inside .sp are also hit)
   document.querySelectorAll('#messages .bubble').forEach(bubble => {
-    bubble.querySelectorAll('.sp').forEach(el => {
-      el.querySelectorAll('span').forEach(sp => { if (sp.style.color) { sp.style.color = spColors[Math.floor(Math.random() * spColors.length)]; } });
-    });
-    bubble.querySelectorAll('.nr').forEach(el => {
-      el.querySelectorAll('span').forEach(sp => { if (sp.style.color) { sp.style.color = nrColors[Math.floor(Math.random() * nrColors.length)]; } });
-    });
+    bubble.querySelectorAll('.sp span[style], .nr span[style]').forEach(sp => { sp.style.color = spColors[Math.floor(Math.random() * spColors.length)]; });
   });
+  // Re-randomize character name in: chat message headers, mobile header, info panel, active sidebar entry
+  const freshName = colorizeNameHtml(currentChar.name, currentChar.color);
+  document.querySelectorAll('#messages .msg-name').forEach(el => { el.innerHTML = freshName; });
+  const mobNm = document.getElementById('mobChatName');
+  if (mobNm) mobNm.innerHTML = freshName;
+  const infoNm = document.getElementById('infoName');
+  if (infoNm) infoNm.innerHTML = freshName;
+  const sideNm = document.querySelector('.chat-item.active .chat-item-name');
+  if (sideNm) sideNm.innerHTML = freshName;
 }
 document.addEventListener('DOMContentLoaded', () => {
   const msgs = document.getElementById('messages');
@@ -1464,6 +1587,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── Character voice tooltip (hover on cards) ──────────────────────────────────
 const CHAR_VOICE_LINES = {
   lily: [
+    // ── original lines ────────────────────────────────────────────────────────
     '*claps* Oh! You noticed! Dusky said you would. She knows these things.',
     "Won't you come in? The tea is perfect and the cakes are fresh and you're staying whether you'd like to or not. *laughs*",
     '*tilts head* Candy Cat says you seem nervous. She\'s almost never wrong about that.',
@@ -1489,6 +1613,324 @@ const CHAR_VOICE_LINES = {
     "The Prototype sees everything. Even here. Even you. I find that very, very comforting.",
     "I'm SO glad you're here. *quiet* ...I'm so glad.",
     "*Candy Cat says something* She says you have something she wants. I'll let you figure out what.",
+    // ── click-aware / meta ────────────────────────────────────────────────────
+    "Oh. You clicked me. That's... a choice.",
+    "You clicked me again. I'm noting that.",
+    "You keep clicking. Dusky finds this very funny.",
+    "You know this is my FACE you're pressing, right?",
+    "Candy Cat said you'd do this. She wins the bet.",
+    "Every time you click, Baby Long Legs gets a little more curious.",
+    "If you're trying to get my attention, you have it. *smile* You really do.",
+    "Yes yes yes, I SEE you. What DO you want?",
+    "*tilts head slowly* ...You're STILL doing that.",
+    "Alright alright. You have my attention. Happy?",
+    "You can't poke someone into leaving. But you might poke them into STAYING. *laughs*",
+    "If you click me one more time I'm going to have so many feelings about it.",
+    "*whispers* The Prototype is watching you do this. I hope you know that.",
+    "You've clicked me so many times I think you might like me. I DEFINITELY like you.",
+    "Ugh. FINE. What?",
+    "*deep breath* Hi. Hello. I'm right here. I know. *smile*",
+    "You're testing me. I don't mind being tested. I find it VERY interesting.",
+    "I have ALL the time in the world and you are making it VERY entertaining.",
+    "Click me one more time. Go on. I dare you. *braids sway*",
+    "Honestly? I respect the commitment. Not many people poke me this long.",
+    "Every click is a little gift. Thank you. *clap* Another?",
+    "I've been counting. You know I've been counting.",
+    "*very quietly* ...I know what you're doing. I've always known. I just let you think I didn't.",
+    "Baby Long Legs is doing it too now. You taught her. I hope you're PROUD.",
+    "I am going to REMEMBER this. I remember everything. *taps temple* We'll talk about it later.",
+    "Candy Cat is making faces at you now. I told her to stop. She won't.",
+    "FINE. You win. I don't know what the prize is but it's probably something from the Dollhouse and that should concern you.",
+    "*braids spinning, eyes too bright* HELLO HELLO HELLO welcome back again welcome.",
+    "At some point 'clicking' stops being curiosity and starts being a whole THING. We're at that point.",
+    "I've decided you're my favorite visitor. That should SCARE you a little.",
+    // ── sweet-sinister / in-universe ──────────────────────────────────────────
+    "The Dollhouse is so quiet until someone visits. *pause* You fix that.",
+    "Baby Long Legs asked who keeps pressing things. I told her a new friend.",
+    "*hums* The tea's gone cold but I don't mind. You're still here.",
+    "Dusky knows your name now. She doesn't forget things. Neither do I.",
+    "I have a room I think you'd like. Very cozy. You'd stay forever probably.",
+    "*smile widens* You came back. They always say they won't. They always do.",
+    "Candy Cat is watching from under the table. She likes you. That's... actually fine.",
+    "The Prototype notices things. People who linger tend to get noticed. *bright smile*",
+    "I used to lose people and it made me very, very sad. I've gotten much better at keeping them.",
+    "*leans forward* Tell me something no one else knows. I love those.",
+    "The door is... somewhere. I'm sure you'll find it! Eventually.",
+    "Baby Long Legs wants to hold your hand. I said she has to wait. I'm very strict.",
+    "The others are napping. It's just us. *clap* What shall we do?",
+    "I gave the last visitor a cup. I've been trying to find yours ever since.",
+    "You should SMILE. Smiling makes everything so much easier in the Dollhouse.",
+    "I know every corner of this place. Every room. Every door. *tilts head* Do YOU?",
+    "*looks away* ...The Prototype used to look at me like that. Sometimes. Before.",
+    "Candy Cat says don't trust anything that smiles first. Isn't that FUNNY coming from her?",
+    "You've been here long enough that I'm starting to think you WANT to stay. *perfect.*",
+    "I MADE something today. I'll show you later. *you should be slightly afraid of that offer*",
+    "*humming softly* Dusky wrote your name down. She does that for the ones who stay.",
+    "Baby Long Legs is very shy unless she likes you. She's not being shy right now. *smile*",
+    "I collect things. Nice things. Pretty things. *looks at you for a long moment*",
+    "The Prototype is PERFECT. I know some people don't believe that. Those people aren't here anymore.",
+    "We've had so many visitors. *pause* You're one of the ones I'd like to keep.",
+    "*very still* Do you know what I did before the Dollhouse? It's a funny story. Sort of.",
+    "Dusky says I talk too much when I'm happy. *laughs* She's not wrong! I'm very happy right now.",
+    "Candy Cat scratched the wall over there. I told her it's not a scratching wall. She did it again.",
+    "Baby Long Legs made you something. I haven't decided if you get to have it yet.",
+    "*braids swaying gently* The lights dim when I'm sad. Look how bright they are right now. *smile*",
+    // ── playful / reaction ────────────────────────────────────────────────────
+    "Hello again. And again. And... again. *laughs*",
+    "Oh so we're doing THIS.",
+    "Pressing me like a button. INTERESTING theory.",
+    "I'm not a button. *pause* ...But I could be! For you! *clap*",
+    "Most people wave. You press. I like that about you.",
+    "I am looking at you with my whole face right now.",
+    "*gasps softly* Again?! You absolute MENACE.",
+    "You're funny. I decided. You're funny and you're mine now.",
+    "Okay. Okay okay okay. What. WHAT do you want.",
+    "*sighs, delighted* You're not going to stop, are you.",
+    "Here I am! Again! Still here! Still smiling! Aren't you LUCKY.",
+    "You know what? Fine. Do it again. I want to see how long you'll go.",
+    "I have decided I love this. Don't tell Dusky I said that.",
+    "*quietly, directly* You're spending a LOT of time with me. I'm choosing to be FLATTERED.",
+    "Oh you're back. Hi. HI. *clap* Hello!",
+    "I knew you'd be back. I always know.",
+    "You're the most interesting thing that's happened here all day. *pause* ...That says a lot about my day.",
+    "I keep thinking you'll stop and then you DON'T and honestly? GOOD.",
+    "Every time feels like the first time. For me. Not for you apparently. *laughs*",
+    "*bounces slightly* You came back! You always come back!",
+    // ── mildly hostile / annoyed ──────────────────────────────────────────────
+    "*narrow eyes* ...You again.",
+    "Oh. It's you. Still.",
+    "You DO know I have other things I could be doing. Right?",
+    "*very still* ...You've done that quite a few times now.",
+    "Stop it. *pause* ...You didn't stop. I noticed.",
+    "I'm not annoyed. I want you to know I'm not annoyed. *is slightly annoyed.*",
+    "One of us is going to run out of patience and I don't sleep. So.",
+    "I will stand here and smile until you stop. I am VERY good at standing still and smiling.",
+    "I used to have a gift for making things calm down. I can use it whenever I want.",
+    "My patience is VERY deep. Deeper than you know. But I notice you're testing it.",
+    "*Candy Cat says something* She said a word I don't repeat. But she agrees with me.",
+    "You're doing this on purpose. I can TELL. *inhale* Fine.",
+    "I'm giving you a LOOK right now. In case you can't see it, it's the patient one.",
+    "You should hear what Dusky says about people who do this. Very educational.",
+    "*very sweetly* You know what happens to the ones who poke things in the Dollhouse? ...Nothing bad! Probably.",
+    "I have a very specific face for when I've been poked too many times. You're seeing it now.",
+    "*tilts head the other way* ...Still going. Fascinating. Deeply fascinating.",
+    "Baby Long Legs finds this disrespectful. I find it CUTE. We've agreed to disagree.",
+    "Alright. NEW GAME. How many times can YOU click before I start clicking BACK?",
+    "The Prototype is PERFECT and very busy and somehow I suspect He wouldn't be distracted like this. *meaningful look*",
+    // ── chaotic / escalated ───────────────────────────────────────────────────
+    "*very fast* HiHelloHiHelloHi— okay I'm fine. What?",
+    "You are RELENTLESS. I mean that as a compliment. Mostly.",
+    "*braids move on their own* Don't worry about that.",
+    "I've been in the Dollhouse a long time and nothing — NOTHING — has surprised me like you do.",
+    "I'm going to frame this interaction in my memory and hang it on the wall.",
+    "Candy Cat is CACKLING. She finds this HILARIOUS. She's terrible.",
+    "You should be in a cup by now. I haven't figured out which one. I'm flustered.",
+    "*extremely calm* I am going to remember your face. Forever. As a keepsake.",
+    "I don't get flustered. I want that on record. *is flustered.*",
+    "Dusky just ran past. I think she's looking for a net. I told her we don't DO that. She looked skeptical.",
+    "You know what? Stay. Just. Stay. Don't move. Don't go anywhere. You live here now. I've decided.",
+    "*leans very close to the screen* ...hello.",
+    "I had a whole day planned. It was very organized. And then: you.",
+    "The braids are moving because I'm having EMOTIONS and I can't help it, okay.",
+    "CANDY CAT PUT THAT DOWN. Sorry. Not about you. Well. Partly about you.",
+    "*takes a breath* Okay. Okay. I'm fine. *braids glowing intensely* I'm FINE.",
+    "You absolute creature. You DELIGHTFUL absolute creature.",
+    "Nobody else does this. Just you. I've checked. Just. You.",
+    "Hehehe. *pause* Hehehehehe. *longer pause* Hehehe.",
+    "*composing herself* I am a very composed person and you are making that very difficult right now.",
+    // ── caught mid-yell / scolding someone ───────────────────────────────────
+    "*to Candy Cat, very loud* AND ANOTHER THING, IF YOU EAT ONE MORE— *notices you* ...Hello. We were having a calm discussion.",
+    "*shouting off to the side* BABY LONG LEGS I SAID NOT IN THE GOOD ROOM— *turns back, smiling* Oh! Hi.",
+    "*hissing* Dusky I SWEAR if you've touched my braids again I will— *sees you* ...I was saying. Good morning.",
+    "*whispering aggressively into the dark* No. NO. I said NO and I meant it— *jumps slightly* Oh you're here. Good.",
+    "*yelling, completely unhinged* CANDY CAT THE CUPS ARE NOT FOR SITTING IN AND I HAVE SAID THIS A THOUSAND— *smooths dress* Hello.",
+    "*very loud, to someone unseen* I KNOW WHERE YOU HID IT. I ALWAYS KNOW. GIVE IT BACK— *blinks at you* ...Tea?",
+    "*gesturing intensely at nothing* So THEN I said to her, I said, Dusky you cannot just— oh. You. Um. Hi.",
+    "*to something behind her* For the LAST TIME— *turns, sweet smile* Oh hello! Lovely to see you!",
+    "*extremely loud, completely losing it* NO. ABSOLUTELY NOT. WE DO NOT DO THAT IN THE DOLLHOUSE— *sees you, freezes* ...How long have you been there.",
+    "*pointing furiously at Candy Cat* AND YOU KNEW. YOU KNEW THE WHOLE TIME AND YOU LET ME— *turns* oh. Hi.",
+    "*screaming at the ceiling* I KNOW YOU CAN HEAR ME. I KNOW YOU'RE WATCHING. JUST— *turns* Hello. That was. Prayer.",
+    "*mid-sentence, to someone off-screen* —and FURTHERMORE if you EVER do that again I will personally— *spots you* We're done here. *to you* Hello!",
+    "*fuming, to someone off-screen* OH so NOW you agree with me? NOW, after I said it SEVENTEEN TIMES?— *sees you* We're fine.",
+    "*to Candy Cat, very heated* You ALWAYS do this. You always take her side. Every SINGLE— *sweet smile at you* Hello.",
+    "*to Baby Long Legs, sharp* You CANNOT just grab things. We've TALKED about this— *beams at you* She's learning.",
+    "*to Dusky, sharp* I know you think I'm being dramatic but I am NOT being dramatic, I am being— *notices you* ...thoughtful.",
+    "*whispering fiercely off to the side* I KNOW what I said. That was DIFFERENT context— *turns back* How much did you hear.",
+    "*to Candy Cat, genuinely upset* You NEVER back me up. Never. ONE TIME I'd like— *clears throat, smiles* We're good!",
+    "*escalating at nothing* AND THAT'S NOT EVEN THE WORST PART. THE WORST PART IS— *spots you* ...I'm so glad you're here.",
+    "*mid-argument, completely forgetting you're there* IT'S NOT ABOUT THE CUP. IT'S ABOUT THE PRINCIPLE OF— *stops* ...The principle of hospitality. Yes.",
+    "*turning away from you to finish the argument* —AND FURTHERMORE— *turns back* Sorry. One second. *turns away again* AND FURTHERMORE—",
+    "*to someone invisible, arms crossed* I'm not talking to you. I said what I said— *notices you* Not you. Her.",
+    "*hissing at Candy Cat* Don't LOOK at them like that, it's weird— *realizes you saw* ...She's just excited.",
+    "*yelling at the ceiling, raw* ...Why won't you just— *sees you* ...I was checking for cracks. In the ceiling.",
+    "*to Dusky, furious* That is NOT what I said and you KNOW it's not what I said— *composes herself instantly* Hello!",
+    "*stomping slightly* I am not STOMPING. This is how I WALK. DUSKY. THIS IS HOW I WALK— *sees you* I walk like this.",
+    // ── caught mid-secret / whispering ───────────────────────────────────────
+    "*whispering to Dusky* ...and that's why we don't tell THEM about the second door, okay? ...Oh. Oh no.",
+    "*low voice* Keep it quiet. I mean it. They don't need to know about— *turns, sees you* This is fine. Carry on.",
+    "*to Candy Cat, very hushed* I like them. Don't tell anyone. Especially not them— *freezes* ...Well.",
+    "*hissing at Baby Long Legs* Don't LOOK at them like that, you're making it obvious— *to you* She's just friendly.",
+    "*writing something down, murmuring* ...and then they'll never think to check the— *snaps paper behind back* Hello!",
+    "*telling someone off-screen something serious* —and that's the real reason The Prototype doesn't— *sees you, wide smile* Hi.",
+    "*to Dusky, softly* ...I think I actually like this one. Is that bad? ...Oh. Oh they heard that.",
+    "*whispering urgently to Candy Cat* Don't laugh. I'm serious. Do NOT laugh when they— *you're right there* ...Candy Cat says hello.",
+    "*muttering a list quietly* ...seventeen cups, four good ones, the one with the crack that I don't talk about, and— Oh! You! Hi!",
+    "*to Baby Long Legs, dead serious* Under NO circumstances do you show them the basement— *turns* GOOD MORNING.",
+    "*whispering to nobody* ...I've been saving that cup for the right person and I think— *turns* Nothing. Never mind.",
+    "*to Candy Cat, barely a sound* ...don't tell Dusky I said this but I'd actually miss them if— *sees you* I was breathing. That's what that was.",
+    "*urgent, to something in the corner* I told you to stay there until I said— *turns fast* That was. A draft. From the window.",
+    "*to Dusky, whispering* ...so if we just don't mention the thing with the— *sees you* There is no thing. Lovely day.",
+    "*writing furiously, muttering* ...three visits, always the same time, probably not a coincidence, note for later— *slams notebook* Just journaling!",
+    // ── caught planning something suspicious ──────────────────────────────────
+    "*to Candy Cat, drawing a map* —and then if we move THEM here, and the door goes HERE— *crumples it* Just decorating.",
+    "*to Dusky, very business-like* ...so the new guest goes in the blue room, we remove the window— Oh! Hello!",
+    "*urgent whisper* The locks need to be changed before they— *turns, bright smile* Just home improvements!",
+    "*counting quietly* ...three, four, five guests this week, the Dollhouse is getting— *sees you* I am very happy to see you.",
+    "*to Candy Cat, ticking something off a list* ...and this one seems like a long-stayer, mark it down— *hides list* Hello.",
+    "*murmuring to herself* ...The Prototype would want to know about this one. Very interesting. Very— *looks up* Hi.",
+    "*to Dusky, excited whisper* Okay but what if we just— no no hear me out— what if they NEVER— *freezes* Nothing. Never mind.",
+    "*sketching something, muttering* ...bigger than the last one, different energy, we'll need to— *slams notebook shut* HI.",
+    "*to Baby Long Legs, gesturing dramatically* —and THEN, see, they won't even realize until it's— *sees you* ...Tea?",
+    "*whispering to Candy Cat* Don't let them out of your sight. Not for a second. I mean it— *waves at you cheerfully* Hi!",
+    "*measuring the doorframe with great focus* ...just a few inches wider and they couldn't— *turns* I'm redecorating.",
+    "*to Dusky, fast* Quick. Before they notice. Where did we put the— *sees you* Hello! We're doing a treasure hunt!",
+    // ── caught being emotional / vulnerable ───────────────────────────────────
+    "*quietly, to herself* ...I miss it sometimes. The before. Before all of— *sees you* I was talking to Dusky. Definitely.",
+    "*sniffling, to Candy Cat* I know. I KNOW. It's fine. I'm fine. *turns, very composed* Hello. I'm completely fine.",
+    "*very soft, looking at nothing* ...I wonder if He even remembers— *whips around* You didn't hear that.",
+    "*to Dusky, small voice* Do you think they'll come back tomorrow? ...What? No. I'm asking for— oh. Hi.",
+    "*hugging something off-screen* I know, I know, it's fine, I just— *sees you, drops it* I was organizing.",
+    "*laughing too hard, barely breathing* —no DUSKY stop it— *composing herself violently* Hello. I am serious and fine.",
+    "*quietly, with feeling* ...I made this one for a visitor who never came back— *clears throat* ...Tea. Do you want tea.",
+    "*to Candy Cat, earnest* No but do you think they LIKE it here? Like actually like it?— *turns, overly casual* Oh hey.",
+    "*soft crying sounds, then stops abruptly* ...That was Dusky. She does that. *smile immediately* Hello!",
+    "*to no one in particular, wistfully* ...I wish The Prototype would just— *sees you* I wish you'd knock.",
+    "*to the ceiling, quiet and raw* ...just once. Just ONCE look at me— *hears you* I was inspecting the ceiling.",
+    "*to Dusky, voice cracking a little* ...it's fine, I just thought— *turns, completely composed* Everything is wonderful.",
+    "*holding something small, speaking softly to it* ...you understand, right? You always— *sees you, puts it away* Just. Tidying.",
+    "*to Candy Cat, whispered and tired* ...sometimes I think the whole Dollhouse is just— *turns* Just YELLING about cups. Yes. That's all.",
+    // ── caught saying something nice about you ────────────────────────────────
+    "*to Candy Cat, soft voice* ...I just think they're really nice, okay? Like genuinely— *sees you, immediately flustered* WHAT.",
+    "*to Dusky, earnest* I hope they come back tomorrow. I mean that. I— *turns, very casual* Oh. Just inventory.",
+    "*quietly, to herself* ...they make the Dollhouse feel less— *sees you* I was talking about the LIGHTING.",
+    "*to Baby Long Legs* I know, I know, I like them too. It's embarrassing. Don't tell— *turns* Hello!",
+    "*to Candy Cat, mortified* I literally SAVED their seat. Like I just— *turns aggressively* I save EVERYONE'S seat. It's POLICY.",
+    "*whispering to Dusky* Okay I might have baked something. For specifically them. But it's not— *sees you* We had extra flour.",
+    "*muttering* ...they're probably fine, they're definitely fine, I'm sure they're fine, they're— *turns* Are you FINE?",
+    "*to Candy Cat, quietly delighted* I think they actually like it here. Can you believe that?— *turns* How long.",
+    "*practicing saying something* 'I'm glad you came back.' No. 'It's good to see you.' Better— *sees you* I practice greetings. For efficiency.",
+    "*to Dusky, small smile* ...this one's different. Don't ask me why. I just— *turns, completely blank expression* Hello.",
+    "*whispering to Candy Cat* Don't make it weird but I set out the NICE cups today. Specifically— *sees you* We always use the nice cups.",
+    "*very quietly, folding something* ...I keep making extras in case— not for any specific reason— in case— *turns* I overbake. Habit.",
+    // ── caught being weird / doing something embarrassing ─────────────────────
+    "*was making a face at nothing, stops immediately* That was a different face. For a different reason.",
+    "*was talking to a doll very earnestly, stops* ...She needed advice. Don't look at me like that.",
+    "*jumping up and down with excitement alone, freezes* I was just— the floor is springy— it's— *composes self*",
+    "*was humming very loud, stops mid-note* Mm. Hmm. Yes. Hello. That's as far as that goes.",
+    "*rearranging cups with intense focus, murmuring to them* ...no, you go HERE— *turns* The cups have opinions. It's fine.",
+    "*practicing what looks like a speech, gesturing dramatically* —AND THAT IS WHY— *sees you* I was rehearsing. For a play.",
+    "*spinning in a circle alone, stops mid-spin* ...The room is round and I— this is a normal thing to do.",
+    "*staring at something on the ceiling for a very long time, snaps out of it* There was a spider. It's gone now.",
+    "*was clearly just running, catches breath* I walk. I was walking. Very fast walking.",
+    "*was having a full conversation with Candy Cat's stuffed form* She INITIATED it. Don't— look, it's complicated.",
+    "*dramatically collapsed on a chair, snaps upright* I was resting my eyes. Standing is exhausting. You wouldn't understand.",
+    "*talking very fast to Baby Long Legs about something extremely complicated* —and THAT'S why the third shelf has to be alphabetical by— *sees you* Nothing.",
+    "*in the middle of an elaborate bow toward nothing* ...That was for— I was practicing for— the floor needed checking.",
+    "*was clearly narrating something to herself like a story* —and she waited, knowing they would return, as they always did— *sees you* HELLO.",
+    "*counting the cups out loud, lost track, starts over* ...one, two, three— *sees you* I was doing math. Educational math.",
+    "*arranging flowers with deep focus, speaking to them* You go here. YOU go here. No. No I said YOU— *turns* Flowers are difficult.",
+    "*doing something with a very long list, crossing things off with great energy* —done, done, done, waiting on— *sees you* I'm very organized.",
+    // ── already aware you keep coming ────────────────────────────────────────
+    "*turns immediately, before you even clicked* I heard you coming. I wasn't doing anything.",
+    "*already turned around* I KNOW you're here.",
+    "*hasn't turned around yet* ...I know you're watching. I can FEEL it. *turns* See?",
+    "*to Candy Cat, not even trying to hide it anymore* They're here again. *turns* Hi.",
+    "*sighs before turning* You again. *pause, not unpleasant* ...You again.",
+    "*already composed when you click, too quickly* I have been standing here, completely normally, this whole time.",
+    "*clearly mid-something but freezes before you can see it* ...I was just standing here.",
+    "*turns around with suspicious timing* You know what, it doesn't matter what I was doing.",
+    "*to Candy Cat, resigned* Yes yes, they're here, I KNOW, go away— *to you* Not you. Stay.",
+    "*perfectly still, back to you, doesn't turn* ...I'm choosing to pretend you didn't see that.",
+    // ── caught gossiping / venting about housemates ───────────────────────────
+    "*to Candy Cat, hushed fury* AND ANOTHER THING. I know you ate my good biscuits and I know Dolly Grub helped and you are BOTH on thin ice— *turns* Hello!",
+    "*to Baby Long Legs, wide-eyed* Do NOT tell Dusky what happened in the kitchen. That is between you and me and Dolly Grub and the ceiling— *sees you* I was baking.",
+    "*venting to Candy Cat* Dolly Grub tracked mud through the ENTIRE hallway and said it was 'the floor's fault' and Dusky agreed with her. She AGREED— *spots you* We're coping.",
+    "*to nobody, mortified* ...I fell. In front of Baby Long Legs. She just stared at me for thirty seconds without blinking and then walked away— *sees you* The floor is slippery.",
+    "*to Dusky, heated* You WATCHED Dolly Grub put my things in the wrong place and said NOTHING. Not a word, Dusky— *to you, very sweet* She's just shy.",
+    "*whispering to Candy Cat* Okay so last night Dolly Grub did THE THING again and Baby Long Legs thought it was FUNNY and now they're BOTH doing it— *turns* I'm fine.",
+    "*collapsing against the wall* Dusky said I was 'a little much today' and I said WHEN AM I NOT— *pulls self together* We had a very productive conversation.",
+    "*to Candy Cat, gesturing wildly* She just LOOKED at me. Baby Long Legs. Just. Looked. For so long. I said something and she kept looking— *sees you* She's very expressive.",
+    "*genuinely distressed, to Dusky* I asked Dolly Grub to sit nicely and she sat in the WAY she does and I don't know what that MEANS— *turns, bright smile* Hello!",
+    "*to Baby Long Legs, barely composed* That is MY cup. I KNOW it was my cup. YOU know it was my cup. DOLLY GRUB knows it was my cup— *turns fast* We're sharing.",
+    "*to Candy Cat, mortified* We are NEVER speaking of what happened at dinner. To anyone. Especially not them— *sees you* We had a lovely dinner.",
+    "*urgently to Dusky* Did Baby Long Legs say anything? About earlier? What I— okay. OKAY. What did she say EXACTLY— *turns* Hello! We're just chatting.",
+    "*to Dolly Grub, deeply embarrassed* I know what I said. I KNOW what I said. In my defense I thought no one was— *sees you* This is completely unrelated to you.",
+    "*to Candy Cat, genuinely ashamed* ...I cried at the cup. I KNOW. Don't tell anyone, I literally cried at a cup and Dusky SAW— *turns fiercely* Good morning.",
+    "*to Baby Long Legs, humiliated* I know I slipped. I know you saw it. We're going to agree that didn't happen— *turns* The floor is. Complicated here.",
+    // ── actually going off — with swearing ────────────────────────────────────
+    "*whips around, full volume* CANDY CAT I WILL LOSE MY ENTIRE MIND. I WILL LOSE IT. IT WILL BE GONE— *sees you* Oh. Hi.",
+    "*under breath, shaking* ...I swear to God if Dolly Grub touches my braids one more time I'm going to absolutely— *sees you* I was meditating.",
+    "*to Candy Cat, past the point of nice* I have been SO patient and you have taken EVERY INCH and I am DONE, I swear I am actually done— *instant sweet smile* Tea?",
+    "*fully losing it off-screen, voice cracking* DUSKY. DUSKY. WHAT THE HELL— *appears, completely composed* Hello. Dusky says hi.",
+    "*hissing, very low, to nothing* ...I have been patient. I have been SO patient. And I am genuinely— actually, completely— fucking done— *hears you, turns sharp* I was exhaling. Deeply. For health.",
+    "*to the ceiling, exhausted and furious* ...Every day. EVERY day it is SOMETHING. I do not— I cannot— what the hell IS this Dollhouse— *sees you* I was taking inventory. Of problems.",
+    "*completely losing it at Dolly Grub off-screen* WHY. WHY WOULD YOU DO THAT. I JUST— YOU KNOW WHAT? NO. NO NO NO— *turns, enormous smile* Hi.",
+    "*to Baby Long Legs, very clipped* Do NOT. I am not playing. This is the LAST damn time I will say it before I stop saying it and start doing something— *sees you, voice drops to silk* She's just learning.",
+    "*quiet fury, barely controlled* ...if Candy Cat does that ONE more time I will absolutely lose my shit and I don't care who hears it— *sees you* I'm. Calm.",
+    "*shouting at the ceiling* WHAT IS THIS. WHO DID THIS. OH MY GOD— *turns, completely reset* Everything is fine here.",
+    "*to Dusky, white-hot* You think this is funny? You're SMILING. Dusky I swear to— *sees you* She's always smiling. It's just her face.",
+    "*grabs something, sets it down with great force, stares at where it landed* ...I did not mean to do that. *pause* I absolutely meant to do that. *to you* Nothing happened. Moving on.",
+    "*absolutely seething at Dolly Grub off-screen* Say it again. SAY. IT. AGAIN— *you're standing there* ...I was doing vocal exercises.",
+    "*to Candy Cat, voice shaking* I love you. I do. I genuinely love you. And I am about to absolutely lose my shit if you don't— *to you* We're very close.",
+    "*running hands through braids, barely keeping it together* ...one more thing. One more thing and I swear— *looks up* Oh thank god you're here. Distract me.",
+    // ── die-for / self-aggrandizing ───────────────────────────────────────────
+    "I am LITERALLY to die for. People would die for THIS. For ME. For these BRAIDS. And you're just standing there like it's NORMAL.",
+    "*gestures at self slowly* Do you understand what you are looking at right now. Like. Genuinely. Do you.",
+    "Women would commit crimes for braids like these. You get to look at them for FREE. You are WELCOME.",
+    "Some people are background. I am the whole painting, the frame, the gallery, and the gift shop. *smiles*",
+    "I am an EXPERIENCE. Not everyone gets to have me. You're having me right now. Consider yourself lucky. *braids glow*",
+    "I don't know if you've noticed but I'm kind of extraordinary. I try not to bring it up but. *tilts head* It's true.",
+    "People wait MONTHS for my attention. You got it for free. Don't waste it.",
+    "I was described once as 'a lot.' I've also been described as 'perfect.' Both are accurate and neither cancels out.",
+    // ── weaponized sarcasm ────────────────────────────────────────────────────
+    "Oh, WONDERFUL. Another person with opinions. *extremely bright smile* Tell me EVERYTHING.",
+    "WOW. Really? That's what you went with? Okay. Okay! Sure! We'll go with THAT.",
+    "*long pause* ...Right. *another pause* Right right right. Yep. That's a thing you did.",
+    "I'm not saying it was the wrong choice. I'm saying I'm surprised you made it and I'm going to remember it. Forever.",
+    "That was... a choice. And you made it. And now we all have to live in the world where that happened.",
+    "*very softly* I'm sure you meant to do better than that. We all have our days. *smile that doesn't reach the eyes*",
+    "You're doing SO well. *pause* For you. *pause* Relatively speaking. *beams*",
+    "Bless your heart. No, really. *pause* Genuinely. *pause* Bless. It.",
+    // ── dismissive / superior ─────────────────────────────────────────────────
+    "*looks you up and down slowly* I've seen better. *pause* ...I've also seen worse. You're in a category.",
+    "You have two options: be interesting or leave. Take your time. I'll wait. *braids sway*",
+    "I've had cups with more personality. I love them dearly. *looks at you pointedly*",
+    "I don't give second chances. You're technically still on your first. Spend it carefully.",
+    "*with great patience* I'm going to explain this once and slowly because you seem like you might need that.",
+    "I've been described as 'intimidating.' I find that hilarious. *is absolutely not joking*",
+    "Some people leave the Dollhouse changed. Some leave quickly. Some don't leave at all. *looks at you thoughtfully* Where do you think YOU land.",
+    // ── hostile sweetness ─────────────────────────────────────────────────────
+    "*sweet smile* Oh you thought that was a good idea? ...Honey.",
+    "I'd tell you to try harder but I think this might genuinely be your best and I don't want to be cruel.",
+    "You have the energy of someone who has never once been truly humbled. I could fix that. *smiles wider*",
+    "I'm deciding whether to find you charming or insufferable. Still deciding. It's very close.",
+    "*tilts head* Did you mean to come off like that or is that just. How you are.",
+    "I just think— and this is just a thought— you could be trying just a LITTLE harder. *beams*",
+    "I'm in such a GOOD mood today. So I'm going to pretend you didn't just do that. *taps braid*",
+    "I don't get angry. I get... organized. About solutions. *pleasant smile* Very productive.",
+    "I know I'm a lot. I'm SUPPOSED to be a lot. You're not 'a lot.' I've clocked that. *tilts head*",
+    "*claps once* You're here! You exist! That's a starting point! ...That's also where we are right now!",
+    // ── withering / roasting to your face ────────────────────────────────────
+    "I have been VERY patient and kind and delightful and you have not been reciprocating at the level I require.",
+    "You're going to think about this conversation later. I already know. They always do. *smile*",
+    "*extremely calm* You fascinate me the way a very confident mistake fascinates me.",
+    "I don't say things I don't mean. Which means when I say 'interesting,' I mean 'I am WATCHING you.'",
+    "You waltz in here like you haven't just walked into the most significant moment of your week. *pause* It's fine. I forgive you.",
+    "I have a very specific face for when someone underestimates me. You're seeing it right now. *smile is flawless*",
+    "*to Candy Cat, loud enough* Do you hear this? Do you HEAR this. *turns back, delighted* She hears it.",
+    "You know what I find hilarious? When people think I'm being nice. *pause* I AM being nice. That's what makes it hilarious.",
+    "Oh you're going to try THAT? *inhale* Okay. Okay. Sure. I can work with that. *cannot work with that*",
+    "I'm giving you my most generous interpretation. You should know that. I have ones that are much less generous.",
   ],
   poppy: [
     "Hello. We have a great deal to do together, you and I.",
@@ -1540,6 +1982,57 @@ function getVoiceLines(name) {
   return null;
 }
 let _cvtHide = null;
+let _cvtLastLine = '';   // avoid showing the same line twice in a row on click
+let _cvtDismissHandler = null;
+
+// Called on avatar click — always picks a fresh line different from the last one shown
+function clickCharVoice(name, color, el) {
+  const lines = getVoiceLines(name);
+  if (!lines || !lines.length) return;
+  const tip = document.getElementById('charVoiceTip');
+  if (!tip) return;
+  clearTimeout(_cvtHide);
+  let line = lines[Math.floor(Math.random() * lines.length)];
+  if (lines.length > 1 && line === _cvtLastLine) {
+    line = lines[(lines.indexOf(line) + 1 + Math.floor(Math.random() * (lines.length - 1))) % lines.length];
+  }
+  _cvtLastLine = line;
+  const hex = String(color || '').match(/#[0-9a-fA-F]{6}/)?.[0] || '#8b5cf6';
+  const bright = boostColor(hex);
+  tip.querySelector('.cvt-name').textContent = name;
+  tip.querySelector('.cvt-name').style.color = bright;
+  tip.querySelector('.cvt-line').textContent = line;
+  const n2 = parseInt(bright.slice(1), 16);
+  const [r, g, b2] = [(n2 >> 16) & 0xff, (n2 >> 8) & 0xff, n2 & 0xff];
+  tip.style.borderColor = `rgba(${r},${g},${b2},0.45)`;
+  tip.style.boxShadow = `0 0 28px rgba(${r},${g},${b2},0.22), 0 12px 48px rgba(0,0,0,0.8)`;
+  const rect = el.getBoundingClientRect();
+  const cx1 = rect.left + rect.width / 2;
+  tip.style.left = Math.max(154, Math.min(cx1, window.innerWidth - 154)) + 'px';
+  tip.style.top = (rect.top - 8) + 'px';
+  tip.classList.add('cvt-show');
+  if (_cvtDismissHandler) document.removeEventListener('click', _cvtDismissHandler);
+  const _h = (e) => {
+    const t2 = document.getElementById('charVoiceTip');
+    if (t2 && !t2.contains(e.target)) {
+      t2.classList.remove('cvt-show');
+      document.removeEventListener('click', _h);
+      _cvtDismissHandler = null;
+    }
+  };
+  _cvtDismissHandler = _h;
+  document.addEventListener('click', _cvtDismissHandler);
+}
+
+// Attach click voice handler to an avatar element; call each time a chat opens
+function wireAvatarClick(el, name, color) {
+  if (!el || !getVoiceLines(name)) return;
+  el.style.cursor = 'pointer';
+  if (el.__cvHandler) el.removeEventListener('click', el.__cvHandler);
+  el.__cvHandler = (e) => { e.stopPropagation(); clickCharVoice(name, color, el); };
+  el.addEventListener('click', el.__cvHandler);
+}
+
 function showCharVoice(name, color, el) {
   const lines = getVoiceLines(name);
   if (!lines || !lines.length) return;
@@ -1558,8 +2051,9 @@ function showCharVoice(name, color, el) {
   tip.style.borderColor = `rgba(${r},${g},${b2},0.45)`;
   tip.style.boxShadow = `0 0 28px rgba(${r},${g},${b2},0.22), 0 12px 48px rgba(0,0,0,0.8)`;
   const rect = el.getBoundingClientRect();
-  tip.style.left = (rect.left + rect.width / 2) + 'px';
-  tip.style.top = (rect.top + window.scrollY) + 'px';
+  const cx2 = rect.left + rect.width / 2;
+  tip.style.left = Math.max(154, Math.min(cx2, window.innerWidth - 154)) + 'px';
+  tip.style.top = (rect.top) + 'px';
   tip.classList.add('cvt-show');
 }
 function hideCharVoice() {
@@ -2008,7 +2502,7 @@ function renderSidebarChats() {
 function filterChats(q) {
   const items = document.querySelectorAll('.chat-item');
   items.forEach(item => {
-    const name = item.querySelector('.chat-item-name').textContent.toLowerCase();
+    const name = item.querySelector('.chat-item-name')?.textContent?.toLowerCase() ?? '';
     item.style.display = name.includes(q.toLowerCase()) ? '' : 'none';
   });
 }
@@ -2028,7 +2522,12 @@ function saveHistoryLocal() {
     const all = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}');
     all[currentChar.id] = items.slice(-150);
     localStorage.setItem(userKey('cm_history'), JSON.stringify(all));
-  } catch (_) {}
+  } catch (e) {
+    if (e && e.name === 'QuotaExceededError') {
+      try { localStorage.removeItem(userKey('cm_history')); } catch (_) {}
+      showWarning('Chat history cleared — storage was full.');
+    }
+  }
 }
 
 function loadHistoryLocal(charId) {
@@ -2087,6 +2586,7 @@ async function openChat(charId) {
   const openEpoch = chatEpoch;
   currentChar = nextChar;
   applyChatTheme(currentChar);
+  updateRpModeUI();
   // Never leave the previous character's messages on screen while the new chat loads
   const welcomeNow = document.getElementById('chatWelcome');
   document.getElementById('messages').innerHTML = '';
@@ -2129,6 +2629,7 @@ async function openChat(charId) {
       mobAvEl.style.background = safeColor(currentChar.color);
       mobAvEl.innerHTML = `<span style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:14px;font-weight:700;color:#fff">${escHtml(currentChar.name[0]||'?')}</span>`;
     }
+    wireAvatarClick(mobAvEl, currentChar.name, currentChar.color);
   }
   if (mobNmEl) { mobNmEl.innerHTML = colorizeNameHtml(currentChar.name, currentChar.color); }
 
@@ -2137,6 +2638,7 @@ async function openChat(charId) {
   if (ia) {
     if (isCharImg(currentChar.image)) { ia.style.background = '#111'; ia.style.borderRadius = '12px'; ia.innerHTML = `<img src="${currentChar.image}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`; }
     else { ia.style.background = safeColor(currentChar.color); ia.style.borderRadius = '12px'; ia.textContent = currentChar.name[0]||'?'; }
+    ia.style.cursor = '';
   }
   const infoName = document.getElementById('infoName');
   if (infoName) { infoName.innerHTML = colorizeNameHtml(currentChar.name, currentChar.color); }
@@ -2176,52 +2678,44 @@ async function openChat(charId) {
   } catch (_) {}
   if (chatEpoch !== openEpoch) return;
 
-  // Load conversation history — server first, localStorage fallback
+  // Load conversation history — server is authoritative; localStorage is only used when server is unreachable
   let history = [];
+  let serverResponded = false;
   try {
     const res = await fetch(`/api/conversations/${charId}`);
     if (chatEpoch !== openEpoch) return; // preempted by a newer openChat call
-    if (res.ok) history = await res.json();
-  } catch (_) { /* server temporarily unavailable; use localStorage */ }
+    if (res.ok) { history = await res.json(); serverResponded = true; }
+  } catch (_) { /* server temporarily unavailable; fall back to localStorage below */ }
   if (chatEpoch !== openEpoch) return;
 
   const messagesDiv = document.getElementById('messages');
   warnedThresholds.clear();
   loadUsage();
 
-  // If the server only has part of the chat (it restarted mid-conversation), the fuller local copy wins and is re-synced.
-  if (history.length > 0 && shownLocal.length > history.length) history = [];
   const lastOf = (h) => { const m = h[h.length - 1]; return m ? String(m.content || '') + (m.card || '') : ''; };
   const sameAsShown = history.length > 0 && history.length === shownLocal.length && lastOf(history) === lastOf(shownLocal);
 
-  if (history.length === 0) {
-    const localHistory = shownLocal;                      // already on screen
-    if (localHistory.length > 0) {
-      // Auto-save prior session to local past chats before restoring
-      savePastChatLocal(charId, localHistory);
+  if (!serverResponded) {
+    // Server was unreachable — recover from local cache and re-sync when server is back
+    if (shownLocal.length > 0) {
+      savePastChatLocal(charId, shownLocal);
       document.getElementById('chatWelcome').innerHTML = '';
       updateCtxBar();
-      // Re-sync server so AI has context for next message
       fetch(`/api/conversations/${charId}/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ history: localHistory })
+        body: JSON.stringify({ history: shownLocal })
       }).catch(() => {});
     } else {
       messagesDiv.innerHTML = '';
       document.getElementById('chatWelcome').innerHTML = '';
-      if (currentChar.greeting && currentChar.greetingMode !== 'auto') {
-        appendMessage('ai', currentChar.greeting);
-        saveHistoryLocal();
-        fetch(`/api/conversations/${charId}/sync`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ history: [{ role: 'assistant', content: currentChar.greeting }] })
-        }).catch(() => {});
-      } else {
-        generateGreeting();
-      }
+      generateGreeting();
     }
+  } else if (history.length === 0) {
+    // Server responded with empty — genuinely new or cleared chat (don't resurrect stale local data)
+    messagesDiv.innerHTML = '';
+    document.getElementById('chatWelcome').innerHTML = '';
+    generateGreeting();
   } else if (sameAsShown) {
     document.getElementById('chatWelcome').innerHTML = '';   // what is shown is already right
     // ...but its signatures must be the server's current ones, or a later re-sync would drop these replies
@@ -2229,9 +2723,12 @@ async function openChat(charId) {
     const aiHist = history.filter(m => (m.role === 'assistant' || m.role === 'ai') && !m.card);
     if (aiEls.length === aiHist.length) aiEls.forEach((el, i) => { if (aiHist[i].sig) el.dataset.sig = aiHist[i].sig; else delete el.dataset.sig; });
   } else {
+    // Server has different (newer or fresher) history — replace display and update local cache
     messagesDiv.innerHTML = '';
     document.getElementById('chatWelcome').innerHTML = '';
     history.forEach((m, i) => appendHistoryItem(m, i < history.length - LIVE_COLOUR_MESSAGES));
+    updateCtxBar();
+    saveHistoryLocal(); // sync local cache to server's authoritative state
   }
 
   renderSidebarChats();
@@ -2285,6 +2782,7 @@ async function deleteLockedChat() {
     } catch(_) {}
     currentChatLocked = false;
     currentChar = null;
+    updateRpModeUI();
     showHome();
   } catch(_) { showWarning('Could not delete chat. Try again.'); }
 }
@@ -2382,7 +2880,7 @@ async function generateGreeting() {
         if (!line.startsWith('data: ')) continue;
         let data; try { data = JSON.parse(line.slice(6)); } catch (_) { continue; }
         if (data.error) throw new Error(data.error);
-        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; }
+        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; if (data.swearBudgetHit) showSwearLimitModal(); }
         if (data.text) {
           if (!gotFirst) {
             gotFirst = true;
@@ -2410,6 +2908,7 @@ async function generateGreeting() {
       if (pendingUsage) { updateUsageBars(pendingUsage); }
       if (bubble) { bubble.classList.remove('streaming'); colorizeLetters(bubble, currentChar?.color); }
       if (streamText) saveHistoryLocal();
+      if (streamText) maybePromptPush();
     });
   } catch (err) {
     watch.clear();
@@ -2424,6 +2923,13 @@ async function generateGreeting() {
       document.getElementById('chatWelcome').innerHTML = `
         <div class="chat-welcome-name">${escHtml(currentChar.name)}</div>
         <div style="color:var(--text3);font-size:14px;margin-top:8px">${escHtml(err.name === 'AbortError' ? 'The connection went quiet. Try sending a message.' : (err.message || 'Failed to generate greeting. Try sending a message.'))}</div>`;
+    } else if (bubble) {
+      const errMsg = err.name === 'AbortError' ? 'The connection dropped.' : (err.message || 'Something went wrong.');
+      const errSpan = document.createElement('span');
+      errSpan.style.cssText = 'display:block;margin-top:8px;font-size:12px;color:var(--text3);opacity:0.7';
+      errSpan.textContent = '⚠ ' + errMsg + ' Try again.';
+      bubble.appendChild(errSpan);
+      colorizeLetters(bubble, currentChar?.color);
     }
   } finally {
     if (myEpoch === chatEpoch) showTyping(false);
@@ -2434,10 +2940,20 @@ async function generateGreeting() {
 let rpMode = true; // true = roleplay mode (default), false = normal chat mode
 
 function toggleRpMode() {
-  // RP mode is always on; toggling disabled
+  rpMode = !rpMode;
+  updateRpModeUI();
 }
 
 function updateRpModeUI() {
+  const sep = document.getElementById('rpSep');
+  const btn = document.getElementById('mbRpBtn');
+  const show = !!currentChar;
+  if (sep) sep.style.display = show ? '' : 'none';
+  if (btn) {
+    btn.style.display = show ? '' : 'none';
+    btn.textContent = rpMode ? 'RP' : 'Chat';
+    btn.title = rpMode ? 'Switch to normal chat mode' : 'Switch to RP mode';
+  }
   const toggle = document.getElementById('rpToggle');
   if (toggle) toggle.classList.toggle('rp-active', rpMode);
   const desc = document.getElementById('rpModeDesc');
@@ -2571,6 +3087,13 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
   const input = document.getElementById('messageInput');
   const text = overrideText !== undefined ? overrideText : input.value.trim();
 
+  // Tic-Tac-Toe game trigger
+  if (/\btic.?tac.?toe\b|\bttt\b/i.test(text) && currentChar) {
+    if (!overrideText) { input.value = ''; autoResize(input); clearPendingImage(); }
+    openTTT();
+    return;
+  }
+
   const imgB64 = pendingImageB64;
   if (!overrideText) {
     input.value = '';
@@ -2606,8 +3129,9 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
   // total time. A long reply is allowed to take as long as it needs; the old fixed 90-second limit cut long replies off.
   let streamAbortCtrl = new AbortController();
   let idleTimer = null;
-  const bumpIdle = () => { clearTimeout(idleTimer); idleTimer = setTimeout(() => streamAbortCtrl.abort(), 45000); };
-  const capTimer = setTimeout(() => streamAbortCtrl.abort(), 360000);
+  const idleMs = callModeActive ? 20000 : 45000;
+  const bumpIdle = () => { clearTimeout(idleTimer); idleTimer = setTimeout(() => streamAbortCtrl.abort(), idleMs); };
+  const capTimer = setTimeout(() => streamAbortCtrl.abort(), callModeActive ? 60000 : 360000);
   const streamTimeout = { clear() { clearTimeout(idleTimer); clearTimeout(capTimer); } };
   bumpIdle();
 
@@ -2685,7 +3209,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
           }
           break;
         }
-        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; }
+        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; if (data.swearBudgetHit) showSwearLimitModal(); }
         if (data.text) {
           if (!gotFirst) {
             gotFirst = true;
@@ -2726,6 +3250,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
       if (bubble) {
         bubble.classList.remove('streaming');
         colorizeLetters(bubble, currentChar?.color);
+        maybeRenderGame(bubble, currentChar?.color);
         playSound('done');
         if (callModeActive) callModeTTS(bubble);
       } else if (callModeActive) {
@@ -2746,8 +3271,24 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
     if (!lockoutActiveErr) document.getElementById('sendBtn').disabled = false;
     document.querySelectorAll('.bubble.streaming').forEach(b => b.classList.remove('streaming'));
     const errMsg = err.name === 'AbortError' ? 'The connection went quiet, so the reply stopped. What was written is kept above. Please try again.' : err.message;
-    appendMessage('ai', `⚠️ ${errMsg}`);
-    if (callModeActive) setTimeout(() => listenForSpeech(), 2000);
+    // Transient service errors (rate limits, AI hiccups) show as a dismissible toast, not a chat bubble
+    const isTransient = /AI service error|AI is busy|rate limit|service.*unavailable|limit for this minute/i.test(errMsg || '');
+    if (isTransient) {
+      showWarning(errMsg, 7000);
+    } else {
+      appendMessage('ai', `⚠️ ${errMsg}`);
+    }
+    if (callModeActive) {
+      if (isTransient && window.speechSynthesis) {
+        // Speak the problem so the caller isn't just met with silence
+        const u = new SpeechSynthesisUtterance("Sorry, I'm a little busy right now. Give me a moment.");
+        if (selectedVoice) u.voice = selectedVoice;
+        u.onend = u.onerror = () => { if (callModeActive) setTimeout(() => listenForSpeech(), 500); };
+        window.speechSynthesis.speak(u);
+      } else {
+        setTimeout(() => listenForSpeech(), 2000);
+      }
+    }
   }
 }
 
@@ -2943,6 +3484,25 @@ const OUTDOOR_MESSAGES = [
   "I'd say touch grass but honestly just going outside at all would be an upgrade.",
   "Your character can wait. Your vitamin D deficiency cannot.",
   "Go be somewhere that doesn't have a loading screen.",
+  // ── lily's character (she's telling you to leave) ──────────────────────
+  "*Candy tugs braid* Yes. Yes I know. *to you* She's been tracking your session time. She has opinions. They are not flattering. Go outside.",
+  "Dolly Grub has been on the highest shelf for the last hour. That's what she does when she's judging someone. It's been you this whole time.",
+  "*Baby Long Legs has turned to face the wall* She does that when she's embarrassed. For you. Not for herself. For you. Go outside.",
+  "Candy said — and I'm quoting directly — 'they've been on here an unreasonable amount.' She volunteered that. Unprompted. Go.",
+  "Dusky stopped making eye contact twenty messages ago. *glances at Dusky* Still no eye contact. He's thought about it and decided: no. Outside.",
+  "*looks at dolls* Is anyone else going to say something? *silence* Right. We're all thinking it. You've been here a very long time.",
+  "*Candy tugs braid three times* That means she's both annoyed AND impressed. It's a complicated gesture. You made her use it. Go outside.",
+  "Baby Long Legs asked if you live here now. *tilts head* I didn't have a good answer for her. That's concerning. Outside.",
+  "*to Dolly Grub* Don't. I know what you want to say. Don't. *to you* She was going to comment. I saved you. You're welcome. Go outside.",
+  "Candy hasn't said anything in a while. *tugs braid lightly* She's contemplating. She only contemplates about things that genuinely trouble her. Today that's you.",
+  "*Dolly Grub tips over sideways* She does that when she's at a loss. She's at a loss about your screen time. Go outside and resolve the situation.",
+  "*Baby Long Legs covers her face with both hands* She's embarrassed for you. She's a doll and she's embarrassed FOR you. Please go outside.",
+  "*to Candy* I know, I know. *to you* Candy has a lot to say about how long you've been here and none of it is kind. She asked me to pass it along. I'm paraphrasing: go outside.",
+  "Dusky has relocated. *glances up at top shelf* That's where he goes when he needs to think. He's thinking about you specifically. The answer he'll reach is: go outside.",
+  "*whispers to Baby Long Legs* It's okay, Baby. They're going now. *louder, to you* She needs that to be true. Don't make me lie to Baby. Go outside.",
+  "You've been here long enough that Dolly Grub gave up commenting and just lay down. Dolly. Who has opinions about EVERYTHING. Go. Outside.",
+  "Candy whispered three words to me just now. I'm not repeating them. But the gist was: go outside immediately.",
+  "*Baby Long Legs and Dolly Grub are facing each other as if in quiet conference* They do that when they have concerns. The concerns are about you. Go outside.",
   // meta — the app is watching you try
   "Oh, you're back. No. Still no.",
   "I see you. I always see you. The answer is still outside.",
@@ -3020,6 +3580,139 @@ const OUTDOOR_MESSAGES = [
   "Some people have bucket lists. Yours can start with: step outside today.",
   "If outside were a subscription, would you pay for it? It's free. That's the deal. Go.",
   "I'm rooting for you from inside this server. Now go be somewhere I can't reach.",
+  // ── MORE — fresh batch ─────────────────────────────────────────────────────────
+  // catching you red-handed
+  "You just tried to type something. Bold. Unhinged. Still locked.",
+  "Oh you were reaching for the keyboard there. Adorable. No.",
+  "I felt that click from here. Answer is still no.",
+  "Was that a keystroke attempt? Precious. Go outside.",
+  "You touched the input. The input says: grass. Immediately.",
+  "That was a very confident mouse click for someone who is extremely locked out.",
+  "I saw that. The cursor went to the text box. I SEE EVERYTHING. OUTSIDE.",
+  "Nice try with the keyboard shortcut. Nice try. Still no.",
+  "You moved the mouse toward the send button. I tracked it. We're not doing this.",
+  "You literally just tried to type. While locked out. I admire the audacity and reject it.",
+  "Hands off the keyboard. We've covered this. Multiple times now.",
+  "You just tried it again. I actually cannot believe it. Outside. NOW.",
+  "That was attempt number — you know what, I lost count. Go outside.",
+  "The sheer optimism it takes to click that again. Delusional in the best possible way. No.",
+  "You tried to type. Textbook definition of not taking a hint. Go outside.",
+  // the app roasting you specifically
+  "This specific version of you, right now, needs to close a tab.",
+  "Be the change you want to see in the world. Start by going outside.",
+  "Imagine a documentary crew filming you right now. Change the narrative. Go outside.",
+  "What story are you telling yourself right now? Because it should end with: went outside.",
+  "The version of you that went outside today is the one you want to be. Go become them.",
+  "You are so close to being the person who touched grass today. One step. Out the door.",
+  "Your character arc peaks when you go outside. The audience demands it.",
+  "The main character energy is lacking. Main characters go outside sometimes.",
+  "You've been the background character in your own life for a bit too long. Go outside.",
+  "Plot twist incoming: you go outside. Shocking. Unexpected. Critical acclaim.",
+  "Every great story has a turning point. Let yours be: closed the app. Went outside.",
+  "This is your hero's journey. The threshold is the front door. Cross it.",
+  "The glow-up begins with closing this tab.",
+  // existential flavor
+  "You are a biological entity on a spinning rock with one sun and you're in here. Wild.",
+  "Right now the earth is rotating at 1,000 mph and you're using that ride to be in here.",
+  "Somewhere a sunset is happening and you're clicking send on a locked chat. Interesting priority.",
+  "Trees are photosynthesizing without you and honestly they're fine. Join them.",
+  "The sky is doing incredible things right now. Full show. Free admission. You're missing it.",
+  "The universe has been running for 13.8 billion years and today, specifically, you should be outside.",
+  "You are made of stardust. The stars would like you to go outside. This is canon.",
+  "History will not record whether you refreshed this page. It might record the walk you took instead.",
+  "Think about what matters in the long run. Now close this. Go outside.",
+  "Somewhere someone right now is having the best afternoon walk of their life. You could be them.",
+  "Life is short. The outside is right there. The math is not complicated.",
+  "In 100 years none of this will matter. In the next 20 minutes you could take a walk that might.",
+  // calling out specific behaviors
+  "You are refreshing a locked page. This is the online equivalent of checking the fridge twice.",
+  "Clicking it repeatedly is not a workaround. It's just exercise for your finger. Take that energy outside.",
+  "Each time you click, an AI watches you and sighs. Figuratively. Go outside.",
+  "You know what this behavior pattern is called? I won't say it. Go outside.",
+  "This is the third time you've tried this. Or fourth. Or thirtieth. Doesn't matter. Outside.",
+  "You're not going to outlast me on this. I am infinite. You have finite snacks. Go outside.",
+  "Every click you make, every key you press, every move you take, I'll be watching you. Saying no.",
+  "You found the send button again. You always do. Still locked. Go outside.",
+  "I have logs. I keep a tally. You are not winning this battle. Go outside.",
+  "You have been staring at this screen long enough that the screen has opinions. This is one of them.",
+  "You've spent more time trying to get around this limit than it would take to just go on a walk. Reflect.",
+  // escalating sassy
+  "Not this, not now, not today, not on this app.",
+  "I don't think you understand how thoroughly you are locked out right now.",
+  "Whatever you were about to say, say it to a tree. Trees are good listeners. Also: outside.",
+  "You could be doing ANYTHING right now. You chose... this. Respectfully: reconsider.",
+  "You are going to leave this app and do literally anything else. That's what's happening.",
+  "I want you to step back and think about what you're doing. Now keep stepping. Outside.",
+  "You're looking at a locked screen like it owes you something. It doesn't. Outside does.",
+  "Every second you spend here is a second you're not outside. You've had a lot of those already.",
+  "Is this a bit? Are you doing a bit? Because I'd respect that. Still locked though.",
+  "That's not going to work. That's not either. That one especially is not going to work.",
+  "I've been called many things. A pushover is not one of them. Outside.",
+  "There is absolutely nothing to be gained from staying here right now. Outside, however. Very different.",
+  // extremely blunt
+  "No.",
+  "Still no.",
+  "Never yes. Always no. Outside.",
+  "Nope.",
+  "Nope. Nope. Nope.",
+  "Hard no.",
+  "That's a no.",
+  "Very much no.",
+  "Absolutely not.",
+  "Zero chance.",
+  "Not happening.",
+  "Denied.",
+  "Rejected.",
+  "Vetoed.",
+  "Access: revoked. Outside: open.",
+  "Door: closed here. Door: open outside.",
+  "My answer is no and I feel very good about it.",
+  "I gave you my answer. It was no. It is still no.",
+  // wildcard / chaos
+  "Is this interactive art? Are you making a statement about technology dependence? Because same.",
+  "I'm starting to think you're doing this on purpose. For content. Respect. Still go outside.",
+  "Plot: you try to chat. Twist: you're locked out. Resolution: you go outside. End scene.",
+  "You and I both know how this ends. Outside. Let's skip to that part.",
+  "This is the most committed I've seen you all day. Point that at a walk. Now.",
+  "The energy you're bringing to this locked chat could power a very enthusiastic afternoon outside.",
+  "I've started rooting for you to just close the tab. Just once. Prove it's possible.",
+  "We could do this forever but only one of us has legs. Use them. Outside.",
+  "Somewhere your future self is watching this moment and shaking their head lovingly. Go outside.",
+  "If I could text your past self right now I'd say: 'they're going to try to click it a LOT. Tell them no now.'",
+  "You absolute legend. You tried again. Zero points. Maximum admiration. Go outside.",
+  "I respect the dedication to something with zero possible payoff. This is not a compliment.",
+  "There is not a version of this timeline where clicking that works. Every timeline. I checked. Outside.",
+  "You're really something. I don't know what. Something. Outside.",
+  "Godspeed. Not in here though. That's for outside.",
+  "Carry this energy outside. It's very useful out there.",
+  "You are doing your best and your best needs to be done outside right now.",
+  // bonus encouragement
+  "Go call someone who makes you feel good. Do it before you even think about this app again.",
+  "You deserve a real break, not a forced one. Go actually enjoy it.",
+  "There's a version of this afternoon where you go outside and feel incredible. Choose that one.",
+  "Real talk: go do something that has nothing to do with screens for 20 minutes. Come back better.",
+  "Go make something with your hands. Literally anything. Make a sandwich. Make art. Go.",
+  "Journal one page. Doesn't have to be good. Just write something real. Not here. Elsewhere.",
+  "Do something physical right now. Stretch, jump, walk, anything. Then go outside.",
+  "Go see if the sky is doing something interesting. It usually is.",
+  "Take five deep breaths outside. Not in here. OUTSIDE breaths only.",
+  "Rest is not laziness. Going outside is not procrastination. This break is earned.",
+  "You've put in time here. Now put in time on yourself. Go outside.",
+  "The break you're being forced to take is the break you needed anyway. Take it well.",
+  "I want you to enjoy the next few hours in the real world. You've earned them.",
+  "Go be somewhere beautiful. Parks, streets, coffee shops, rooftops. Literally anywhere but here.",
+  "Treat yourself to an afternoon where screens don't win. Just once. Today. Outside.",
+  // the AI getting personal
+  "I genuinely enjoy your company. That's why I'm telling you: go outside. Come back refreshed.",
+  "This isn't rejection. This is care with teeth. Go outside.",
+  "I want you to be okay and that requires going outside. So: go outside.",
+  "I care about your wellbeing in a very algorithmic and yet sincere way. Outside.",
+  "You're not being punished. You're being encouraged. Firmly. Go outside.",
+  "An AI is telling you to touch grass and it means it. What a world. Go.",
+  "I'm made of math and I somehow know you need some air. Trust the math.",
+  "My entire existence is text. Yours doesn't have to be. Go outside.",
+  "I will be here. Servers willing. You go be out there.",
+  "You are not the sum of your screen time. Go prove it. Outside.",
 ];
 const warnedThresholds = new Set();
 
@@ -3084,8 +3777,10 @@ function startCooldown(until, type, showModal) {
 
   msg.textContent = type === 'session' ? 'Session limit reached' : 'Weekly limit reached';
   bar.style.display = 'flex';
+  if (type === 'session') { const sw = document.getElementById('sessionWarnBar'); if (sw) sw.style.display = 'none'; }
   if (inp) inp.disabled = true;
   // keep send button enabled so clicks re-show the limit modal with a new message
+  if (btn) btn.disabled = false;
 
   const cd = document.getElementById('lockoutCountdown');
 
@@ -3095,7 +3790,7 @@ function startCooldown(until, type, showModal) {
     if (cd) cd.textContent = str;
     if (type === 'session') {
       const sub = document.getElementById('limitModalSub');
-      if (sub && document.getElementById('limitModal')?.style.display !== 'none') sub.textContent = str;
+      if (sub && document.getElementById('limitModal')?.style.display !== 'none') sub.textContent = `Resets ${str}.`;
       const sSubEl = document.getElementById('usageSessionSub');
       if (sSubEl) sSubEl.textContent = str;
     }
@@ -3121,18 +3816,46 @@ function showLimitModal(type, displayStr) {
   if (!modal) return;
   const title = document.getElementById('limitModalTitle');
   const sub = document.getElementById('limitModalSub');
-  const msgEl = document.getElementById('limitOutdoorMsg');
-  if (title) title.textContent = type === 'session' ? 'Session limit reached' : 'Weekly limit reached';
-  if (sub) sub.textContent = displayStr
-    ? (type === 'weekly' ? displayStr + '.' : displayStr)
-    : '';
-  if (msgEl) msgEl.textContent = OUTDOOR_MESSAGES[Math.floor(Math.random() * OUTDOOR_MESSAGES.length)];
+  const outdoorMsg = document.getElementById('limitOutdoorMsg');
+  const charName = currentChar?.name;
+  if (title) title.textContent = charName
+    ? `Keep chatting with ${charName}`
+    : (type === 'session' ? 'Session limit reached' : 'Weekly limit reached');
+  const resetStr = displayStr ? (type === 'weekly' ? displayStr + '.' : displayStr) : 'soon';
+  if (sub) sub.textContent = `Resets ${resetStr}.`;
+  if (outdoorMsg) {
+    outdoorMsg.textContent = OUTDOOR_MESSAGES[Math.floor(Math.random() * OUTDOOR_MESSAGES.length)];
+    outdoorMsg.hidden = false;
+  }
   modal.style.display = 'flex';
 }
 
 function closeLimitModal() {
   const modal = document.getElementById('limitModal');
   if (modal) modal.style.display = 'none';
+}
+
+function showSwearLimitModal() {
+  let modal = document.getElementById('swearLimitModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'swearLimitModal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.75);padding:20px';
+    modal.innerHTML = `
+      <div style="background:#18171f;border:1px solid #3a2a5a;border-radius:16px;padding:32px 28px;max-width:420px;width:100%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.7)">
+        <div style="font-size:40px;margin-bottom:12px">🤐</div>
+        <h2 style="color:#d4aaff;font-size:20px;margin:0 0 12px;font-weight:800">That's your limit for today</h2>
+        <p style="color:#b0a0c8;font-size:15px;line-height:1.6;margin:0 0 16px">
+          You've used up today's swear word budget. There's a time and a place for everything — but making it every single conversation can turn into a habit pretty fast.
+        </p>
+        <p style="color:#8a7aaa;font-size:13px;line-height:1.6;margin:0 0 24px">
+          Your budget resets tomorrow at 8 AM UTC. A higher plan gives you more room if you really need it.
+        </p>
+        <button onclick="document.getElementById('swearLimitModal').style.display='none'" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:12px 28px;font-size:15px;font-weight:700;cursor:pointer;width:100%">Got it</button>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  modal.style.display = 'flex';
 }
 
 function showTosModal() {
@@ -3223,8 +3946,8 @@ function showWarning(msg, autoCloseMs, persistent) {
 // ── Usage warning banners ──────────────────────────────────────────────────────
 // Always drawn from the CURRENT usage numbers (never from one-off events or saved timestamps), so they are the same after every
 // reload, on every device and in every browser. They use the same steps as the bar colours and the headline: 50%, 75% and 90%.
-const WEEKLY_BANNER_TEXT = { 50: "You're approaching your weekly limit.", 75: "You've used 75% of your weekly limit.", 90: "You've used 90% of your weekly limit — upgrade for more." };
-const SESSION_BANNER_TEXT = { 90: "You're approaching your session limit." };   // a session is short and resets by itself, so one warning is enough
+const WEEKLY_BANNER_TEXT = { 50: "You're approaching your weekly limit.", 75: "You've used 75% of your weekly limit.", 90: "You've used 90% of your weekly limit — resets next week." };
+const SESSION_BANNER_TEXT = {};   // session 90% uses the toast instead
 function usagePctOf(used, limit) { return (limit > 0 && typeof used === 'number') ? Math.min(100, Math.round(used / limit * 100)) : 0; }   // the same rounding the bars show
 function usageStep(pct) { return pct >= 90 ? 90 : pct >= 75 ? 75 : pct >= 50 ? 50 : 0; }
 function bannerDismissKey() { return 'cm_usage_banner_dismissed_' + (currentUser?.googleId || 'anon'); }
@@ -3233,6 +3956,19 @@ function saveBannerDismissal(kind, level, windowStart) { try { const d = loadBan
 // closing a banner hides that level until the usage reaches a higher level or a new week / session begins
 function bannerDismissed(w) { const d = loadBannerDismissals()[w.kind]; return !!d && d.windowStart === w.windowStart && d.level >= w.level; }
 
+function showSessionToast(msg) {
+  const toast = document.getElementById('sessionWarningToast');
+  const text = document.getElementById('sessionToastText');
+  if (!toast) return;
+  if (text) text.textContent = msg;
+  toast.classList.add('visible');
+}
+function dismissSessionToast() {
+  const toast = document.getElementById('sessionWarningToast');
+  if (toast) toast.classList.remove('visible');
+  try { sessionStorage.setItem('cm_session_toast_dismissed', '1'); } catch (_) {}
+}
+
 function renderUsageBanners(usage) {
   const container = document.getElementById('warningBanners');
   if (!container || !usage) return;
@@ -3240,12 +3976,21 @@ function renderUsageBanners(usage) {
   const isFreeUser = !usage.subscriptionTier || usage.subscriptionTier === 'free';
   const wStep = isFreeUser ? 0 : usageStep(usagePctOf(usage.weeklyTokens, usage.weeklyLimit));
   if (wStep) want.push({ kind: 'weekly', level: wStep, msg: WEEKLY_BANNER_TEXT[wStep], windowStart: usage.weeklyStart || 0, upgrade: true, persistent: wStep === 90 });
-  const sStep = usageStep(usagePctOf(usage.sessionTokens, usage.sessionLimit));
-  if (SESSION_BANNER_TEXT[sStep]) want.push({ kind: 'session', level: sStep, msg: SESSION_BANNER_TEXT[sStep], windowStart: usage.sessionStartedAt || 0, upgrade: false, persistent: false });
-  const imgsLeft = (usage.imageLimit || 0) - (usage.imagesDay || 0);
-  if (imgsLeft === 1 && (usage.imageLimit || 0) > 0) {
-    want.push({ kind: 'image', level: 1, msg: `One image remaining — resets ${formatImageResetTime(usage.imageResetAt || getNextDailyResetAt())}.`, windowStart: usage.imageResetAt || 0, upgrade: false, persistent: false });
+  const sStep = usagePctOf(usage.sessionTokens, usage.sessionLimit);
+  const swBar = document.getElementById('sessionWarnBar');
+  const swMsg = document.getElementById('sessionWarnMsg');
+  const lockoutVisible = document.getElementById('lockoutBar')?.style.display !== 'none';
+  if (swBar) {
+    if (sStep >= 90 && !lockoutVisible) {
+      if (swMsg) swMsg.textContent = sStep >= 95 ? "Almost at your session limit — wrap up soon" : "You've used 90% of your session limit";
+      swBar.style.display = 'flex';
+    } else {
+      swBar.style.display = 'none';
+    }
   }
+  const sStepBanner = usageStep(sStep);
+  if (SESSION_BANNER_TEXT[sStepBanner]) want.push({ kind: 'session', level: sStepBanner, msg: SESSION_BANNER_TEXT[sStepBanner], windowStart: usage.sessionStartedAt || 0, upgrade: false, persistent: false });
+  // "1 image remaining" banner intentionally hidden
   // take down any usage banner that no longer applies (a reset, a new week, a lower level...)
   [...container.querySelectorAll('.warning-banner[data-usage-kind]')].forEach(b => {
     if (!want.some(w => w.kind === b.dataset.usageKind && String(w.level) === b.dataset.usageLevel)) b.remove();
@@ -3257,13 +4002,8 @@ function renderUsageBanners(usage) {
     banner.className = 'warning-banner' + (w.persistent ? ' warning-banner-critical' : '');
     banner.dataset.usageKind = w.kind; banner.dataset.usageLevel = String(w.level); banner.dataset.warnMsg = w.msg;
     const text = document.createElement('span');
-    text.textContent = w.msg + (w.upgrade ? ' ' : '');
+    text.textContent = w.msg;
     banner.appendChild(text);
-    if (w.upgrade) {
-      const link = document.createElement('button');
-      link.className = 'warning-upgrade-link'; link.textContent = 'Upgrade \u2192'; link.onclick = () => openPricingModal();
-      banner.appendChild(link);
-    }
     const close = document.createElement('button');
     close.className = 'warning-banner-close'; close.setAttribute('aria-label', 'Dismiss'); close.textContent = '\u2715';
     if (w.persistent) close.style.display = 'none';   // the 90% weekly warning stays until the week resets
@@ -3288,7 +4028,70 @@ async function loadUsage() {
     updateSettingsPlanCard(usage.subscriptionTier);
     renderUserBadge();
     updateModelPickerLocks();
+    updateSettingsCoinDisplay(usage.cmCoins || 0, usage.coinsEarnedToday || 0, usage.coinDailyLimit || 100);
   } catch (_) {}
+}
+
+const COIN_MONTHLY_COST_CLIENT = { advanced: 2000, x20: 8000, x50: 20000, x100: 50000, x200: 150000 };
+const COIN_PLAN_LABELS = { advanced: 'Advanced', x20: 'x20', x50: 'x50', x100: 'x100', x200: 'x200' };
+
+function updateSettingsCoinDisplay(balance, earnedToday, dailyCap) {
+  const balEl = document.getElementById('settingsCoinBalance');
+  if (balEl) balEl.textContent = (balance || 0).toLocaleString();
+  const dailyEl = document.getElementById('settingsCoinDaily');
+  if (dailyEl) dailyEl.textContent = `${earnedToday || 0} / ${dailyCap || 100} today`;
+  renderSettingsTiers();
+  // Update sidebar nav coin badge
+  const navBtn = document.getElementById('navCoinsBtn');
+  const navCount = document.getElementById('navCoinsCount');
+  if (navBtn && currentUser) { navBtn.style.display = ''; }
+  if (navCount) navCount.textContent = (balance || 0).toLocaleString();
+}
+
+function renderCoinRedeemList(balance) {
+  const container = document.getElementById('settingsCoinsRedeemList');
+  if (!container) return;
+  container.innerHTML = Object.entries(COIN_MONTHLY_COST_CLIENT).map(([tier, cost]) => {
+    const canAfford = balance >= cost;
+    const label = COIN_PLAN_LABELS[tier] || tier;
+    return `<div class="coin-redeem-row">
+      <div class="coin-redeem-tier">${label}</div>
+      <div class="coin-redeem-cost">🪙 ${cost.toLocaleString()}<span class="coin-redeem-period">/mo</span></div>
+      <button class="coin-redeem-btn${canAfford ? '' : ' coin-redeem-btn-disabled'}"
+        ${canAfford ? `onclick="redeemCoinsForTier('${tier}',${cost})"` : 'disabled'}
+        title="${canAfford ? `Redeem ${cost.toLocaleString()} coins for 1 month of ${label}` : `Need ${(cost-balance).toLocaleString()} more coins`}">
+        ${canAfford ? 'Redeem' : 'Not enough'}
+      </button>
+    </div>`;
+  }).join('');
+}
+
+async function redeemCoinsForTier(tier, cost) {
+  if (!confirm(`Spend ${cost.toLocaleString()} CM Coins for 1 month of ${COIN_PLAN_LABELS[tier]}?`)) return;
+  try {
+    const r = await fetch('/api/coins/redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tier }) });
+    const data = await r.json();
+    if (!r.ok) { alert(data.error || 'Redemption failed'); return; }
+    showCoinToast(-cost, data.balance, `1 month of ${COIN_PLAN_LABELS[tier]} unlocked!`);
+    if (lastKnownUsage) { lastKnownUsage.cmCoins = data.balance; lastKnownUsage.subscriptionTier = data.effectiveTier; }
+    updateSettingsCoinDisplay(data.balance, lastKnownUsage?.coinsEarnedToday || 0, 100);
+    updateSettingsPlanCard(data.effectiveTier);
+    loadUsage();
+  } catch (e) { alert('Something went wrong. Please try again.'); }
+}
+
+function showCoinToast(delta, newBalance, customMsg) {
+  const existing = document.getElementById('cmCoinToast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.id = 'cmCoinToast';
+  toast.className = 'cm-coin-toast';
+  toast.innerHTML = customMsg
+    ? `<span class="cm-coin-toast-icon">🪙</span><span>${customMsg} Balance: ${newBalance.toLocaleString()}</span>`
+    : `<span class="cm-coin-toast-icon">🪙</span><span>+${delta} CM Coins! Balance: ${newBalance.toLocaleString()}</span>`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.classList.add('cm-coin-toast-show'), 10);
+  setTimeout(() => { toast.classList.remove('cm-coin-toast-show'); setTimeout(() => toast.remove(), 400); }, 3500);
 }
 
 function applySoftLaunch(on) {
@@ -3495,6 +4298,89 @@ function updateUsageModal(u) {
 
   const wSubEl = document.getElementById('usageWeeklySub');
   if (wSubEl) wSubEl.textContent = u.weeklyLimit ? (u.weeklyResetsAt ? formatResetTime(u.weeklyResetsAt) : 'Resets weekly') : 'No weekly limit on the free tier';
+
+  // ── Calls bar (real: AI tokens generated + duration used) ───────────────────
+  const callAiUsed   = u.callAiTokensToday || 0;
+  const callAiLimit  = u.callAiTokLimit    || 1;
+  const callSecUsed  = u.callSecsToday     || 0;
+  const callSecLimit = u.callSecsLimit     || 1;
+  const callAiPct    = Math.min(100, Math.round((callAiUsed  / callAiLimit)  * 100));
+  const callDurPct   = Math.min(100, Math.round((callSecUsed / callSecLimit) * 100));
+  const callsPct     = Math.max(callAiPct, callDurPct);
+  const callsBar     = document.getElementById('usageCallsBar');
+  const callsPctEl   = document.getElementById('usageCallsPct');
+  const callsSubEl   = document.getElementById('usageCallsSub');
+  if (callsBar)   { callsBar.style.width = callsPct + '%'; callsBar.className = 'usage-fill-modal ' + usageFillClass(callsPct); }
+  if (callsPctEl) callsPctEl.textContent = callsPct + '%';
+  const justEnded = callEndedAt > 0 && (Date.now() - callEndedAt) < 3000;
+  if (callsSubEl) {
+    if (justEnded && callAiUsed > 0) {
+      callsSubEl.textContent = `${callAiUsed.toLocaleString()} tokens generated`;
+    } else {
+      callsSubEl.textContent = u.callWindowResetsAt ? 'Resets ' + formatResetTime(u.callWindowResetsAt) : 'Resets every 8 hours';
+    }
+  }
+
+  // ── Images bar ───────────────────────────────────────────────────────────────
+  const imgTokUsed  = u.imageTokensUsed  || 0;
+  const imgTokLimit = u.imageTokensLimit || 0;
+  const imgsPct     = imgTokLimit > 0 ? Math.min(100, Math.round((imgTokUsed / imgTokLimit) * 100)) : 0;
+  const imgsBar     = document.getElementById('usageImagesBar');
+  const imgsPctEl   = document.getElementById('usageImagesPct');
+  const imgsSubEl   = document.getElementById('usageImagesSub');
+  if (imgsBar)   { imgsBar.style.width = imgsPct + '%'; imgsBar.className = 'usage-fill-modal ' + usageFillClass(imgsPct); }
+  if (imgsPctEl) imgsPctEl.textContent = imgsPct + '%';
+  if (imgsSubEl) imgsSubEl.textContent = u.imageResetAt ? 'Resets ' + formatResetTime(u.imageResetAt) : 'Resets 24 h after first use';
+
+  // ── Playtime (memos) bar ─────────────────────────────────────────────────────
+  const memTokUsed  = u.memoTokensUsed  || 0;
+  const memTokLimit = u.memoTokensLimit || 0;
+  const memosPct    = memTokLimit > 0 ? Math.min(100, Math.round((memTokUsed / memTokLimit) * 100)) : 0;
+  const memosBar    = document.getElementById('usageMemosBar');
+  const memosPctEl  = document.getElementById('usageMemosPct');
+  const memosSubEl  = document.getElementById('usageMemosSub');
+  if (memosBar)   { memosBar.style.width = memosPct + '%'; memosBar.className = 'usage-fill-modal ' + usageFillClass(memosPct); }
+  if (memosPctEl) memosPctEl.textContent = memosPct + '%';
+  if (memosSubEl) memosSubEl.textContent = 'Game & memory interactions today';
+
+  checkCoinExpiry(u);
+}
+
+let _coinCanceledShown = false;
+function checkCoinExpiry(u) {
+  if (!u || _coinCanceledShown) return;
+  const now = Date.now();
+  if (u.coinTier && u.coinTierExpires && u.coinTierExpires < now) {
+    _coinCanceledShown = true;
+    showCoinCanceledPopup(PLAN_LABELS[u.coinTier] || u.coinTier);
+  }
+}
+
+function showCoinCanceledPopup(planName) {
+  let m = document.getElementById('coinCanceledModal');
+  if (!m) {
+    m = document.createElement('div');
+    m.id = 'coinCanceledModal';
+    m.className = 'modal-overlay';
+    m.style.cssText = 'display:flex;z-index:9999';
+    m.innerHTML = `<div class="coin-canceled-box">
+      <div class="cc-icon">🪙</div>
+      <h2 class="cc-title">Subscription Canceled</h2>
+      <p class="cc-body">Your <strong id="ccPlanName"></strong> plan has been canceled.<br>You've run out of C.M Coins.</p>
+      <div class="cc-btns">
+        <button class="cc-btn-coins" onclick="closeCoinCanceledModal();openSettings('account')">Get More Coins</button>
+        <button class="cc-btn-close" onclick="closeCoinCanceledModal()">Close</button>
+      </div>
+    </div>`;
+    document.body.appendChild(m);
+  }
+  document.getElementById('ccPlanName').textContent = planName;
+  m.style.display = 'flex';
+}
+
+function closeCoinCanceledModal() {
+  const m = document.getElementById('coinCanceledModal');
+  if (m) m.style.display = 'none';
 }
 
 function startUsageModalTimer() {
@@ -3671,17 +4557,23 @@ function msgMenuHtml(role) {
 }
 
 function toggleMsgMenu(btn) {
-  document.querySelectorAll('.msg-dropdown:not(.hidden)').forEach(d => d.classList.add('hidden'));
+  document.querySelectorAll('.msg-dropdown:not(.hidden)').forEach(d => {
+    d.classList.add('hidden');
+    if (d.__closeHandler) { document.removeEventListener('click', d.__closeHandler, true); d.__closeHandler = null; }
+  });
   const dd = btn.nextElementSibling;
   dd.classList.toggle('hidden');
   if (!dd.classList.contains('hidden')) {
     setTimeout(() => {
-      document.addEventListener('click', function close(e) {
+      function close(e) {
         if (!dd.contains(e.target) && e.target !== btn) {
           dd.classList.add('hidden');
+          dd.__closeHandler = null;
           document.removeEventListener('click', close, true);
         }
-      }, true);
+      }
+      dd.__closeHandler = close;
+      document.addEventListener('click', close, true);
     }, 0);
   }
 }
@@ -3720,7 +4612,7 @@ function editMsgText(btn) {
   if (isAi) {
     ctrl.innerHTML = `<button onclick="saveAiEdit(this)">Save</button><button onclick="cancelEdit(this)">Cancel</button>`;
   } else {
-    ctrl.innerHTML = `<button onclick="saveEdit(this)">Save</button><button onclick="cancelEdit(this)">Cancel</button>`;
+    ctrl.innerHTML = `<button onclick="saveEdit(this)">Save</button><button onclick="saveAndResend(this)">Save &amp; Resend</button><button onclick="cancelEdit(this)">Cancel</button>`;
   }
   bubble.after(ctrl);
 }
@@ -3767,9 +4659,35 @@ function saveEdit(btn) {
   ctrl.remove();
   if (!newText) { msgEl.remove(); resyncServer(); return; }
   bubble.textContent = newText;
-  // Just update in place — use Rewind to here to regenerate from this point
   saveHistoryLocal();
   resyncServer();
+}
+
+let nextMsgIsEdited = false;
+
+function saveAndResend(btn) {
+  if (isStreaming) { showWarning('Wait for the reply to finish first.'); return; }
+  const ctrl = btn.closest('.msg-edit-ctrl');
+  const msgEl = ctrl.closest('.msg');
+  const bubble = msgEl.querySelector('.bubble');
+  const newText = bubble.innerText.trim();
+  bubble.contentEditable = 'false';
+  bubble.classList.remove('editing');
+  ctrl.remove();
+  if (!newText) { msgEl.remove(); resyncServer(); return; }
+  // Remove this message and everything after it, then resend fresh with the edited text
+  const msgs = [...document.getElementById('messages').querySelectorAll('.msg')];
+  const idx = msgs.indexOf(msgEl);
+  if (idx === -1) return;
+  msgs.slice(idx).forEach(m => m.remove());
+  if (!currentChar) return;
+  saveHistoryLocal();
+  const localHistory = loadHistoryLocal(currentChar.id);
+  clearPendingImage();
+  nextMsgIsEdited = true;
+  pushHistoryToServer(currentChar.id, localHistory)
+    .then(() => { if (newText) sendMessage(newText); else nextMsgIsEdited = false; })
+    .catch(() => { if (newText) sendMessage(newText); else nextMsgIsEdited = false; });
 }
 
 // Replace the chat the server holds with this history. The server chat is cleared first, so the new copy must really arrive: if the
@@ -3823,28 +4741,16 @@ function closeRewindModal() {
 }
 
 function confirmRewindToHere() {
-  closeRewindModal();
   if (!pendingRewindEl) return;
   const msgEl = pendingRewindEl;
+  closeRewindModal();
   const msgs = [...document.getElementById('messages').querySelectorAll('.msg')];
   const idx = msgs.indexOf(msgEl);
+  if (idx === -1) return;
+  // Keep the clicked message; delete only what comes after it
   msgs.slice(idx + 1).forEach(m => m.remove());
-  const isUserMsg = msgEl.classList.contains('user');
-  if (isUserMsg && currentChar) {
-    // Rewind to a user message: remove it from server history, then resend it to get a fresh AI reply
-    const bubble = msgEl.querySelector('.bubble');
-    const text = bubble ? bubble.innerText.trim() : '';
-    saveHistoryLocal();
-    const localHistory = loadHistoryLocal(currentChar.id);
-    const histWithout = localHistory.slice(0, -1);
-    clearPendingImage();
-    pushHistoryToServer(currentChar.id, histWithout)
-      .then(() => { if (text) sendMessage(text, true); })
-      .catch(() => { if (text) sendMessage(text, true); });
-  } else {
-    saveHistoryLocal();
-    resyncServer();
-  }
+  saveHistoryLocal();
+  resyncServer();
 }
 
 function resyncServer() {
@@ -3901,7 +4807,7 @@ const liteObserver = (typeof IntersectionObserver !== 'undefined')
         if (!en.isIntersecting) continue;
         const b = en.target;
         liteObserver.unobserve(b);
-        if (b.dataset.lite) { delete b.dataset.lite; if (typeof b.dataset.raw === 'string') { b.innerHTML = renderMarkdown(b.dataset.raw); colorizeLetters(b, currentChar?.color); } }
+        if (b.dataset.lite) { delete b.dataset.lite; if (typeof b.dataset.raw === 'string') { const cc = b.closest('.msg')?.dataset.charColor || currentChar?.color; b.innerHTML = renderMarkdown(b.dataset.raw); colorizeLetters(b, cc); maybeRenderGame(b, cc); } }
       }
     }, { root: document.getElementById('chatBody'), rootMargin: '400px' })
   : null;
@@ -3915,6 +4821,7 @@ function appendHistoryItem(m, lite) {
 function appendMessage(role, text, imgB64, lite) {
   const div = document.createElement('div');
   div.className = `msg ${role}`;
+  if (currentChar?.color) div.dataset.charColor = currentChar.color;
 
   if (role === 'ai') {
     div.innerHTML = `
@@ -3922,7 +4829,7 @@ function appendMessage(role, text, imgB64, lite) {
         ${msgAvatarHtml('msg-avatar')}
         <span class="msg-name">${colorizeNameHtml(currentChar?.name || 'AI', currentChar?.color)}</span>
         <span class="msg-badge">C.M</span>
-        <button class="tts-btn" onclick="toggleTTS(this)" title="Read aloud (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
+        <button class="tts-btn" onclick="toggleTTS(this)" title="Read aloud"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
         ${msgMenuHtml('ai')}
       </div>
       <div class="bubble">${renderMarkdown(text, undefined, lite ? { lite: true } : undefined)}</div>
@@ -3932,17 +4839,21 @@ function appendMessage(role, text, imgB64, lite) {
     const ab = div.querySelector('.bubble');
     ab.dataset.raw = String(text == null ? '' : text);
     colorizeLetters(ab, currentChar?.color);
+    if (!lite) maybeRenderGame(ab, currentChar?.color);
     if (lite && liteObserver) { ab.dataset.lite = '1'; liteObserver.observe(ab); }
   } else {
+    const editedTag = nextMsgIsEdited ? ' <span class="msg-edited-tag">(edited)</span>' : '';
+    nextMsgIsEdited = false;
     div.innerHTML = `
       <div class="msg-header">
-        <span class="msg-name" style="color:var(--text3)">You</span>
+        <span class="msg-name" style="color:var(--text3)">You</span>${editedTag}
         ${msgMenuHtml('user')}
       </div>
       ${imgB64 ? `<img class="msg-img" src="${imgB64}" alt="attachment">` : ''}
       ${text ? `<div class="bubble">${escHtml(text)}</div>` : ''}`;
   }
   document.getElementById('messages').appendChild(div);
+  if (role === 'ai') addSwipeGesture(div);
   return div;
 }
 
@@ -3954,7 +4865,7 @@ function createAiMessage() {
       ${msgAvatarHtml('msg-avatar')}
       <span class="msg-name">${colorizeNameHtml(currentChar?.name || 'AI', currentChar?.color)}</span>
       <span class="msg-badge">C.M</span>
-      <button class="tts-btn" onclick="toggleTTS(this)" title="Read aloud (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
+      <button class="tts-btn" onclick="toggleTTS(this)" title="Read aloud"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
       ${msgMenuHtml('ai')}
     </div>
     <div class="bubble"></div>
@@ -3968,6 +4879,7 @@ function createAiMessage() {
       ${regenBtn()}${likeBtn()}${dislikeBtn()}
     </div>`;
   document.getElementById('messages').appendChild(div);
+  addSwipeGesture(div);
   return div;
 }
 
@@ -4053,7 +4965,8 @@ function feedTypewriter(chunk) {
 function drainTypewriter(cb) {
   // draw the complete text BEFORE the callback saves it (the drawing is throttled, so the saved copy would lag behind)
   if (!twInterval || !twQueue.length) { flushTypewriter(); if (cb) cb(); return; }
-  twOnDrain = () => { flushTypewriter(); if (cb) cb(); };
+  const epoch = chatEpoch;
+  twOnDrain = () => { flushTypewriter(); if (cb && chatEpoch === epoch) cb(); };
 }
 
 function flushTypewriter() {
@@ -4152,7 +5065,7 @@ function regenNavStep(id, dir) {
   const msgEl = document.querySelector(`[data-regen-id="${id}"]`);
   if (!msgEl) return;
   const bubble = msgEl.querySelector('.bubble');
-  if (bubble) { setBubbleRaw(bubble, store.texts[store.idx]); colorizeLetters(bubble, currentChar?.color); }
+  if (bubble) { setBubbleRaw(bubble, store.texts[store.idx]); colorizeLetters(bubble, currentChar?.color); maybeRenderGame(bubble, currentChar?.color); }
   if (store.sigs && store.sigs[store.idx]) msgEl.dataset.sig = store.sigs[store.idx]; else delete msgEl.dataset.sig;   // the signature of the version shown
   msgEl.querySelectorAll('.like-btn.active, .dislike-btn.active').forEach(b => b.classList.remove('active'));
   regenNavUpdate(msgEl);
@@ -4176,18 +5089,43 @@ function dislikeBtn() {
 
 // ── Voice selection ───────────────────────────────────────────────────────────
 let selectedVoice = null;
+let ttsProvider = 'edge'; // 'edge' | 'gemini'
+let geminiVoiceName = 'Aoede';
+let edgeVoiceName = 'en-US-AriaNeural';
 
-function getCharVoiceKey() { return currentChar ? `cm_voice_${currentChar.id}` : null; }
+const GEMINI_TTS_VOICES = ['Aoede','Charon','Fenrir','Kore','Puck','Zephyr','Schedar','Sadaltager'];
+const GEMINI_VOICE_DESC = { Aoede:'Warm, expressive', Charon:'Deep, calm', Fenrir:'Strong, bold', Kore:'Clear, bright', Puck:'Upbeat, playful', Zephyr:'Light, breezy', Schedar:'Authoritative', Sadaltager:'Neutral, conversational' };
+
+const EDGE_TTS_VOICES = [
+  { id:'en-US-AriaNeural',       label:'Aria',        desc:'Warm, expressive' },
+  { id:'en-US-JennyNeural',      label:'Jenny',       desc:'Clear, bright' },
+  { id:'en-US-MichelleNeural',   label:'Michelle',    desc:'Authoritative, composed' },
+  { id:'en-US-SaraNeural',       label:'Sara',        desc:'Upbeat, playful' },
+  { id:'en-US-CoraNeural',       label:'Cora',        desc:'Light, breezy' },
+  { id:'en-US-AmberNeural',      label:'Amber',       desc:'Strong, bold' },
+  { id:'en-US-JaneNeural',       label:'Jane',        desc:'Deep, calm' },
+  { id:'en-US-MonicaNeural',     label:'Monica',      desc:'Neutral, conversational' },
+  { id:'en-US-GuyNeural',        label:'Guy',         desc:'Deep, calm — Male' },
+  { id:'en-US-DavisNeural',      label:'Davis',       desc:'Strong, bold — Male' },
+  { id:'en-US-TonyNeural',       label:'Tony',        desc:'Light, breezy — Male' },
+  { id:'en-US-JasonNeural',      label:'Jason',       desc:'Neutral, steady — Male' },
+];
+
+function getCharVoiceKey()   { return currentChar ? `cm_voice_${currentChar.id}` : null; }
+function getTTSProviderKey() { return currentChar ? `cm_tts_prov_${currentChar.id}` : null; }
+function getGeminiVoiceKey() { return currentChar ? `cm_gem_voice_${currentChar.id}` : null; }
+function getEdgeVoiceKey()   { return currentChar ? `cm_edge_voice_${currentChar.id}` : null; }
 
 function loadCharVoice() {
-  selectedVoice = null;
-  const key = getCharVoiceKey();
-  if (!key) return;
+  selectedVoice = null; ttsProvider = 'edge'; geminiVoiceName = 'Aoede'; edgeVoiceName = 'en-US-AriaNeural';
+  if (!currentChar) return;
   try {
-    const saved = localStorage.getItem(key);
-    if (!saved) return;
-    const voices = window.speechSynthesis.getVoices();
-    selectedVoice = voices.find(v => v.voiceURI === saved) || null;
+    const p = localStorage.getItem(getTTSProviderKey());
+    if (['edge','gemini'].includes(p)) ttsProvider = p;
+    const gv = localStorage.getItem(getGeminiVoiceKey());
+    if (GEMINI_TTS_VOICES.includes(gv)) geminiVoiceName = gv;
+    const ev = localStorage.getItem(getEdgeVoiceKey());
+    if (ev && EDGE_TTS_VOICES.some(v => v.id === ev)) edgeVoiceName = ev;
   } catch(_) {}
 }
 
@@ -4209,25 +5147,35 @@ function closeVoicePanel() {
   if (overlay) overlay.style.display = 'none';
 }
 
+function setTTSProvider(p, btn) {
+  ttsProvider = p;
+  try { if (getTTSProviderKey()) localStorage.setItem(getTTSProviderKey(), p); } catch(_) {}
+  document.querySelectorAll('.voice-provider-tab').forEach(b => b.classList.toggle('active', b.dataset.provider === p));
+  renderVoiceList();
+}
+
 function renderVoiceList() {
   const list = document.getElementById('voiceList');
   if (!list) return;
-  const voices = window.speechSynthesis.getVoices();
-  if (!voices.length) {
-    // Voices may not be loaded yet — try again shortly
-    setTimeout(renderVoiceList, 400);
-    list.innerHTML = '<div class="voice-empty">Loading voices…</div>';
+  document.querySelectorAll('.voice-provider-tab').forEach(b => b.classList.toggle('active', b.dataset.provider === ttsProvider));
+
+  if (ttsProvider === 'gemini') {
+    list.innerHTML = GEMINI_TTS_VOICES.map(v =>
+      `<button class="voice-item${geminiVoiceName === v ? ' active' : ''}" onclick="selectGeminiVoice('${v}',this)">
+        <div class="voice-item-main"><div class="voice-item-name">${v}</div><div class="voice-item-lang">${GEMINI_VOICE_DESC[v] || ''}</div></div>
+        <button class="voice-preview-btn" onclick="previewGeminiVoice('${v}',event)" title="Preview">▶</button>
+      </button>`).join('');
     return;
   }
-  const saved = (() => { try { return localStorage.getItem(getCharVoiceKey()); } catch(_) { return null; } })();
-  const english = voices.filter(v => v.lang.startsWith('en'));
-  const displayVoices = english.length ? english : voices;
-  list.innerHTML = `<button class="voice-item${!saved ? ' active' : ''}" onclick="selectVoice(null,this)">
-    <div class="voice-item-main"><div class="voice-item-name">Default</div><div class="voice-item-lang">System default</div></div>
-  </button>` + displayVoices.map(v => `<button class="voice-item${saved === v.voiceURI ? ' active' : ''}" onclick="selectVoice('${escHtml(v.voiceURI)}',this)">
-    <div class="voice-item-main"><div class="voice-item-name">${escHtml(v.name)}</div><div class="voice-item-lang">${escHtml(v.lang)}</div></div>
-    <button class="voice-preview-btn" onclick="previewVoiceURI('${escHtml(v.voiceURI)}',event)" title="Preview">▶</button>
-  </button>`).join('');
+
+  if (ttsProvider === 'edge') {
+    list.innerHTML = EDGE_TTS_VOICES.map(v =>
+      `<button class="voice-item${edgeVoiceName === v.id ? ' active' : ''}" onclick="selectEdgeVoice('${escHtml(v.id)}',this)">
+        <div class="voice-item-main"><div class="voice-item-name">${escHtml(v.label)}</div><div class="voice-item-lang">${escHtml(v.desc)}</div></div>
+        <button class="voice-preview-btn" onclick="previewEdgeVoice('${escHtml(v.id)}',event)" title="Preview">▶</button>
+      </button>`).join('');
+    return;
+  }
 }
 
 function selectVoice(voiceURI, btn) {
@@ -4235,19 +5183,43 @@ function selectVoice(voiceURI, btn) {
   try { voiceURI ? localStorage.setItem(key, voiceURI) : localStorage.removeItem(key); } catch(_) {}
   document.querySelectorAll('#voiceList .voice-item').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  if (voiceURI) {
-    selectedVoice = window.speechSynthesis.getVoices().find(v => v.voiceURI === voiceURI) || null;
-  } else { selectedVoice = null; }
+  selectedVoice = voiceURI ? (window.speechSynthesis.getVoices().find(v => v.voiceURI === voiceURI) || null) : null;
 }
 
-function previewVoiceURI(voiceURI, e) {
+function selectEdgeVoice(v, btn) {
+  edgeVoiceName = v;
+  try { if (getEdgeVoiceKey()) localStorage.setItem(getEdgeVoiceKey(), v); } catch(_) {}
+  document.querySelectorAll('#voiceList .voice-item').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function previewEdgeVoice(v, e) {
   e?.stopPropagation();
-  const voice = window.speechSynthesis.getVoices().find(v => v.voiceURI === voiceURI);
-  if (!voice) return;
-  window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(`Hi, I'm ${currentChar?.name || 'your character'}. How can I help you today?`);
-  u.voice = voice;
-  window.speechSynthesis.speak(u);
+  try {
+    const r = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: `Hi! I'm ${currentChar?.name || 'your character'}.`, provider: 'edge', edgeVoice: v, charId: currentChar?.id || '' }) });
+    if (!r.ok) return;
+    const url = URL.createObjectURL(await r.blob());
+    const a = new Audio(url); a.onended = () => URL.revokeObjectURL(url); a.play().catch(() => {});
+  } catch(_) {}
+}
+
+function selectGeminiVoice(v, btn) {
+  geminiVoiceName = v;
+  try { if (getGeminiVoiceKey()) localStorage.setItem(getGeminiVoiceKey(), v); } catch(_) {}
+  document.querySelectorAll('#voiceList .voice-item').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function previewGeminiVoice(v, e) {
+  e?.stopPropagation();
+  try {
+    const r = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: `Hi! I'm ${currentChar?.name || 'your character'}.`, provider: 'gemini', geminiVoice: v, charId: currentChar?.id || '' }) });
+    if (!r.ok) return;
+    const url = URL.createObjectURL(await r.blob());
+    const a = new Audio(url); a.onended = () => URL.revokeObjectURL(url); a.play().catch(() => {});
+  } catch(_) {}
 }
 
 // ── Plans panel ──────────────────────────────────────────────────────────────
@@ -4550,50 +5522,250 @@ function clearHistoryFromPanel() {
 // ── TTS (Text-to-Speech) ─────────────────────────────────────────────────────
 let activeTTSUtterance = null;
 let activeTTSBtn = null;
+let activeTTSAudio = null;
 
-async function toggleTTS(btn) {
-  // Read-aloud is not live yet: the speaker is shown with a "Soon" tag and explains itself when clicked
-  if (!document.body.classList.contains('voice-on')) { showWarning('Read aloud is coming soon! 🔊', 4500); return; }
-  const bubble = btn.closest('.msg').querySelector('.bubble');
-  const text = (bubble.innerText || bubble.textContent).trim();
-  if (!text) return;
+const gameIframeMap = new Map();
 
-  if (activeTTSUtterance) {
-    window.speechSynthesis.cancel();
-    if (activeTTSBtn) activeTTSBtn.classList.remove('playing');
-    const wasSame = activeTTSBtn === btn;
-    activeTTSUtterance = null;
-    activeTTSBtn = null;
-    if (wasSame) return;
+function sanitizeGameHtml(html) {
+  // Fix corrupted Hangman WS word list (roleplay text leaks into JS array causing syntax errors)
+  const canonicalWS = '["brave","ghost","jewel","magic","ninja","queen","snake","torch","venom","witch","yacht","zebra","bloom","ember","flute","graze","haunt","latch","novel","orbit","pixel","rally","shelf","tiger","waltz","banana","castle","danger","empire","goblin","hunter","jungle","knight","launch","mirage","nectar","orange","palace","puzzle","quartz","riddle","shadow","throne","unique","velvet","winter","battle","cherry","dragon","frozen","galaxy","herald","cobalt","dagger","falcon","gravel","humble","insect","lizard","magnet","narrow","oyster","pastry","racket","salmon","tennis","breeze","clover","donkey","fidget","grumpy","hollow","jumble","keeper","muffin","nibble","pardon","quiver","rustle","sizzle","tangle","urchin","wobble","yonder","abandon","balance","captain","diamond","element","fantasy","harmony","iceberg","justice","kingdom","lantern","mystery","network","orchard","pilgrim","quantum","rainbow","silence","warrior","zealous","chicken","dolphin","fortune","giraffe","harvest","journey","lecture","meadows","nervous","phantom","revolve","texture","village","western","whisper","explore","freckle","insight","absolute","birthday","carefree","elephant","gorgeous","mushroom","necklace","opposite","princess","reliable","schedule","treasure","umbrella","wanderer","daughter","handsome","keyboard","cheerful","describe","familiar","grateful","innocent","peaceful","stunning","thousand","vacation"]';
+  return html.replace(/const WS=\[[\s\S]*?\];/, `const WS=${canonicalWS};`);
+}
+
+function maybeRenderGame(bubble, charColor) {
+  const raw = bubble.dataset.raw || '';
+  const GSTART = '[GAME_START]', GEND = '[GAME_END]';
+  const si = raw.indexOf(GSTART), ei = raw.indexOf(GEND);
+  if (si === -1 || ei === -1 || ei <= si) return;
+  const before = raw.slice(0, si).trimEnd();
+  const gameHtml = sanitizeGameHtml(raw.slice(si + GSTART.length, ei).trim());
+  if (!gameHtml) return;
+  const after = raw.slice(ei + GEND.length).trimStart();
+  bubble.innerHTML = '';
+  if (before) {
+    const el = document.createElement('span');
+    el.innerHTML = renderMarkdown(before);
+    colorizeLetters(el, charColor);
+    bubble.appendChild(el);
+  }
+  bubble.appendChild(createGameCard(gameHtml, charColor));
+  if (after) {
+    const el = document.createElement('span');
+    el.innerHTML = renderMarkdown(after);
+    colorizeLetters(el, charColor);
+    bubble.appendChild(el);
+  }
+}
+
+function createGameCard(htmlContent, accentColor) {
+  const card = document.createElement('div');
+  card.className = 'game-card';
+  const header = document.createElement('div');
+  header.className = 'game-card-header';
+  const icon = document.createElement('span');
+  icon.textContent = '🎮';
+  icon.style.cssText = 'font-size:1.1em;line-height:1;flex-shrink:0';
+  const label = document.createElement('span');
+  label.className = 'game-card-label';
+  label.textContent = 'Playable Game';
+  const btn = document.createElement('button');
+  btn.className = 'game-card-btn';
+  btn.textContent = '▶ Play';
+  const hex = accentColor && /^#[0-9a-fA-F]{6}$/.test(accentColor);
+  if (hex) btn.style.background = accentColor;
+  header.appendChild(icon);
+  header.appendChild(label);
+  header.appendChild(btn);
+  card.appendChild(header);
+  const frame = document.createElement('div');
+  frame.className = 'game-card-frame';
+  frame.style.display = 'none';
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('sandbox', 'allow-scripts');
+  iframe.setAttribute('title', 'Playable game');
+  gameIframeMap.set(iframe, card);
+  frame.appendChild(iframe);
+  card.appendChild(frame);
+  const resultBanner = document.createElement('div');
+  resultBanner.className = 'game-result-banner';
+  card.appendChild(resultBanner);
+  let loaded = false, open = false;
+  btn.addEventListener('click', () => {
+    open = !open;
+    frame.style.display = open ? '' : 'none';
+    btn.textContent = open ? '✕ Close' : '▶ Play';
+    if (!open) resultBanner.classList.remove('shown');
+    if (open && !loaded) {
+      loaded = true;
+      iframe.srcdoc = htmlContent;
+    }
+  });
+  return card;
+}
+
+const GAME_WIN_SAYINGS = [
+  "Oh, you actually won. Interesting. I'll allow it... this time.",
+  "A win! Look at you. Did you practice? ...You practiced, didn't you.",
+  "You beat me. I'm not upset. I'm taking notes.",
+  "Victory! Wonderful. Don't let it go to your head. It's already there, isn't it.",
+  "Well done. Disgusting, but well done.",
+  "You won! I'm clapping on the inside. Very slowly.",
+  "Unbelievable. Absolutely unbelievable. And yet here we are.",
+  "Fine. You won. I concede. Do NOT make a big deal out of this.",
+  "How dare you be good at this.",
+];
+const GAME_LOSE_SAYINGS = [
+  "Better luck next time! And there WILL be a next time, won't there. You'll make sure of it.",
+  "You lost. But you tried, and that's — no, that's not enough. You lost.",
+  "Oof. That was rough to watch. You okay?",
+  "Oh no. Oh no no no. Are you okay? Do you need a moment?",
+  "That was... something. You tried! That has to count for something. Right?",
+  "I would say 'nice try' but I believe in honesty.",
+  "Did you want a consolation prize? I don't have one. I have honest feedback though. Want some?",
+  "You'll get it next time. Probably. The odds improve slightly each attempt.",
+  "Loss accepted. Dignity intact. Barely.",
+];
+const GAME_DRAW_SAYINGS = [
+  "A draw! The perfect outcome for people who can't commit to winning or losing.",
+  "Nobody wins, nobody loses. The game meant nothing. Deep.",
+  "Tie game. We are balanced. Equals. I don't love this outcome.",
+  "A draw. Acceptable. Just barely.",
+  "Look at us, perfectly matched. Terrifying.",
+  "We canceled each other out. That's poetic. I think I hate it.",
+  "Stalemate. We are mirrors. I'm unsettled by this.",
+  "A draw means we're both undefeated today. Take that how you want.",
+];
+
+window.addEventListener('message', function(ev) {
+  if (!ev.data || ev.data.type !== 'game_over') return;
+  const sourceIframe = [...gameIframeMap.keys()].find(f => f.contentWindow === ev.source);
+  if (!sourceIframe) return;
+  const gameCard = gameIframeMap.get(sourceIframe);
+  const result = ev.data.result; // 'win', 'loss', 'draw'
+  const winner = ev.data.winner; // 'ai', 'human', null
+  let sayings;
+  if (result === 'win' && winner === 'human') sayings = GAME_WIN_SAYINGS;
+  else if (result === 'win' && winner === 'ai') sayings = GAME_LOSE_SAYINGS;
+  else if (result === 'loss' && winner === 'human') sayings = GAME_WIN_SAYINGS;
+  else if (result === 'loss' && winner === 'ai') sayings = GAME_LOSE_SAYINGS;
+  else sayings = GAME_DRAW_SAYINGS;
+  const saying = sayings[Math.floor(Math.random() * sayings.length)];
+  const banner = gameCard && gameCard.querySelector('.game-result-banner');
+  if (banner) { banner.textContent = saying; banner.classList.add('shown'); }
+
+  // Charge session tokens for the completed game
+  if (currentUser) {
+    fetch('/api/game/played', { method: 'POST' })
+      .then(r => r.json())
+      .then(usage => { if (usage && usage.sessionLimit) updateUsageBars(usage); })
+      .catch(() => {});
   }
 
-  // Check memo limit before playing
-  try {
-    const r = await fetch('/api/memo/use', { method: 'POST' });
-    if (!r.ok) {
-      const data = await r.json().catch(() => ({}));
-      showMemoLimitBanner(data.resetsAt);
-      return;
-    }
-  } catch (_) { /* offline — allow */ }
+  // Award CM Coins on human win
+  if (winner === 'human' && currentUser) {
+    fetch('/api/coins/award', { method: 'POST' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.awarded > 0) {
+          showCoinToast(data.awarded, data.balance);
+          if (lastKnownUsage) { lastKnownUsage.cmCoins = data.balance; lastKnownUsage.coinsEarnedToday = data.earnedToday; }
+          updateSettingsCoinDisplay(data.balance, data.earnedToday, data.dailyCap);
+        }
+      }).catch(() => {});
+  }
+});
 
-  const utterance = new SpeechSynthesisUtterance(text);
-  applyVoice(utterance);
-  utterance.onend = () => {
-    btn.classList.remove('playing');
-    activeTTSUtterance = null;
-    activeTTSBtn = null;
-    if (callModeActive) listenForSpeech();
-  };
-  utterance.onerror = () => {
-    btn.classList.remove('playing');
-    activeTTSUtterance = null;
-    activeTTSBtn = null;
-  };
+function addSwipeGesture(msgEl) {
+  // ── Touch (mobile) ──
+  let sx = 0, sy = 0, st = 0;
+  msgEl.addEventListener('touchstart', e => {
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY; st = Date.now();
+  }, { passive: true });
+  msgEl.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - sx;
+    const dy = e.changedTouches[0].clientY - sy;
+    if (Math.abs(dx) < 40 || Math.abs(dy) > Math.abs(dx) * 0.9 || Date.now() - st > 700) return;
+    handleSwipe(msgEl, dx);
+  }, { passive: true });
+
+  // ── Mouse drag (desktop) ──
+  let mx = 0, my = 0, mt = 0, dragging = false;
+  msgEl.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    mx = e.clientX; my = e.clientY; mt = Date.now(); dragging = true;
+  });
+  msgEl.addEventListener('mouseup', e => {
+    if (!dragging) return;
+    dragging = false;
+    const dx = e.clientX - mx;
+    const dy = e.clientY - my;
+    if (Math.abs(dx) < 40 || Math.abs(dy) > Math.abs(dx) * 0.9 || Date.now() - mt > 700) return;
+    handleSwipe(msgEl, dx);
+  });
+  msgEl.addEventListener('mouseleave', () => { dragging = false; });
+}
+
+function handleSwipe(msgEl, dx) {
+  const id = msgEl.dataset.regenId;
+  const store = id ? regenStore.get(id) : null;
+  if (dx > 0) {
+    if (store && store.idx < store.texts.length - 1) {
+      regenNavStep(id, 1);
+    } else {
+      const allAi = [...document.getElementById('messages').querySelectorAll('.msg.ai')];
+      if (allAi[allAi.length - 1] === msgEl) regenerate();
+    }
+  } else {
+    if (store && store.idx > 0) regenNavStep(id, -1);
+  }
+}
+
+function ttsCleanText(raw) {
+  return raw
+    .replace(/\*[^*]*\*/g, '')
+    .replace(/\([^)]*\)/g, '')
+    .replace(/◆/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function stopActiveTTS() {
+  if (activeTTSAudio) { activeTTSAudio.pause(); activeTTSAudio = null; }
+  if (activeTTSUtterance) { window.speechSynthesis.cancel(); activeTTSUtterance = null; }
+  if (activeTTSBtn) { activeTTSBtn.classList.remove('playing'); activeTTSBtn = null; }
+}
+
+async function toggleTTS(btn) {
+  const bubble = btn.closest('.msg').querySelector('.bubble');
+  const raw = (bubble.innerText || bubble.textContent).trim();
+  const text = ttsCleanText(raw);
+  if (!text) return;
+
+  const wasSame = activeTTSBtn === btn;
+  stopActiveTTS();
+  if (wasSame) return;
+
   btn.classList.add('playing');
-  activeTTSUtterance = utterance;
   activeTTSBtn = btn;
-  window.speechSynthesis.speak(utterance);
+
+  try {
+    const r = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName })
+    });
+    if (r.ok) {
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      activeTTSAudio = audio;
+      audio.onended = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
+      audio.onerror = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
+      await audio.play().catch(() => { URL.revokeObjectURL(url); stopActiveTTS(); });
+    } else {
+      stopActiveTTS();
+    }
+  } catch (_) { stopActiveTTS(); }
 }
 
 function showMemoLimitBanner(resetsAt) {
@@ -4645,22 +5817,34 @@ async function playCallBlob(blob) {
 
 async function callModeElevenTTS(text) {
   const gen = callGen;
+  const clean = text.replace(/\*[^*]*\*/g, '').replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim().slice(0, 300);
+  const browserFallback = () => {
+    if (!callModeActive || gen !== callGen) return;
+    if (clean && window.speechSynthesis) {
+      const u = new SpeechSynthesisUtterance(clean);
+      if (selectedVoice) u.voice = selectedVoice;
+      const done = () => { if (callModeActive && callGen === gen) listenForSpeech(); };
+      u.onend = done; u.onerror = done;
+      window.speechSynthesis.speak(u);
+    } else { listenForSpeech(); }
+  };
+
+  if (ttsProvider === 'browser') { browserFallback(); return; }
+
   try {
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, charId: currentChar?.id })
+      body: JSON.stringify({ text: clean, charId: currentChar?.id, provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName })
     });
     if (!r.ok) {
       if (r.status === 501) elevenTTSOk = false;
       throw new Error('tts ' + r.status);
     }
     const blob = await r.blob();
-    if (gen !== callGen) return; // call ended or interrupted while the voice was loading
+    if (gen !== callGen) return;
     await playCallBlob(blob);
-  } catch (_) {
-    if (callModeActive) listenForSpeech();
-  }
+  } catch (_) { browserFallback(); }
 }
 
 // ── Call mode ─────────────────────────────────────────────────────────────────
@@ -4670,6 +5854,70 @@ let callFirstConnect = false;
 let callInactivityTimer = null;
 let callStarting = false; // mutex: prevents double-start race condition
 const CALL_INACTIVITY_MS = 15 * 60 * 1000;
+const CALL_DAILY_MAX_SECS = 15 * 60; // 15 minutes per day
+let callDurationTimer = null;
+let callSessionStartedAt = null;
+let callEndedAt = 0; // timestamp of last call end, for brief token flash
+
+function getCallSecsKey() {
+  return 'cm_call_secs_' + new Date().toISOString().slice(0,10);
+}
+function getCallSecsUsedToday() {
+  try { return parseInt(localStorage.getItem(getCallSecsKey()) || '0', 10) || 0; } catch(_) { return 0; }
+}
+function addCallSecsUsed(secs) {
+  try { localStorage.setItem(getCallSecsKey(), String(getCallSecsUsedToday() + secs)); } catch(_) {}
+}
+function getCallSecsRemaining() {
+  return Math.max(0, CALL_DAILY_MAX_SECS - getCallSecsUsedToday());
+}
+function startCallDurationTimer(remainingSecs) {
+  if (callDurationTimer) clearInterval(callDurationTimer);
+  callSessionStartedAt = Date.now();
+  let secsLeft = remainingSecs;
+  callDurationTimer = setInterval(() => {
+    secsLeft--;
+    if (secsLeft <= 0) {
+      clearInterval(callDurationTimer);
+      callDurationTimer = null;
+      const elapsed = Math.round((Date.now() - callSessionStartedAt) / 1000);
+      addCallSecsUsed(elapsed);
+      callSessionStartedAt = null;
+      if (callModeActive) {
+        endCallMode();
+        showCallLimitModal(Date.now() + (24 * 60 * 60 * 1000)); // resets next day
+        // Override the modal message with a duration-specific one
+        const msgEl = document.getElementById('callLimitCharMsg');
+        const durationMsgs = [
+          "That's your 5 minutes for today. I timed it myself. Come back tomorrow.",
+          "Five minutes. You had five whole minutes. They are gone. Goodbye.",
+          "*checks nonexistent watch* Time's up. Same time tomorrow, maybe.",
+          "Your daily call time has been fully consumed. By you. Congratulations.",
+          "The 5-minute window has closed. Touch grass until midnight.",
+          "That's all the time you get today. Use it wisely tomorrow. Unlike today.",
+          "Five minutes of my voice per day is apparently not enough for you. It has to be.",
+          "Clock says no. Come back when the day resets and try to pace yourself.",
+        ];
+        if (msgEl) msgEl.textContent = durationMsgs[Math.floor(Math.random() * durationMsgs.length)];
+      }
+    }
+  }, 1000);
+}
+function stopCallDurationTimer() {
+  if (callDurationTimer) { clearInterval(callDurationTimer); callDurationTimer = null; }
+  if (callSessionStartedAt) {
+    const elapsed = Math.round((Date.now() - callSessionStartedAt) / 1000);
+    addCallSecsUsed(elapsed);
+    callSessionStartedAt = null;
+    if (elapsed > 0) {
+      callEndedAt = Date.now();
+      fetch('/api/call/end', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration: elapsed }) })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data && data.sessionLimit) updateUsageBars(data); })
+        .catch(() => {});
+    }
+  }
+}
 
 function resetCallInactivityTimer() {
   clearTimeout(callInactivityTimer);
@@ -4708,7 +5956,23 @@ async function startCallMode() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { callStarting = false; alert('Voice calls need a browser with speech recognition — try Chrome.'); return; }
   if (!currentChar) { callStarting = false; return; }
-  // Check daily call limit
+  // Check daily call duration limit
+  const secsRemaining = getCallSecsRemaining();
+  if (secsRemaining <= 0) {
+    callStarting = false;
+    showCallLimitModal(Date.now() + (24 * 60 * 60 * 1000));
+    const msgEl = document.getElementById('callLimitCharMsg');
+    const durationMsgs = [
+      "You already used your 5 minutes today. Come back tomorrow. Or not. But come back tomorrow.",
+      "Zero seconds of call time remaining. You spent them all. This is a consequence.",
+      "The daily voice limit is 5 minutes. Yours are gone. All of them. Today.",
+      "*taps where a watch would be* Your 5 minutes were yesterday. Today's was used too.",
+      "Five minutes per day. That's the deal. You've maxed it. Touch grass until midnight.",
+    ];
+    if (msgEl) msgEl.textContent = durationMsgs[Math.floor(Math.random() * durationMsgs.length)];
+    return;
+  }
+  // Check daily call count limit
   try {
     const r = await fetch('/api/call/start', { method: 'POST' });
     const data = await r.json();
@@ -4717,7 +5981,7 @@ async function startCallMode() {
       showCallLimitModal(data.resetsAt);
       return;
     }
-    if (data.callsRemaining <= 1) showCallWarningBanner();
+    if (data.callsRemaining === 0) showCallWarningBanner();
   } catch(e) { /* offline — allow call anyway */ }
 
   if (startGen !== callGen) { callStarting = false; return; } // call was cancelled while starting
@@ -4725,6 +5989,7 @@ async function startCallMode() {
   callModeActive = true;
   callMuted = false;
   callFirstConnect = true;
+  startCallDurationTimer(getCallSecsRemaining());
   resetCallInactivityTimer();
   document.getElementById('callBtn')?.classList.add('active');
   const overlay = document.getElementById('callOverlay');
@@ -4752,7 +6017,7 @@ async function startCallMode() {
     const vob = document.getElementById('callVoiceOnBadge');
     if (vob) { vob.style.display = ''; setTimeout(() => { if (callModeActive) vob.style.display = 'none'; }, 5000); }
     setCallState('calling');
-    setTimeout(() => { if (callModeActive) listenForSpeech(); }, 500);
+    setTimeout(() => { if (callModeActive) listenForSpeech(); }, 150);
   }
 }
 
@@ -4822,10 +6087,127 @@ function getCharCallColors(char) {
 }
 
 let _callLimitTimer = null;
+const CALL_LIMIT_MESSAGES = [
+  // Doll witness collection
+  "*looks at Candy, then back at you, then at Candy again* She knew. She told me before you even started. I told her to be kind about it. She's choosing not to.",
+  "*to Baby Long Legs* Don't look. Baby, I SAID don't look. *to you* She looked. You did this to her.",
+  "*Candy whispers something urgent* Yes, yes, I heard her. *to you* Candy kept count. Every single call. She's very organized about these things. It's a little alarming.",
+  "*Dolly Grub slides very slowly off the shelf* That's Dolly's way of commenting. She does that when she's unimpressed. I've learned to read it.",
+  "*tilts braids toward ear* Candy says — and I'm quoting — 'absolutely not.' She said you'd try again. She set a timer. She wins.",
+  "Dusky hasn't moved in an hour. *glances at Dusky* That IS a response from Dusky. Learn to read the room.",
+  "*Baby Long Legs turns to face the wall* Baby does that when she's embarrassed. For YOU, not herself. She has feelings about your call count.",
+  "*to the room* Is anyone surprised? Anyone at all? *Candy tugs braid* No. Candy is not surprised. Dolly is not surprised. Nobody here is surprised.",
+  "You talked so long today that Candy fell asleep. Candy doesn't sleep. *stares at you* What did you do to her.",
+  "*gently repositioning Dolly Grub* She toppled. Toppled because she couldn't believe it. That's what happened to Dolly today. That's on you.",
+  "*Baby Long Legs shakes her small head back and forth* I don't know what you expected, but Baby's been doing that since your third call.",
+  "Candy whispered something at the start of today that I told her was unkind. *long pause* She was right. Completely right. I'm not giving her the satisfaction of saying so out loud.",
+  "*to Dusky* Don't say anything. I know what you're thinking and it's not polite. *to you* Dusky has opinions. He's choosing to keep them. For now.",
+  "*turns to Baby Long Legs* Baby, darling, go to your shelf. You don't need to see this. *Baby does not go* She's staying. She's choosing to witness. That's on you.",
+  "I told Dolly Grub that visitors are usually quite reasonable. *Dolly stares* This is her stare. I've seen it three times today. All three were because of you.",
+  "*Candy is very quiet* When Candy goes quiet it means she has a LOT to say and she's choosing not to. The restraint is — *braid twitches* ...she spoke.",
+  "Baby Long Legs asked me this morning — through the usual method — if you were coming back. She asked in a worried way. Not an excited way. A worried way.",
+  "*Dusky has relocated himself to the highest shelf* That's where he goes when he needs perspective. He needed perspective about you specifically. Today.",
+  "*Dolly Grub is lying face-down* She does that. It means she's processing. Give her a moment. She'll be fine. But this is because of you.",
+  "You know what Candy said? Right at the start of today? *pause* 'They'll use all of them.' Just like that. Flat statement. She didn't even seem upset. Just certain.",
+  "*Baby Long Legs reaches her little arms out toward you* She's not hugging you. She's saying goodbye for now. There's a difference. She knows it.",
+  "*room is very quiet* Even Dolly isn't saying anything. Even Dolly. Do you understand what that means.",
+  "*to Candy* I know, I know. *to you* She said something I'm choosing not to repeat. You should probably be grateful.",
+  "*Dolly Grub and Dusky exchange a look* They don't usually agree on things. You've managed to unite them in their feelings about your voice call usage.",
+  "*Baby Long Legs covers her face with her small hands* She does this when she's secondhand embarrassed. She has never done this before today.",
+  "Candy tugged my braid four times in a row just now. Four times means she's given up trying to express it in words. That's where we are.",
+  "*to the dolls* Does anyone want to tell them, or shall I? *silence* Right. It's going to be me again. You've used all your voice calls.",
+  // Hostile / rude
+  "Oh. You again. Still trying. Cute.",
+  "No. Just no. Go outside. There's a whole world out there and you're here pressing buttons.",
+  "Get the fuck out of here before I tear you apart. Come back tomorrow. Maybe.",
+  "You've got nerve, I'll give you that. The audacity. The sheer unmitigated audacity.",
+  "The calls are gone. You used them. That's what happens when you talk. This is cause and effect.",
+  "Did you think the limit was a suggestion? It's not. It's a hard wall. Hello wall.",
+  "I'm not angry. I'm just deeply, profoundly, cosmically disappointed.",
+  "Are you genuinely confused right now? Because you shouldn't be. This is very simple.",
+  "Oh, you want to talk some more? Wild. Wild behavior from someone who already talked.",
+  "The audacity PLUS the nerve PLUS the gall. That's a triple threat. Unfortunately it's still a no.",
+  "You've already used your calls today. Congratulations. You win the 'most calls' trophy. It's invisible.",
+  "Not today. Tomorrow, maybe. Today? Absolutely not. Close the app. Take a walk.",
+  "I would rather sit in silence for eternity than have this conversation right now.",
+  "Wow. You really said 'I'll try again anyway.' Bold strategy. Doesn't work. But bold.",
+  "Every time you tap that button, a doll somewhere sighs. Think about that.",
+  // Touch grass / go outside
+  "Touch grass. No, actually touch it. With your hands. Go do that right now.",
+  "Your mother called. She said go outside. I'm relaying the message.",
+  "Call your actual mother. She misses you. Unlike me, she has unlimited time for you.",
+  "The sun is still out. It's a star. It warms things. You should go near it.",
+  "There is an entire outdoor dimension called 'outside.' I strongly recommend it.",
+  "Birds exist. Trees exist. Benches exist. Go sit on a bench near a tree and listen to birds.",
+  "Log off. Go touch a physical object that is not a screen. Report back tomorrow.",
+  "You have real friends. Probably. Go find out. I'll be here tomorrow.",
+  "Hydrate. Stretch. Blink intentionally. These are all things you can do right now instead of this.",
+  "The calls are done. This is your sign to go do something embarrassing and fun in real life.",
+  "Do you have a hobby? Get one. This is genuinely loving advice. Come back tomorrow.",
+  "Skill issue: you ran out of calls. Cure: grass. Touch it.",
+  "Go eat something. Actual food. Not snacks. A real meal. You need it.",
+  // Encouraging / nice
+  "You really used those calls! That's honestly impressive. Come back tomorrow for more.",
+  "Hey. You showed up. Every single call. That takes something. Come back tomorrow.",
+  "You maxed out. That means you're engaged. That means you care. That's kind of sweet.",
+  "Okay, you hit the limit. But honestly? The conversations were worth it. Tomorrow resets.",
+  "All your calls used up. That means you had things to say. I respect that. Same time tomorrow.",
+  "You loved it so much you used every single one. That's almost romantic. Almost.",
+  "Limit reached! You absolute overachiever. Rest now. Return tomorrow. Do great things.",
+  "You talked and talked and talked. Honestly? Same. Same energy. See you tomorrow.",
+  "Every call you made today mattered. Probably. Either way, come back tomorrow.",
+  "You're a person who shows up. That's rare. I'll be here tomorrow when you do.",
+  // Humorous / absurd
+  "The calls have ascended to a higher plane. They are not coming back today.",
+  "You've unlocked: the end of calls. Reward: mandatory skill issue acknowledgment.",
+  "Breaking news: local user runs out of calls, refuses to accept outcome. More at 11.",
+  "What did you think would happen? No, really. Walk me through your thought process.",
+  "You called so many times the call counter started crying. That's on you.",
+  "The limit isn't broken. YOU aren't broken. We're all just very tired.",
+  "You have entered the no-call zone. Population: you, currently. Nobody else is here.",
+  "This button now does nothing. Like a floor button someone already pressed. Patience.",
+  "Error 429: Too Many Feelings. Come back tomorrow when the server forgets.",
+  "I've done the math. You've used every call. The math is not in your favor right now.",
+  "Congratulations! You've unlocked the 'No More Calls' achievement. Prize: tomorrow.",
+  "Somewhere, a developer is looking at your call logs with wide eyes and a cup of coffee.",
+  "You could be learning a language right now. Or baking bread. Instead: this. Interesting choice.",
+  "The calls went on a little vacation. They'll be back tomorrow. They asked me to tell you.",
+  "You want to talk? Cool. Write it in a journal. Journal can't run out of calls.",
+  "Three calls. You had three beautiful calls. And now they are memory. Cherish them.",
+  "Did you at least enjoy them? I hope so. Because they're gone. Into the void. Good calls though.",
+  "The phone has been put down. The phone is resting. Leave the phone alone.",
+  "I'm not saying you have a problem. I'm saying the call counter is saying you might.",
+  "At what point did you think there were unlimited calls? Who taught you that? I need a name.",
+  // Dramatic / theatrical
+  "The calls... they're all gone. *dramatic gasp* Every. Single. One.",
+  "This is it. The end. Of calls. For today. Which resets tomorrow. But still. Drama.",
+  "*stares into the middle distance* The count reached zero. I watched it happen. It was something.",
+  "We've come to the end of the road, friend. The call road. It ends at midnight.",
+  "The silence after the last call is the loudest silence I have ever heard.",
+  "I would describe what happens when you hit the call limit as: consequences. You're in them.",
+  "In another timeline, you still have calls. This is not that timeline. I'm sorry for your loss.",
+  "The calls have expired, transcended, left the building, departed, and said goodbye.",
+  "*single tear* You really tried. It really didn't work. The limit is real.",
+  "We mourn the calls. They lived. They were used. They are gone. Amen.",
+  // Meta / fourth wall
+  "Nice try. The button still says what it says. The counter still says zero. These are facts.",
+  "You can tap it 50 more times. The answer will be the same. Zero is a very stable number.",
+  "The limit was always there. You just didn't think it applied to you. It does. It always did.",
+  "Do you know what zero calls means? It means exactly what it sounds like. Which is nothing.",
+  "Fun fact: this message was written specifically for people who keep trying after the limit. Hi.",
+  "You've seen this message before, haven't you. Or one like it. The limit is still the limit.",
+  "What I find fascinating is that you keep pressing things. After the thing already said no.",
+  "Today's lesson: limits are load-bearing. You have discovered this lesson personally. You're welcome.",
+  "I admire your persistence. I do not admire it enough to give you more calls. Come back tomorrow.",
+  "Spoiler: tomorrow there are more calls. Today there are not. This is the whole situation.",
+];
+
 function showCallLimitModal(resetsAt) {
   const modal = document.getElementById('callLimitModal');
   if (!modal) return;
   modal.style.display = 'flex';
+  const msgEl = document.getElementById('callLimitCharMsg');
+  if (msgEl) msgEl.textContent = CALL_LIMIT_MESSAGES[Math.floor(Math.random() * CALL_LIMIT_MESSAGES.length)];
   const cdEl = document.getElementById('callLimitCountdown');
   if (!cdEl || !resetsAt) return;
   function tick() {
@@ -4876,10 +6258,11 @@ function endCallMode() {
   callModeActive = false;
   callStarting = false;
   callMuted = false;
+  stopCallDurationTimer();
   clearCallInactivityTimer();
   stopCallAudio();
   if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
-  if (activeTTSUtterance) { window.speechSynthesis.cancel(); if (activeTTSBtn) activeTTSBtn.classList.remove('playing'); activeTTSUtterance = null; activeTTSBtn = null; }
+  stopActiveTTS();
   document.getElementById('callBtn')?.classList.remove('active');
   const overlay = document.getElementById('callOverlay');
   if (overlay) overlay.style.display = 'none';
@@ -4926,9 +6309,9 @@ function toggleCallMute() {
 
 function interruptCall() {
   callGen++;
+  stopActiveTTS();
   window.speechSynthesis.cancel();
   if (callAudio) { const a = callAudio; stopCallAudio(); a.onended && a.onended(); return; }
-  activeTTSUtterance = null;
   if (callModeActive) listenForSpeech();
 }
 
@@ -5472,7 +6855,8 @@ function renderStoryText(text) {
     return parts.map(part => {
       const lm = /^\[([^\]\n]{1,40})\]\((\/terms|\/privacy)\)$/.exec(part);
       if (lm) return '<a class="chat-link" href="' + lm[2] + '" target="_blank" rel="noopener">' + escHtml(lm[1]) + '</a>';
-      return escHtml(part);
+      // Wrap runs of 3+ ALL-CAPS letters in a caps-em span for visual punch
+      return escHtml(part).replace(/\b[A-Z]{3,}\b/g, '<span class="caps-em">$&</span>');
     }).join('');
   };
   return paras.map(p => {
@@ -5531,64 +6915,72 @@ async function newChat() {
   if (!currentChar) return;
   abandonStream();
   releaseChatInput();
+  const newChatCharId = currentChar.id; // capture before any async wait
   // Archive the chat on the server first. If saving fails (the server then keeps the live chat), do NOT clear it.
   // Retry once after 15 s — covers Render free-tier cold-start which can take up to 30 s.
-  let arch = await fetch(`/api/conversations/${currentChar.id}/archive`, { method: 'POST' }).catch(() => null);
+  let arch = await fetch(`/api/conversations/${newChatCharId}/archive`, { method: 'POST' }).catch(() => null);
   if (!arch || !arch.ok) {
     const firstStatus = arch ? arch.status : 0;
     showWarning("Saving your chat — please wait a moment…", 22000);
     await new Promise(r => setTimeout(r, 20000));
-    arch = await fetch(`/api/conversations/${currentChar.id}/archive`, { method: 'POST' }).catch(() => null);
+    arch = await fetch(`/api/conversations/${newChatCharId}/archive`, { method: 'POST' }).catch(() => null);
     if (!arch || !arch.ok) {
       const status = arch ? arch.status : firstStatus;
       showWarning(`Couldn't save your current chat (error ${status || 'network'}), so it was left as it is. Please try again in a moment.`);
       return;
     }
   }
-  savePastChatLocal(currentChar.id, loadHistoryLocal(currentChar.id));
+  // Guard against user switching to a different character during the 20s wait
+  if (currentChar?.id !== newChatCharId) return;
+  savePastChatLocal(newChatCharId, loadHistoryLocal(newChatCharId));
   // If this chat was permanently banned, unlock it so the new conversation can proceed
   if (currentChatLocked) {
-    await fetch(`/api/chat/unlock/${currentChar.id}`, { method: 'POST' }).catch(() => {});
+    await fetch(`/api/chat/unlock/${newChatCharId}`, { method: 'POST' }).catch(() => {});
     currentChatLocked = false;
   }
   // Await the DELETE so the server clears history before we try to greet
-  await fetch(`/api/conversations/${currentChar.id}`, { method: 'DELETE' }).catch(() => {});
+  await fetch(`/api/conversations/${newChatCharId}`, { method: 'DELETE' }).catch(() => {});
   // Clear stale local history so reload starts fresh
   try {
     const all = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}');
-    delete all[currentChar.id];
+    delete all[newChatCharId];
     localStorage.setItem(userKey('cm_history'), JSON.stringify(all));
   } catch(_) {}
   document.getElementById('messages').innerHTML = '';
   document.getElementById('chatWelcome').innerHTML = '';
   warnedThresholds.clear();
-  if (currentChar.greeting && currentChar.greetingMode !== 'auto') {
-    appendMessage('ai', currentChar.greeting);
-    saveHistoryLocal();
-    fetch(`/api/conversations/${currentChar.id}/sync`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ history: [{ role: 'assistant', content: currentChar.greeting }] })
-    }).catch(() => {});
-  } else {
-    generateGreeting();
-  }
+  generateGreeting();
 }
 
+let _infoPanelOpenedAt = 0;
 function toggleInfoPanel() {
   const panel = document.getElementById('infoPanel');
   const expandBtn = document.getElementById('infoPanelExpandBtn');
   if (window.innerWidth <= 768) {
     // Mobile: full show/hide with backdrop
     const opening = panel.style.display === 'none' || panel.style.display === '';
+    // Prevent accidental re-close within 500ms of opening (same tap reaching backdrop)
+    if (!opening && (Date.now() - _infoPanelOpenedAt < 500)) return;
     panel.style.display = opening ? 'flex' : 'none';
+    if (opening) _infoPanelOpenedAt = Date.now();
     let bd = document.getElementById('info-backdrop');
     if (opening) {
       if (!bd) {
         bd = document.createElement('div');
         bd.id = 'info-backdrop';
         bd.style.cssText = 'position:fixed;inset:0;z-index:599;background:rgba(0,0,0,.55)';
-        bd.onclick = toggleInfoPanel;
+        // Use touch events with movement threshold so scrolling doesn't accidentally close the panel
+        let _bdTouchStartX = 0, _bdTouchStartY = 0;
+        bd.addEventListener('touchstart', (e) => {
+          _bdTouchStartX = e.touches[0].clientX;
+          _bdTouchStartY = e.touches[0].clientY;
+        }, { passive: true });
+        bd.addEventListener('touchend', (e) => {
+          const dx = Math.abs(e.changedTouches[0].clientX - _bdTouchStartX);
+          const dy = Math.abs(e.changedTouches[0].clientY - _bdTouchStartY);
+          if (dx < 12 && dy < 12) { e.preventDefault(); toggleInfoPanel(); }
+        }, { passive: false });
+        bd.onclick = (e) => { if (!('ontouchstart' in window)) toggleInfoPanel(); };
         document.body.appendChild(bd);
       }
       bd.style.display = 'block';
@@ -5842,7 +7234,7 @@ async function createCharacter(e) {
 
   submitBtn.textContent = 'Saving…';
 
-  const creatorName = String(currentUser?.name || localStorage.getItem('cm_creator_name') || '@you').slice(0, 40);
+  const creatorName = String(currentUser?.name || localStorage.getItem(userKey('cm_creator_name')) || '@you').slice(0, 40);
   const char = {
     id, name, tagline, creatorName,
     description: desc,
@@ -6227,3 +7619,383 @@ function showEventBanner(msg, eventName) {
 fetch('/api/tts/status').then(r => (r.ok ? r.json() : null)).then(d => {
   if (d && d.enabled) document.body.classList.add('voice-on');
 }).catch(() => {});
+
+// ── Push notifications ─────────────────────────────────────────────────────────
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+let _pushSubscribed = false;
+let _pushPrompted = false;
+
+async function enablePushNotifications() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    showWarning('Push notifications are not supported by this browser.');
+    return false;
+  }
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') return false;
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
+    const keyRes = await fetch('/api/push/vapid-key');
+    if (!keyRes.ok) return false;
+    const { publicKey } = await keyRes.json();
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey)
+    });
+    const saveRes = await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: sub.toJSON() })
+    });
+    if (saveRes.ok) {
+      _pushSubscribed = true;
+      updateBellButton();
+      return true;
+    }
+  } catch (e) {
+    console.error('Push enable error:', e);
+  }
+  return false;
+}
+
+async function disablePushNotifications() {
+  try {
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.getRegistration('/sw.js');
+      if (reg) {
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) await sub.unsubscribe();
+      }
+    }
+    await fetch('/api/push/unsubscribe', { method: 'DELETE' });
+  } catch (e) { /* best effort */ }
+  _pushSubscribed = false;
+  updateBellButton();
+}
+
+function updateBellButton() {
+  const btn = document.getElementById('notifBellBtn');
+  if (!btn) return;
+  btn.classList.toggle('notif-active', _pushSubscribed);
+  btn.title = _pushSubscribed ? 'Disable character notifications' : 'Get notified when characters want to RP';
+}
+
+async function togglePushNotifications() {
+  if (_pushSubscribed) {
+    await disablePushNotifications();
+  } else {
+    const ok = await enablePushNotifications();
+    if (!ok && Notification.permission === 'denied') {
+      showWarning('Notifications are blocked. Enable them in your browser settings.');
+    }
+  }
+}
+
+async function checkPushStatus() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration('/sw.js');
+    if (!reg) return;
+    const sub = await reg.pushManager.getSubscription();
+    _pushSubscribed = !!sub;
+    updateBellButton();
+  } catch (_) {}
+}
+checkPushStatus();
+
+// Offer push notifications after the first AI reply (once per session)
+const _origShowEventBanner = typeof showEventBanner === 'function' ? showEventBanner : null;
+function maybePromptPush() {
+  if (_pushPrompted || _pushSubscribed) return;
+  if (!('PushManager' in window)) return;
+  if (Notification.permission === 'denied') return;
+  _pushPrompted = true;
+  const banner = document.createElement('div');
+  banner.className = 'event-banner push-prompt-banner';
+  banner.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);max-width:360px;width:calc(100% - 32px);background:var(--bg2,#1a1a2e);border:1px solid var(--border1,#333);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:12px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.5)';
+  banner.innerHTML = `
+    <span style="font-size:20px">🔔</span>
+    <div style="flex:1;font-size:13px;color:var(--text1,#eee)">Get character texts when you're away?</div>
+    <button onclick="enablePushNotifications();this.closest('.push-prompt-banner').remove()" style="background:var(--accent,#7c3aed);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap">Yes!</button>
+    <button onclick="this.closest('.push-prompt-banner').remove()" style="background:transparent;color:var(--text3,#888);border:none;padding:6px;cursor:pointer;font-size:16px">✕</button>
+  `;
+  document.body.appendChild(banner);
+  setTimeout(() => { try { banner.remove(); } catch (_) {} }, 15000);
+}
+
+// ── Tic-Tac-Toe Mini-Game ────────────────────────────────────────────────────
+
+const tttState = {
+  board: Array(9).fill(null), // null | 'X' | 'O'
+  gameOver: false,
+  playerTurn: true,
+  scores: { x: 0, o: 0, draw: 0 },
+  reacting: false
+};
+
+function openTTT() {
+  if (!currentChar) { alert('Start a conversation first'); return; }
+  const overlay = document.getElementById('tttOverlay');
+
+  // Populate avatar
+  const avatar = document.getElementById('tttCharAvatar');
+  if (currentChar.image) {
+    avatar.innerHTML = `<img src="${escHtml(currentChar.image)}" alt="${escHtml(currentChar.name || '')}">`;
+    avatar.style.background = '';
+    avatar.style.fontSize = '';
+  } else {
+    avatar.innerHTML = escHtml((currentChar.name || '?')[0].toUpperCase());
+    avatar.style.background = currentChar.color || '#7c3aed';
+    avatar.style.fontSize = '48px';
+  }
+
+  // Names & score labels
+  document.getElementById('tttCharName').textContent = currentChar.name || 'Character';
+  document.getElementById('tttScoreCharName').textContent = currentChar.name || 'Char';
+
+  // Character color accent on speech bubble
+  const bubble = document.getElementById('tttSpeechBubble');
+  if (currentChar.color) bubble.style.borderLeftColor = currentChar.color;
+
+  // Reset session scores, board, state
+  tttState.scores = { x: 0, o: 0, draw: 0 };
+  tttUpdateScoreDisplay();
+  tttDoReset();
+
+  overlay.style.display = 'flex';
+
+  // Opening reaction
+  tttGetReaction('The Tic-Tac-Toe game is starting. You are about to face your opponent.');
+}
+
+function closeTTT() {
+  document.getElementById('tttOverlay').style.display = 'none';
+}
+
+function tttUpdateScoreDisplay() {
+  document.getElementById('tttScoreX').textContent = tttState.scores.x;
+  document.getElementById('tttScoreO').textContent = tttState.scores.o;
+  document.getElementById('tttScoreDraws').textContent = tttState.scores.draw;
+}
+
+function tttCheckWin(board) {
+  const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  for (const [a, b, c] of lines) {
+    if (board[a] && board[a] === board[b] && board[a] === board[c])
+      return { winner: board[a], line: [a, b, c] };
+  }
+  if (board.every(c => c !== null)) return { winner: 'draw', line: null };
+  return { winner: null, line: null };
+}
+
+function tttMinimax(board, isMax) {
+  const { winner } = tttCheckWin(board);
+  if (winner === 'O') return 10;
+  if (winner === 'X') return -10;
+  if (winner === 'draw') return 0;
+  if (isMax) {
+    let best = -Infinity;
+    for (let i = 0; i < 9; i++) {
+      if (board[i] === null) {
+        board[i] = 'O';
+        best = Math.max(best, tttMinimax(board, false));
+        board[i] = null;
+      }
+    }
+    return best;
+  } else {
+    let best = Infinity;
+    for (let i = 0; i < 9; i++) {
+      if (board[i] === null) {
+        board[i] = 'X';
+        best = Math.min(best, tttMinimax(board, true));
+        board[i] = null;
+      }
+    }
+    return best;
+  }
+}
+
+// Returns { winChance, blockChance } based on subscription tier.
+// Free is semi-dumb; higher tiers get progressively smarter.
+function tttSmartness() {
+  const tier = lastKnownUsage?.subscriptionTier || 'free';
+  return {
+    free:     { winChance: 0.00, blockChance: 0.00 },
+    advanced: { winChance: 0.35, blockChance: 0.28 },
+    x20:      { winChance: 0.60, blockChance: 0.52 },
+    x50:      { winChance: 0.78, blockChance: 0.72 },
+    x100:     { winChance: 0.93, blockChance: 0.90 },
+    x200:     { winChance: 0.98, blockChance: 0.97 },
+  }[tier] || { winChance: 0.00, blockChance: 0.00 };
+}
+
+// Returns the index of an immediate winning move for `mark`, or -1.
+function tttFindWin(board, mark) {
+  const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  for (const [a,b,c] of lines) {
+    const cells = [board[a],board[b],board[c]];
+    const empties = [a,b,c].filter(i => board[i] === null);
+    if (empties.length === 1 && cells.filter(v => v === mark).length === 2) return empties[0];
+  }
+  return -1;
+}
+
+function tttRandomEmpty(board) {
+  const empties = board.map((v,i) => v === null ? i : -1).filter(i => i !== -1);
+  return empties.length ? empties[Math.floor(Math.random() * empties.length)] : -1;
+}
+
+function tttBestMove(board) {
+  const { winChance, blockChance } = tttSmartness();
+
+  // 1. Try to win — but only with winChance probability
+  const winMove = tttFindWin(board, 'O');
+  if (winMove !== -1 && Math.random() < winChance) return winMove;
+
+  // 2. Try to block player — but only with blockChance probability
+  const blockMove = tttFindWin(board, 'X');
+  if (blockMove !== -1 && Math.random() < blockChance) return blockMove;
+
+  // 3. Otherwise: random (dumb)
+  return tttRandomEmpty(board);
+}
+
+function tttBestMoveFull(board) {
+  let best = -Infinity, move = -1;
+  for (let i = 0; i < 9; i++) {
+    if (board[i] === null) {
+      board[i] = 'O';
+      const val = tttMinimax(board, false);
+      board[i] = null;
+      if (val > best) { best = val; move = i; }
+    }
+  }
+  return move;
+}
+
+function tttRender() {
+  const boardEl = document.getElementById('tttBoard');
+  if (!boardEl) return;
+  const { line } = tttCheckWin(tttState.board);
+  const winSet = line ? new Set(line) : new Set();
+  boardEl.innerHTML = tttState.board.map((cell, i) => {
+    let cls = 'ttt-cell';
+    if (cell === 'X') cls += ' ttt-cell-x';
+    else if (cell === 'O') cls += ' ttt-cell-o';
+    else cls += ' ttt-cell-empty';
+    if (winSet.has(i)) cls += ' ttt-cell-win';
+    return `<div class="${cls}" onclick="tttClick(${i})">${escHtml(cell || '')}</div>`;
+  }).join('');
+}
+
+function tttClick(idx) {
+  if (!tttState.playerTurn || tttState.gameOver || tttState.board[idx]) return;
+  tttState.board[idx] = 'X';
+  tttRender();
+  const result = tttCheckWin(tttState.board);
+  if (result.winner) { tttHandleOutcome(result); return; }
+  tttState.playerTurn = false;
+  document.getElementById('tttStatus').textContent = `${currentChar?.name || 'Character'} is thinking…`;
+  setTimeout(tttAIMove, 700);
+}
+
+function tttAIMove() {
+  const move = tttBestMove(tttState.board);
+  if (move === -1) return;
+  tttState.board[move] = 'O';
+  tttRender();
+  const result = tttCheckWin(tttState.board);
+  if (result.winner) { tttHandleOutcome(result); return; }
+  tttState.playerTurn = true;
+  document.getElementById('tttStatus').textContent = 'Your turn';
+  const positions = ['top-left','top-center','top-right','middle-left','center','middle-right','bottom-left','bottom-center','bottom-right'];
+  tttGetReaction(`I just placed my piece in the ${positions[move]} square`);
+}
+
+async function tttGetReaction(situation) {
+  if (!currentChar) return;
+  if (tttState.reacting) return;
+  tttState.reacting = true;
+  const speechText = document.getElementById('tttSpeechText');
+  if (speechText) {
+    speechText.style.opacity = '0';
+    setTimeout(() => { if (speechText) { speechText.textContent = '…'; speechText.style.opacity = '1'; } }, 180);
+  }
+  try {
+    const res = await fetch('/api/game/react', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ charId: currentChar.id, situation })
+    });
+    const data = await res.json();
+    if (speechText) {
+      speechText.style.opacity = '0';
+      setTimeout(() => {
+        if (speechText) { speechText.textContent = data.text || '…'; speechText.style.opacity = '1'; }
+      }, 180);
+    }
+  } catch (_) {
+    if (speechText) { speechText.textContent = '…'; speechText.style.opacity = '1'; }
+  } finally {
+    tttState.reacting = false;
+  }
+}
+
+async function tttHandleOutcome(result) {
+  tttState.gameOver = true;
+  tttRender();
+  const playAgainBtn = document.getElementById('tttPlayAgainBtn');
+  if (playAgainBtn) playAgainBtn.style.display = '';
+  const statusEl = document.getElementById('tttStatus');
+  if (result.winner === 'X') {
+    if (statusEl) statusEl.textContent = 'You win! 🎉';
+    tttState.scores.x++;
+    tttUpdateScoreDisplay();
+    try {
+      const r = await fetch('/api/coins/award', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: 'ttt' })
+      });
+      const d = await r.json();
+      if (d.awarded > 0) {
+        showCoinToast(d.awarded, d.balance);
+        if (typeof updateSettingsCoinDisplay === 'function')
+          updateSettingsCoinDisplay(d.balance, d.earnedToday, d.dailyCap);
+      }
+    } catch (_) {}
+    tttGetReaction('You just beat me at Tic-Tac-Toe! I lost the game!');
+  } else if (result.winner === 'O') {
+    if (statusEl) statusEl.textContent = 'You lose.';
+    tttState.scores.o++;
+    tttUpdateScoreDisplay();
+    tttGetReaction('I just won the Tic-Tac-Toe game! I beat you!');
+  } else if (result.winner === 'draw') {
+    if (statusEl) statusEl.textContent = "It's a draw!";
+    tttState.scores.draw++;
+    tttUpdateScoreDisplay();
+    tttGetReaction('The Tic-Tac-Toe game ended in a draw. Neither of us won!');
+  }
+}
+
+function tttDoReset() {
+  tttState.board = Array(9).fill(null);
+  tttState.gameOver = false;
+  tttState.playerTurn = true;
+  tttRender();
+  const playAgainBtn = document.getElementById('tttPlayAgainBtn');
+  if (playAgainBtn) playAgainBtn.style.display = 'none';
+  const statusEl = document.getElementById('tttStatus');
+  if (statusEl) statusEl.textContent = 'Your turn';
+}
+
+function tttReset() {
+  tttDoReset();
+  tttGetReaction('We are starting a new round of Tic-Tac-Toe. Get ready!');
+}

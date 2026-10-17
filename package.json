@@ -19,6 +19,11 @@
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "pg": "^8.23.0",
-    "resend": "^6.30.0"
+    "resend": "^6.30.0",
+    "web-push": "^3.6.7",
+    "ws": "^8.22.0"
+  },
+  "allowScripts": {
+    "msedge-tts@2.0.9": true
   }
 }

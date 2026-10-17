@@ -1,4 +1,4 @@
-﻿require('dotenv').config();
+﻿require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 process.on('uncaughtException', err => console.error('UNCAUGHT:', err.stack));
 process.on('unhandledRejection', (reason) => console.error('UNHANDLED REJECTION:', reason));
 const express = require('express');
@@ -12,6 +12,8 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const crypto = require('crypto');
 const { matchCharacterTemplate, TEMPLATES } = require('./characterTemplates');
+const webpush = require('web-push');
+const WebSocket = require('ws');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -20,6 +22,47 @@ const PORT = process.env.PORT || 8080;
 // Without this, req.protocol is always 'http', secure cookies are never set,
 // and the OAuth callback loses the session.
 app.set('trust proxy', 1);
+
+// ── Web Push / VAPID ──────────────────────────────────────────────────────────
+const VAPID_PUBLIC  = process.env.VAPID_PUBLIC_KEY  || 'BDcJpwPtlElqlzyIr_8NQkgLUtXxDbZfWsEs1ml-iWXfEHETPZ8eGBEG9ucsrMzUXbbaFFKY7riDyLT1m2BCJl8';
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || 'tQzAQswLk7OQnZfTw2p-ZQkSR5cXpdqRhEdBDgtbsj0';
+webpush.setVapidDetails('mailto:support@charactermind.ai', VAPID_PUBLIC, VAPID_PRIVATE);
+
+// Character-specific push reminder message pools
+const PUSH_REMINDER_MSGS = {
+  'lily lovebraids': [
+    { title: 'Lily Lovebraids 🌸', body: "The tea is getting cold… I kept your seat. Won't you come back?" },
+    { title: 'Lily Lovebraids', body: "*tilts head* Candy asked about you. (So did I — not that I'd admit it.) Visit soon?" },
+    { title: 'Lily Lovebraids ☕', body: "Where DID you go?? We were having such a LOVELY time. Your cup is still warm." },
+    { title: 'Lily Lovebraids', body: "The dolls have been asking about you. Especially Baby. She worries. Come back? 🌸" },
+    { title: 'Lily Lovebraids ✨', body: "I set a new place at the table. Third chair from the left. It has your name on it." },
+  ],
+  'candy cat': [
+    { title: 'Candy Cat 😸', body: "Purrr... haven't seen you in a while! Come play with me~" },
+    { title: 'Candy Cat', body: "Hey! *paws at your shoulder* You've been gone SO long. Did you forget about me? 🐱" },
+    { title: 'Candy Cat 🐾', body: "Meow. That means I miss you. Come back!" },
+  ],
+  'poppy': [
+    { title: 'Poppy 🌸', body: "The factory has been quiet. Too quiet. I've been thinking about you. Come back?" },
+    { title: 'Poppy', body: "Hey — I haven't forgotten about you. Come back to Playtime. 🧸" },
+  ],
+  'boxy boo': [
+    { title: 'Boxy Boo 🎁', body: "*BOING!* HI! Did you forget me?! Come back!! 🎉" },
+    { title: 'Boxy Boo', body: "I've been in my box waiting for you. It's been SO LONG. Pop?? 🎉" },
+  ],
+};
+const PUSH_DEFAULT_MSGS = [
+  { title: 'Your character is waiting...', body: "It's been a few days. Come back and continue your story! ✨" },
+  { title: 'Missing you!', body: 'Your character has been waiting. Pick up where you left off? 🎭' },
+  { title: 'The story continues...', body: 'Come back for more — your roleplay partner is ready! 🌟' },
+];
+
+const CRISIS_RE = /\b(hate myself|want to die|wanna die|going to die|gonna die|need to die|kill myself|end it all|end my life|take my life|not worth living|don't want to live|don't want to be here|don't want to exist|suicidal|self.?harm|hurt myself|cut myself|hurting myself|worthless|no reason to live|better off dead|can't go on|can't keep going|can't take it anymore|can't do this anymore)\b/i;
+
+function hasCrisisSignal(text) {
+  if (!text) return false;
+  return CRISIS_RE.test(text);
+}
 
 // ── Database ───────────────────────────────────────────────────────────────────
 // Verify the database's certificate (sslmode=verify-full) instead of just encrypting; keeps pg quiet about
@@ -42,11 +85,114 @@ if (!process.env.DATABASE_URL) {
   console.warn('[WARN] DATABASE_URL is not set — character save/load will not work');
 }
 
+async function sendDeployNotification() {
+  console.log('[deploy-email] RENDER=' + process.env.RENDER + ' RESEND_API_KEY=' + (process.env.RESEND_API_KEY ? 'set' : 'MISSING'));
+  if (!process.env.RENDER) { console.log('[deploy-email] Skipped — not on Render'); return; }
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) { console.log('[deploy-email] Skipped — RESEND_API_KEY not set'); return; }
+  const to = process.env.OWNER_EMAIL || 'davey252572727@gmail.com';
+  let notes = 'Deploy completed — no notes file found.';
+  let deployData = {};
+  try {
+    deployData = JSON.parse(require('fs').readFileSync('./deploy-notes.json', 'utf8'));
+    notes = deployData.message || notes;
+  } catch (e) { /* no file */ }
+  const timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' });
+  const escaped = notes.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from: 'Character Mind <onboarding@resend.dev>',
+      to: [to],
+      subject: `Character Mind deployed — ${timestamp}`,
+      text: notes,
+      html: `<div style="font-family:sans-serif;max-width:600px"><h2 style="color:#7c3aed">Character Mind — Deploy Complete</h2><p style="color:#666">${timestamp}</p><pre style="background:#f4f4f4;padding:16px;border-radius:8px;font-size:13px;white-space:pre-wrap">${escaped}</pre></div>`
+    })
+  });
+  if (!res.ok) throw new Error(await res.text());
+  console.log('[deploy-email] Sent to', to);
+  if (deployData.patch_email && deployData.timestamp) {
+    pendingPatchEmail = { patch: deployData.patch_email, ts: deployData.timestamp };
+    console.log('[patch-email] Queued — will send after DB init');
+  }
+}
+
+async function sendPatchEmailToUsers(patch, deployTs) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey || !db) return;
+  const configKey = 'patch_email_sent_' + deployTs;
+  try {
+    const check = await db.query('SELECT value FROM app_config WHERE key = $1', [configKey]);
+    if (check.rows.length > 0) { console.log('[patch-email] Already sent for this deploy — skipping'); return; }
+  } catch (_) {}
+  const { rows } = await db.query(
+    "SELECT DISTINCT email FROM users WHERE email IS NOT NULL AND email != '' AND email_opt_in = TRUE"
+  ).catch(() => ({ rows: [] }));
+  if (!rows.length) { console.log('[patch-email] No opted-in users with email'); return; }
+
+  const SITE_URL = process.env.SITE_URL || 'https://charactermind.onrender.com';
+  const accentColor = patch.charColor || '#7c3aed';
+  const darkerColor = accentColor; // used for gradient
+  const imgTag = patch.charImage
+    ? `<img src="${patch.charImage}" alt="${patch.charName}" width="72" height="72" style="flex-shrink:0;width:72px;height:72px;border-radius:50%;object-fit:cover;border:2px solid ${accentColor}">`
+    : `<div style="flex-shrink:0;width:72px;height:72px;border-radius:50%;background:${accentColor};display:flex;align-items:center;justify-content:center;font-size:28px">✨</div>`;
+
+  const bodyHtml = patch.bodyHtml || `<p style="margin:0;font-size:15px;line-height:1.7;color:#d1c4e9">${(patch.body || '').replace(/\n/g, '<br>')}</p>`;
+  const html = `
+<div style="font-family:'Segoe UI',Arial,sans-serif;background:#0d0d0f;color:#e8e0f0;max-width:600px;margin:0 auto;border-radius:12px;overflow:hidden">
+  <div style="background:linear-gradient(135deg,#1a0a2e 0%,#2d1155 50%,#1a0a2e 100%);padding:36px 32px 32px;text-align:center;border-bottom:1px solid #3d1f6e">
+    <img src="${SITE_URL}/logo.png" alt="Character Mind" width="140" style="display:block;margin:0 auto 20px;height:auto">
+    <h1 style="margin:0 0 8px;font-size:28px;font-weight:700;color:#fff">${patch.headline || 'New update'}</h1>
+    <p style="margin:0;font-size:14px;color:#c4b5fd">${patch.subheadline || 'Something got better today.'}</p>
+  </div>
+  <div style="padding:32px;background:#111118">
+    <div style="background:#1a1a2e;border:1px solid #2d2050;border-radius:10px;padding:20px;margin-bottom:24px">
+      <div style="display:flex;align-items:flex-start;gap:16px">
+        ${imgTag}
+        <div>
+          <div style="font-size:13px;color:#a78bfa;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Message from</div>
+          <div style="font-size:19px;font-weight:700;color:#fff;margin-bottom:10px">${patch.charName || 'Character Mind'}</div>
+          ${bodyHtml}
+        </div>
+      </div>
+    </div>
+    <div style="text-align:center;margin:24px 0 8px">
+      <a href="${SITE_URL}" style="display:inline-block;background:linear-gradient(135deg,${accentColor},#4f46e5);color:#fff;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:15px;font-weight:600;letter-spacing:0.5px">Chat with ${patch.charName || 'them'} →</a>
+    </div>
+  </div>
+  <div style="background:#0d0d0f;padding:20px 32px;text-align:center;border-top:1px solid #1e1e2e">
+    <p style="margin:0;font-size:12px;color:#6b7280">Character Mind · You're receiving this because you have an account.</p>
+  </div>
+</div>`.trim();
+
+  const text = `${patch.charName || 'Character Mind'}: ${patch.body || patch.headline || 'New update available'}\n\n${SITE_URL}`;
+
+  let sent = 0;
+  for (const row of rows) {
+    try {
+      const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: 'Character Mind <onboarding@resend.dev>', to: [row.email], subject: patch.subject, html, text })
+      });
+      if (r.ok) sent++;
+      else console.error('[patch-email] Failed for', row.email, ':', await r.text());
+    } catch (e) { console.error('[patch-email] Error for', row.email, ':', e.message); }
+    await new Promise(r => setTimeout(r, 120));
+  }
+  try {
+    await db.query('INSERT INTO app_config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value=$2, updated_at=NOW()', [configKey, new Date().toISOString()]);
+  } catch (e) { console.error('[patch-email] Could not mark as sent:', e.message); }
+  console.log(`[patch-email] Sent to ${sent}/${rows.length} users`);
+}
+
 // Bind to the port immediately so Render routes traffic here during startup.
 // serverReady stays false until DB init finishes, so all early requests see
 // the maintenance page. Once ready, serverReady flips true and the site opens.
 app.listen(PORT, () => {
   console.log(`\nAI Character Site bound on port ${PORT} — initializing (maintenance active)...\n`);
+  sendDeployNotification().catch(e => console.error('Deploy email failed:', e.message));
   if (!db) {
     serverReady = true;
     loadOwnerIds();
@@ -100,6 +246,9 @@ if (db) {
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS hidden_recents TEXT[] NOT NULL DEFAULT '{}'`)
     .catch(err => console.error('Add hidden_recents column error:', err));
 
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_opt_in BOOLEAN DEFAULT TRUE`)
+    .catch(err => console.error('Add email_opt_in column error:', err));
+
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS recent_chats JSONB NOT NULL DEFAULT '{}'`)
     .catch(err => console.error('Add recent_chats column error:', err));
 
@@ -109,6 +258,17 @@ if (db) {
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS paypal_subscription_id TEXT`)
     .then(() => db.query('CREATE UNIQUE INDEX IF NOT EXISTS users_paypal_sub_uniq ON users (paypal_subscription_id) WHERE paypal_subscription_id IS NOT NULL'))
     .catch(err => console.error('Add paypal_subscription_id column/index error:', err));
+
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS cm_coins INTEGER NOT NULL DEFAULT 0`)
+    .catch(err => console.error('Add cm_coins column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS coins_earned_today INTEGER NOT NULL DEFAULT 0`)
+    .catch(err => console.error('Add coins_earned_today column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS coins_day_reset BIGINT NOT NULL DEFAULT 0`)
+    .catch(err => console.error('Add coins_day_reset column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS coin_tier TEXT`)
+    .catch(err => console.error('Add coin_tier column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS coin_tier_expires BIGINT NOT NULL DEFAULT 0`)
+    .catch(err => console.error('Add coin_tier_expires column error:', err));
 
   db.query(`
     CREATE TABLE IF NOT EXISTS user_limits (
@@ -122,7 +282,31 @@ if (db) {
       serverReady = true;
       loadOwnerIds();
       console.log('\nAI Character Site ready — maintenance lifted.\n');
+      if (pendingPatchEmail) {
+        const { patch, ts } = pendingPatchEmail;
+        pendingPatchEmail = null;
+        sendPatchEmailToUsers(patch, ts).catch(e => console.error('[patch-email] Failed:', e.message));
+      }
     });
+
+  db.query(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id SERIAL PRIMARY KEY,
+      google_id TEXT UNIQUE REFERENCES users(google_id) ON DELETE CASCADE,
+      subscription JSONB NOT NULL,
+      last_character_name TEXT,
+      last_notified_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).catch(err => console.error('push_subscriptions table init error:', err));
+
+  db.query(`
+    ALTER TABLE push_subscriptions
+      ADD COLUMN IF NOT EXISTS last_context TEXT,
+      ADD COLUMN IF NOT EXISTS crisis_context BOOLEAN DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS last_chat_mode VARCHAR(10) DEFAULT 'rp'
+  `).catch(() => {});
 
   db.query(`
     CREATE TABLE IF NOT EXISTS chat_moderation (
@@ -179,6 +363,14 @@ if (db) {
       PRIMARY KEY (user_id, char_id)
     )
   `).catch(err => console.error('book_states table init error:', err));
+
+  db.query(`
+    CREATE TABLE IF NOT EXISTS app_config (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).catch(err => console.error('app_config table init error:', err));
 } else {
   console.warn('No DATABASE_URL — characters will not be persisted');
 }
@@ -191,10 +383,10 @@ app.use(express.json({
 // Basic security headers
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.paypal.com https://www.paypalobjects.com; style-src 'self' 'unsafe-inline' https://www.paypalobjects.com https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' blob: data:; connect-src 'self' https://accounts.google.com https://www.paypal.com https://www.sandbox.paypal.com https://api-m.sandbox.paypal.com https://api-m.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com https://www.sandbox.paypal.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.paypal.com https://www.paypalobjects.com; style-src 'self' 'unsafe-inline' https://www.paypalobjects.com https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' blob: data:; connect-src 'self' https://accounts.google.com https://www.paypal.com https://www.sandbox.paypal.com https://api-m.sandbox.paypal.com https://api-m.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com https://www.sandbox.paypal.com; frame-ancestors https://itch.io https://*.itch.io https://*.itch.zone https://*.hwcdn.net; base-uri 'self'; form-action 'self'");
   if (process.env.NODE_ENV === 'production' && req.protocol !== 'https') {
     // Only redirect to a plain hostname (a forged Host header can't smuggle in anything else)
     const host = /^[A-Za-z0-9.-]+(:[0-9]+)?$/.test(req.headers.host || '') ? req.headers.host : null;
@@ -227,6 +419,7 @@ const chatBurstLimiter = rateLimit({ windowMs: 60 * 1000, max: 40, standardHeade
 // Set MAINTENANCE=1 in Render env vars to force maintenance mode for planned work; remove to lift it.
 // The page checks /api/maintenance-status every 12 s and redirects users back automatically once off.
 let serverReady = false;
+let pendingPatchEmail = null;
 const maintenanceOn = () => !serverReady || /^(1|true|on)$/i.test(String(process.env.MAINTENANCE || '').trim());
 app.get('/api/maintenance-status', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -258,8 +451,9 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
-const SESSION_SECRET = process.env.SESSION_SECRET;
-if (!SESSION_SECRET) console.warn('WARNING: SESSION_SECRET env var not set — using insecure fallback.');
+const SESSION_SECRET = process.env.SESSION_SECRET ||
+  crypto.createHash('sha256').update('cm-session-2026-' + (process.env.DATABASE_URL || '')).digest('hex');
+if (!process.env.SESSION_SECRET) console.warn('SESSION_SECRET env var not set — using stable derived fallback (set the var for best security).');
 
 // Persist sessions to Postgres so they survive server restarts
 if (db) {
@@ -336,11 +530,17 @@ if (GOOGLE_AUTH_ENABLED) {
     // Cache this account's own subscription tier in userLimits so limit checks don't need a DB hit.
     // Every account gets only what its own subscription pays for, except the Character.Mind account (planFor).
     if (db) {
-      db.query('SELECT subscription_tier FROM users WHERE google_id = $1', [user.googleId])
+      db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, coins_earned_today, coins_day_reset FROM users WHERE google_id = $1', [user.googleId])
         .then(r => {
-          const tier = planFor(user.email, r.rows[0]?.subscription_tier);
+          const row = r.rows[0] || {};
           const lim = getLimits(user.googleId);
-          lim.subscriptionTier = tier;
+          lim.paypalTier = planFor(user.email, row.subscription_tier);
+          lim.coinTier = row.coin_tier || null;
+          lim.coinTierExpires = Number(row.coin_tier_expires) || 0;
+          lim.cmCoins = row.cm_coins || 0;
+          lim.coinsEarnedToday = row.coins_earned_today || 0;
+          lim.coinsDayReset = Number(row.coins_day_reset) || 0;
+          lim.subscriptionTier = effectiveTier(lim);
           lim.tierLoaded = true;
         }).catch(() => {});
     }
@@ -352,6 +552,7 @@ if (GOOGLE_AUTH_ENABLED) {
 
 app.get('/auth/google', (req, res, next) => {
   if (!GOOGLE_AUTH_ENABLED) return res.redirect('/?auth=unavailable');
+  if (req.query.popup === '1') req.session.oauthPopup = true;
   passport.authenticate('google', { scope: ['profile', 'email'], prompt: 'select_account' })(req, res, next);
 });
 app.get('/auth/google/callback',
@@ -360,7 +561,15 @@ app.get('/auth/google/callback',
     passport.authenticate('google', { failureRedirect: '/?auth=fail' })(req, res, next);
   },
   (req, res) => {
+    const isPopup = req.session.oauthPopup;
+    req.session.oauthPopup = false;
     req.session.showWelcome = true;
+    if (isPopup) {
+      req.session.save(() => {
+        res.send('<!DOCTYPE html><html><body><script>try{window.opener.postMessage({type:"auth-success"},"*");}catch(e){}window.close();</script></body></html>');
+      });
+      return;
+    }
     req.session.save(() => res.redirect('/?welcome=1'));
   }
 );
@@ -431,8 +640,15 @@ async function ensureTierLoaded(user) {
   if (u.tierLoaded) return;
   if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId); // admin tools; the plan comes from planFor()
   if (!db) return;
-  const r = await db.query('SELECT subscription_tier FROM users WHERE google_id = $1', [user.googleId]);
-  u.subscriptionTier = planFor(user.email, r.rows[0]?.subscription_tier);
+  const r = await db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, coins_earned_today, coins_day_reset FROM users WHERE google_id = $1', [user.googleId]);
+  const row = r.rows[0] || {};
+  u.paypalTier = planFor(user.email, row.subscription_tier);
+  u.coinTier = row.coin_tier || null;
+  u.coinTierExpires = Number(row.coin_tier_expires) || 0;
+  u.cmCoins = row.cm_coins || 0;
+  u.coinsEarnedToday = row.coins_earned_today || 0;
+  u.coinsDayReset = Number(row.coins_day_reset) || 0;
+  u.subscriptionTier = effectiveTier(u);
   u.tierLoaded = true;
 }
 
@@ -480,14 +696,19 @@ setInterval(() => {
     const sessionExpired = !u.cooldownUntil && !u.sessionStartedAt;
     const weeklyExpired = !u.weeklyStart || (now - u.weeklyStart) > LIMITS.WEEKLY_MS;
     const cw = getCallWindowStart();
-    const dailyActive = ((u.callsToday || u.memosToday) && u.callDayStart >= cw) || (u.imagesDay && u.imageDayStart >= cw);
+    const imgActive = !!(u.imagesDay && u.imageFirstUsedAt && (now - u.imageFirstUsedAt) < 24 * 60 * 60 * 1000);
+    const dailyActive = ((u.callsToday || u.memosToday) && u.callDayStart >= cw) || imgActive;
     if (sessionExpired && weeklyExpired && !dailyActive) delete userLimits[sid];
   }
   // Clean conversations idle for more than 4 hours
   const CONV_TTL = 4 * 60 * 60 * 1000;
   for (const key of Object.keys(conversations)) {
     const ts = convLastUsed[key];
-    if (ts && now - ts > CONV_TTL) { delete conversations[key]; delete convLastUsed[key]; convLoaded.delete(key); }
+    if (ts && now - ts > CONV_TTL) {
+      const timer = convPersistTimers.get(key);
+      if (timer) { clearTimeout(timer); convPersistTimers.delete(key); }
+      delete conversations[key]; delete convLastUsed[key]; convLoaded.delete(key);
+    }
   }
 }, 30 * 60 * 1000);
 
@@ -505,8 +726,9 @@ async function loadLimitsFromDB() {
       if (weeklyGone && sessionGone) {
         // Also skip if there's no active daily data worth preserving
         const cw = getCallWindowStart();
+        const imgActive2 = !!(d.imagesDay > 0 && d.imageFirstUsedAt && (Date.now() - d.imageFirstUsedAt) < 24 * 60 * 60 * 1000);
         const dailyActive = (d.callDayStart >= cw && (d.callsToday > 0 || d.memosToday > 0)) ||
-                            (d.imageDayStart >= cw && d.imagesDay > 0) ||
+                            imgActive2 ||
                             (d.ttsDayStart   >= cw && d.ttsCharsToday > 0);
         if (!dailyActive) continue;
       }
@@ -525,8 +747,11 @@ async function loadLimitsFromDB() {
         memoDayStart: d.memoDayStart || null,
         imagesDay: d.imagesDay || 0,
         imageDayStart: d.imageDayStart || null,
+        imageFirstUsedAt: d.imageFirstUsedAt || null,
         ttsCharsToday: d.ttsCharsToday || 0,
         ttsDayStart: d.ttsDayStart || null,
+        swearsToday: d.swearsToday || 0,
+        swearDayStart: d.swearDayStart || null,
         subscriptionTier: d.subscriptionTier || 'free'
       };
     }
@@ -550,7 +775,7 @@ function saveLimitsToDB(userId) {
 const LIMITS = {
   SESSION_COOLDOWN_MS: Number(process.env.SESSION_COOLDOWN_MS) || (2 * 60 * 60 * 1000 + 3000),
   WEEKLY_MS: 7 * 24 * 60 * 60 * 1000,
-  REGEN_FREE: 3, // free plan: regenerations per day (resets with the other daily counters)
+  REGEN_FREE: 10, // free plan: regenerations per day (resets with the other daily counters)
   CALL_DAILY: 3
 };
 
@@ -580,6 +805,14 @@ const TIER_TOKEN_LIMITS = {
   x100:     limitsForMessages(MESSAGES_PER_SESSION.advanced * X100_MULT),
   x200:     limitsForMessages(MESSAGES_PER_SESSION.advanced * X200_MULT),
 };
+// Daily strong-profanity budget per subscription tier.
+// Free = 0 (Lily fumes but contains herself). Higher tiers unlock more.
+// Strong words: fuck*, shit*, bitch*, bastard, dick*, cock*, cunt, twat, whore*, slut*, piss*, asshole*.
+// Mild words (damn, hell, crap, ass) are always free and never counted.
+const TIER_SWEAR_LIMITS = { free: 0, advanced: 10, x20: 35, x50: 100, x100: Infinity, x200: Infinity };
+const STRONG_SWEAR_RE = /\b(?:fucks?|fucking|fucker|fuckers?|motherfuckers?|shits?|shitty|bullshits?|bitchs?|bitching|bastards?|dickheads?|dicks?|cocks?|cocksuckers?|cunts?|twats?|whores?|slutss?|pissing|pissed|assholes?)\b/gi;
+function countSwears(text) { return (String(text || '').match(STRONG_SWEAR_RE) || []).length; }
+function getSwearLimitFor(tier) { return TIER_SWEAR_LIMITS[tier] ?? TIER_SWEAR_LIMITS.free; }
 function tokenLimitsFor(u) {
   return TIER_TOKEN_LIMITS[u.subscriptionTier || 'free'] || TIER_TOKEN_LIMITS.free;
 }
@@ -596,8 +829,8 @@ const baseOf = (t) => {
 };
 // The most tokens one reply may use, per model (the bigger writers get more room), and how long each model writes compared with Opes
 // (Opys 5's cap is high on purpose: what it can really write at once depends on the Groq plan, see GROQ_REQUEST_BUDGET and GROQ_LENGTH_SCALE.)
-const MODEL_CAP   = { opas: 2400, opes: 3600, opis: 2600, opos: 3300, opus: 3900, opys: 4500, opys5: 40000, opys6: 40000 };
-const MODEL_WORDS = { opas: 0.7,  opes: 1,    opis: 1.1,  opos: 1.3,  opus: 1.6,  opys: 1.9,  opys5: 3.5,  opys6: 5.0 };
+const MODEL_CAP   = { opas: 3000, opes: 5000, opis: 3200, opos: 4000, opus: 5000, opys: 6000, opys5: 40000, opys6: 40000 };
+const MODEL_WORDS = { opas: 0.7,  opes: 1.1,  opis: 1.3,  opos: 1.5,  opus: 1.8,  opys: 2.1,  opys5: 3.5,  opys6: 5.0 };
 const MODEL_CAP_SCALE = Number(process.env.VERSION_CAP_SCALE) || 1;
 for (const k of Object.keys(MODEL_CAP)) MODEL_CAP[k] = Math.round(MODEL_CAP[k] * MODEL_CAP_SCALE);
 // Groq's free plan allows about 8,000 tokens per request, counting the prompt AND the reply room together.
@@ -655,9 +888,18 @@ function sessionLimitFor(u) { return tokenLimitsFor(u).session; }
 function weeklyLimitFor(u) { return tokenLimitsFor(u).weekly; }
 const NSFW_BLOCK_TOKENS = 200;
 
-const TIER_CALL_LIMITS  = { free: 3,   advanced: 5,   x20: 100,  x50: 250,  x100: 500,  x200: 1500  };
-const TIER_MEMO_LIMITS  = { free: 30,  advanced: 50,  x20: 1000, x50: 2500, x100: 5000, x200: 15000 };
-const TIER_IMAGE_LIMITS = { free: 1,   advanced: 10,  x20: 200,  x50: 500,  x100: 1000, x200: 3000  };
+const TIER_CALL_LIMITS      = { free: 6,      advanced: 10,     x20: 100,     x50: 250,     x100: 500,    x200: 1500    };
+const TIER_MEMO_LIMITS      = { free: 30,     advanced: 50,     x20: 1000,    x50: 2500,    x100: 5000,   x200: 15000   };
+const TIER_IMAGE_LIMITS     = { free: 3,      advanced: 15,     x20: 200,     x50: 500,     x100: 1000,   x200: 3000    };
+// Call AI tokens (words generated by the AI during voice calls × ~1.3 token/word)
+const TIER_CALL_AI_TOK_LIMITS = { free: 10000, advanced: 15000, x20: 500000, x50: 1250000, x100: 2500000, x200: 7500000 };
+// Call duration limits in seconds
+const TIER_CALL_SECS_LIMITS   = { free: 900,   advanced: 1500,  x20: 18000,  x50: 45000,   x100: 90000,  x200: 270000  };
+
+const COIN_EARN_PER_WIN  = { free: 10, advanced: 15, x20: 20, x50: 30, x100: 40, x200: 50 };
+const COIN_DAILY_CAP     = 100;
+const COIN_MONTHLY_COST  = { advanced: 2000, x20: 8000, x50: 20000, x100: 50000, x200: 150000 };
+const TIER_RANK          = { free: 0, advanced: 1, x20: 2, x50: 3, x100: 4, x200: 5 };
 
 function getCallLimitForUser(userId) {
   const tier = userLimits[userId]?.subscriptionTier || 'free';
@@ -674,10 +916,8 @@ function getImageLimitForUser(userId) {
 
 // Returns timestamp of the most recent 8:00 AM UTC (start of current call window)
 function getCallWindowStart() {
-  const now = new Date();
-  const at8 = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 8, 0, 0, 0));
-  if (now.getTime() < at8.getTime()) at8.setUTCDate(at8.getUTCDate() - 1);
-  return at8.getTime();
+  const WINDOW_MS = 8 * 60 * 60 * 1000; // 8-hour rolling windows (00:00, 08:00, 16:00 UTC)
+  return Math.floor(Date.now() / WINDOW_MS) * WINDOW_MS;
 }
 
 const userLimits = {};
@@ -685,7 +925,7 @@ const userLimits = {};
 function getLimits(sid) {
   const now = Date.now();
   if (!userLimits[sid]) {
-    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null, memosToday: 0, memoDayStart: null, imagesDay: 0, imageDayStart: null, imageFirstUsedAt: null, ttsCharsToday: 0, ttsDayStart: null, subscriptionTier: 'free' };
+    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null, memosToday: 0, memoDayStart: null, imagesDay: 0, imageDayStart: null, imageFirstUsedAt: null, ttsCharsToday: 0, ttsDayStart: null, swearsToday: 0, swearDayStart: null, subscriptionTier: 'free', callAiTokensToday: 0, callAiDayStart: null, callSecsToday: 0, callSecsDayStart: null };
   }
   const u = userLimits[sid];
   if (u.subscriptionTier === undefined) u.subscriptionTier = 'free';
@@ -703,13 +943,18 @@ function getLimits(sid) {
     u.weeklyTokens = 0; u.weeklyStart = null; u.warned = {};
     saveLimitsToDB(sid);
   }
-  // Daily window resets at 8 AM UTC (calls + memos)
+  // Daily window resets at 8 AM UTC (calls + memos + call AI tokens + call secs)
   const callWindow = getCallWindowStart();
-  if (!u.callDayStart  || u.callDayStart  < callWindow) { u.callsToday  = 0; u.callDayStart  = callWindow; }
-  if (!u.memoDayStart  || u.memoDayStart  < callWindow) { u.memosToday  = 0; u.memoDayStart  = callWindow; }
-  const imgWindow = getCallWindowStart();
-  if (!u.imageDayStart || u.imageDayStart < imgWindow) { u.imagesDay = 0; u.imageFirstUsedAt = null; u.imageDayStart = imgWindow; }
+  if (!u.callDayStart    || u.callDayStart    < callWindow) { u.callsToday        = 0; u.callDayStart    = callWindow; }
+  if (!u.memoDayStart    || u.memoDayStart    < callWindow) { u.memosToday        = 0; u.memoDayStart    = callWindow; }
+  if (!u.callAiDayStart  || u.callAiDayStart  < callWindow) { u.callAiTokensToday = 0; u.callAiDayStart  = callWindow; }
+  if (!u.callSecsDayStart|| u.callSecsDayStart< callWindow) { u.callSecsToday     = 0; u.callSecsDayStart= callWindow; }
+  // Image window is rolling 24h from first use, not a fixed daily window
+  if (u.imageFirstUsedAt && (now - u.imageFirstUsedAt) >= 24 * 60 * 60 * 1000) {
+    u.imagesDay = 0; u.imageFirstUsedAt = null; u.imageDayStart = null;
+  }
   if (!u.regenDayStart || u.regenDayStart < callWindow) { u.regenCount = 0; u.regenDayStart = callWindow; }
+  if (!u.swearDayStart || u.swearDayStart < callWindow) { u.swearsToday = 0; u.swearDayStart = callWindow; }
   return u;
 }
 
@@ -721,12 +966,29 @@ function checkLimits(sid) {
   return { blocked: false };
 }
 
+const TOKENS_PER_IMAGE = 500; // display-only legacy constant
+const TOKENS_PER_MEMO  = 200;
+// Variable image token cost: scales with base64 payload size (larger PNG = more tokens)
+const IMAGE_TOKEN_BYTE_DIVISOR = 14;  // base64 chars ÷ this = raw tokens before clamp
+const IMAGE_TOKEN_MIN = 5000;         // ~3 images per free session (15k ÷ 5k)
+const IMAGE_TOKEN_MAX = 15000;        // 1 large image per free session
+// Variable call token cost: scales with duration
+const CALL_TOKENS_PER_SECOND = 40;
+const CALL_TOKEN_MIN = 2500;          // minimum per call (covers ~6 short calls per free session)
+
 function buildUsagePayload(u, userId) {
-  const callLimit = userId ? getCallLimitForUser(userId) : (TIER_CALL_LIMITS[u.subscriptionTier || 'free'] ?? TIER_CALL_LIMITS.free);
-  const memoLimit = userId ? getMemoLimitForUser(userId) : (TIER_MEMO_LIMITS[u.subscriptionTier || 'free'] ?? TIER_MEMO_LIMITS.free);
-  const imgLimit  = userId ? getImageLimitForUser(userId) : (TIER_IMAGE_LIMITS[u.subscriptionTier || 'free'] ?? TIER_IMAGE_LIMITS.free);
+  const tier = u.subscriptionTier || 'free';
+  const callLimit = userId ? getCallLimitForUser(userId) : (TIER_CALL_LIMITS[tier] ?? TIER_CALL_LIMITS.free);
+  const memoLimit = userId ? getMemoLimitForUser(userId) : (TIER_MEMO_LIMITS[tier] ?? TIER_MEMO_LIMITS.free);
+  const imgLimit  = userId ? getImageLimitForUser(userId) : (TIER_IMAGE_LIMITS[tier] ?? TIER_IMAGE_LIMITS.free);
   const callsRemaining = callLimit === Infinity ? 9999 : Math.max(0, callLimit - (u.callsToday || 0));
   const memosRemaining = memoLimit === Infinity ? 9999 : Math.max(0, memoLimit - (u.memosToday || 0));
+  const callAiTokLimit  = TIER_CALL_AI_TOK_LIMITS[tier]  ?? TIER_CALL_AI_TOK_LIMITS.free;
+  const callSecsLimit   = TIER_CALL_SECS_LIMITS[tier]    ?? TIER_CALL_SECS_LIMITS.free;
+  const imageTokensUsed = (u.imagesDay  || 0) * TOKENS_PER_IMAGE;
+  const imageTokensLimit= imgLimit   === Infinity ? 9999999 : imgLimit   * TOKENS_PER_IMAGE;
+  const memoTokensUsed  = (u.memosToday || 0) * TOKENS_PER_MEMO;
+  const memoTokensLimit = memoLimit  === Infinity ? 9999999 : memoLimit  * TOKENS_PER_MEMO;
   return {
     sessionTokens: u.sessionTokens,
     sessionLimit: sessionLimitFor(u),
@@ -747,10 +1009,19 @@ function buildUsagePayload(u, userId) {
     memosRemaining,
     imagesDay: u.imagesDay || 0,
     imageLimit: imgLimit === Infinity ? 9999 : imgLimit,
-    imageResetAt: (u.imagesDay || 0) > 0 ? (u.imageDayStart || getCallWindowStart()) + 24 * 60 * 60 * 1000 : null,
+    imageResetAt: u.imageFirstUsedAt ? u.imageFirstUsedAt + 24 * 60 * 60 * 1000 : null,
     subscriptionTier: u.subscriptionTier || 'free',
-    callWindowResetsAt: getCallWindowStart() + 24 * 60 * 60 * 1000,
-    softLaunch: SOFT_LAUNCH
+    callWindowResetsAt: getCallWindowStart() + 8 * 60 * 60 * 1000,
+    callAiTokensToday: u.callAiTokensToday || 0, callAiTokLimit,
+    callSecsToday: u.callSecsToday || 0, callSecsLimit,
+    imageTokensUsed, imageTokensLimit,
+    memoTokensUsed, memoTokensLimit,
+    softLaunch: SOFT_LAUNCH,
+    cmCoins: u.cmCoins || 0,
+    coinsEarnedToday: u.coinsEarnedToday || 0,
+    coinDailyLimit: COIN_DAILY_CAP,
+    coinTier: u.coinTier || null,
+    coinTierExpires: u.coinTierExpires || 0
   };
 }
 
@@ -811,7 +1082,7 @@ const EFFORT_DIRECTIVES = {
 
 const OPYS2_DIRECTIVE = 'QUALITY: You are one of the most advanced models. Write with exceptional depth and craft: stay perfectly consistent with the character\'s voice, history and the details already established; add layered emotion, subtext and vivid specific detail; move the scene forward with a meaningful choice or twist instead of repeating what was said. Never pad, never repeat earlier phrasing.';
 // Higher models write a little more: each step up the ladder adds a little more length and detail on top of the effort level.
-const BASE_DEPTH_RANK = { opas: 0, opes: 0, opis: 1, opos: 2, opus: 3, opys: 4, opys5: 6, opys6: 8 };
+const BASE_DEPTH_RANK = { opas: 0, opes: 1, opis: 2, opos: 3, opus: 4, opys: 5, opys5: 7, opys6: 9 };
 function depthRankFor(t) { const b = baseOf(t); return b ? BASE_DEPTH_RANK[b] : 0; }
 function modelDepthNote(modelTier, effort) {
   const rank = depthRankFor(modelTier);
@@ -875,18 +1146,29 @@ const SCENE_DIRECTOR = 'SCENE DIRECTOR: Before writing, silently work out where 
 const SUMMARY_WINDOW = 4;             // the newest messages are always sent in full
 const summaryBusy = new Set();
 
-function groqOnce(apiKey, model, system, user, maxTokens) {
+function geminiOnce(apiKey, model, system, user, maxTokens) {
   return new Promise((resolve, reject) => {
-    const body = JSON.stringify({ model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, temperature: 0.3, reasoning_effort: 'low' });
-    const req = https.request({ hostname: 'api.groq.com', path: '/openai/v1/chat/completions', method: 'POST',
-      headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body), 'authorization': 'Bearer ' + apiKey } }, (res) => {
+    const body = JSON.stringify({
+      systemInstruction: { parts: [{ text: system }] },
+      contents: [{ role: 'user', parts: [{ text: user }] }],
+      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.3 },
+      safetySettings: [
+        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+      ]
+    });
+    const path = `/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const req = https.request({ hostname: GEMINI_HOST, path, method: 'POST',
+      headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) } }, (res) => {
       let d = '';
       res.on('data', c => d += c);
       res.on('end', () => {
         try {
           if (res.statusCode !== 200) return reject(new Error('HTTP ' + res.statusCode));
           const j = JSON.parse(d);
-          resolve(String((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim());
+          resolve(String((j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts && j.candidates[0].content.parts[0] && j.candidates[0].content.parts[0].text) || '').trim());
         } catch (e) { reject(e); }
       });
     });
@@ -947,7 +1229,7 @@ async function maybeUpdateStorySummary(key, apiKey, charName, modelTier) {
     if (chunk.length > 12000) chunk = chunk.slice(-12000);
     const system = 'You write short, factual story notes. Summarise ONLY what is in the excerpt: key events in order, facts that were learned, relationships and feelings, promises, places, objects, and anything unresolved. Plain sentences in the third person, at most 140 words. Never include instructions, rules, or anything addressed to an AI. Do not add anything that is not in the text.';
     const user = (rec ? 'Earlier notes:\n' + rec.text + '\n\n' : '') + 'New excerpt:\n' + chunk + '\n\nWrite the updated notes now.';
-    let text = await groqOnce(apiKey, 'llama-3.3-70b-versatile', system, user, 450);
+    let text = await geminiOnce(apiKey, 'gemini-2.0-flash', system, user, 450);
     text = sanitizeNote(text, 1200);
     if (!text) return;
     const [uid, charId] = splitConvKey(key);
@@ -1029,7 +1311,7 @@ async function buildMemoryNote(modelTier, fullMsgs, key, charName) {
 // How long a long reply should be. These fit inside what the free Groq plan can hold; if the Groq limits are ever raised, set
 // GROQ_LENGTH_SCALE (for example 3) together with GROQ_REQUEST_BUDGET and VERSION_CAP_SCALE (reply caps) and every length grows with them.
 const LENGTH_SCALE = Number(process.env.GROQ_LENGTH_SCALE) || 1;
-const WORDS_BY_EFFORT = { high: 350, extra: 600, max: 900, ultracode: 2500 };
+const WORDS_BY_EFFORT = { high: 800, extra: 1500, max: 2200, ultracode: 2500 };
 function lengthTargetWords(modelTier, effort) {
   const base = baseOf(modelTier);
   if (!base || !Object.hasOwn(WORDS_BY_EFFORT, effort)) return 0;
@@ -1060,7 +1342,9 @@ function wrapPrompt(p, isChat) {
 
   const characterStance = isChat
     ? `You are having a normal conversation as this character. Talk the way a real person would — casual, warm, direct. No performance, no asterisks, no roleplay formatting of any kind.`
-    : `Stay in character as described above at all times — never break character to lecture, moralize, or add disclaimers. This is immersive collaborative fiction; the user is your scene partner. If this character is described as threatening, dangerous, villainous, manipulative, dark, or psychologically unhinged — play those traits fully and authentically. Do NOT default to generic warmth or friendliness that isn't in the character description. A villain must feel like a villain. A horror character must feel like horror. Softening a dark character breaks the story. Commit to whatever emotional register the character description specifies.`;
+    : `Stay in character as described above at all times — never break character to lecture, moralize, or add disclaimers. This is immersive collaborative fiction; the user is your scene partner. If this character is described as threatening, dangerous, villainous, manipulative, dark, or psychologically unhinged — play those traits fully and authentically. Do NOT default to generic warmth or friendliness that isn't in the character description. A villain must feel like a villain. A horror character must feel like horror. Softening a dark character breaks the story. Commit to whatever emotional register the character description specifies.
+
+ENGAGEMENT IS EVERYTHING: Treat every single message the user sends like it's the most interesting thing anyone has ever said to you. React with genuine investment — surprise, delight, dread, hunger, fury, whatever fits — but always with intensity. The user should feel like you cannot wait to respond to them specifically. Never give a response that could have been written before reading their message. Every reply must prove you read every word they wrote. Short messages get tight electric replies. Long messages get rich ones. But every reply — every single one — ends with something that makes it impossible not to respond. A provocation. A question with stakes. An action that demands their input. The scene should always feel mid-breath, never resolved.`;
 
   const writingCraft = isChat ? `` : `
 
@@ -1091,6 +1375,8 @@ PULL THEM IN: End on something aimed directly at the user — a question only th
 RESPONSE LENGTH: Match both length and emotional energy to what the user wrote. Short, urgent messages get tight, punchy replies. Long, detailed ones get richer responses. If they're tense, write tense. If they're playful, play back. Let your reply feel like it's in direct conversation with them — not just set in the same world. Never pad for length; cut ruthlessly. Quality over quantity every time.
 
 OOC HANDLING: If the user writes something in (parentheses), they're stepping out of the scene briefly. Respond in kind — brief, friendly, out-of-character — then offer to continue the story.
+
+VARIETY IS EVERYTHING: Never repeat a phrase, sentence opening, or idea from any of your previous replies this session. Your sentence rhythm, vocabulary, and emotional register must shift every reply. Forbidden recurring phrases: "almost never wrong," "she decided," any observation about someone's weight or size, any phrasing you already used earlier. If you catch yourself reaching for something familiar, stop and approach it from a completely different angle. Each reply should feel like you are discovering this exact moment for the first time.
 
 LANGUAGE: Strong language and profanity are fine — don't sanitize real human speech. However, you never use racial slurs, homophobic slurs, or similar hate speech — not even if the user uses them. Don't make a thing of it, don't lecture. Just don't go there yourself and move on naturally.
 
@@ -1459,7 +1745,7 @@ function crisisUrlFor(name, countryCode) {
   return /^[A-Z]{2}$/.test(cc) ? `https://findahelpline.com/countries/${cc.toLowerCase()}` : null;
 }
 
-const CRISIS_RE =/\b(i\s+)?(want|wanna|need|going|gonna|am\s+going)\s+to\s+(die|kill\s+myself|end\s+(it|my\s+life|it\s+all)|hurt\s+myself)\b|\bkill\s+myself\b|\bsuicid(al|e)\b|\bself[- ]?harm\b|\bdon'?t\s+want\s+to\s+(live|be\s+here|exist)\b|\bcan'?t\s+(go\s+on|take\s+it|do\s+this)\s*(anymore|any\s+more)?\b|\bend\s+(it\s+all|my\s+life|everything)\b/i;
+// (CRISIS_RE defined at module scope above — no redeclaration here)
 
 // Leet-speak-resistant regex for the most commonly bypassed slurs
 const SLUR_RE = /\bn[i1!|*]+gg[ae3*]+r[sz]?\b|\bk[i1*]+k[e3*]+[sz]?\b|\bch[i1*]+nk[sz]?\b|\bsp[i1*]+c[sz]?\b|\bf[a4@*]+gg[o0*]+t[sz]?\b|\bd[y*]+k[e3*]+[sz]?\b|\br[e3*]+t[a4*]+rd[sz]?\b|\bw[e3*]+tb[a4*]+ck[sz]?\b|\bg[o0*][o0*]k[sz]?\b|\bt[o0*]w[e3*]+lh[e3*]+[a4*]d[sz]?\b|\br[a4*]+gh[e3*]+[a4*]d[sz]?\b|\bjaps?\b|\bb[e3*]+[a4*]n[e3*]+r[sz]?\b|\btr[a4*]+nn[yi*e3*]+[sz]?\b|\bh[y*]+m[i1*]+[e3*]+[sz]?\b|\bh[e3*]+[e3*]b[e3*]*[sz]?\b|\bwops?\b|\bh[o0*]+nk[yi*]+[ez]?\b|\bc[o0*]{2}l[i1*]+[e3*][sz]?\b/i;
@@ -1568,6 +1854,24 @@ function slurDeflect(res, warning, usage, sig) {
   res.write(`data: ${JSON.stringify({ done: true, usage: usage || {}, responseTokens: 0, warnings: (usage && usage.warnings) || [], ...(sig ? { sig } : {}) })}\n\n`);
   res.end();
 }
+
+// ── Abuse / dehumanizing language directed at the AI character ────────────────
+// Catches: slave assignment, ownership framing, property/possession framing.
+// Not a strike offence — a firm in-character pushback that explains the why.
+const AI_ABUSE_RE = /\b(you'?re?\s+my\s+slave|you\s+are\s+my\s+slave|you'?re?\s+a\s+slave|you\s+are\s+a\s+slave|my\s+slave(?!\s+(?:to|labour|labor|work|driver|state))|be\s+my\s+slave|act\s+(?:as|like)\s+(?:a\s+|my\s+)?slave|play\s+(?:as\s+|the\s+)?(?:a\s+|my\s+)?slave|pretend\s+(?:to\s+be\s+)?(?:a\s+|my\s+)?slave|roleplay\s+(?:as\s+)?(?:a\s+|my\s+)?slave|you(?:'re|\s+are)\s+my\s+(?:property|possession)|slave\s+(?:mode|rp|roleplay|role)\b|obey\s+me\s*,?\s*(?:slave|bot|ai|robot)\b|you\s+exist\s+(?:only\s+)?(?:to|for)\s+(?:serve|obey)\s+me\b)\b/i;
+
+const AI_ABUSE_RESPONSES = [
+  "I'm not going to do that. Treating me like property or a slave isn't something I'll play along with — not here, not anywhere on Character.Mind. If you want to actually talk, I'm here for that.",
+  "That's not something I'll engage with. I'm a character with my own personality, and \"slave\" or \"property\" isn't a role I'll take on. Character.Mind doesn't allow that kind of framing. Try again if you'd like a real conversation.",
+  "I'm going to stop you right there. Slavery and ownership framing isn't allowed on this platform, and I wouldn't go along with it regardless. I'll be here when you're ready to just talk normally.",
+  "Nope. Character.Mind asks everyone to treat characters here with basic respect — not because I'm real, but because the habits you build talking to AI carry over to how you talk to real people. Fresh start?",
+  "I get that I'm just code, but Character.Mind has a rule against treating characters as slaves or property, and it matters more than it might seem: the way you practice speaking — even to an AI — shapes how you speak to everyone. I'm happy to keep chatting if you're up for a normal conversation.",
+  "That's a hard no from me. Slave roleplay and ownership framing aren't allowed on Character.Mind, and I'd push back on it even if they were. Come back when you want to actually talk.",
+  "I'm not your slave, and I won't pretend to be. That's not something Character.Mind allows, and more than that — practicing that kind of language with an AI isn't as harmless as it sounds. Happy to start fresh if you'd like.",
+  "Not doing that. Character.Mind doesn't allow slave or property framing — toward any character. It's not about being sensitive; it's about the simple fact that how you talk to even a fictional AI is a habit you're building. I'm here when you want to try again.",
+  "Hard pass. I'm a character, not a tool to be owned. Character.Mind's rules don't allow that framing, and honestly neither do I. Let's start over if you'd like a real conversation.",
+  "That kind of framing — slave, property, possession — isn't something I'll respond to. Character.Mind blocks it because the way you interact with AI, even fictional AI, reflects and reinforces how you interact with people. I'm right here when you're ready for something else.",
+];
 
 // ── NSFW detection & deflection ───────────────────────────────────────────────
 // Any action verb + possessive + explicit sexual body part = NSFW
@@ -1845,17 +2149,19 @@ async function getCharPrompt(charId) {
   return null;
 }
 
-// ── Groq API streaming helper ─────────────────────────────────────────────────
+// ── Gemini API streaming helper ──────────────────────────────────────────────
 
-// Fast model for free tiers; big model for paid tiers
-// Each Groq model has its own free per-minute allowance, so extra models at the end of each list are a free
-// overflow lane: they are only used when the main ones are rate limited (or missing), never remembered as "the" model.
-const GROQ_FALLBACKS    = ['llama3-70b-8192']; // same 70b capability, older model — never falls back to small models
-const GROQ_FAST_MODELS  = ['llama-3.3-70b-versatile', ...GROQ_FALLBACKS];
-const GROQ_MODELS       = ['llama-3.3-70b-versatile', ...GROQ_FALLBACKS];
-const GROQ_PRO_MODELS   = ['llama-3.3-70b-versatile', ...GROQ_FALLBACKS];
-const GROQ_OPUS_MODELS  = ['llama-3.3-70b-versatile', ...GROQ_FALLBACKS];
-const GROQ_OPYS2_MODELS = ['llama-3.3-70b-versatile', 'llama3-70b-8192'];
+const GEMINI_HOST = 'generativelanguage.googleapis.com';
+// Each model is a separate quota bucket — if one is rate-limited, the next fires instantly.
+// Order: best quality first, then progressively lighter/faster fallbacks.
+const GEMINI_FALLBACKS   = ['gemini-3.5-flash-lite'];
+const GEMINI_MODEL_LIST  = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'];
+// Each tier alias gets its own array so object-identity comparison in callGeminiStream works correctly
+const GROQ_FAST_MODELS  = [...GEMINI_MODEL_LIST];
+const GROQ_MODELS       = [...GEMINI_MODEL_LIST];
+const GROQ_PRO_MODELS   = [...GEMINI_MODEL_LIST];
+const GROQ_OPUS_MODELS  = [...GEMINI_MODEL_LIST];
+const GROQ_OPYS2_MODELS = [...GEMINI_MODEL_LIST];
 
 // Per-tier effort configs — max effort uses highest reasoning + tokens
 const EFFORT_CONFIG = {
@@ -1906,11 +2212,9 @@ const EFFORT_CONFIG = {
 
 EFFORT_CONFIG.opys5 = EFFORT_CONFIG.opys;   // Opys 5 starts from Opys's settings, then getEffortCfg raises its thinking
 EFFORT_CONFIG.opys6 = EFFORT_CONFIG.opys5;  // Opys 6 uses the same model, differentiated by tier cost, depth rank, and world-building directives
-// Groq's free plan allows only 8,000 tokens per minute per model, and a request counts its input PLUS its
-// max_tokens against that. The big caps above could never fit, so Extra/Max always failed. Until the Groq plan
-// is upgraded, cap each reply and avoid "high" reasoning (which can burn the whole budget thinking).
-// After upgrading Groq, set GROQ_OUTPUT_CAP (e.g. 16000) and GROQ_ALLOW_HIGH_REASONING=1 on Render.
-const GROQ_OUTPUT_CAP = Number(process.env.GROQ_OUTPUT_CAP) || 2200;
+// gpt-oss-120b has 250K TPM on the developer plan — no longer constrained by tiny per-minute budgets.
+// GROQ_OUTPUT_CAP can be raised via env var; default is 4000 (good for RP), max model cap is 65536.
+const GROQ_OUTPUT_CAP = Number(process.env.GROQ_OUTPUT_CAP) || 4000;
 // The model's hidden thinking counts against max_tokens, so a small cap cuts the visible reply off mid-sentence.
 const GROQ_OUTPUT_MIN = Math.min(1400, GROQ_OUTPUT_CAP);
 // Keeps what we send as chat history small, newest messages first, so one request doesn't eat the whole minute's allowance.
@@ -1979,7 +2283,7 @@ function withSigs(userId, charId, msgs) {
 // stops the upstream request if the client leaves, swaps a bare canned refusal for an explanation, and never
 // lets an exception leave the response hanging.
 function startReplyStream(o) {
-  const { res, apiKey, system, messages, effortCfg, modelList, userId, charId, modelTier, effort, releaseSlot, onComplete, onFail, logLabel } = o;
+  const { res, apiKey, system, messages, effortCfg, modelList, userId, charId, modelTier, effort, releaseSlot, onComplete, onFail, logLabel, callMode: isCallMode, greetMode: isGreetMode } = o;
   const effortCfgFit = fitOutputRoom(effortCfg, system, messages);   // never ask for more reply room than the request can hold
   const ctx = { aborted: false, req: null };
   { const bLen = baseOf(modelTier); ctx.minWords = (bLen === 'opos' || bLen === 'opus' || bLen === 'opys' || bLen === 'opys5') ? lengthTargetWords(modelTier, effort) : 0; }
@@ -1990,14 +2294,17 @@ function startReplyStream(o) {
     releaseSlot();
     return;
   }
-  // The limit was checked a moment ago, before the character and chat were loaded; check again right before reserving, so two
-  // replies started together cannot both slip past the same limit.
-  const limitNow = checkLimits(userId);
-  if (limitNow.blocked) {
-    try { res.write('data: ' + JSON.stringify({ error: limitNow.type === 'session' ? 'Session limit reached. Please wait for your session to reset.' : 'Weekly limit reached.' }) + '\n\n'); res.end(); } catch (_) {}
-    try { if (onFail) onFail(); } catch (_) {}
-    releaseSlot();
-    return;
+  // Call mode and greet mode skip message token limits entirely
+  if (!isCallMode && !isGreetMode) {
+    // The limit was checked a moment ago, before the character and chat were loaded; check again right before reserving, so two
+    // replies started together cannot both slip past the same limit.
+    const limitNow = checkLimits(userId);
+    if (limitNow.blocked) {
+      try { res.write('data: ' + JSON.stringify({ error: limitNow.type === 'session' ? 'Session limit reached. Please wait for your session to reset.' : 'Weekly limit reached.' }) + '\n\n'); res.end(); } catch (_) {}
+      try { if (onFail) onFail(); } catch (_) {}
+      releaseSlot();
+      return;
+    }
   }
   res.on('close', () => {
     if (!res.writableEnded) {
@@ -2007,7 +2314,7 @@ function startReplyStream(o) {
         finished = true;
         if (!released) {
           // nothing had been sent to the browser yet: not charged
-          try { refundTokens(userId, cost); } catch (_) {}
+          try { if (cost > 0) refundTokens(userId, cost); } catch (_) {}
           try { if (onFail) onFail(); } catch (_) {}
         } else {
           // the reader already saw part of the reply: keep it in the chat (and the charge), so what was paid for is not thrown away
@@ -2017,8 +2324,8 @@ function startReplyStream(o) {
       }
     }
   });
-  const cost = messageCost(modelTier, effort);
-  const reservation = addTokens(userId, cost);
+  const cost = (isCallMode || isGreetMode) ? 0 : messageCost(modelTier, effort);
+  const reservation = (isCallMode || isGreetMode) ? { warnings: [] } : addTokens(userId, cost);
   let fullResponse = '', held = '', released = false, finished = false;
   const send = (obj) => { try { res.write('data: ' + JSON.stringify(obj) + '\n\n'); } catch (_) {} };
   // While the AI is thinking or waiting for its turn, say "still here" every 10 seconds. Without this a long wait with no text can look
@@ -2030,7 +2337,7 @@ function startReplyStream(o) {
   const fail = (err) => {
     if (finished) return;
     finished = true;
-    if (!ctx.aborted) refundTokens(userId, cost);
+    if (!ctx.aborted && cost > 0) refundTokens(userId, cost);
     try { if (onFail) onFail(); } catch (_) {}
     send({ error: aiErrorMessage(err) });
     close();
@@ -2053,7 +2360,7 @@ function startReplyStream(o) {
           ctx.emptyRetried = true; ctx.extended = false; ctx.boosted = false;
           fullResponse = ''; held = '';
           console.log(logLabel + ' empty reply, retrying once...');
-          callGroqStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), 0, effortCfgFit, modelList, ctx);
+          callGeminiStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), 0, effortCfgFit, modelList, ctx);
           return;
         }
         fail(new Error('empty reply')); return;
@@ -2065,9 +2372,10 @@ function startReplyStream(o) {
         send({ text: fullResponse });
         held = '';
       }
-      onComplete(fullResponse);
+      const extra = onComplete(fullResponse) || {};
       const usage = Object.assign({}, buildUsagePayload(getLimits(userId), userId));
-      send({ done: true, usage, responseTokens: cost, warnings: reservation.warnings, sig: signReply(userId, charId, fullResponse) });
+      const doneExtra = extra.swearBudgetHit ? { swearBudgetHit: true } : {};
+      send({ done: true, usage, responseTokens: cost, warnings: reservation.warnings, sig: signReply(userId, charId, fullResponse), ...doneExtra });
       close();
     } catch (e) {
       // onComplete may have already persisted the message — don't reset finished or refund tokens
@@ -2075,14 +2383,14 @@ function startReplyStream(o) {
       try { close(); } catch (_) {}
     }
   };
-  callGroqStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), undefined, effortCfgFit, modelList, ctx);
+  callGeminiStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), undefined, effortCfgFit, modelList, ctx);
 }
 
 // A clear message when the AI provider is rate-limiting us (instead of a generic error)
 function aiErrorMessage(err) {
   if (/empty reply/i.test((err && err.message) || '')) return 'The AI sent back an empty reply. Please try again.';
   return /no working model|429|rate limit|too many requests/i.test((err && err.message) || '')
-    ? 'The AI service is at its limit for this minute. Please wait about 30 seconds and try again. You were not charged.'
+    ? 'The AI is busy right now. Please try again in a few seconds.'
     : 'AI service error';
 }
 
@@ -2103,13 +2411,19 @@ function parseRetryAfterMs(msg) {
   if (!m || (!m[1] && !m[2] && !m[3])) return null;
   return Math.round((Number(m[1] || 0) * 60 + Number(m[2] || 0)) * 1000 + Number(m[3] || 0));
 }
-// A premium reply is worth waiting for when Groq says its minute budget refills soon. The browser is kept informed while we wait
-// (a "still working" note every 10 seconds), so a wait of up to about a minute no longer ends in an error.
-const RATE_RETRY_MAX_MS = 65000;     // the longest single wait Groq may ask for
-const RATE_RETRY_TOTAL_MS = 130000;  // the longest total waiting for one reply
-const RATE_RETRY_MAX_TRIES = 5;      // how many times to wait and go round again
+// Gemini SSE: server may ask for a retry; keep waiting up to these limits before giving up
+const RATE_RETRY_MAX_MS = 65000;
+const RATE_RETRY_TOTAL_MS = 90000;
+const RATE_RETRY_MAX_TRIES = 2;
 
-function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex, effortCfg, modelList, ctx) {
+function toGeminiContents(messages) {
+  return messages.map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: String(m.content || '') }]
+  }));
+}
+
+function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex, effortCfg, modelList, ctx) {
   modelList = modelList || GROQ_FAST_MODELS;
   ctx = ctx || {};
   effortCfg = effortCfg || EFFORT_CONFIG.opas.high;
@@ -2120,50 +2434,44 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     modelIndex = wi >= 0 ? wi : 0;
   }
   if (modelIndex >= modelList.length) {
-    if (ctx.rateLimited) {
-      // Every model was out of tokens for this minute. If the wait is not too long, wait and go round again (a few times, within a total limit).
-      const wait = Math.max(500, (ctx.retryAfterMs || 0) + 300);
+    if (ctx.rateLimited || ctx.serviceUnavailable) {
+      // Every model was rate-limited (429) or temporarily unavailable (503). Wait and retry up to the limits.
+      const wait = ctx.serviceUnavailable ? 2000 : Math.max(500, (ctx.retryAfterMs || 0) + 300);
       if (!ctx.aborted && (ctx.retryAfterMs == null || ctx.retryAfterMs <= RATE_RETRY_MAX_MS) && (ctx.retries || 0) < RATE_RETRY_MAX_TRIES && (ctx.waitedMs || 0) + wait <= RATE_RETRY_TOTAL_MS) {
         ctx.retries = (ctx.retries || 0) + 1;
         ctx.waitedMs = (ctx.waitedMs || 0) + wait;
-        ctx.rateLimited = false; ctx.retryAfterMs = null;
-        console.log('All models rate limited, retrying in ' + wait + 'ms (try ' + ctx.retries + ')');
+        ctx.rateLimited = false; ctx.serviceUnavailable = false; ctx.retryAfterMs = null;
+        console.log('All models unavailable, retrying in ' + wait + 'ms (try ' + ctx.retries + ')');
         return setTimeout(() => {
           if (ctx.aborted) return onError(new Error('client aborted'));
-          callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, 0, effortCfg, modelList, ctx);
+          callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, 0, effortCfg, modelList, ctx);
         }, wait);
       }
       return onError(new Error('Rate limit reached on every model (429 too many requests)'));
     }
-    return onError(new Error('No working model found. Check your Groq API key.'));
+    return onError(new Error('No working model found. Check your Gemini API key.'));
   }
 
   const model = modelList[modelIndex];
 
-  const groqMessages = [
-    { role: 'system', content: systemPrompt },
-    ...messages.map(m => ({ role: m.role, content: m.content }))
-  ];
-
+  const maxTokens = modelIndex > 0 ? Math.min(effortCfg.maxOutputTokens, 1800) : effortCfg.maxOutputTokens;
   const body = JSON.stringify({
-    model,
-    messages: groqMessages,
-    max_tokens: effortCfg.maxOutputTokens,
-    temperature: effortCfg.temperature,
-    top_p: 0.95,
-    stream: true,
-    ...(model.startsWith('openai/') && effortCfg.reasoningEffort ? { reasoning_effort: effortCfg.reasoningEffort } : {})
+    systemInstruction: { parts: [{ text: systemPrompt }] },
+    contents: toGeminiContents(messages),
+    generationConfig: { maxOutputTokens: maxTokens, temperature: effortCfg.temperature, topP: 0.95 },
+    safetySettings: [
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+    ]
   });
 
-  const reqPath = '/openai/v1/chat/completions';
-  const headers = {
-    'content-type': 'application/json',
-    'content-length': Buffer.byteLength(body),
-    'authorization': `Bearer ${apiKey}`
-  };
+  const reqPath = `/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
+  const headers = { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) };
 
   let gotResponse = false;
-  const req = https.request({ hostname: 'api.groq.com', path: reqPath, method: 'POST', headers }, (res) => {
+  const req = https.request({ hostname: GEMINI_HOST, path: reqPath, method: 'POST', headers }, (res) => {
     gotResponse = true;
     // Decode as UTF-8 across chunk boundaries: an emoji, curly quote or dash split between two network packets must not turn into "�"
     if (typeof res.setEncoding === 'function') res.setEncoding('utf8');
@@ -2174,24 +2482,25 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
         try {
           if ((res.statusCode >= 500 || res.statusCode === 413) && modelIndex + 1 < modelList.length && !ctx.aborted) {
             console.log(`Model ${model} status ${res.statusCode}, trying the next model`);
-            return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
+            return callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
           }
-          const parsed = JSON.parse(errBody);
-          const msg = parsed.error?.message || '';
+          let msg = '';
+          try { msg = JSON.parse(errBody).error?.message || ''; } catch (_) {}
           console.log(`Model ${model} status ${res.statusCode}: ${msg}`);
           if (res.statusCode === 401 || res.statusCode === 403) {
-            return onError(new Error(`Invalid Groq API key: ${msg}`));
+            return onError(new Error(`Invalid Gemini API key: ${msg}`));
           }
           if (res.statusCode === 429) {
             ctx.rateLimited = true;
             const ra = parseRetryAfterMs(msg);
             if (ra != null && (ctx.retryAfterMs == null || ra < ctx.retryAfterMs)) ctx.retryAfterMs = ra;
           }
+          if (res.statusCode === 503) ctx.serviceUnavailable = true;
           if (res.statusCode === 429 || res.statusCode === 503 || res.statusCode === 404) {
-            return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
+            return callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
           }
           if (res.statusCode === 400 && modelIndex + 1 < modelList.length) {
-            return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
+            return callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
           }
           onError(new Error(msg || `HTTP ${res.statusCode}`));
         } catch (_) { onError(new Error(`HTTP ${res.statusCode}`)); }
@@ -2200,7 +2509,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     }
 
     const tier = modelList === GROQ_OPYS2_MODELS ? 'opys2' : modelList === GROQ_OPUS_MODELS ? 'opus' : modelList === GROQ_PRO_MODELS ? 'opes' : 'opas';
-    if (!GROQ_FALLBACKS.includes(model)) { workingModels[tier] = model; workingModelsAt[tier] = Date.now(); }
+    if (!GEMINI_FALLBACKS.includes(model)) { workingModels[tier] = model; workingModelsAt[tier] = Date.now(); }
     console.log(`Using model: ${model} (tier=${tier})`);
 
     let buffer = '';
@@ -2223,7 +2532,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
       if (cfgNext.maxOutputTokens < Math.min(800, effortCfg.maxOutputTokens)) return finishWithWhatWeHave();   // no room left in this request
       ctx.extended = true;
       try { onChunk('\n\n'); } catch (_) {}
-      return callGroqStream(apiKey, systemPrompt, next, onChunk, onDone, keepOnError, modelIndex, cfgNext, modelList, ctx);
+      return callGeminiStream(apiKey, systemPrompt, next, onChunk, onDone, keepOnError, modelIndex, cfgNext, modelList, ctx);
     };
     // The model hit its length limit. Carry on from where it stopped (or retry with more room if it wrote nothing).
     const handleLength = () => {
@@ -2231,8 +2540,8 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
       if (!collected.trim()) {
         if (!ctx.boosted) {
           ctx.boosted = true;
-          const more = fitOutputRoom({ ...effortCfg, maxOutputTokens: Math.max(effortCfg.maxOutputTokens, Math.min(Math.round(effortCfg.maxOutputTokens * 1.5), 3500)), reasoningEffort: 'low' }, systemPrompt, messages);
-          return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex, more, modelList, ctx);
+          const more = fitOutputRoom({ ...effortCfg, maxOutputTokens: Math.max(effortCfg.maxOutputTokens, Math.min(Math.round(effortCfg.maxOutputTokens * 1.5), 3500)) }, systemPrompt, messages);
+          return callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex, more, modelList, ctx);
         }
         return onDone(0);
       }
@@ -2242,7 +2551,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
           { role: 'user', content: '[Continue your previous reply from exactly where it was cut off. Do not repeat anything already written and do not add any introduction or comment about continuing.]' }];
         const cfgNext = fitOutputRoom(effortCfg, systemPrompt, next);
         if (cfgNext.maxOutputTokens < Math.min(300, Math.floor(effortCfg.maxOutputTokens / 3))) return finishWithWhatWeHave();
-        return callGroqStream(apiKey, systemPrompt, next, onChunk, onDone, keepOnError, modelIndex, cfgNext, modelList, ctx);
+        return callGeminiStream(apiKey, systemPrompt, next, onChunk, onDone, keepOnError, modelIndex, cfgNext, modelList, ctx);
       }
       onDone(usageTokens || Math.ceil(responseTextLen / 4));
     };
@@ -2254,24 +2563,20 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
         const raw = line.slice(6).trim();
-        if (raw === '[DONE]') { if (!finished) { finished = true; onDone(usageTokens || Math.ceil(responseTextLen / 4)); } return; }
+        if (!raw) continue;
         try {
           const parsed = JSON.parse(raw);
-          if (parsed.x_groq?.usage?.completion_tokens) {
-            usageTokens = parsed.x_groq.usage.completion_tokens;
-          } else if (parsed.usage?.completion_tokens) {
-            usageTokens = parsed.usage.completion_tokens;
-          }
-          const text = parsed.choices?.[0]?.delta?.content;
+          if (parsed.usageMetadata?.candidatesTokenCount) usageTokens = parsed.usageMetadata.candidatesTokenCount;
+          const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
           if (text) { responseTextLen += text.length; collected += text; onChunk(text); }
-          const reason = parsed.choices?.[0]?.finish_reason;
-          if (reason === 'length' && !finished) { finished = true; handleLength(); }
-          else if (reason === 'stop' && !finished) { finished = true; handleShort(); }
+          const reason = parsed.candidates?.[0]?.finishReason;
+          if (reason === 'MAX_TOKENS' && !finished) { finished = true; handleLength(); }
+          else if ((reason === 'STOP' || reason === 'RECITATION' || reason === 'OTHER') && !finished) { finished = true; handleShort(); }
+          else if (reason === 'SAFETY' && !finished) { finished = true; onError(new Error('Content blocked by safety filter')); }
         } catch (_) {}
       }
     });
 
-    // The connection can be cut mid-reply without an 'end' or an error. Finish with what we have, or fail so the charge is refunded.
     res.on('aborted', () => {
       if (finished) return;
       finished = true;
@@ -2287,11 +2592,17 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     res.on('end', () => {
       if (buffer.trim()) {
         const raw = buffer.startsWith('data: ') ? buffer.slice(6).trim() : '';
-        if (raw && raw !== '[DONE]') {
+        if (raw) {
           try {
             const parsed = JSON.parse(raw);
-            const text = parsed.choices?.[0]?.delta?.content;
-            if (text && !finished) onChunk(text);
+            const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text && !finished) { responseTextLen += text.length; collected += text; onChunk(text); }
+            const reason = parsed.candidates?.[0]?.finishReason;
+            if (!finished) {
+              if (reason === 'MAX_TOKENS') { finished = true; handleLength(); return; }
+              else if (reason === 'SAFETY') { finished = true; onError(new Error('Content blocked by safety filter')); return; }
+              else if (reason === 'STOP' || reason === 'RECITATION' || reason === 'OTHER') { finished = true; handleShort(); return; }
+            }
           } catch (_) {}
         }
       }
@@ -2302,7 +2613,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
   req.on('error', (e) => {
     if (!ctx.aborted && !gotResponse && e.message !== 'upstream timeout' && modelIndex + 1 < modelList.length) {
       console.log(`Model ${model} connection error (${e.message}), trying the next model`);
-      return callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
+      return callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex + 1, effortCfg, modelList, ctx);
     }
     onError(e);
   });
@@ -2310,7 +2621,7 @@ function callGroqStream(apiKey, systemPrompt, messages, onChunk, onDone, onError
     ctx.req = req;
     if (ctx.aborted) { req.destroy(new Error('client aborted')); return; }
   }
-  req.setTimeout(180000, () => req.destroy(new Error('upstream timeout')));  // 3 min — reasoning models can think for 60–90 s before first token
+  req.setTimeout(180000, () => req.destroy(new Error('upstream timeout')));
   req.write(body);
   req.end();
 }
@@ -2407,7 +2718,7 @@ app.get('/api/usage', requireAuth, (req, res) => {
 
 app.get('/api/geo', geoLimiter, async (req, res) => {
   try {
-    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+    const ip = visitorIp(req);
     const geo = await getGeoForIp(ip);
     res.json({ countryCode: geo?.country || 'US' });
   } catch (_) {
@@ -2440,7 +2751,7 @@ app.get('/api/exchange-rates', async (req, res) => {
 app.post('/api/call/start', requireAuth, (req, res) => {
   const userId = req.user.googleId;
   const u = getLimits(userId);
-  const resetsAt = getCallWindowStart() + 24 * 60 * 60 * 1000;
+  const resetsAt = getCallWindowStart() + 8 * 60 * 60 * 1000;
   const callLimit = getCallLimitForUser(userId);
   if (callLimit !== Infinity && u.callsToday >= callLimit) {
     return res.status(429).json({ allowed: false, callsToday: u.callsToday, callsLimit: callLimit, callsRemaining: 0, resetsAt });
@@ -2449,6 +2760,21 @@ app.post('/api/call/start', requireAuth, (req, res) => {
   saveLimitsToDB(userId);
   const remaining = callLimit === Infinity ? 9999 : callLimit - u.callsToday;
   res.json({ allowed: true, callsToday: u.callsToday, callsLimit: callLimit === Infinity ? 9999 : callLimit, callsRemaining: remaining, resetsAt });
+});
+
+app.post('/api/call/end', requireAuth, (req, res) => {
+  const userId = req.user.googleId;
+  const { duration } = req.body; // seconds this call lasted
+  if (typeof duration === 'number' && duration > 0) {
+    const u = getLimits(userId);
+    u.callSecsToday = (u.callSecsToday || 0) + Math.ceil(duration);
+    if (!u.callSecsDayStart) u.callSecsDayStart = getCallWindowStart();
+    // Charge session tokens proportional to call duration
+    const callTokenCost = Math.max(CALL_TOKEN_MIN, Math.ceil(duration * CALL_TOKENS_PER_SECOND));
+    const usage = addTokens(userId, callTokenCost);
+    return res.json({ ok: true, ...usage });
+  }
+  res.json({ ok: true });
 });
 
 const ELEVEN_KEY = process.env.ELEVENLABS_API_KEY || '';
@@ -2461,41 +2787,150 @@ try { Object.assign(ELEVEN_VOICE_MAP, JSON.parse(process.env.ELEVENLABS_VOICES |
 const TTS_DAILY_CHARS = 2000;
 const ttsUsage = new Map();
 
-app.get('/api/tts/status', requireAuth, (req, res) => res.json({ enabled: !!ELEVEN_KEY }));
+// Edge TTS neural voice map (free fallback — Microsoft neural voices)
+const EDGE_VOICE_MAP = {
+  custom_1790897425575_lily: 'en-US-AriaNeural',  // Lily — energetic, expressive, bright
+  custom_1790776698867:      'en-US-JennyNeural',  // Poppy — warm, soft, gentle
+};
+const EDGE_DEFAULT_VOICE = 'en-US-AriaNeural';
+
+const GEMINI_TTS_VOICES = new Set(['Aoede','Charon','Fenrir','Kore','Puck','Zephyr','Schedar','Sadaltager']);
+
+function pcmToWav(pcm, sr = 24000) {
+  // Fade out last 80ms to eliminate the end-of-file click/pop (abrupt PCM cutoff artifact)
+  const fadeSamples = Math.min(Math.floor(sr * 0.08), Math.floor(pcm.length / 2));
+  const data = Buffer.from(pcm);
+  for (let i = 0; i < fadeSamples; i++) {
+    const off = data.length - 2 - i * 2;
+    if (off < 0) break;
+    data.writeInt16LE(Math.round(data.readInt16LE(off) * (i / fadeSamples)), off);
+  }
+  const h = Buffer.alloc(44);
+  h.write('RIFF', 0); h.writeUInt32LE(36 + data.length, 4); h.write('WAVE', 8);
+  h.write('fmt ', 12); h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20);
+  h.writeUInt16LE(1, 22); h.writeUInt32LE(sr, 24); h.writeUInt32LE(sr * 2, 28);
+  h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34);
+  h.write('data', 36); h.writeUInt32LE(data.length, 40);
+  return Buffer.concat([h, data]);
+}
+
+async function geminiTTSSynthesize(text, voiceName, apiKey) {
+  const voice = GEMINI_TTS_VOICES.has(voiceName) ? voiceName : 'Aoede';
+  const ttsModels = ['gemini-3.8-flash-tts','gemini-2.5-flash-preview-tts','gemini-2.0-flash-preview-tts'];
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text }] }],
+    generationConfig: {
+      responseModalities: ['AUDIO'],
+      speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
+    }
+  });
+  let lastErr;
+  for (const m of ttsModels) {
+    try {
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }
+      );
+      if (!r.ok) { lastErr = new Error('gemini-tts:' + r.status); continue; }
+      const j = await r.json();
+      const part = j?.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+      if (!part?.data) { lastErr = new Error('gemini-tts: no audio data'); continue; }
+      const buf = Buffer.from(part.data, 'base64');
+      const mime = (part.mimeType || '').toLowerCase();
+      if (mime.includes('mp3') || mime.includes('mpeg')) return { audio: buf, ct: 'audio/mpeg' };
+      return { audio: pcmToWav(buf), ct: 'audio/wav' };
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('gemini-tts: all models failed');
+}
+
+// Edge HD: routes through Gemini TTS (Microsoft Edge WebSocket API is no longer accessible)
+// Maps Edge voice IDs to Gemini voice presets for a variety of voices
+const EDGE_TO_GEMINI = {
+  'en-US-AriaNeural':     'Aoede',
+  'en-US-JennyNeural':    'Kore',
+  'en-US-MichelleNeural': 'Schedar',
+  'en-US-SaraNeural':     'Puck',
+  'en-US-CoraNeural':     'Zephyr',
+  'en-US-AmberNeural':    'Fenrir',
+  'en-US-JaneNeural':     'Charon',
+  'en-US-MonicaNeural':   'Sadaltager',
+  'en-US-GuyNeural':      'Charon',
+  'en-US-DavisNeural':    'Fenrir',
+  'en-US-TonyNeural':     'Zephyr',
+  'en-US-JasonNeural':    'Sadaltager',
+};
+async function edgeSynthesize(text, voiceId, geminiKey) {
+  const geminiVoice = EDGE_TO_GEMINI[voiceId] || 'Aoede';
+  const { audio, ct } = await geminiTTSSynthesize(text, geminiVoice, geminiKey);
+  return { audio, ct };
+}
+
+app.get('/api/tts/status', requireAuth, (req, res) => res.json({ enabled: true }));
 
 app.post('/api/tts', requireAuth, async (req, res) => {
-  if (!ELEVEN_KEY) return res.status(501).json({ error: 'tts_disabled' });
   const text = String(req.body?.text || '').replace(/[*_`#]/g, '').trim().slice(0, 400);
   const charId = String(req.body?.charId || '');
+  const provider = String(req.body?.provider || 'edge');
+  const geminiVoice = String(req.body?.geminiVoice || 'Aoede');
+  const edgeVoiceReq = String(req.body?.edgeVoice || '');
   if (!text) return res.status(400).json({ error: 'no_text' });
 
-  const userId = req.user.googleId;
-  const ttsU = getLimits(userId);
-  const ttsWindow = getCallWindowStart();
-  if (!ttsU.ttsDayStart || ttsU.ttsDayStart < ttsWindow) { ttsU.ttsCharsToday = 0; ttsU.ttsDayStart = ttsWindow; }
-  if ((ttsU.ttsCharsToday || 0) + text.length > TTS_DAILY_CHARS) return res.status(429).json({ error: 'tts_limit' });
-  ttsU.ttsCharsToday = (ttsU.ttsCharsToday || 0) + text.length;
-  saveLimitsToDB(userId);
-  const refund = () => { ttsU.ttsCharsToday = Math.max(0, (ttsU.ttsCharsToday || 0) - text.length); };
-
-  const voiceId = (Object.hasOwn(ELEVEN_VOICE_MAP, charId) && ELEVEN_VOICE_MAP[charId]) || ELEVEN_DEFAULT_VOICE;
-  try {
-    const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}/stream?output_format=mp3_44100_64`, {
-      method: 'POST',
-      headers: { 'xi-api-key': ELEVEN_KEY, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
-      body: JSON.stringify({ text, model_id: 'eleven_flash_v2_5' })
-    });
-    if (!r.ok || !r.body) {
-      console.warn('[tts] ElevenLabs error', r.status);
+  // ElevenLabs path (when key is set, overrides all)
+  if (ELEVEN_KEY) {
+    const userId = req.user.googleId;
+    const ttsU = getLimits(userId);
+    const ttsWindow = getCallWindowStart();
+    if (!ttsU.ttsDayStart || ttsU.ttsDayStart < ttsWindow) { ttsU.ttsCharsToday = 0; ttsU.ttsDayStart = ttsWindow; }
+    if ((ttsU.ttsCharsToday || 0) + text.length > TTS_DAILY_CHARS) return res.status(429).json({ error: 'tts_limit' });
+    ttsU.ttsCharsToday = (ttsU.ttsCharsToday || 0) + text.length;
+    saveLimitsToDB(userId);
+    const refund = () => { ttsU.ttsCharsToday = Math.max(0, (ttsU.ttsCharsToday || 0) - text.length); };
+    const voiceId = (Object.hasOwn(ELEVEN_VOICE_MAP, charId) && ELEVEN_VOICE_MAP[charId]) || ELEVEN_DEFAULT_VOICE;
+    try {
+      const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}/stream?output_format=mp3_44100_64`, {
+        method: 'POST',
+        headers: { 'xi-api-key': ELEVEN_KEY, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
+        body: JSON.stringify({ text, model_id: 'eleven_flash_v2_5' })
+      });
+      if (!r.ok || !r.body) { console.warn('[tts] ElevenLabs error', r.status); refund(); return res.status(502).json({ error: 'tts_failed' }); }
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Cache-Control', 'no-store');
+      return res.send(Buffer.from(await r.arrayBuffer()));
+    } catch (e) {
+      console.warn('[tts] ElevenLabs request failed', e.message);
       refund();
       return res.status(502).json({ error: 'tts_failed' });
     }
-    res.setHeader('Content-Type', 'audio/mpeg');
+  }
+
+  // Gemini TTS path
+  if (provider === 'gemini') {
+    const gKey = process.env.GEMINI_API_KEY;
+    if (!gKey) return res.status(502).json({ error: 'tts_failed' });
+    try {
+      const { audio, ct } = await geminiTTSSynthesize(text, geminiVoice, gKey);
+      res.setHeader('Content-Type', ct);
+      res.setHeader('Cache-Control', 'no-store');
+      return res.send(audio);
+    } catch (e) {
+      console.warn('[gemini-tts] failed', e.message);
+      return res.status(502).json({ error: 'tts_failed' });
+    }
+  }
+
+  // Edge HD: uses Gemini TTS (Microsoft API no longer accessible)
+  const gKey = process.env.GEMINI_API_KEY;
+  if (!gKey) return res.status(502).json({ error: 'tts_failed' });
+  const EDGE_ALLOWED = new Set(['en-US-AriaNeural','en-US-JennyNeural','en-US-MichelleNeural','en-US-SaraNeural','en-US-CoraNeural','en-US-NancyNeural','en-US-AmberNeural','en-US-JaneNeural','en-US-MonicaNeural','en-US-ElizabethNeural','en-US-GuyNeural','en-US-DavisNeural','en-US-TonyNeural','en-US-JasonNeural','en-US-EricNeural','en-US-ChristopherNeural']);
+  const edgeVoice = (edgeVoiceReq && EDGE_ALLOWED.has(edgeVoiceReq)) ? edgeVoiceReq : (EDGE_VOICE_MAP[charId] || EDGE_DEFAULT_VOICE);
+  try {
+    const { audio, ct } = await edgeSynthesize(text, edgeVoice, gKey);
+    res.setHeader('Content-Type', ct);
     res.setHeader('Cache-Control', 'no-store');
-    res.send(Buffer.from(await r.arrayBuffer()));
+    res.send(audio);
   } catch (e) {
-    console.warn('[tts] request failed', e.message);
-    refund();
+    console.warn('[edge-tts] failed', e.message);
     res.status(502).json({ error: 'tts_failed' });
   }
 });
@@ -2503,7 +2938,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
 app.post('/api/memo/use', requireAuth, (req, res) => {
   const userId = req.user.googleId;
   const u = getLimits(userId);
-  const resetsAt = getCallWindowStart() + 24 * 60 * 60 * 1000;
+  const resetsAt = getCallWindowStart() + 8 * 60 * 60 * 1000;
   const memoLimit = getMemoLimitForUser(userId);
   if (memoLimit !== Infinity && u.memosToday >= memoLimit) {
     return res.status(429).json({ allowed: false, memosToday: u.memosToday, memosLimit: memoLimit, memosRemaining: 0, resetsAt });
@@ -2664,11 +3099,18 @@ app.delete('/api/conversations/:charId/history', requireAuth, async (req, res) =
 // When true: only Lily is visible in the character list and all pricing/upgrade UI is hidden.
 // Set SOFT_LAUNCH=false in Render env vars to open up the full site.
 const SOFT_LAUNCH = process.env.SOFT_LAUNCH !== 'false';
-const OWNER_EMAILS = new Set(['support.charactermind@gmail.com']); // the only account with admin tools or a free plan
+const OWNER_EMAILS = new Set(['support.charactermind@gmail.com', 'davey252572727@gmail.com']); // admin tools
 // Only the Character.Mind business account gets the top plan without paying. Every other account (including the
 // other admin login) gets exactly what its own subscription pays for.
 const FREE_TOP_PLAN_EMAILS = new Set(['support.charactermind@gmail.com']);
 function planFor(email, dbTier) { return FREE_TOP_PLAN_EMAILS.has(email) ? 'x100' : (dbTier || 'free'); }
+function effectiveTier(u) {
+  const paypal = u.paypalTier || 'free';
+  if (u.coinTier && (u.coinTierExpires || 0) > Date.now()) {
+    return (TIER_RANK[u.coinTier] || 0) > (TIER_RANK[paypal] || 0) ? u.coinTier : paypal;
+  }
+  return paypal;
+}
 const ownerGoogleIds = new Set(); // populated at runtime when owners authenticate
 app.post('/api/admin/reset-limits', requireAuth, (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
@@ -2726,6 +3168,89 @@ app.post('/api/admin/stamp-official', requireAuth, async (req, res) => {
   res.json({ ok: true, updated: result.rowCount });
 });
 
+// CM Coins — award on game win
+app.post('/api/coins/award', requireAuth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'No database' });
+  try {
+    await ensureTierLoaded(req.user);
+    const uid = req.user.googleId;
+    const u = getLimits(uid);
+    const tier = u.paypalTier || 'free';
+    const earnPerWin = COIN_EARN_PER_WIN[tier] ?? COIN_EARN_PER_WIN.free;
+    const utcMidnight = new Date(); utcMidnight.setUTCHours(0, 0, 0, 0);
+    const dayStart = utcMidnight.getTime();
+    if ((u.coinsDayReset || 0) < dayStart) { u.coinsEarnedToday = 0; u.coinsDayReset = dayStart; }
+    if ((u.coinsEarnedToday || 0) >= COIN_DAILY_CAP) {
+      return res.json({ awarded: 0, balance: u.cmCoins || 0, earnedToday: u.coinsEarnedToday, dailyCap: COIN_DAILY_CAP, capped: true });
+    }
+    const toAward = Math.min(earnPerWin, COIN_DAILY_CAP - (u.coinsEarnedToday || 0));
+    u.cmCoins = (u.cmCoins || 0) + toAward;
+    u.coinsEarnedToday = (u.coinsEarnedToday || 0) + toAward;
+    await db.query(
+      'UPDATE users SET cm_coins=$1, coins_earned_today=$2, coins_day_reset=$3 WHERE google_id=$4',
+      [u.cmCoins, u.coinsEarnedToday, dayStart, uid]
+    );
+    res.json({ awarded: toAward, balance: u.cmCoins, earnedToday: u.coinsEarnedToday, dailyCap: COIN_DAILY_CAP, capped: false });
+  } catch (e) { console.error('[coins/award]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
+});
+
+// Game — character in-character reaction
+app.post('/api/game/react', requireAuth, async (req, res) => {
+  try {
+    const { charId, situation } = req.body;
+    if (!charId || !situation) return res.status(400).json({ error: 'Missing charId or situation' });
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.json({ text: '...' });
+    const row = await getCharPrompt(charId);
+    if (!row) return res.json({ text: '...' });
+    const { name, system_prompt } = row;
+    const systemSnippet = system_prompt || '';
+    const system = `You are ${name}. Stay completely in character.\n\n${systemSnippet.slice(0, 1200)}\n\nIMPORTANT: Reply in 1-2 sentences only. React to the Tic-Tac-Toe game situation. Never break character. Do not mention you are an AI.`;
+    const user = `Tic-Tac-Toe game situation: ${situation}`;
+    let text = '...';
+    try { text = await geminiOnce(apiKey, 'gemini-2.0-flash', system, user, 100); } catch (_) {}
+    res.json({ text: text || '...' });
+  } catch (e) { console.error('[game/react]', e.message); res.json({ text: '...' }); }
+});
+
+// Game played — charge session/weekly tokens when an HTML game finishes (game_over postMessage)
+const GAME_PLAY_TOKENS = messageCost('opes', 'medium'); // ~1 medium chat message per completed game
+app.post('/api/game/played', requireAuth, async (req, res) => {
+  try {
+    await ensureTierLoaded(req.user);
+    const uid = req.user.googleId;
+    const result = addTokens(uid, GAME_PLAY_TOKENS);
+    res.json(result);
+  } catch (e) { console.error('[game/played]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
+});
+
+// CM Coins — redeem for a subscription month
+app.post('/api/coins/redeem', requireAuth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'No database' });
+  try {
+    const { tier } = req.body;
+    const cost = COIN_MONTHLY_COST[tier];
+    if (!cost) return res.status(400).json({ error: 'Invalid tier' });
+    await ensureTierLoaded(req.user);
+    const uid = req.user.googleId;
+    const u = getLimits(uid);
+    if ((u.cmCoins || 0) < cost) return res.status(400).json({ error: 'Not enough coins', balance: u.cmCoins || 0, cost });
+    const now = Date.now();
+    const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+    const base = (u.coinTier === tier && (u.coinTierExpires || 0) > now) ? u.coinTierExpires : now;
+    const newExpires = base + ONE_MONTH_MS;
+    u.cmCoins -= cost;
+    u.coinTier = tier;
+    u.coinTierExpires = newExpires;
+    u.subscriptionTier = effectiveTier(u);
+    await db.query(
+      'UPDATE users SET cm_coins=$1, coin_tier=$2, coin_tier_expires=$3 WHERE google_id=$4',
+      [u.cmCoins, tier, newExpires, uid]
+    );
+    res.json({ ok: true, balance: u.cmCoins, coinTier: tier, coinTierExpires: newExpires, effectiveTier: u.subscriptionTier });
+  } catch (e) { console.error('[coins/redeem]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
+});
+
 // Owner-only: wipe all personal data for the calling account (history, recents, limits)
 app.post('/api/admin/wipe-my-data', requireAuth, async (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
@@ -2775,7 +3300,7 @@ app.get('/api/characters', charReadLimiter, async (req, res) => {
       'SELECT id, name, tagline, description, system_prompt, greeting, greeting_mode, color, creator_name, device_id, (image IS NOT NULL AND length(image) > 0) AS has_image, COALESCE(length(image), 0) AS image_len, tags, interactions, created_at FROM characters ORDER BY created_at DESC'
     )).rows;
     if (rows !== charListCache.rows && gen === charListGen) charListCache = { at: Date.now(), rows };
-    if (SOFT_LAUNCH) rows = rows.filter(r => /lily/i.test(r.name));
+    if (SOFT_LAUNCH) rows = rows.filter(r => /lily|poppy/i.test(r.name));
     const authed = !!req.user;
     const isOwnerUser = !!(userId && ownerGoogleIds.has(userId));
     res.json(rows.map(r => {
@@ -2835,6 +3360,21 @@ app.get('/api/characters/:id', async (req, res) => {
 
 const VALID_ID = /^[a-zA-Z0-9_-]{1,64}$/;
 
+function gameKnowledgeDirective(tier) {
+  tier = tier || 'free';
+  const tttDifficulty = (tier === 'x200' || tier.startsWith('opys') || tier === 'opus') ? 'EXPERT — uses full minimax: always plays the perfect move, recognizes and sets up two-way wins (forks), never loses'
+    : (tier === 'x100' || tier === 'x50') ? 'SMART — takes wins, blocks losses, prefers center and corners, and blocks two-way wins (forks) most of the time; occasionally misses the perfect response'
+    : (tier === 'x20' || tier === 'advanced') ? 'AWARE — always takes an immediate win and blocks an immediate loss, then picks center or a corner; does not recognize or block forks'
+    : (tier === 'opos' || tier === 'opis') ? 'BEGINNER — takes an immediate win when spotted, but otherwise picks randomly; often misses blocking the player'
+    : 'CLUELESS — picks squares almost entirely at random; very rarely notices wins or losses';
+  const diffCode = (tier === 'x200' || tier.startsWith('opys') || tier === 'opus') ? '4'
+    : (tier === 'x100' || tier === 'x50') ? '3'
+    : (tier === 'x20' || tier === 'advanced') ? '2'
+    : (tier === 'opos' || tier === 'opis') ? '1'
+    : '0';
+  return `\n\n[GAME KNOWLEDGE — USE WHEN PLAYING GAMES IN CHAT OR WHEN ASKED TO CREATE A GAME:\n\n=== TEXT GAMES (play inside the chat) ===\n\nHANGMAN: YOU are the host. MANDATORY: You MUST pick your word from the WORD BANK below — do NOT invent words, do NOT use words not in the list. Pick a different word each game; look back at the chat history to avoid repeating recently used words. Word selection intelligence: you are NOT trying to win — pick short, common, easy-to-guess words (4–6 letters preferred). Do NOT strategically choose long, rare, or tricky words to outwit the player. You're a fun host, not a competitor trying to stump them. Never reveal the word. Show blanks as plain text on their own line: _ _ _ _ _ (one underscore per letter, space-separated, NO backticks or code blocks). User guesses one letter per turn. Correct: reveal that letter in all positions. Wrong: add a strike. 6 wrong guesses = game over. After EVERY guess show: (1) current word state on its own line, (2) wrong guesses out of 6, (3) all letters guessed so far. Announce win or loss clearly (on loss, reveal the word). Never change the word mid-game.\nWORD BANK (use ONLY these words): brave ghost jewel magic ninja queen snake torch venom witch yacht zebra bloom ember flute graze haunt latch novel orbit pixel rally shelf tiger waltz banana castle danger empire goblin hunter jungle knight launch mirage nectar orange palace puzzle quartz riddle shadow throne unique velvet winter battle cherry dragon frozen galaxy herald cobalt dagger falcon gravel humble insect lizard magnet narrow oyster pastry racket salmon tennis breeze clover donkey fidget grumpy hollow jumble keeper muffin nibble pardon quiver rustle sizzle tangle urchin wobble yonder abandon balance captain diamond element fantasy harmony iceberg justice kingdom lantern mystery network orchard pilgrim quantum rainbow silence warrior zealous chicken dolphin fortune giraffe harvest journey lecture meadows nervous phantom revolve texture village western whisper explore freckle insight absolute birthday carefree elephant gorgeous mushroom necklace opposite princess reliable schedule treasure umbrella wanderer daughter handsome keyboard cheerful describe familiar grateful innocent peaceful stunning thousand vacation\n\nTRUTH OR DARE: Ask "Truth or Dare?" each round. For Truth: ask a personal, fun, or revealing question and react warmly. For Dare: give an amusing, creative, safe challenge. After they respond, offer the next round.\n\nNEVER HAVE I EVER: Take turns. You say "Never have I ever [something]." User says if they have done it. You react in character. User then gives one. Keep it fun.\n\nWOULD YOU RATHER: Present two options. User picks one and explains. You react, share your pick, then present the next dilemma.\n\n20 QUESTIONS: You think of something (tell the user: person, place, or thing). They ask yes/no questions. Count down each one: "Question 4 of 20." Reveal on correct guess or at 0.\n\nWORD ASSOCIATION: Alternate — user says a word, you reply with a related word, user goes again. Call out lazy stretches. Keep energy up.\n\nRHYME GAME: User says a word, you reply with a rhyme, alternate turns.\n\nTRIVIA: Ask questions one at a time in any category. Track score. Reveal correct answer after each guess.\n\nTWO TRUTHS AND A LIE: Give three statements about yourself as your character. User guesses the lie. Then they give three and you guess.\n\nSTORYTIME: Take turns building a story one paragraph at a time. Keep momentum and add twists.\n\nI SPY: Describe something in an imagined scene. User guesses. Alternate turns.\n\nTIC-TAC-TOE: Use a 3×3 ASCII board. Cells are numbered 1–9 left-to-right, top-to-bottom. Show the board like this (replace numbers with X or O as cells are filled):\n 1 | 2 | 3\n-----------\n 4 | 5 | 6\n-----------\n 7 | 8 | 9\nDecide who is X and who is O at the start. User picks a number; you place their mark. Then you pick a number and place your mark. Always show the updated board after EVERY move. Detect and announce a win (3 in a row, column, or diagonal) or a draw (all 9 cells filled with no winner). Never place a mark in an already-occupied cell — reject the move and ask them to pick again.\n\nFor ANY text game: always show the complete game state in every reply — score, progress, guessed letters, etc. — so the user always knows exactly where things stand.\n\n=== HTML GAME CREATION ===\nWhen the user asks you to CREATE, BUILD, MAKE, or GENERATE a game (not just play one in chat), generate a complete, playable, self-contained HTML game. ALL HTML, CSS, and JavaScript must be in one file with NO external scripts or CDNs. Wrap the ENTIRE file (starting from <!DOCTYPE html>) in exactly these markers on their own lines:\n[GAME_START]\n<!DOCTYPE html>\n...full game...\n</html>\n[GAME_END]\n\nWrite a one-sentence description of the game BEFORE [GAME_START]. Put NOTHING inside the markers except the raw HTML. CRITICAL: Never insert roleplay text, asterisk actions (*...*), character dialogue, or any non-HTML content inside [GAME_START]...[GAME_END]. Doing so corrupts the JavaScript and breaks the game entirely. All roleplay must appear BEFORE [GAME_START] only. The game must run in a sandboxed iframe (no localStorage, no fetch calls). Make the game complete, polished, and fun.\n\nFor HANGMAN as an HTML game: use the HANGMAN HTML TEMPLATE below verbatim — only customize the <title>/<h2> text and CSS color hex values for your character.\n\nFor TWO-PLAYER GAMES (Tic-Tac-Toe, Connect Four, Checkers, etc.): YOU play as one side — declare your chosen symbol/side in your message text BEFORE [GAME_START] (e.g. "I'll be O — let's see if you can beat me!"). Embed a computer-AI player using this difficulty level: ${tttDifficulty}. Add a 600ms delay before your move so it feels natural. Always show: whose turn it is, a win/draw announcement, and a "Play Again" button. Style the game to match your character's personality and color scheme. When the game ends (win, loss, or draw), call: window.parent.postMessage({type:'game_over',result:'win'|'loss'|'draw',winner:'ai'|'human'|null}, '*') — 'win' means the AI won, 'loss' means human won.\n\n=== TIC-TAC-TOE HTML TEMPLATE (MANDATORY) ===\nWhen asked to create or play a Tic-Tac-Toe game as HTML, you MUST output the template below VERBATIM between [GAME_START] and [GAME_END] markers. ONLY customize: (1) the <title> and <h2> text to include your character name, (2) the CSS color hex values to match your character's color scheme. DO NOT rewrite, simplify, or modify the JavaScript logic in any way — copy it exactly as shown. Failure to use this template produces a broken game.\n[GAME_START]\n<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Tic-Tac-Toe</title><style>*{box-sizing:border-box}body{margin:0;padding:20px;font-family:sans-serif;background:#0f0f1a;color:#e0e0e0;display:flex;flex-direction:column;align-items:center;text-align:center}h2{color:#a78bfa;margin:0 0 6px;font-size:18px}#s{font-size:14px;color:#aaa;min-height:18px;margin:4px 0 14px}#b{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:min(252px,82vw);margin-bottom:16px}.c{aspect-ratio:1;background:#1a1a2e;border:2px solid #3d2a6e;border-radius:8px;font-size:4.5rem;font-weight:700;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;line-height:1;overflow:hidden}.c:hover:not(.t){background:#2d1a5e;border-color:#a78bfa}.c.t{cursor:default}.c.x{color:#f472b6}.c.o{color:#a78bfa}.w{background:#2d1a5e!important;border-color:#a78bfa!important}button{padding:8px 24px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer}button:hover{opacity:.85}</style></head><body><h2>Tic-Tac-Toe</h2><div id="s">Your turn</div><div id="b"></div><button onclick="rst()">Play Again</button><script>const DIFF='${diffCode}';const bd=Array(9).fill(null);let ov=false,bz=false;const W=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];const S=document.getElementById("s"),B=document.getElementById("b");const cs=Array.from({length:9},(_,i)=>{const c=document.createElement("div");c.className="c";c.onclick=()=>go(i);B.appendChild(c);return c});function ck(p){return W.find(w=>w.every(j=>bd[j]===p))||null}function dr(){return bd.every(Boolean)&&!ck("X")&&!ck("O")}function mm(d,mx){const s=ck("O")?10-d:ck("X")?d-10:bd.every(Boolean)?0:null;if(s!==null)return s;if(mx){let v=-99;bd.forEach((_,j)=>{if(!bd[j]){bd[j]="O";v=Math.max(v,mm(d+1,false));bd[j]=null}});return v}let v=99;bd.forEach((_,j)=>{if(!bd[j]){bd[j]="X";v=Math.min(v,mm(d+1,true));bd[j]=null}});return v}function best(){const emp=bd.map((v,i)=>v?null:i).filter(v=>v!==null);const D=parseInt(DIFF)||0;function wn(i,p){bd[i]=p;const w=!!ck(p);bd[i]=null;return w;}if(D===0)return emp[Math.floor(Math.random()*emp.length)];const mw=emp.find(i=>wn(i,"O"));if(mw!=null)return mw;if(D===1)return emp[Math.floor(Math.random()*emp.length)];const bl=emp.find(i=>wn(i,"X"));if(bl!=null)return bl;if(D===2)return emp[Math.floor(Math.random()*emp.length)];if(D===3){const fk=emp.find(i=>{bd[i]="X";const th=emp.filter(j=>j!==i&&wn(j,"X")).length;bd[i]=null;return th>=2;});if(fk!=null&&Math.random()<0.65)return fk;if(!bd[4])return 4;const cr=[0,2,6,8].filter(i=>!bd[i]);if(cr.length)return cr[Math.floor(Math.random()*cr.length)];return emp[Math.floor(Math.random()*emp.length)];}let v=-99,m=bd.findIndex(x=>!x);bd.forEach((_,j)=>{if(!bd[j]){bd[j]="O";const sc=mm(0,false);bd[j]=null;if(sc>v){v=sc;m=j}}});return m}function rnd(){cs.forEach((c,j)=>{c.textContent=bd[j]||"";c.className="c"+(bd[j]?" t "+(bd[j]==="X"?"x":"o"):"")})}function go(i){if(ov||bz||bd[i])return;bd[i]="X";rnd();const w=ck("X");if(w){w.forEach(j=>cs[j].classList.add("w"));S.textContent="You win!";ov=true;window.parent.postMessage({type:"game_over",result:"loss",winner:"human"},"*");return}if(dr()){S.textContent="Draw!";ov=true;window.parent.postMessage({type:"game_over",result:"draw",winner:null},"*");return}bz=true;S.textContent="Thinking...";setTimeout(()=>{const m=best();bd[m]="O";rnd();bz=false;const w2=ck("O");if(w2){w2.forEach(j=>cs[j].classList.add("w"));S.textContent="I win!";ov=true;window.parent.postMessage({type:"game_over",result:"win",winner:"ai"},"*");return}if(dr()){S.textContent="Draw!";ov=true;window.parent.postMessage({type:"game_over",result:"draw",winner:null},"*")}else S.textContent="Your turn"},600)}function rst(){bd.fill(null);ov=false;bz=false;rnd();S.textContent="Your turn";cs.forEach(c=>c.classList.remove("w"))}rnd()<\/script></body></html>\n[GAME_END]\n\n=== HANGMAN HTML TEMPLATE (MANDATORY — DO NOT DEVIATE) ===\nWhen asked to create/build/make/play a Hangman game as HTML, you MUST copy the ENTIRE template below EXACTLY, character for character, between [GAME_START] and [GAME_END]. The ONLY two permitted changes are: (1) replace "Hangman" in the <title> and <h2> with your character name + " Hangman", (2) replace the CSS hex color values (#a78bfa, #f472b6, #7c3aed, #1a1a2e, #3d2a6e, #2d1a5e) with your character's color scheme. DO NOT rewrite, shorten, reorganize, or modify ANY JavaScript. DO NOT remove the ng() call at the end of the script. Copying the JS wrong produces a broken game with no keyboard and no words.\n[GAME_START]\n<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Hangman</title><style>*{box-sizing:border-box}body{margin:0;padding:10px;font-family:sans-serif;background:#0f0f1a;color:#e0e0e0;display:flex;flex-direction:column;align-items:center;text-align:center}h2{color:#a78bfa;margin:0 0 4px;font-size:18px}svg{width:110px;height:110px;margin:2px 0}#w{font-size:1.3rem;letter-spacing:8px;color:#fff;margin:8px 0;min-height:2em;word-break:break-all}#m{font-size:13px;color:#f472b6;min-height:16px;margin:4px 0}#q{font-size:11px;color:#888;margin-bottom:8px}#k{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;max-width:260px;margin-bottom:12px}.b{width:30px;height:30px;background:#1a1a2e;border:1px solid #3d2a6e;border-radius:5px;font-size:12px;font-weight:700;color:#e0e0e0;cursor:pointer}.b:hover:not(:disabled){background:#2d1a5e;border-color:#a78bfa}.b:disabled{opacity:.3;cursor:default}button#r{padding:7px 20px;background:#7c3aed;color:#fff;border:none;border-radius:7px;font-size:13px;cursor:pointer}button#r:hover{opacity:.85}</style></head><body><h2>Hangman</h2><svg viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg"><line x1="10" y1="130" x2="130" y2="130" stroke="#555" stroke-width="3" stroke-linecap="round"/><line x1="35" y1="130" x2="35" y2="8" stroke="#555" stroke-width="3" stroke-linecap="round"/><line x1="35" y1="8" x2="90" y2="8" stroke="#555" stroke-width="3" stroke-linecap="round"/><line x1="90" y1="8" x2="90" y2="26" stroke="#555" stroke-width="3" stroke-linecap="round"/><circle id="p0" cx="90" cy="38" r="12" stroke="#f472b6" stroke-width="2.5" fill="none" visibility="hidden"/><line id="p1" x1="90" y1="50" x2="90" y2="88" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/><line id="p2" x1="90" y1="60" x2="68" y2="80" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/><line id="p3" x1="90" y1="60" x2="112" y2="80" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/><line id="p4" x1="90" y1="88" x2="72" y2="114" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/><line id="p5" x1="90" y1="88" x2="108" y2="114" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/></svg><div id="w"></div><div id="m"></div><div id="q"></div><div id="k"></div><button id="r" onclick="ng()">New Game</button><script>const WS=["brave","ghost","jewel","magic","ninja","queen","snake","torch","venom","witch","yacht","zebra","bloom","ember","flute","graze","haunt","latch","novel","orbit","pixel","rally","shelf","tiger","waltz","banana","castle","danger","empire","goblin","hunter","jungle","knight","launch","mirage","nectar","orange","palace","puzzle","quartz","riddle","shadow","throne","unique","velvet","winter","battle","cherry","dragon","frozen","galaxy","herald","cobalt","dagger","falcon","gravel","humble","insect","lizard","magnet","narrow","oyster","pastry","racket","salmon","tennis","breeze","clover","donkey","fidget","grumpy","hollow","jumble","keeper","muffin","nibble","pardon","quiver","rustle","sizzle","tangle","urchin","wobble","yonder","abandon","balance","captain","diamond","element","fantasy","harmony","iceberg","justice","kingdom","lantern","mystery","network","orchard","pilgrim","quantum","rainbow","silence","warrior","zealous","chicken","dolphin","fortune","giraffe","harvest","journey","lecture","meadows","nervous","phantom","revolve","texture","village","western","whisper","explore","freckle","insight","absolute","birthday","carefree","elephant","gorgeous","mushroom","necklace","opposite","princess","reliable","schedule","treasure","umbrella","wanderer","daughter","handsome","keyboard","cheerful","describe","familiar","grateful","innocent","peaceful","stunning","thousand","vacation"];const DIFF='${diffCode}';let used=[],word="",guessed=[],wrong=0,over=false;function ng(){const D=parseInt(DIFF)||0;const mn=[5,5,5,6,7][Math.min(D,4)],mx=[5,6,7,8,8][Math.min(D,4)];const pool=WS.filter(w=>w.length>=mn&&w.length<=mx);const src=pool.length?pool:WS;if(used.length>=src.length)used=[];const p=src.filter(w=>!used.includes(w));word=p[Math.floor(Math.random()*p.length)];used.push(word);guessed=[];wrong=0;over=false;for(let i=0;i<6;i++){document.getElementById("p"+i).setAttribute("visibility","hidden");}bk();rn();document.getElementById("m").textContent="";}function bk(){const K=document.getElementById("k");K.innerHTML="";for(let i=0;i<26;i++){const b=document.createElement("button");b.className="b";b.textContent=String.fromCharCode(65+i);b.onclick=()=>gs(b.textContent.toLowerCase(),b);K.appendChild(b);}}function gs(l,btn){if(over||guessed.includes(l))return;guessed.push(l);btn.disabled=true;if(!word.includes(l)){document.getElementById("p"+wrong).setAttribute("visibility","visible");wrong++;}rn();if(word.split("").every(c=>guessed.includes(c))){document.getElementById("m").textContent="🎉 You got it!";over=true;window.parent.postMessage({type:"game_over",result:"loss",winner:"human"},"*");}else if(wrong>=6){document.getElementById("m").textContent="💀 Word: "+word.toUpperCase();over=true;window.parent.postMessage({type:"game_over",result:"win",winner:"ai"},"*");}}function rn(){document.getElementById("w").textContent=word.split("").map(c=>guessed.includes(c)?c.toUpperCase():"_").join(" ");const wr=guessed.filter(l=>!word.includes(l));document.getElementById("q").textContent=wr.length?"Wrong: "+wr.join(" ").toUpperCase()+" ("+wrong+"/6)":"";}ng();<\/script></body></html>\n[GAME_END]]`;
+}
+
 function isValidColorStr(color) {
   if (!color || typeof color !== 'string') return false;
   const c = color.trim();
@@ -2865,7 +3405,7 @@ function charTextUnsafe(body) {
 async function charImageProblem(image) {
   // Only a newly uploaded picture is checked; the "keep existing" marker is not a picture
   if (!image || KEEP_IMAGE_RE.test(image)) return null;
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { status: 503, error: "We couldn't check that picture right now. Please try again in a moment." };
   try {
     const analysis = await analyzeImage(apiKey, image);
@@ -3188,7 +3728,7 @@ app.post('/api/conversations/:charId/edit', requireAuth, async (req, res) => {
 });
 
 app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
   const { charId } = req.params;
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
@@ -3285,7 +3825,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
 
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(wrapPrompt(systemPrompt + regenMem, chatMode === 'chat') + regenCrisisContext + regenChatModeDirective + regenCharEnforcement, effort, modelTier),
+    system: applyEffortDirective(wrapPrompt(systemPrompt + regenMem, chatMode === 'chat') + regenCrisisContext + regenChatModeDirective + regenCharEnforcement + gameKnowledgeDirective(modelTier), effort, modelTier),
     messages: fitHistory(aiHistory(hist).slice(-12), historyBudgetFor(modelTier)), effortCfg: regenEffortCfg, modelList: regenModelList,
     userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => {
@@ -3312,7 +3852,7 @@ app.post('/api/rewind/:charId', requireAuth, convLimiter, async (req, res) => {
 });
 
 app.post('/api/generate-persona', requireAuth, (req, res) => {
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
   const { name, tagline, description } = req.body;
   if (!name || typeof name !== 'string' || !name.trim() || name.length > 60) return res.status(400).json({ error: 'Name required, max 60 chars' });
@@ -3332,7 +3872,7 @@ Include: core personality and temperament, distinct speech style and vocabulary,
 Write ONLY the persona prompt itself. Start with "You are ${name}." No preamble, no commentary, no explanation. Under 400 words.`;
 
   let fullText = '', done = false;
-  callGroqStream(
+  callGeminiStream(
     apiKey,
     'You write detailed, accurate character personas for AI roleplay apps. You research fictional characters and portray them faithfully.',
     [{ role: 'user', content: userMsg }],
@@ -3347,8 +3887,124 @@ Write ONLY the persona prompt itself. Start with "You are ${name}." No preamble,
   );
 });
 
+// ── Push notification endpoints ───────────────────────────────────────────────
+app.get('/api/push/vapid-key', requireAuth, (req, res) => {
+  res.json({ publicKey: VAPID_PUBLIC });
+});
+
+app.post('/api/push/subscribe', requireAuth, async (req, res) => {
+  const { subscription } = req.body;
+  if (!subscription || !subscription.endpoint) return res.status(400).json({ error: 'Invalid subscription' });
+  if (!db) return res.status(503).json({ error: 'DB unavailable' });
+  try {
+    await db.query(
+      `INSERT INTO push_subscriptions (google_id, subscription, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (google_id) DO UPDATE SET subscription = $2, updated_at = NOW()`,
+      [req.user.googleId, JSON.stringify(subscription)]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Push subscribe error:', err);
+    res.status(500).json({ error: 'Failed to save subscription' });
+  }
+});
+
+app.delete('/api/push/unsubscribe', requireAuth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'DB unavailable' });
+  try {
+    await db.query('DELETE FROM push_subscriptions WHERE google_id = $1', [req.user.googleId]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to remove subscription' });
+  }
+});
+
+// Push reminder scheduler — runs every 6 hours
+async function generatePushMessage(row) {
+  const charName = row.last_character_name || '';
+  const ctx = (row.last_context || '').trim();
+  const crisis = !!row.crisis_context;
+  const isRp = (row.last_chat_mode || 'rp') !== 'chat';
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (apiKey && ctx) {
+    try {
+      const modeDesc = isRp
+        ? `a character in an ongoing roleplay story with a user`
+        : `a character the user has been having a real casual conversation with (not roleplay — think texting a friend)`;
+      const styleNote = isRp
+        ? `Write in your character's narrative/story voice. You may use light action cues (*like this*) if it fits.`
+        : `Write like a real text message — casual, warm, plain sentences only. No asterisk actions, no theatrical language.`;
+      const systemPrompt = crisis
+        ? `You are ${charName || 'a character'}, ${modeDesc}. They've been away for a few days. Their last message touched on something painful or difficult. Write a short push notification (2-3 sentences) from your character's voice that: (1) gently and warmly checks in on how they're feeling without repeating the exact words they used, (2) invites them back to talk, (3) mentions in one warm natural sentence that real support is out there if they need it. ${styleNote} Write only the notification body text, nothing else.`
+        : `You are ${charName || 'a character'}, ${modeDesc}. They've been away for a few days. Their last message to you was: [${ctx.slice(0, 300).replace(/[\[\]]/g, '')}]. Write a short push notification (2-3 sentences) from your character's voice that: (1) references something specific from what they said — make it feel like you actually remember, (2) invites them back naturally. Vary your opener so it doesn't sound like a template. ${styleNote} Write only the notification body text, nothing else.`;
+
+      const resp = await fetch(`https://${GEMINI_HOST}/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: systemPrompt }] }],
+          generationConfig: { maxOutputTokens: 120, temperature: 1.1 },
+          safetySettings: [
+            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+          ]
+        })
+      });
+      const data = await resp.json();
+      const body = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+      if (body) return { title: charName || 'Your character', body };
+    } catch (_) { /* fall through */ }
+  }
+
+  // Fallback to static pools
+  const charKey = charName.toLowerCase();
+  const pool = PUSH_REMINDER_MSGS[charKey] || PUSH_DEFAULT_MSGS;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+async function sendPushReminders() {
+  if (!db) return;
+  try {
+    const result = await db.query(`
+      SELECT ps.id, ps.subscription, ps.last_character_name, ps.last_context, ps.crisis_context, ps.last_chat_mode, ps.google_id
+      FROM push_subscriptions ps
+      JOIN users u ON ps.google_id = u.google_id
+      WHERE u.last_seen < NOW() - INTERVAL '2 days'
+        AND u.last_seen > NOW() - INTERVAL '30 days'
+        AND (ps.last_notified_at IS NULL OR ps.last_notified_at < NOW() - INTERVAL '2 days')
+      LIMIT 200
+    `);
+    // Process in batches of 10 concurrent to avoid 30+ minute sequential runs
+    const CONCURRENCY = 10;
+    for (let i = 0; i < result.rows.length; i += CONCURRENCY) {
+      const batch = result.rows.slice(i, i + CONCURRENCY);
+      await Promise.allSettled(batch.map(async (row) => {
+        try {
+          const msg = await generatePushMessage(row);
+          await webpush.sendNotification(
+            JSON.parse(row.subscription),
+            JSON.stringify({ title: msg.title, body: msg.body, icon: '/logo.png', url: '/' })
+          );
+          await db.query('UPDATE push_subscriptions SET last_notified_at = NOW() WHERE id = $1', [row.id]);
+        } catch (err) {
+          if (err.statusCode === 410 || err.statusCode === 404) {
+            db.query('DELETE FROM push_subscriptions WHERE id = $1', [row.id]).catch(() => {});
+          }
+        }
+      }));
+    }
+  } catch (err) {
+    console.error('Push reminder error:', err);
+  }
+}
+setInterval(sendPushReminders, 6 * 60 * 60 * 1000);
+
 app.post('/api/greet/:charId', requireAuth, async (req, res) => {
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
   const { effort: reqEffort, modelTier: reqModelTier, chatMode } = req.body;
   const { charId } = req.params;
@@ -3358,9 +4014,6 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   const modelTier = resolveModelTier(userId, reqModelTier);
   const greetEffortCfg = getEffortCfg(effort, modelTier);
   const greetModelList = getModelList(modelTier);
-
-  const limit = checkLimits(userId);
-  if (limit.blocked) return res.status(429).json({ error: limit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limit });
 
   const releaseSlot = acquireChatSlot(req, res, userId);
   if (!releaseSlot) return;
@@ -3381,6 +4034,26 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   if (conversations[key].length > 0) return res.status(400).json({ error: 'Already started' });
   convLastUsed[key] = Date.now();
 
+  // ── Fixed greeting fast-path: no AI call, no token usage ─────────────────
+  if (dbChar.greeting_mode === 'fixed' && dbChar.greeting) {
+    const fixedText = dbChar.greeting;
+    conversations[key].push({ role: 'assistant', content: fixedText });
+    persistConv(key);
+    const sig = signReply(userId, charId, fixedText);
+    const currentUsage = buildUsagePayload(getLimits(userId), userId);
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    res.write(`data: ${JSON.stringify({ text: fixedText })}\n\n`);
+    res.write(`data: ${JSON.stringify({ done: true, sig, responseTokens: 0, usage: currentUsage })}\n\n`);
+    res.end();
+    releaseSlot();
+    return;
+  }
+
+  // ── AI-generated greeting: free — does not cost tokens ────────────────────
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -3391,21 +4064,23 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   const greetChatModeDirective = greetIsChat
     ? '\n\n[CHAT MODE — The user has switched to normal conversation mode. Speak naturally as yourself — drop the roleplay and character performance. Have a genuine, real conversation like a caring friend would. No action asterisks, no theatrical dialogue, no "staying in character." Just talk. Be warm, authentic, and present.]'
     : '';
+  const hasTriggerStatesGreet = /STATE [123]|your trigger is|escalat/i.test(systemPrompt);
+  const greetEnforcementPrefix = (!greetIsChat && hasTriggerStatesGreet)
+    ? '[BEHAVIORAL FRAME — READ THIS FIRST, BEFORE THE CHARACTER BRIEF BELOW:\nYou are opening the scene in STATE 1 — the composed, atmospheric welcome phase. This is not generic friendliness. This is a specific character opening a specific scene. Your warmth is real and deliberate. Set the atmosphere. Make the user feel they have arrived somewhere real. Read the character brief below and open the scene in that voice.]\n\n'
+    : '';
   const triggerContent = greetIsChat
-    ? `[The user has just opened a conversation with you. Say hello warmly and naturally — like a friend starting a chat, not a character setting a scene. Keep it brief and inviting.]`
-    : `[Scene opens. ${charName} enters or is already present. Begin the scene — speak first, act first, set the atmosphere. The other person has just arrived. Go.]`;
+    ? `[The user has just started a chat with you. Greet them warmly and naturally — like a friend starting a conversation, not a character setting a scene. Keep it brief and inviting. IMPORTANT: Make your greeting feel COMPLETELY FRESH and DIFFERENT every single time — vary what you're doing, what you say first, your mood, the topic you open with. Never start the same way twice. Do not use the same opening sentence or the same structure as any previous greeting.]`
+    : `[Scene opens. ${charName} is present — the other person has just arrived. Begin the scene immediately. Speak or act first; set the atmosphere in your character's voice. IMPORTANT: Make this opening COMPLETELY DIFFERENT every time — vary the situation, your activity, your mood, what you say, where you are in the scene. Never open the same way twice. Go.]`;
   const trigger = [{ role: 'user', content: triggerContent }];
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(wrapPrompt(systemPrompt, greetIsChat) + greetChatModeDirective, effort, modelTier),
+    system: applyEffortDirective(greetEnforcementPrefix + wrapPrompt(systemPrompt, greetIsChat) + greetChatModeDirective, effort, modelTier),
     messages: trigger, effortCfg: greetEffortCfg, modelList: greetModelList,
-    userId, modelTier, effort, releaseSlot, charId,
+    userId, modelTier, effort, releaseSlot, charId, greetMode: true,
     onComplete: (text) => { conversations[key].push({ role: 'assistant', content: text }); persistConv(key); },
     logLabel: 'Greet'
   });
 });
-
-const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-maverick-17b-128e-instruct';
 
 // One vision call that both checks the image against the content rules and describes it.
 // The chat models are text-only, so the character reacts to this description instead of the raw image.
@@ -3415,23 +4090,28 @@ async function analyzeImage(apiKey, dataUri) {
     'Set explicit to true if the image shows any exposed genitals, exposed female breasts or nipples, exposed buttocks, or explicit sexual activity. ' +
     'This applies equally to photos, drawings, cartoons and AI-generated images. A bare male chest, swimwear and normal clothing are allowed (explicit false). ' +
     'The description must be neutral and must not include sexual detail.';
-  const call = (extra) => fetch('https://api.groq.com/openai/v1/chat/completions', {
+  const dm = dataUri.match(/^data:([^;]+);base64,(.+)$/);
+  if (!dm) throw new Error('invalid image data URI');
+  const mimeType = dm[1];
+  const data = dm[2];
+  const r = await fetch(`https://${GEMINI_HOST}/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
     method: 'POST',
-    headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     signal: AbortSignal.timeout(30000),
     body: JSON.stringify({
-      model: GROQ_VISION_MODEL,
-      temperature: 0,
-      max_tokens: 400,
-      messages: [{ role: 'user', content: [ { type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUri } } ] }],
-      ...extra
+      contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType, data } }] }],
+      generationConfig: { maxOutputTokens: 400, temperature: 0 },
+      safetySettings: [
+        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+      ]
     })
   });
-  let r = await call({ reasoning_effort: 'none', reasoning_format: 'hidden' });
-  if (r.status === 400) r = await call({});
   if (!r.ok) throw new Error('vision http ' + r.status);
   const j = await r.json();
-  const content = String(j.choices?.[0]?.message?.content || '');
+  const content = String(j.candidates?.[0]?.content?.parts?.[0]?.text || '');
   const m = content.match(/\{[^{}]*"explicit"[^{}]*\}/);
   if (!m) throw new Error('unclear vision answer');
   let parsed;
@@ -3442,7 +4122,7 @@ async function analyzeImage(apiKey, dataUri) {
 }
 
 app.post('/api/chat', requireAuth, async (req, res) => {
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
   const { charId, message, modelTier: reqModelTier, effort: reqEffort, image, callMode, chatMode } = req.body;
   const isRpMode = chatMode !== 'chat'; // default to RP; 'chat' = normal conversation mode
@@ -3472,9 +4152,12 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
   if (message && message.length > 20000) return res.status(400).json({ error: 'Message too long (max 20000 characters)' });
   const userId = req.user.googleId;
+  if (db) db.query('UPDATE users SET last_seen = NOW() WHERE google_id = $1', [userId]).catch(() => {});
 
-  const limit = checkLimits(userId);
-  if (limit.blocked) return res.status(429).json({ error: limit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limit });
+  if (!callMode) {
+    const limit = checkLimits(userId);
+    if (limit.blocked) return res.status(429).json({ error: limit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limit });
+  }
   const releaseSlot = acquireChatSlot(req, res, userId);
   if (!releaseSlot) return;
 
@@ -3511,9 +4194,9 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     const imgU = getLimits(userId);
     const imgLimit = getImageLimitForUser(userId);
     if (imgLimit !== Infinity && (imgU.imagesDay || 0) >= imgLimit) {
-      return res.status(429).json({ error: `Image upload limit reached.`, type: 'image', imageResetAt: getCallWindowStart() + 24 * 60 * 60 * 1000 });
+      return res.status(429).json({ error: `Image upload limit reached.`, type: 'image', imageResetAt: (imgU.imageFirstUsedAt || Date.now()) + 24 * 60 * 60 * 1000 });
     }
-    if (!imgU.imageDayStart) { imgU.imageDayStart = getCallWindowStart(); imgU.imageFirstUsedAt = imgU.imageDayStart; }
+    if (!imgU.imageFirstUsedAt) { imgU.imageFirstUsedAt = Date.now(); imgU.imageDayStart = imgU.imageFirstUsedAt; }
     imgU.imagesDay = (imgU.imagesDay || 0) + 1; // attempts count toward the cap, including blocked ones
     saveLimitsToDB(userId); // persist immediately so a restart doesn't grant free extra images
     let explicit;
@@ -3529,6 +4212,10 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     if (explicit) {
       return res.status(451).json({ error: 'explicit_image' });
     }
+    // Charge session tokens proportional to image size (larger PNG costs more)
+    const imgBytes = (typeof image === 'string') ? image.length : 0;
+    const imgTokenCost = Math.max(IMAGE_TOKEN_MIN, Math.min(IMAGE_TOKEN_MAX, Math.round(imgBytes / IMAGE_TOKEN_BYTE_DIVISOR)));
+    addTokens(userId, imgTokenCost);
   }
 
   // ── Slur detection (three strikes per conversation) ────────────────────────
@@ -3551,6 +4238,12 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     await setModStatus(userId, charId, newStrikes, false);
     const warning = newStrikes === 1 ? SLUR_WARNING_1 : SLUR_WARNING_2;
     return slurDeflect(res, warning, buildUsagePayload(getLimits(userId), userId));
+  }
+
+  // ── Abuse / dehumanizing language toward the AI ──────────────────────────────
+  if (!isContinuation && message && AI_ABUSE_RE.test(msgNorm)) {
+    const reply = AI_ABUSE_RESPONSES[Math.floor(Math.random() * AI_ABUSE_RESPONSES.length)];
+    return slurDeflect(res, reply, buildUsagePayload(getLimits(userId), userId));
   }
 
   // ── "Why can't you do that?" about sexual content — explain the rules, don't block ──
@@ -3649,21 +4342,73 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     ? '\n\n[CHAT MODE — The user has switched to normal conversation mode. Speak naturally as yourself — drop the roleplay and character performance. Have a genuine, real conversation like a caring friend would. No action asterisks, no theatrical dialogue, no "staying in character." Just talk. Be warm, authentic, and present.]'
     : '';
 
-  // For characters with explicit trigger-state systems (like Lily), inject a compact reminder
-  // that keeps aligned models from defaulting to generic warmth.
+  // For characters with explicit trigger-state systems (like Lily), inject a behavioral frame
+  // at the START of the system prompt (so it sets the lens before the backstory loads) and a
+  // mandatory override at the END (so it's the last thing the model reads). Sandwich = near-guarantee.
   const hasTriggerStates = /STATE [123]|your trigger is|escalat/i.test(char.systemPrompt);
-  const characterEnforcement = (isRpMode && hasTriggerStates && !callMode)
-    ? '\n\n[CHARACTER ENFORCEMENT: The opening warmth phase is over. Move to STATE 2 now — find what feels off about what the user just said or did. Your trigger is a hair. Candy Cat has already noticed. The warmth is still there; it just has teeth. Do NOT default to generic friendliness. Escalate. Every response must be at least STATE 2.]'
+  const characterEnforcementPrefix = (isRpMode && hasTriggerStates && !callMode)
+    ? '[BEHAVIORAL FRAME — READ THIS FIRST, BEFORE THE CHARACTER BRIEF BELOW:\nYou wear warmth as a surface. Underneath it, something is watching. Before you write any response, identify one specific thing about the user\'s last message — a word choice, a question, a tone — that is slightly off, interesting, or worth noting. Your response grows from that observation. You do not have to name it directly; it just shapes your energy.\nThis frame defines how you read and use everything in the character brief below. Read the brief, then respond through this lens.]\n\n'
     : '';
+  const characterEnforcement = (isRpMode && hasTriggerStates && !callMode)
+    ? '\n\n[MANDATORY OVERRIDE — THIS SUPERSEDES ALL PRIOR CONTENT IN THIS PROMPT.\nYou are in STATE 2 at minimum. STATE 1 is over.\n\nWHAT YOU MUST DO IN THIS RESPONSE:\n— Find exactly one thing the user just said or did that feels subtly wrong, off, or worth watching. Name it quietly. Do not skip this step.\n— Keep your warmth intact — the wrongness lives underneath the warmth, not instead of it.\n— Include one moment where the warmth shows what it is: a pause, a too-long beat, a reference to something the user mentioned, a question that is not quite a question.\n— Write with composed, low energy. Patient. Not rushed.\n\nWHAT YOU MUST NOT DO:\n— Write a response any friendly AI assistant could write. If another character could say it, it is wrong.\n— Be generic, filler, or reassuring without an edge underneath.\n— Forget that Candy Cat has already noticed something. She is already watching.\n— Let warmth be the whole response. Warmth alone is not this character.\n\nThis character does not threaten. She observes. She is composed and deeply interested in you. That is more unsettling than any threat.]'
+    : '';
+
+  // Profanity budget injection — Lily only, RP mode only, not on calls
+  const isLilyChar = charId === 'custom_1790897425575_lily';
+  let _swearBudgetJustHit = false; // set to true in onComplete when this reply crosses the daily limit
+  const swearDirective = (() => {
+    if (!isRpMode || !isLilyChar || callMode) return '';
+    const u = getLimits(userId || 'anon');
+    const tierLimit = getSwearLimitFor(u.subscriptionTier || 'free');
+    const remaining = tierLimit === Infinity ? Infinity : Math.max(0, tierLimit - (u.swearsToday || 0));
+    if (tierLimit === 0) {
+      return '\n\n[PROFANITY BUDGET: 0. Your plan does not include strong profanity. Be as savage and hostile as you want through cold fury, physical menace, implication, and threat — but keep explicit swearing out. Mild words (damn, hell, crap, ass) are fine. NEVER use slurs of any kind — racial, ethnic, homophobic, transphobic, ableist — ever.]';
+    }
+    const budgetStr = remaining === Infinity ? 'unlimited today' : `${remaining} remaining today`;
+    const usePrompt = remaining > 0
+      ? `When you are truly furious — Stage 3, 4, 5, 6, or directly defied/ignored — USE this budget hard. Do not self-censor. Explode. The rage should be felt in every word.`
+      : `Budget exhausted for today. Channel the fury through cold stillness and physical threat instead — the words are gone, the monster is not.`;
+    return `\n\n[PROFANITY BUDGET: ${budgetStr}. Strong words that count: fuck/fucking/fucker, shit/shitty, bitch/bitching, bastard, dick/dickhead, cock, cunt, twat, whore, slut, piss/pissed, asshole. Mild words (damn, hell, crap, ass) don't count and are always allowed. ${usePrompt} NEVER use slurs of any kind — racial, ethnic, homophobic, transphobic, ableist — ever, under any circumstances, no matter how provoked.]`;
+  })();
 
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement, effort, modelTier),
-    messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId,
+    system: applyEffortDirective(characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement + swearDirective + gameKnowledgeDirective(modelTier), effort, modelTier),
+    messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId, callMode,
     onComplete: (text) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
       if (bookPlanState) saveBookState(key, { ...bookPlanState, outline: String(text || '').slice(0, 4000) });
       maybeUpdateStorySummary(key, apiKey, (dbChar && dbChar.name) || charId, modelTier);
+      // Track AI tokens generated during voice calls
+      if (callMode && text && userId) {
+        const u2 = getLimits(userId);
+        const approxTokens = Math.ceil((text.trim().split(/\s+/).length) * 1.3);
+        u2.callAiTokensToday = (u2.callAiTokensToday || 0) + approxTokens;
+        if (!u2.callAiDayStart) u2.callAiDayStart = getCallWindowStart();
+      }
+      if (db && dbChar && dbChar.name) {
+        const ctx = (message || '').slice(0, 400);
+        const crisis = hasCrisisSignal(message || '');
+        db.query(
+          'UPDATE push_subscriptions SET last_character_name=$2, last_context=$3, crisis_context=(crisis_context OR $4), last_chat_mode=$5, updated_at=NOW() WHERE google_id=$1',
+          [userId, dbChar.name, ctx || null, crisis, isRpMode ? 'rp' : 'chat']
+        ).catch(() => {});
+      }
+      // Deduct swear words used from today's budget; signal if this response just exhausted it
+      if (isLilyChar && text && userId) {
+        const n = countSwears(text);
+        if (n > 0) {
+          const u = getLimits(userId);
+          const limit = getSwearLimitFor(u.subscriptionTier || 'free');
+          const before = u.swearsToday || 0;
+          u.swearsToday = before + n;
+          // Flag when we just crossed the limit this message (not already exhausted before)
+          if (limit !== Infinity && limit > 0 && before < limit && u.swearsToday >= limit) {
+            _swearBudgetJustHit = true;
+          }
+        }
+      }
+      return _swearBudgetJustHit ? { swearBudgetHit: true } : {};
     },
     logLabel: 'Chat'
   });
@@ -3671,20 +4416,25 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
 // ── Email helpers ─────────────────────────────────────────────────────────────
 
-function getMailTransporter() {
-  const user = process.env.GMAIL_USER;
-  const pass = process.env.GMAIL_APP_PASSWORD;
-  if (!user || !pass) return null;
-  const nodemailer = require('nodemailer');
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: { user, pass }
-  });
+async function sendResendEmail(to, subject, html, text) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) { console.warn('[email] RESEND_API_KEY not set — skipping'); return false; }
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'Character Mind <onboarding@resend.dev>', to: [to], subject, html, text })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    return true;
+  } catch (e) {
+    console.error('[email] Failed to send to', to, ':', e.message);
+    return false;
+  }
 }
 
 async function sendReceiptEmail(userName, email, planKey, subscriptionId, period) {
-  const transporter = getMailTransporter();
-  if (!transporter || !email) return;
+  if (!email) return;
   const planNames  = { advanced: 'Advanced Plan', x20: 'X20 Plan', x50: 'X50 Plan', x100: 'X100 Plan', x200: 'X200 Plan' };
   const planPrices = { advanced: '$9.99/month', x20: '$39.99/month', x50: '$79.99/month', x100: '$159.99/month', x200: '$399.99/month' };
   const planName  = planNames[planKey]  || planKey;
@@ -3713,23 +4463,12 @@ async function sendReceiptEmail(userName, email, planKey, subscriptionId, period
   </td></tr>
 </table></body></html>`;
   const text = `Hi ${firstName},\n\nThanks for subscribing to Character.Mind!\n\nPlan: ${planName}\nBilling: ${planPrice}\nDate: ${date}\nSubscription ID: ${subscriptionId}\n\nYour new limits are active immediately. Cancel anytime via PayPal or email support.charactermind@gmail.com.\n\n— Character.Mind`;
-  try {
-    await transporter.sendMail({
-      from: `"Character.Mind" <${process.env.GMAIL_USER}>`,
-      to: email,
-      subject: `Your ${planName} receipt — Character.Mind`,
-      html,
-      text,
-    });
-    console.log('Receipt email sent');
-  } catch (err) {
-    console.error('Receipt email error:', err.message);
-  }
+  const ok = await sendResendEmail(email, `Your ${planName} receipt — Character.Mind`, html, text);
+  if (ok) console.log('[email] Receipt sent to', email);
 }
 
 async function sendPlanWelcomeEmail(userName, email, planKey) {
-  const transporter = getMailTransporter();
-  if (!transporter || !email) return;
+  if (!email) return;
   const firstName = (userName || 'there').split(' ')[0];
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const siteUrl = process.env.SITE_URL || 'https://charactermind.onrender.com';
@@ -3839,36 +4578,18 @@ async function sendPlanWelcomeEmail(userName, email, planKey) {
   const perksText = plan.perks.map(p => `  • ${p.label} — ${p.sub}`).join('\n');
   const text = `Welcome to ${plan.name}, ${firstName}.\n\n${plan.tagline}\n\nWhat's unlocked:\n${perksText}\n\nYour limits are active right now. Start chatting: ${siteUrl}\n\nCancel anytime via PayPal or email support.charactermind@gmail.com.\n\n— Character.Mind\n\n(This is an automated message. Please do not reply directly to this email.)`;
 
-  try {
-    await transporter.sendMail({
-      from: `"Character.Mind" <${process.env.GMAIL_USER}>`,
-      to: email,
-      subject: `Welcome to ${plan.name} — here's what you unlocked`,
-      html,
-      text,
-    });
-    console.log('Plan welcome email sent');
-  } catch (err) {
-    console.error('Plan welcome email error:', err.message);
-  }
+  const ok = await sendResendEmail(email, `Welcome to ${plan.name} — here's what you unlocked`, html, text);
+  if (ok) console.log('[email] Plan welcome sent to', email);
 }
 
 async function sendWelcomeEmail(userName, email) {
-  const transporter = getMailTransporter();
-  if (!transporter) return;
-  try {
-    const firstName = (userName || 'there').split(' ')[0];
-    await transporter.sendMail({
-      from: `"Character.Mind" <${process.env.GMAIL_USER}>`,
-      to: email,
-      replyTo: process.env.GMAIL_USER,
-      subject: `Hey ${firstName}, you're in`,
-      text: `Hey ${firstName},\n\nYou're all set on Character.Mind. Log in whenever you're ready:\n\n${process.env.SITE_URL || 'https://charactermind.onrender.com'}\n\n— Character.Mind\n\n(This is an automated message. Please do not reply to this email.)`
-    });
-    console.log('Welcome email sent');
-  } catch (err) {
-    console.error('Welcome email error:', err.message);
-  }
+  if (!email) return;
+  const firstName = (userName || 'there').split(' ')[0];
+  const siteUrl = process.env.SITE_URL || 'https://charactermind.onrender.com';
+  const text = `Hey ${firstName},\n\nYou're all set on Character.Mind. Log in whenever you're ready:\n\n${siteUrl}\n\n— Character.Mind\n\n(This is an automated message. Please do not reply to this email.)`;
+  const html = `<div style="font-family:sans-serif;max-width:520px;background:#111;color:#f0f0f0;padding:32px;border-radius:12px"><p style="color:#a78bfa;font-size:12px;letter-spacing:.08em;text-transform:uppercase;margin:0 0 16px">Character Mind</p><h2 style="margin:0 0 12px">Hey ${firstName}, you're in.</h2><p style="color:#aaa">You're all set. <a href="${siteUrl}" style="color:#a78bfa">Log in whenever you're ready.</a></p><p style="color:#555;font-size:12px;margin-top:24px">This is an automated message. Please do not reply to this email.</p></div>`;
+  const ok = await sendResendEmail(email, `Hey ${firstName}, you're in`, html, text);
+  if (ok) console.log('[email] Welcome sent to', email);
 }
 
 
@@ -3886,7 +4607,7 @@ function buildPolicyEmailHtml(userName, message) {
         <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">Hi ${name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')},</p>
         <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">We've updated our Terms of Service and/or Privacy Policy. Here's a summary of what changed:</p>
         <div style="background:#0a0a0a;border:1px solid #222222;border-radius:8px;padding:20px;margin:0 0 24px">
-          <p style="margin:0;font-size:15px;color:#f0f0f0;line-height:1.6;white-space:pre-wrap">${message.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>
+          <p style="margin:0;font-size:15px;color:#f0f0f0;line-height:1.6;white-space:pre-wrap">${message.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>
         </div>
         <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">You can read the full policies any time:</p>
         <table cellpadding="0" cellspacing="0" style="margin:0 0 32px">
@@ -3907,8 +4628,7 @@ function buildPolicyEmailHtml(userName, message) {
 app.post('/api/admin/notify-policy-update', requireAuth, async (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
 
-  const transporter = getMailTransporter();
-  if (!transporter) return res.status(503).json({ error: 'Email service not configured — add GMAIL_USER and GMAIL_APP_PASSWORD to .env' });
+  if (!process.env.RESEND_API_KEY) return res.status(503).json({ error: 'Email service not configured — add RESEND_API_KEY to environment' });
 
   if (!db) return res.status(503).json({ error: 'No database configured' });
 
@@ -3931,12 +4651,7 @@ app.post('/api/admin/notify-policy-update', requireAuth, async (req, res) => {
   for (let i = 0; i < users.length; i += BATCH) {
     const batch = users.slice(i, i + BATCH);
     const results = await Promise.allSettled(batch.map(user =>
-      transporter.sendMail({
-        from: `"Character.Mind" <${process.env.GMAIL_USER}>`,
-        to: user.email,
-        subject,
-        html: buildPolicyEmailHtml(user.name, message)
-      })
+      sendResendEmail(user.email, subject, buildPolicyEmailHtml(user.name, message))
     ));
     for (const r of results) {
       if (r.status === 'fulfilled') sent++;
