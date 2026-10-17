@@ -4283,34 +4283,39 @@ function updateUsageModal(u) {
     if (subEl && subText !== undefined) subEl.textContent = subText;
   }
 
-  // Calls
-  const callsUnlimited = !u.callsLimit || u.callsLimit >= 9999;
-  const callsUsed = callsUnlimited ? 0 : Math.max(0, u.callsLimit - (u.callsRemaining || 0));
-  const callsPct = callsUnlimited ? 0 : Math.min(100, Math.round(callsUsed / u.callsLimit * 100));
-  setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct,
-    callsUnlimited ? 'Unlimited' : `${u.callsRemaining} of ${u.callsLimit} remaining`, callsUnlimited);
+  // Calls — variable 1–6 per day based on duration; don't show a fixed remaining count
+  const callsToday = u.callsToday || 0;
+  const callsPct = Math.min(100, Math.round(callsToday / 6 * 100));
+  const callsSub = callsToday === 0
+    ? 'None used today · varies by duration (1–6 per day)'
+    : `${callsToday} used today · varies by duration (1–6 per day)`;
+  setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct, callsSub, false);
+  { const el = document.getElementById('usageCallsPct'); if (el) el.textContent = callsToday === 0 ? '—' : String(callsToday); }
 
-  // Memos
-  const memosUnlimited = !u.memosLimit || u.memosLimit >= 9999;
-  const memosUsed = memosUnlimited ? 0 : Math.max(0, u.memosLimit - (u.memosRemaining || 0));
-  const memosPct = memosUnlimited ? 0 : Math.min(100, Math.round(memosUsed / u.memosLimit * 100));
-  setBar('usageMemosBar', 'usageMemosPct', 'usageMemosSub', memosPct,
-    memosUnlimited ? 'Unlimited' : `${u.memosRemaining} of ${u.memosLimit} remaining`, memosUnlimited);
+  // Memos — variable 10–50 per session based on conversation length; don't show a fixed remaining count
+  const memosToday = u.memosToday || 0;
+  const memosPct = Math.min(100, Math.round(memosToday / 50 * 100));
+  const memosSub = memosToday === 0
+    ? 'None used today · varies by length (10–50 per session)'
+    : `${memosToday} used today · varies by length (10–50 per session)`;
+  setBar('usageMemosBar', 'usageMemosPct', 'usageMemosSub', memosPct, memosSub, false);
+  { const el = document.getElementById('usageMemosPct'); if (el) el.textContent = memosToday === 0 ? '—' : String(memosToday); }
 
-  // Images
-  const imgUnlimited = !u.imageLimit || u.imageLimit >= 9999;
-  const imgUsed = imgUnlimited ? 0 : (u.imagesDay || 0);
-  const imgLeft = imgUnlimited ? 0 : Math.max(0, u.imageLimit - imgUsed);
-  const imgPct = imgUnlimited ? 0 : Math.min(100, Math.round(imgUsed / u.imageLimit * 100));
-  const imgSub = imgUnlimited ? 'Unlimited' : (u.imageResetAt && imgUsed > 0
-    ? `${imgLeft} of ${u.imageLimit} remaining · resets ${formatResetTime(u.imageResetAt)}`
-    : `${imgLeft} of ${u.imageLimit} remaining`);
-  setBar('usageImagesBar', 'usageImagesPct', 'usageImagesSub', imgPct, imgSub, imgUnlimited);
+  // Images — variable 1–3 per day based on file size; don't show a fixed remaining count
+  const imgUsed = u.imagesDay || 0;
+  const imgPct = Math.min(100, Math.round(imgUsed / 3 * 100));
+  const imgSub = imgUsed === 0
+    ? 'None used today · varies by image size (1–3 per day)'
+    : imgUsed > 0 && u.imageResetAt
+      ? `${imgUsed} used · varies by size (1–3 per day) · resets ${formatResetTime(u.imageResetAt)}`
+      : `${imgUsed} used · varies by image size (1–3 per day)`;
+  setBar('usageImagesBar', 'usageImagesPct', 'usageImagesSub', imgPct, imgSub, false);
+  { const el = document.getElementById('usageImagesPct'); if (el) el.textContent = imgUsed === 0 ? '—' : String(imgUsed); }
 
   // Daily resets subtitle
   const dailyResetsEl = document.getElementById('usageDailyResetsSub');
   if (dailyResetsEl && u.callWindowResetsAt) {
-    dailyResetsEl.textContent = `Calls & memos · ${formatResetTime(u.callWindowResetsAt)}`;
+    dailyResetsEl.textContent = `Counters reset · ${formatResetTime(u.callWindowResetsAt)}`;
   }
 
   // Game cooldown bar — fills green when ready, drains to orange/yellow while waiting
