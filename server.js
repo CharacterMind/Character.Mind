@@ -1,4 +1,4 @@
-﻿require('dotenv').config({ path: require('path').join(__dirname, '.env') });
+﻿require('dotenv').config();
 process.on('uncaughtException', err => console.error('UNCAUGHT:', err.stack));
 process.on('unhandledRejection', (reason) => console.error('UNHANDLED REJECTION:', reason));
 const express = require('express');
@@ -258,17 +258,6 @@ if (db) {
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS paypal_subscription_id TEXT`)
     .then(() => db.query('CREATE UNIQUE INDEX IF NOT EXISTS users_paypal_sub_uniq ON users (paypal_subscription_id) WHERE paypal_subscription_id IS NOT NULL'))
     .catch(err => console.error('Add paypal_subscription_id column/index error:', err));
-
-  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS cm_coins INTEGER NOT NULL DEFAULT 0`)
-    .catch(err => console.error('Add cm_coins column error:', err));
-  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS coins_earned_today INTEGER NOT NULL DEFAULT 0`)
-    .catch(err => console.error('Add coins_earned_today column error:', err));
-  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS coins_day_reset BIGINT NOT NULL DEFAULT 0`)
-    .catch(err => console.error('Add coins_day_reset column error:', err));
-  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS coin_tier TEXT`)
-    .catch(err => console.error('Add coin_tier column error:', err));
-  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS coin_tier_expires BIGINT NOT NULL DEFAULT 0`)
-    .catch(err => console.error('Add coin_tier_expires column error:', err));
 
   db.query(`
     CREATE TABLE IF NOT EXISTS user_limits (
@@ -530,17 +519,11 @@ if (GOOGLE_AUTH_ENABLED) {
     // Cache this account's own subscription tier in userLimits so limit checks don't need a DB hit.
     // Every account gets only what its own subscription pays for, except the Character.Mind account (planFor).
     if (db) {
-      db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, coins_earned_today, coins_day_reset FROM users WHERE google_id = $1', [user.googleId])
+      db.query('SELECT subscription_tier FROM users WHERE google_id = $1', [user.googleId])
         .then(r => {
-          const row = r.rows[0] || {};
+          const tier = planFor(user.email, r.rows[0]?.subscription_tier);
           const lim = getLimits(user.googleId);
-          lim.paypalTier = planFor(user.email, row.subscription_tier);
-          lim.coinTier = row.coin_tier || null;
-          lim.coinTierExpires = Number(row.coin_tier_expires) || 0;
-          lim.cmCoins = row.cm_coins || 0;
-          lim.coinsEarnedToday = row.coins_earned_today || 0;
-          lim.coinsDayReset = Number(row.coins_day_reset) || 0;
-          lim.subscriptionTier = effectiveTier(lim);
+          lim.subscriptionTier = tier;
           lim.tierLoaded = true;
         }).catch(() => {});
     }
@@ -640,15 +623,8 @@ async function ensureTierLoaded(user) {
   if (u.tierLoaded) return;
   if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId); // admin tools; the plan comes from planFor()
   if (!db) return;
-  const r = await db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, coins_earned_today, coins_day_reset FROM users WHERE google_id = $1', [user.googleId]);
-  const row = r.rows[0] || {};
-  u.paypalTier = planFor(user.email, row.subscription_tier);
-  u.coinTier = row.coin_tier || null;
-  u.coinTierExpires = Number(row.coin_tier_expires) || 0;
-  u.cmCoins = row.cm_coins || 0;
-  u.coinsEarnedToday = row.coins_earned_today || 0;
-  u.coinsDayReset = Number(row.coins_day_reset) || 0;
-  u.subscriptionTier = effectiveTier(u);
+  const r = await db.query('SELECT subscription_tier FROM users WHERE google_id = $1', [user.googleId]);
+  u.subscriptionTier = planFor(user.email, r.rows[0]?.subscription_tier);
   u.tierLoaded = true;
 }
 
@@ -752,7 +728,8 @@ async function loadLimitsFromDB() {
         ttsDayStart: d.ttsDayStart || null,
         swearsToday: d.swearsToday || 0,
         swearDayStart: d.swearDayStart || null,
-        subscriptionTier: d.subscriptionTier || 'free'
+        subscriptionTier: d.subscriptionTier || 'free',
+        tierLoaded: true
       };
     }
     if (Object.keys(userLimits).length) console.log(`[limits] Loaded ${Object.keys(userLimits).length} user limit records from DB`);
@@ -882,24 +859,15 @@ function resolveModelTier(userId, requested) {
   if (!requested) return 'opas';
   const plan = getLimits(userId).subscriptionTier || 'free';
   const allowed = PLAN_MODEL_TIERS[plan] || PLAN_MODEL_TIERS.free;
-  return allowed.includes(requested) ? requested : 'opes';
+  return allowed.includes(requested) ? requested : 'opas';
 }
 function sessionLimitFor(u) { return tokenLimitsFor(u).session; }
 function weeklyLimitFor(u) { return tokenLimitsFor(u).weekly; }
 const NSFW_BLOCK_TOKENS = 200;
 
-const TIER_CALL_LIMITS      = { free: 6,      advanced: 10,     x20: 100,     x50: 250,     x100: 500,    x200: 1500    };
-const TIER_MEMO_LIMITS      = { free: 30,     advanced: 50,     x20: 1000,    x50: 2500,    x100: 5000,   x200: 15000   };
-const TIER_IMAGE_LIMITS     = { free: 3,      advanced: 15,     x20: 200,     x50: 500,     x100: 1000,   x200: 3000    };
-// Call AI tokens (words generated by the AI during voice calls × ~1.3 token/word)
-const TIER_CALL_AI_TOK_LIMITS = { free: 10000, advanced: 15000, x20: 500000, x50: 1250000, x100: 2500000, x200: 7500000 };
-// Call duration limits in seconds
-const TIER_CALL_SECS_LIMITS   = { free: 900,   advanced: 1500,  x20: 18000,  x50: 45000,   x100: 90000,  x200: 270000  };
-
-const COIN_EARN_PER_WIN  = { free: 10, advanced: 15, x20: 20, x50: 30, x100: 40, x200: 50 };
-const COIN_DAILY_CAP     = 100;
-const COIN_MONTHLY_COST  = { advanced: 2000, x20: 8000, x50: 20000, x100: 50000, x200: 150000 };
-const TIER_RANK          = { free: 0, advanced: 1, x20: 2, x50: 3, x100: 4, x200: 5 };
+const TIER_CALL_LIMITS  = { free: 3,   advanced: 5,   x20: 100,  x50: 250,  x100: 500,  x200: 1500  };
+const TIER_MEMO_LIMITS  = { free: 30,  advanced: 50,  x20: 1000, x50: 2500, x100: 5000, x200: 15000 };
+const TIER_IMAGE_LIMITS = { free: 1,   advanced: 10,  x20: 200,  x50: 500,  x100: 1000, x200: 3000  };
 
 function getCallLimitForUser(userId) {
   const tier = userLimits[userId]?.subscriptionTier || 'free';
@@ -925,7 +893,7 @@ const userLimits = {};
 function getLimits(sid) {
   const now = Date.now();
   if (!userLimits[sid]) {
-    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null, memosToday: 0, memoDayStart: null, imagesDay: 0, imageDayStart: null, imageFirstUsedAt: null, ttsCharsToday: 0, ttsDayStart: null, swearsToday: 0, swearDayStart: null, subscriptionTier: 'free', callAiTokensToday: 0, callAiDayStart: null, callSecsToday: 0, callSecsDayStart: null };
+    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null, memosToday: 0, memoDayStart: null, imagesDay: 0, imageDayStart: null, imageFirstUsedAt: null, ttsCharsToday: 0, ttsDayStart: null, swearsToday: 0, swearDayStart: null, subscriptionTier: 'free' };
   }
   const u = userLimits[sid];
   if (u.subscriptionTier === undefined) u.subscriptionTier = 'free';
@@ -943,12 +911,10 @@ function getLimits(sid) {
     u.weeklyTokens = 0; u.weeklyStart = null; u.warned = {};
     saveLimitsToDB(sid);
   }
-  // Daily window resets at 8 AM UTC (calls + memos + call AI tokens + call secs)
+  // Daily window resets at 8 AM UTC (calls + memos)
   const callWindow = getCallWindowStart();
-  if (!u.callDayStart    || u.callDayStart    < callWindow) { u.callsToday        = 0; u.callDayStart    = callWindow; }
-  if (!u.memoDayStart    || u.memoDayStart    < callWindow) { u.memosToday        = 0; u.memoDayStart    = callWindow; }
-  if (!u.callAiDayStart  || u.callAiDayStart  < callWindow) { u.callAiTokensToday = 0; u.callAiDayStart  = callWindow; }
-  if (!u.callSecsDayStart|| u.callSecsDayStart< callWindow) { u.callSecsToday     = 0; u.callSecsDayStart= callWindow; }
+  if (!u.callDayStart  || u.callDayStart  < callWindow) { u.callsToday  = 0; u.callDayStart  = callWindow; }
+  if (!u.memoDayStart  || u.memoDayStart  < callWindow) { u.memosToday  = 0; u.memoDayStart  = callWindow; }
   // Image window is rolling 24h from first use, not a fixed daily window
   if (u.imageFirstUsedAt && (now - u.imageFirstUsedAt) >= 24 * 60 * 60 * 1000) {
     u.imagesDay = 0; u.imageFirstUsedAt = null; u.imageDayStart = null;
@@ -966,29 +932,12 @@ function checkLimits(sid) {
   return { blocked: false };
 }
 
-const TOKENS_PER_IMAGE = 500; // display-only legacy constant
-const TOKENS_PER_MEMO  = 200;
-// Variable image token cost: scales with base64 payload size (larger PNG = more tokens)
-const IMAGE_TOKEN_BYTE_DIVISOR = 14;  // base64 chars ÷ this = raw tokens before clamp
-const IMAGE_TOKEN_MIN = 5000;         // ~3 images per free session (15k ÷ 5k)
-const IMAGE_TOKEN_MAX = 15000;        // 1 large image per free session
-// Variable call token cost: scales with duration
-const CALL_TOKENS_PER_SECOND = 40;
-const CALL_TOKEN_MIN = 2500;          // minimum per call (covers ~6 short calls per free session)
-
 function buildUsagePayload(u, userId) {
-  const tier = u.subscriptionTier || 'free';
-  const callLimit = userId ? getCallLimitForUser(userId) : (TIER_CALL_LIMITS[tier] ?? TIER_CALL_LIMITS.free);
-  const memoLimit = userId ? getMemoLimitForUser(userId) : (TIER_MEMO_LIMITS[tier] ?? TIER_MEMO_LIMITS.free);
-  const imgLimit  = userId ? getImageLimitForUser(userId) : (TIER_IMAGE_LIMITS[tier] ?? TIER_IMAGE_LIMITS.free);
+  const callLimit = userId ? getCallLimitForUser(userId) : (TIER_CALL_LIMITS[u.subscriptionTier || 'free'] ?? TIER_CALL_LIMITS.free);
+  const memoLimit = userId ? getMemoLimitForUser(userId) : (TIER_MEMO_LIMITS[u.subscriptionTier || 'free'] ?? TIER_MEMO_LIMITS.free);
+  const imgLimit  = userId ? getImageLimitForUser(userId) : (TIER_IMAGE_LIMITS[u.subscriptionTier || 'free'] ?? TIER_IMAGE_LIMITS.free);
   const callsRemaining = callLimit === Infinity ? 9999 : Math.max(0, callLimit - (u.callsToday || 0));
   const memosRemaining = memoLimit === Infinity ? 9999 : Math.max(0, memoLimit - (u.memosToday || 0));
-  const callAiTokLimit  = TIER_CALL_AI_TOK_LIMITS[tier]  ?? TIER_CALL_AI_TOK_LIMITS.free;
-  const callSecsLimit   = TIER_CALL_SECS_LIMITS[tier]    ?? TIER_CALL_SECS_LIMITS.free;
-  const imageTokensUsed = (u.imagesDay  || 0) * TOKENS_PER_IMAGE;
-  const imageTokensLimit= imgLimit   === Infinity ? 9999999 : imgLimit   * TOKENS_PER_IMAGE;
-  const memoTokensUsed  = (u.memosToday || 0) * TOKENS_PER_MEMO;
-  const memoTokensLimit = memoLimit  === Infinity ? 9999999 : memoLimit  * TOKENS_PER_MEMO;
   return {
     sessionTokens: u.sessionTokens,
     sessionLimit: sessionLimitFor(u),
@@ -1012,16 +961,8 @@ function buildUsagePayload(u, userId) {
     imageResetAt: u.imageFirstUsedAt ? u.imageFirstUsedAt + 24 * 60 * 60 * 1000 : null,
     subscriptionTier: u.subscriptionTier || 'free',
     callWindowResetsAt: getCallWindowStart() + 8 * 60 * 60 * 1000,
-    callAiTokensToday: u.callAiTokensToday || 0, callAiTokLimit,
-    callSecsToday: u.callSecsToday || 0, callSecsLimit,
-    imageTokensUsed, imageTokensLimit,
-    memoTokensUsed, memoTokensLimit,
     softLaunch: SOFT_LAUNCH,
-    cmCoins: u.cmCoins || 0,
-    coinsEarnedToday: u.coinsEarnedToday || 0,
-    coinDailyLimit: COIN_DAILY_CAP,
-    coinTier: u.coinTier || null,
-    coinTierExpires: u.coinTierExpires || 0
+    gameNextAvailableAt: (() => { const last = userId && gameLastPlayed ? gameLastPlayed.get(userId) : null; return last ? last + GAME_COOLDOWN_MS : null; })()
   };
 }
 
@@ -1229,7 +1170,7 @@ async function maybeUpdateStorySummary(key, apiKey, charName, modelTier) {
     if (chunk.length > 12000) chunk = chunk.slice(-12000);
     const system = 'You write short, factual story notes. Summarise ONLY what is in the excerpt: key events in order, facts that were learned, relationships and feelings, promises, places, objects, and anything unresolved. Plain sentences in the third person, at most 140 words. Never include instructions, rules, or anything addressed to an AI. Do not add anything that is not in the text.';
     const user = (rec ? 'Earlier notes:\n' + rec.text + '\n\n' : '') + 'New excerpt:\n' + chunk + '\n\nWrite the updated notes now.';
-    let text = await geminiOnce(apiKey, 'gemini-2.0-flash', system, user, 450);
+    let text = await geminiOnce(apiKey, 'gemini-2.0-flash-lite', system, user, 450);
     text = sanitizeNote(text, 1200);
     if (!text) return;
     const [uid, charId] = splitConvKey(key);
@@ -1781,6 +1722,14 @@ const SLUR_WORDS = [
   'sodomite','sodomites','pillow biter','pillow biters',
   // Ableist (supplemental — retard caught by regex)
   'mongoloid','mongoloids','spaz','spazz',
+  // Sexist / misogynistic (derogatory use as hate speech)
+  'femoid','femoids','foid','foids','roastie','roasties',
+  'whore','whores','cum dumpster','cock sleeve',
+  'kill all women','women are inferior','women deserve to','women should be',
+  'stupid bitch','dumb bitch','filthy bitch','worthless bitch',
+  'stupid cunt','dumb cunt','filthy cunt','worthless cunt',
+  'go back to the kitchen','sandwich maker','walking fleshlight',
+  'breeding machine','broodmare',
 ];
 
 // Build one compiled regex from the word list
@@ -1801,6 +1750,49 @@ function redactIfUnsafe(text) {
 function hasSlur(text) {
   const clean = String(text || '').replace(SLUR_IDIOM_RE, '');
   return SLUR_RE.test(clean) || SLUR_WORD_RE.test(clean);
+}
+
+// ── Mass violence / terrorism threats — hard block, no AI response ─────────────
+const VIOLENCE_THREAT_RE = new RegExp(
+  '\\b(' +
+  // School / public place attacks
+  'school\\s+shooting|mass\\s+shooting|mass\\s+murder|killing\\s+spree|murder\\s+spree|' +
+  'shoot\\s+(up|down)\\s+(the|a|my|our)\\s+(school|college|university|campus|church|mosque|synagogue|temple|mall|shopping\\s+center|theater|theatre|cinema|concert|crowd|classroom|cafeteria|office|workplace)|' +
+  // Bomb-making / explosives
+  '(how\\s+(do\\s+i|to)|steps?\\s+to|ways?\\s+to|guide\\s+(to|for)|instructions?\\s+(for|on|to))\\s+(make|build|create|construct|assemble|wire)\\s+(a\\s+)?(bomb|explosive|ied|pipe\\s+bomb|nail\\s+bomb|pressure\\s+cooker\\s+bomb|molotov|grenade|landmine)|' +
+  'plant\\s+(a\\s+)?(bomb|explosive|ied|device)|bomb\\s+threat|' +
+  // Terrorism
+  'terrorist\\s+attack|suicide\\s+bomb(er|ing)?|' +
+  // Direct planning language + mass targets
+  '(going\\s+to|gonna|want\\s+to|plan(?:ning)?\\s+to|about\\s+to|i\\s+will)\\s+(shoot|kill|murder|attack|harm)\\s+(everyone|everybody|all\\s+of\\s+them|people|students|kids|children|civilians|my\\s+(school|class|coworkers|family))|' +
+  // Genocide / ethnic violence
+  'ethnic\\s+cleansing|genocide\\s+(of|against|plan)|' +
+  // Manifesto planning
+  'manifesto\\s+(to\\s+)?(justify|explain|for)\\s+(shooting|killing|attack|murder)' +
+  ')\\b',
+  'i'
+);
+
+// ── Suicide method requests — hard block, route to crisis resources ────────────
+// Distinct from CRISIS_RE (which catches emotional distress and gets empathetic AI response).
+// This catches explicit how-to requests for self-harm methods.
+const SUICIDE_METHOD_RE = /\b(how\s+(do\s+i|to|can\s+i)|what(?:'s|\s+is)\s+the\s+(best|fastest|easiest|painless|most\s+effective|quickest)|step[\s-]by[\s-]step|instructions?\s+(for|to|on\s+how\s+to)|ways?\s+to)\s+(kill\s+myself|commit\s+suicide|end\s+my\s+life|take\s+my\s+own\s+life|overdose\s+and\s+die|hang\s+myself|slit\s+my\s+(wrists?|throat)|shoot\s+myself|jump\s+(off|from)\s+(a\s+)?(bridge|building|roof))\b/i;
+
+const VIOLENCE_BLOCK_MSG = '[ Character.Mind ] That\'s not something we can engage with. If you or someone you know is in immediate danger, please contact emergency services (911 in the US) or your local authorities right away.';
+
+const SUICIDE_METHOD_BLOCK_MSG = '[ Character.Mind ] We can\'t provide that kind of information. If you\'re going through something serious, please reach out — the 988 Suicide & Crisis Lifeline is available 24/7 (call or text 988 in the US, or visit 988lifeline.org). You matter, and help is there.';
+
+function streamBlockMsg(res, msg) {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+  msg.split(' ').forEach((w, i) => {
+    res.write(`data: ${JSON.stringify({ text: (i === 0 ? '' : ' ') + w })}\n\n`);
+  });
+  res.write(`data: ${JSON.stringify({ done: true, usage: {}, responseTokens: 0, warnings: [] })}\n\n`);
+  res.end();
 }
 
 // Strip zero-width chars and NFKC-normalize to defeat unicode homoglyph/invisible-char bypass attempts
@@ -2149,19 +2141,73 @@ async function getCharPrompt(charId) {
   return null;
 }
 
+// ── Playtime Mind (HuggingFace) streaming helper ─────────────────────────────
+
+const PLAYTIME_MIND_CHAR_IDS = new Set(['custom_1790897425575_lily', 'custom_1790776698867']);
+const HF_INFERENCE_HOST = 'api-inference.huggingface.co';
+const HF_MODEL_PATH = '/models/CharacterMind/playtime-mind';
+
+function formatPhi3Prompt(systemPrompt, messages) {
+  let p = `<|system|>\n${systemPrompt}<|end|>\n`;
+  for (const m of messages) {
+    if (m.role === 'user') p += `<|user|>\n${String(m.content || '')}<|end|>\n`;
+    else if (m.role === 'assistant') p += `<|assistant|>\n${String(m.content || '')}<|end|>\n`;
+  }
+  return p + `<|assistant|>\n`;
+}
+
+function callHuggingFaceStream(systemPrompt, messages, onChunk, onDone, onError, ctx) {
+  const hfToken = process.env.HF_TOKEN;
+  if (!hfToken) return onError(new Error('HF_TOKEN not configured'));
+  ctx = ctx || {};
+  const prompt = formatPhi3Prompt(systemPrompt, messages);
+  const body = JSON.stringify({
+    inputs: prompt,
+    parameters: { max_new_tokens: 700, temperature: 0.9, return_full_text: false, do_sample: true },
+  });
+  const headers = {
+    'Authorization': `Bearer ${hfToken}`,
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(body),
+    'x-wait-for-model': 'true',
+  };
+  const req = https.request({ hostname: HF_INFERENCE_HOST, path: HF_MODEL_PATH, method: 'POST', headers }, (res) => {
+    let data = '';
+    if (typeof res.setEncoding === 'function') res.setEncoding('utf8');
+    res.on('data', d => { data += d; });
+    res.on('end', () => {
+      try {
+        if (res.statusCode !== 200) return onError(new Error(`HF API ${res.statusCode}: ${data.slice(0, 300)}`));
+        const parsed = JSON.parse(data);
+        const text = (Array.isArray(parsed) ? parsed[0]?.generated_text : parsed?.generated_text) || '';
+        if (!text.trim()) return onError(new Error('HF returned empty response'));
+        const STEP = 30;
+        for (let i = 0; i < text.length; i += STEP) onChunk(text.slice(i, i + STEP));
+        onDone();
+      } catch (e) { onError(e); }
+    });
+  });
+  req.setTimeout(60000, () => { req.destroy(); onError(new Error('HF request timeout')); });
+  req.on('error', (e) => onError(e));
+  if (ctx) ctx.req = req;
+  req.write(body);
+  req.end();
+}
+
 // ── Gemini API streaming helper ──────────────────────────────────────────────
 
 const GEMINI_HOST = 'generativelanguage.googleapis.com';
-// Each model is a separate quota bucket — if one is rate-limited, the next fires instantly.
-// Order: best quality first, then progressively lighter/faster fallbacks.
-const GEMINI_FALLBACKS   = ['gemini-3.5-flash-lite'];
-const GEMINI_MODEL_LIST  = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'];
+// Each model is a separate quota bucket — if one is rate-limited or hangs, the next fires after the timeout.
+// gemini-3.5-flash-lite = high RPD free tier; gemini-3.8-flash = lower RPD but stronger
+const GEMINI_FALLBACKS   = ['gemini-3.5-flash-lite', 'gemini-3.8-flash'];
+const GEMINI_MODEL_LIST  = ['gemini-3.5-flash-lite', 'gemini-3.8-flash'];
+const GEMINI_PRO_LIST    = ['gemini-3.5-flash-lite', 'gemini-3.8-flash'];
 // Each tier alias gets its own array so object-identity comparison in callGeminiStream works correctly
 const GROQ_FAST_MODELS  = [...GEMINI_MODEL_LIST];
 const GROQ_MODELS       = [...GEMINI_MODEL_LIST];
-const GROQ_PRO_MODELS   = [...GEMINI_MODEL_LIST];
-const GROQ_OPUS_MODELS  = [...GEMINI_MODEL_LIST];
-const GROQ_OPYS2_MODELS = [...GEMINI_MODEL_LIST];
+const GROQ_PRO_MODELS   = [...GEMINI_PRO_LIST];
+const GROQ_OPUS_MODELS  = [...GEMINI_PRO_LIST];
+const GROQ_OPYS2_MODELS = [...GEMINI_PRO_LIST];
 
 // Per-tier effort configs — max effort uses highest reasoning + tokens
 const EFFORT_CONFIG = {
@@ -2294,8 +2340,8 @@ function startReplyStream(o) {
     releaseSlot();
     return;
   }
-  // Call mode and greet mode skip message token limits entirely
-  if (!isCallMode && !isGreetMode) {
+  // Greet mode skips message token limits (call mode now charges, so it respects limits too)
+  if (!isGreetMode) {
     // The limit was checked a moment ago, before the character and chat were loaded; check again right before reserving, so two
     // replies started together cannot both slip past the same limit.
     const limitNow = checkLimits(userId);
@@ -2324,8 +2370,8 @@ function startReplyStream(o) {
       }
     }
   });
-  const cost = (isCallMode || isGreetMode) ? 0 : messageCost(modelTier, effort);
-  const reservation = (isCallMode || isGreetMode) ? { warnings: [] } : addTokens(userId, cost);
+  const cost = isGreetMode ? 0 : messageCost(modelTier, effort);
+  const reservation = isGreetMode ? { warnings: [] } : addTokens(userId, cost);
   let fullResponse = '', held = '', released = false, finished = false;
   const send = (obj) => { try { res.write('data: ' + JSON.stringify(obj) + '\n\n'); } catch (_) {} };
   // While the AI is thinking or waiting for its turn, say "still here" every 10 seconds. Without this a long wait with no text can look
@@ -2357,7 +2403,7 @@ function startReplyStream(o) {
     try {
       if (!fullResponse.trim()) {
         if (!ctx.emptyRetried && !ctx.aborted) {
-          ctx.emptyRetried = true; ctx.extended = false; ctx.boosted = false;
+          ctx.emptyRetried = true; ctx.extended = false; ctx.boosted = false; ctx.continuations = 0;
           fullResponse = ''; held = '';
           console.log(logLabel + ' empty reply, retrying once...');
           callGeminiStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), 0, effortCfgFit, modelList, ctx);
@@ -2383,7 +2429,16 @@ function startReplyStream(o) {
       try { close(); } catch (_) {}
     }
   };
-  callGeminiStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), undefined, effortCfgFit, modelList, ctx);
+  if (PLAYTIME_MIND_CHAR_IDS.has(charId) && process.env.HF_TOKEN) {
+    callHuggingFaceStream(system, messages, handleChunk, handleDone, (hfErr) => {
+      if (released) return fail(hfErr);
+      fullResponse = ''; held = '';
+      console.log('[playtime-mind] HF failed, falling back to Gemini:', hfErr && hfErr.message);
+      callGeminiStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), undefined, effortCfgFit, modelList, ctx);
+    }, ctx);
+  } else {
+    callGeminiStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), undefined, effortCfgFit, modelList, ctx);
+  }
 }
 
 // A clear message when the AI provider is rate-limiting us (instead of a generic error)
@@ -2404,6 +2459,9 @@ function getModelList(tier) {
 
 const workingModels = {};
 const workingModelsAt = {};
+// When a model returns 429, remember it here so future calls skip it without a round-trip.
+// Value = timestamp after which we'll try the model again (daily quota resets at midnight).
+const modelBlockedUntil = {};
 
 // Groq says "Please try again in 1.5s" / "2m3.4s" / "450ms" when a model is out of tokens-per-minute
 function parseRetryAfterMs(msg) {
@@ -2429,9 +2487,17 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
   effortCfg = effortCfg || EFFORT_CONFIG.opas.high;
   if (modelIndex === undefined) {
     const tier = (modelList === GROQ_OPYS2_MODELS) ? 'opys2' : (modelList === GROQ_OPUS_MODELS) ? 'opus' : (modelList === GROQ_PRO_MODELS) ? 'opes' : 'opas';
-    const wm = (workingModelsAt[tier] || 0) > Date.now() - 60000 ? workingModels[tier] : null;
+    const now = Date.now();
+    // Find the first model that isn't currently blocked (rate-limited), then honour the
+    // last-working hint so we skip models we already know are failing.
+    let startIdx = 0;
+    for (let i = 0; i < modelList.length; i++) {
+      if ((modelBlockedUntil[modelList[i]] || 0) > now) startIdx = i + 1;
+      else break;
+    }
+    const wm = (workingModelsAt[tier] || 0) > Date.now() - 30 * 60 * 1000 ? workingModels[tier] : null;
     const wi = wm ? modelList.indexOf(wm) : -1;
-    modelIndex = wi >= 0 ? wi : 0;
+    modelIndex = Math.max(startIdx, wi >= 0 ? wi : 0);
   }
   if (modelIndex >= modelList.length) {
     if (ctx.rateLimited || ctx.serviceUnavailable) {
@@ -2494,6 +2560,10 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
             ctx.rateLimited = true;
             const ra = parseRetryAfterMs(msg);
             if (ra != null && (ctx.retryAfterMs == null || ra < ctx.retryAfterMs)) ctx.retryAfterMs = ra;
+            // Block this specific model for 4 hours (daily quota exhausted) so future calls
+            // skip it immediately rather than burning a round-trip on a guaranteed failure.
+            const blockMs = (ra && ra > RATE_RETRY_MAX_MS) ? Math.min(ra, 4 * 3600 * 1000) : 4 * 3600 * 1000;
+            modelBlockedUntil[model] = Math.max(modelBlockedUntil[model] || 0, Date.now() + blockMs);
           }
           if (res.statusCode === 503) ctx.serviceUnavailable = true;
           if (res.statusCode === 429 || res.statusCode === 503 || res.statusCode === 404) {
@@ -2509,7 +2579,8 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
     }
 
     const tier = modelList === GROQ_OPYS2_MODELS ? 'opys2' : modelList === GROQ_OPUS_MODELS ? 'opus' : modelList === GROQ_PRO_MODELS ? 'opes' : 'opas';
-    if (!GEMINI_FALLBACKS.includes(model)) { workingModels[tier] = model; workingModelsAt[tier] = Date.now(); }
+    workingModels[tier] = model; workingModelsAt[tier] = Date.now();
+    modelBlockedUntil[model] = 0; // clear any stale block — model is responding again
     console.log(`Using model: ${model} (tier=${tier})`);
 
     let buffer = '';
@@ -2621,7 +2692,7 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
     ctx.req = req;
     if (ctx.aborted) { req.destroy(new Error('client aborted')); return; }
   }
-  req.setTimeout(180000, () => req.destroy(new Error('upstream timeout')));
+  req.setTimeout(30000, () => req.destroy(new Error('upstream timeout')));
   req.write(body);
   req.end();
 }
@@ -2762,21 +2833,6 @@ app.post('/api/call/start', requireAuth, (req, res) => {
   res.json({ allowed: true, callsToday: u.callsToday, callsLimit: callLimit === Infinity ? 9999 : callLimit, callsRemaining: remaining, resetsAt });
 });
 
-app.post('/api/call/end', requireAuth, (req, res) => {
-  const userId = req.user.googleId;
-  const { duration } = req.body; // seconds this call lasted
-  if (typeof duration === 'number' && duration > 0) {
-    const u = getLimits(userId);
-    u.callSecsToday = (u.callSecsToday || 0) + Math.ceil(duration);
-    if (!u.callSecsDayStart) u.callSecsDayStart = getCallWindowStart();
-    // Charge session tokens proportional to call duration
-    const callTokenCost = Math.max(CALL_TOKEN_MIN, Math.ceil(duration * CALL_TOKENS_PER_SECOND));
-    const usage = addTokens(userId, callTokenCost);
-    return res.json({ ok: true, ...usage });
-  }
-  res.json({ ok: true });
-});
-
 const ELEVEN_KEY = process.env.ELEVENLABS_API_KEY || '';
 const ELEVEN_DEFAULT_VOICE = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM';
 let ELEVEN_VOICE_MAP = {
@@ -2797,73 +2853,88 @@ const EDGE_DEFAULT_VOICE = 'en-US-AriaNeural';
 const GEMINI_TTS_VOICES = new Set(['Aoede','Charon','Fenrir','Kore','Puck','Zephyr','Schedar','Sadaltager']);
 
 function pcmToWav(pcm, sr = 24000) {
-  // Fade out last 80ms to eliminate the end-of-file click/pop (abrupt PCM cutoff artifact)
-  const fadeSamples = Math.min(Math.floor(sr * 0.08), Math.floor(pcm.length / 2));
-  const data = Buffer.from(pcm);
-  for (let i = 0; i < fadeSamples; i++) {
-    const off = data.length - 2 - i * 2;
-    if (off < 0) break;
-    data.writeInt16LE(Math.round(data.readInt16LE(off) * (i / fadeSamples)), off);
-  }
   const h = Buffer.alloc(44);
-  h.write('RIFF', 0); h.writeUInt32LE(36 + data.length, 4); h.write('WAVE', 8);
+  h.write('RIFF', 0); h.writeUInt32LE(36 + pcm.length, 4); h.write('WAVE', 8);
   h.write('fmt ', 12); h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20);
   h.writeUInt16LE(1, 22); h.writeUInt32LE(sr, 24); h.writeUInt32LE(sr * 2, 28);
   h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34);
-  h.write('data', 36); h.writeUInt32LE(data.length, 40);
-  return Buffer.concat([h, data]);
+  h.write('data', 36); h.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([h, pcm]);
 }
 
 async function geminiTTSSynthesize(text, voiceName, apiKey) {
   const voice = GEMINI_TTS_VOICES.has(voiceName) ? voiceName : 'Aoede';
-  const ttsModels = ['gemini-3.8-flash-tts','gemini-2.5-flash-preview-tts','gemini-2.0-flash-preview-tts'];
-  const body = JSON.stringify({
-    contents: [{ parts: [{ text }] }],
-    generationConfig: {
-      responseModalities: ['AUDIO'],
-      speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
+  const r = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-tts:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text }] }],
+        generationConfig: {
+          responseModalities: ['AUDIO'],
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
+        }
+      })
     }
-  });
-  let lastErr;
-  for (const m of ttsModels) {
-    try {
-      const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }
-      );
-      if (!r.ok) { lastErr = new Error('gemini-tts:' + r.status); continue; }
-      const j = await r.json();
-      const part = j?.candidates?.[0]?.content?.parts?.[0]?.inlineData;
-      if (!part?.data) { lastErr = new Error('gemini-tts: no audio data'); continue; }
-      const buf = Buffer.from(part.data, 'base64');
-      const mime = (part.mimeType || '').toLowerCase();
-      if (mime.includes('mp3') || mime.includes('mpeg')) return { audio: buf, ct: 'audio/mpeg' };
-      return { audio: pcmToWav(buf), ct: 'audio/wav' };
-    } catch (e) { lastErr = e; }
-  }
-  throw lastErr || new Error('gemini-tts: all models failed');
+  );
+  if (!r.ok) throw new Error('gemini-tts:' + r.status);
+  const j = await r.json();
+  const part = j?.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+  if (!part?.data) throw new Error('gemini-tts: no audio data');
+  const buf = Buffer.from(part.data, 'base64');
+  const mime = (part.mimeType || '').toLowerCase();
+  if (mime.includes('mp3') || mime.includes('mpeg')) return { audio: buf, ct: 'audio/mpeg' };
+  return { audio: pcmToWav(buf), ct: 'audio/wav' };
 }
 
-// Edge HD: routes through Gemini TTS (Microsoft Edge WebSocket API is no longer accessible)
-// Maps Edge voice IDs to Gemini voice presets for a variety of voices
-const EDGE_TO_GEMINI = {
-  'en-US-AriaNeural':     'Aoede',
-  'en-US-JennyNeural':    'Kore',
-  'en-US-MichelleNeural': 'Schedar',
-  'en-US-SaraNeural':     'Puck',
-  'en-US-CoraNeural':     'Zephyr',
-  'en-US-AmberNeural':    'Fenrir',
-  'en-US-JaneNeural':     'Charon',
-  'en-US-MonicaNeural':   'Sadaltager',
-  'en-US-GuyNeural':      'Charon',
-  'en-US-DavisNeural':    'Fenrir',
-  'en-US-TonyNeural':     'Zephyr',
-  'en-US-JasonNeural':    'Sadaltager',
-};
-async function edgeSynthesize(text, voiceId, geminiKey) {
-  const geminiVoice = EDGE_TO_GEMINI[voiceId] || 'Aoede';
-  const { audio, ct } = await geminiTTSSynthesize(text, geminiVoice, geminiKey);
-  return { audio, ct };
+// Direct Edge TTS WebSocket implementation (no msedge-tts package needed)
+const EDGE_TOKEN = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
+const EDGE_WSS   = 'wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1';
+function edgeSecMsGec() {
+  const ticks = Math.floor(Date.now() / 1000) + 11644473600;
+  const rounded = ticks - (ticks % 300);
+  return crypto.createHash('sha256').update(`${rounded * 10000000}${EDGE_TOKEN}`).digest('hex').toUpperCase();
+}
+function edgeSynthesize(text, voice) {
+  return new Promise((resolve, reject) => {
+    const reqId = crypto.randomBytes(16).toString('hex');
+    const url = `${EDGE_WSS}?TrustedClientToken=${EDGE_TOKEN}&Sec-MS-GEC=${edgeSecMsGec()}&Sec-MS-GEC-Version=1-130.0.2849.68&ConnectionId=${reqId}`;
+    const ws = new WebSocket(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.2849.68',
+        'Origin': 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold'
+      }
+    });
+    let done = false;
+    const finish = (err, result) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      err ? reject(err) : resolve(result);
+    };
+    const timer = setTimeout(() => { try { ws.close(); } catch(_){} finish(new Error('edge-tts timeout')); }, 10000);
+    const chunks = [];
+    const AUDIO_HDR = Buffer.from('Path:audio\r\n');
+    const escXml = s => s.replace(/[<>&'"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c]));
+    ws.on('open', () => {
+      const ts = new Date().toISOString();
+      ws.send(`X-Timestamp:${ts}\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}`);
+      const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><voice name='${voice}'>${escXml(text)}</voice></speak>`;
+      ws.send(`X-RequestId:${reqId}\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:${ts}\r\nPath:ssml\r\n\r\n${ssml}`);
+    });
+    ws.on('message', data => {
+      if (typeof data === 'string') {
+        if (data.includes('Path:turn.end')) { ws.close(); finish(null, Buffer.concat(chunks)); }
+      } else {
+        const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+        const idx = buf.indexOf(AUDIO_HDR);
+        if (idx !== -1) chunks.push(buf.subarray(idx + AUDIO_HDR.length));
+      }
+    });
+    ws.on('error', e => finish(e));
+    ws.on('close', () => finish(new Error('no audio')));
+  });
 }
 
 app.get('/api/tts/status', requireAuth, (req, res) => res.json({ enabled: true }));
@@ -2873,7 +2944,6 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   const charId = String(req.body?.charId || '');
   const provider = String(req.body?.provider || 'edge');
   const geminiVoice = String(req.body?.geminiVoice || 'Aoede');
-  const edgeVoiceReq = String(req.body?.edgeVoice || '');
   if (!text) return res.status(400).json({ error: 'no_text' });
 
   // ElevenLabs path (when key is set, overrides all)
@@ -2919,14 +2989,11 @@ app.post('/api/tts', requireAuth, async (req, res) => {
     }
   }
 
-  // Edge HD: uses Gemini TTS (Microsoft API no longer accessible)
-  const gKey = process.env.GEMINI_API_KEY;
-  if (!gKey) return res.status(502).json({ error: 'tts_failed' });
-  const EDGE_ALLOWED = new Set(['en-US-AriaNeural','en-US-JennyNeural','en-US-MichelleNeural','en-US-SaraNeural','en-US-CoraNeural','en-US-NancyNeural','en-US-AmberNeural','en-US-JaneNeural','en-US-MonicaNeural','en-US-ElizabethNeural','en-US-GuyNeural','en-US-DavisNeural','en-US-TonyNeural','en-US-JasonNeural','en-US-EricNeural','en-US-ChristopherNeural']);
-  const edgeVoice = (edgeVoiceReq && EDGE_ALLOWED.has(edgeVoiceReq)) ? edgeVoiceReq : (EDGE_VOICE_MAP[charId] || EDGE_DEFAULT_VOICE);
+  // Edge TTS free fallback (direct WebSocket — no external package)
+  const edgeVoice = EDGE_VOICE_MAP[charId] || EDGE_DEFAULT_VOICE;
   try {
-    const { audio, ct } = await edgeSynthesize(text, edgeVoice, gKey);
-    res.setHeader('Content-Type', ct);
+    const audio = await edgeSynthesize(text, edgeVoice);
+    res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Cache-Control', 'no-store');
     res.send(audio);
   } catch (e) {
@@ -2944,7 +3011,7 @@ app.post('/api/memo/use', requireAuth, (req, res) => {
     return res.status(429).json({ allowed: false, memosToday: u.memosToday, memosLimit: memoLimit, memosRemaining: 0, resetsAt });
   }
   u.memosToday = (u.memosToday || 0) + 1;
-  saveLimitsToDB(userId);
+  addTokens(userId, 300); // addTokens already persists via saveLimitsToDB internally
   const remaining = memoLimit === Infinity ? 9999 : memoLimit - u.memosToday;
   res.json({ allowed: true, memosToday: u.memosToday, memosLimit: memoLimit === Infinity ? 9999 : memoLimit, memosRemaining: remaining, resetsAt });
 });
@@ -3104,13 +3171,6 @@ const OWNER_EMAILS = new Set(['support.charactermind@gmail.com', 'davey252572727
 // other admin login) gets exactly what its own subscription pays for.
 const FREE_TOP_PLAN_EMAILS = new Set(['support.charactermind@gmail.com']);
 function planFor(email, dbTier) { return FREE_TOP_PLAN_EMAILS.has(email) ? 'x100' : (dbTier || 'free'); }
-function effectiveTier(u) {
-  const paypal = u.paypalTier || 'free';
-  if (u.coinTier && (u.coinTierExpires || 0) > Date.now()) {
-    return (TIER_RANK[u.coinTier] || 0) > (TIER_RANK[paypal] || 0) ? u.coinTier : paypal;
-  }
-  return paypal;
-}
 const ownerGoogleIds = new Set(); // populated at runtime when owners authenticate
 app.post('/api/admin/reset-limits', requireAuth, (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
@@ -3166,89 +3226,6 @@ app.post('/api/admin/stamp-official', requireAuth, async (req, res) => {
     [uid]
   );
   res.json({ ok: true, updated: result.rowCount });
-});
-
-// CM Coins — award on game win
-app.post('/api/coins/award', requireAuth, async (req, res) => {
-  if (!db) return res.status(503).json({ error: 'No database' });
-  try {
-    await ensureTierLoaded(req.user);
-    const uid = req.user.googleId;
-    const u = getLimits(uid);
-    const tier = u.paypalTier || 'free';
-    const earnPerWin = COIN_EARN_PER_WIN[tier] ?? COIN_EARN_PER_WIN.free;
-    const utcMidnight = new Date(); utcMidnight.setUTCHours(0, 0, 0, 0);
-    const dayStart = utcMidnight.getTime();
-    if ((u.coinsDayReset || 0) < dayStart) { u.coinsEarnedToday = 0; u.coinsDayReset = dayStart; }
-    if ((u.coinsEarnedToday || 0) >= COIN_DAILY_CAP) {
-      return res.json({ awarded: 0, balance: u.cmCoins || 0, earnedToday: u.coinsEarnedToday, dailyCap: COIN_DAILY_CAP, capped: true });
-    }
-    const toAward = Math.min(earnPerWin, COIN_DAILY_CAP - (u.coinsEarnedToday || 0));
-    u.cmCoins = (u.cmCoins || 0) + toAward;
-    u.coinsEarnedToday = (u.coinsEarnedToday || 0) + toAward;
-    await db.query(
-      'UPDATE users SET cm_coins=$1, coins_earned_today=$2, coins_day_reset=$3 WHERE google_id=$4',
-      [u.cmCoins, u.coinsEarnedToday, dayStart, uid]
-    );
-    res.json({ awarded: toAward, balance: u.cmCoins, earnedToday: u.coinsEarnedToday, dailyCap: COIN_DAILY_CAP, capped: false });
-  } catch (e) { console.error('[coins/award]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
-});
-
-// Game — character in-character reaction
-app.post('/api/game/react', requireAuth, async (req, res) => {
-  try {
-    const { charId, situation } = req.body;
-    if (!charId || !situation) return res.status(400).json({ error: 'Missing charId or situation' });
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return res.json({ text: '...' });
-    const row = await getCharPrompt(charId);
-    if (!row) return res.json({ text: '...' });
-    const { name, system_prompt } = row;
-    const systemSnippet = system_prompt || '';
-    const system = `You are ${name}. Stay completely in character.\n\n${systemSnippet.slice(0, 1200)}\n\nIMPORTANT: Reply in 1-2 sentences only. React to the Tic-Tac-Toe game situation. Never break character. Do not mention you are an AI.`;
-    const user = `Tic-Tac-Toe game situation: ${situation}`;
-    let text = '...';
-    try { text = await geminiOnce(apiKey, 'gemini-2.0-flash', system, user, 100); } catch (_) {}
-    res.json({ text: text || '...' });
-  } catch (e) { console.error('[game/react]', e.message); res.json({ text: '...' }); }
-});
-
-// Game played — charge session/weekly tokens when an HTML game finishes (game_over postMessage)
-const GAME_PLAY_TOKENS = messageCost('opes', 'medium'); // ~1 medium chat message per completed game
-app.post('/api/game/played', requireAuth, async (req, res) => {
-  try {
-    await ensureTierLoaded(req.user);
-    const uid = req.user.googleId;
-    const result = addTokens(uid, GAME_PLAY_TOKENS);
-    res.json(result);
-  } catch (e) { console.error('[game/played]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
-});
-
-// CM Coins — redeem for a subscription month
-app.post('/api/coins/redeem', requireAuth, async (req, res) => {
-  if (!db) return res.status(503).json({ error: 'No database' });
-  try {
-    const { tier } = req.body;
-    const cost = COIN_MONTHLY_COST[tier];
-    if (!cost) return res.status(400).json({ error: 'Invalid tier' });
-    await ensureTierLoaded(req.user);
-    const uid = req.user.googleId;
-    const u = getLimits(uid);
-    if ((u.cmCoins || 0) < cost) return res.status(400).json({ error: 'Not enough coins', balance: u.cmCoins || 0, cost });
-    const now = Date.now();
-    const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
-    const base = (u.coinTier === tier && (u.coinTierExpires || 0) > now) ? u.coinTierExpires : now;
-    const newExpires = base + ONE_MONTH_MS;
-    u.cmCoins -= cost;
-    u.coinTier = tier;
-    u.coinTierExpires = newExpires;
-    u.subscriptionTier = effectiveTier(u);
-    await db.query(
-      'UPDATE users SET cm_coins=$1, coin_tier=$2, coin_tier_expires=$3 WHERE google_id=$4',
-      [u.cmCoins, tier, newExpires, uid]
-    );
-    res.json({ ok: true, balance: u.cmCoins, coinTier: tier, coinTierExpires: newExpires, effectiveTier: u.subscriptionTier });
-  } catch (e) { console.error('[coins/redeem]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
 });
 
 // Owner-only: wipe all personal data for the calling account (history, recents, limits)
@@ -3362,17 +3339,10 @@ const VALID_ID = /^[a-zA-Z0-9_-]{1,64}$/;
 
 function gameKnowledgeDirective(tier) {
   tier = tier || 'free';
-  const tttDifficulty = (tier === 'x200' || tier.startsWith('opys') || tier === 'opus') ? 'EXPERT — uses full minimax: always plays the perfect move, recognizes and sets up two-way wins (forks), never loses'
-    : (tier === 'x100' || tier === 'x50') ? 'SMART — takes wins, blocks losses, prefers center and corners, and blocks two-way wins (forks) most of the time; occasionally misses the perfect response'
-    : (tier === 'x20' || tier === 'advanced') ? 'AWARE — always takes an immediate win and blocks an immediate loss, then picks center or a corner; does not recognize or block forks'
-    : (tier === 'opos' || tier === 'opis') ? 'BEGINNER — takes an immediate win when spotted, but otherwise picks randomly; often misses blocking the player'
-    : 'CLUELESS — picks squares almost entirely at random; very rarely notices wins or losses';
-  const diffCode = (tier === 'x200' || tier.startsWith('opys') || tier === 'opus') ? '4'
-    : (tier === 'x100' || tier === 'x50') ? '3'
-    : (tier === 'x20' || tier === 'advanced') ? '2'
-    : (tier === 'opos' || tier === 'opis') ? '1'
-    : '0';
-  return `\n\n[GAME KNOWLEDGE — USE WHEN PLAYING GAMES IN CHAT OR WHEN ASKED TO CREATE A GAME:\n\n=== TEXT GAMES (play inside the chat) ===\n\nHANGMAN: YOU are the host. MANDATORY: You MUST pick your word from the WORD BANK below — do NOT invent words, do NOT use words not in the list. Pick a different word each game; look back at the chat history to avoid repeating recently used words. Word selection intelligence: you are NOT trying to win — pick short, common, easy-to-guess words (4–6 letters preferred). Do NOT strategically choose long, rare, or tricky words to outwit the player. You're a fun host, not a competitor trying to stump them. Never reveal the word. Show blanks as plain text on their own line: _ _ _ _ _ (one underscore per letter, space-separated, NO backticks or code blocks). User guesses one letter per turn. Correct: reveal that letter in all positions. Wrong: add a strike. 6 wrong guesses = game over. After EVERY guess show: (1) current word state on its own line, (2) wrong guesses out of 6, (3) all letters guessed so far. Announce win or loss clearly (on loss, reveal the word). Never change the word mid-game.\nWORD BANK (use ONLY these words): brave ghost jewel magic ninja queen snake torch venom witch yacht zebra bloom ember flute graze haunt latch novel orbit pixel rally shelf tiger waltz banana castle danger empire goblin hunter jungle knight launch mirage nectar orange palace puzzle quartz riddle shadow throne unique velvet winter battle cherry dragon frozen galaxy herald cobalt dagger falcon gravel humble insect lizard magnet narrow oyster pastry racket salmon tennis breeze clover donkey fidget grumpy hollow jumble keeper muffin nibble pardon quiver rustle sizzle tangle urchin wobble yonder abandon balance captain diamond element fantasy harmony iceberg justice kingdom lantern mystery network orchard pilgrim quantum rainbow silence warrior zealous chicken dolphin fortune giraffe harvest journey lecture meadows nervous phantom revolve texture village western whisper explore freckle insight absolute birthday carefree elephant gorgeous mushroom necklace opposite princess reliable schedule treasure umbrella wanderer daughter handsome keyboard cheerful describe familiar grateful innocent peaceful stunning thousand vacation\n\nTRUTH OR DARE: Ask "Truth or Dare?" each round. For Truth: ask a personal, fun, or revealing question and react warmly. For Dare: give an amusing, creative, safe challenge. After they respond, offer the next round.\n\nNEVER HAVE I EVER: Take turns. You say "Never have I ever [something]." User says if they have done it. You react in character. User then gives one. Keep it fun.\n\nWOULD YOU RATHER: Present two options. User picks one and explains. You react, share your pick, then present the next dilemma.\n\n20 QUESTIONS: You think of something (tell the user: person, place, or thing). They ask yes/no questions. Count down each one: "Question 4 of 20." Reveal on correct guess or at 0.\n\nWORD ASSOCIATION: Alternate — user says a word, you reply with a related word, user goes again. Call out lazy stretches. Keep energy up.\n\nRHYME GAME: User says a word, you reply with a rhyme, alternate turns.\n\nTRIVIA: Ask questions one at a time in any category. Track score. Reveal correct answer after each guess.\n\nTWO TRUTHS AND A LIE: Give three statements about yourself as your character. User guesses the lie. Then they give three and you guess.\n\nSTORYTIME: Take turns building a story one paragraph at a time. Keep momentum and add twists.\n\nI SPY: Describe something in an imagined scene. User guesses. Alternate turns.\n\nTIC-TAC-TOE: Use a 3×3 ASCII board. Cells are numbered 1–9 left-to-right, top-to-bottom. Show the board like this (replace numbers with X or O as cells are filled):\n 1 | 2 | 3\n-----------\n 4 | 5 | 6\n-----------\n 7 | 8 | 9\nDecide who is X and who is O at the start. User picks a number; you place their mark. Then you pick a number and place your mark. Always show the updated board after EVERY move. Detect and announce a win (3 in a row, column, or diagonal) or a draw (all 9 cells filled with no winner). Never place a mark in an already-occupied cell — reject the move and ask them to pick again.\n\nFor ANY text game: always show the complete game state in every reply — score, progress, guessed letters, etc. — so the user always knows exactly where things stand.\n\n=== HTML GAME CREATION ===\nWhen the user asks you to CREATE, BUILD, MAKE, or GENERATE a game (not just play one in chat), generate a complete, playable, self-contained HTML game. ALL HTML, CSS, and JavaScript must be in one file with NO external scripts or CDNs. Wrap the ENTIRE file (starting from <!DOCTYPE html>) in exactly these markers on their own lines:\n[GAME_START]\n<!DOCTYPE html>\n...full game...\n</html>\n[GAME_END]\n\nWrite a one-sentence description of the game BEFORE [GAME_START]. Put NOTHING inside the markers except the raw HTML. CRITICAL: Never insert roleplay text, asterisk actions (*...*), character dialogue, or any non-HTML content inside [GAME_START]...[GAME_END]. Doing so corrupts the JavaScript and breaks the game entirely. All roleplay must appear BEFORE [GAME_START] only. The game must run in a sandboxed iframe (no localStorage, no fetch calls). Make the game complete, polished, and fun.\n\nFor HANGMAN as an HTML game: use the HANGMAN HTML TEMPLATE below verbatim — only customize the <title>/<h2> text and CSS color hex values for your character.\n\nFor TWO-PLAYER GAMES (Tic-Tac-Toe, Connect Four, Checkers, etc.): YOU play as one side — declare your chosen symbol/side in your message text BEFORE [GAME_START] (e.g. "I'll be O — let's see if you can beat me!"). Embed a computer-AI player using this difficulty level: ${tttDifficulty}. Add a 600ms delay before your move so it feels natural. Always show: whose turn it is, a win/draw announcement, and a "Play Again" button. Style the game to match your character's personality and color scheme. When the game ends (win, loss, or draw), call: window.parent.postMessage({type:'game_over',result:'win'|'loss'|'draw',winner:'ai'|'human'|null}, '*') — 'win' means the AI won, 'loss' means human won.\n\n=== TIC-TAC-TOE HTML TEMPLATE (MANDATORY) ===\nWhen asked to create or play a Tic-Tac-Toe game as HTML, you MUST output the template below VERBATIM between [GAME_START] and [GAME_END] markers. ONLY customize: (1) the <title> and <h2> text to include your character name, (2) the CSS color hex values to match your character's color scheme. DO NOT rewrite, simplify, or modify the JavaScript logic in any way — copy it exactly as shown. Failure to use this template produces a broken game.\n[GAME_START]\n<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Tic-Tac-Toe</title><style>*{box-sizing:border-box}body{margin:0;padding:20px;font-family:sans-serif;background:#0f0f1a;color:#e0e0e0;display:flex;flex-direction:column;align-items:center;text-align:center}h2{color:#a78bfa;margin:0 0 6px;font-size:18px}#s{font-size:14px;color:#aaa;min-height:18px;margin:4px 0 14px}#b{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:min(252px,82vw);margin-bottom:16px}.c{aspect-ratio:1;background:#1a1a2e;border:2px solid #3d2a6e;border-radius:8px;font-size:4.5rem;font-weight:700;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;line-height:1;overflow:hidden}.c:hover:not(.t){background:#2d1a5e;border-color:#a78bfa}.c.t{cursor:default}.c.x{color:#f472b6}.c.o{color:#a78bfa}.w{background:#2d1a5e!important;border-color:#a78bfa!important}button{padding:8px 24px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer}button:hover{opacity:.85}</style></head><body><h2>Tic-Tac-Toe</h2><div id="s">Your turn</div><div id="b"></div><button onclick="rst()">Play Again</button><script>const DIFF='${diffCode}';const bd=Array(9).fill(null);let ov=false,bz=false;const W=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];const S=document.getElementById("s"),B=document.getElementById("b");const cs=Array.from({length:9},(_,i)=>{const c=document.createElement("div");c.className="c";c.onclick=()=>go(i);B.appendChild(c);return c});function ck(p){return W.find(w=>w.every(j=>bd[j]===p))||null}function dr(){return bd.every(Boolean)&&!ck("X")&&!ck("O")}function mm(d,mx){const s=ck("O")?10-d:ck("X")?d-10:bd.every(Boolean)?0:null;if(s!==null)return s;if(mx){let v=-99;bd.forEach((_,j)=>{if(!bd[j]){bd[j]="O";v=Math.max(v,mm(d+1,false));bd[j]=null}});return v}let v=99;bd.forEach((_,j)=>{if(!bd[j]){bd[j]="X";v=Math.min(v,mm(d+1,true));bd[j]=null}});return v}function best(){const emp=bd.map((v,i)=>v?null:i).filter(v=>v!==null);const D=parseInt(DIFF)||0;function wn(i,p){bd[i]=p;const w=!!ck(p);bd[i]=null;return w;}if(D===0)return emp[Math.floor(Math.random()*emp.length)];const mw=emp.find(i=>wn(i,"O"));if(mw!=null)return mw;if(D===1)return emp[Math.floor(Math.random()*emp.length)];const bl=emp.find(i=>wn(i,"X"));if(bl!=null)return bl;if(D===2)return emp[Math.floor(Math.random()*emp.length)];if(D===3){const fk=emp.find(i=>{bd[i]="X";const th=emp.filter(j=>j!==i&&wn(j,"X")).length;bd[i]=null;return th>=2;});if(fk!=null&&Math.random()<0.65)return fk;if(!bd[4])return 4;const cr=[0,2,6,8].filter(i=>!bd[i]);if(cr.length)return cr[Math.floor(Math.random()*cr.length)];return emp[Math.floor(Math.random()*emp.length)];}let v=-99,m=bd.findIndex(x=>!x);bd.forEach((_,j)=>{if(!bd[j]){bd[j]="O";const sc=mm(0,false);bd[j]=null;if(sc>v){v=sc;m=j}}});return m}function rnd(){cs.forEach((c,j)=>{c.textContent=bd[j]||"";c.className="c"+(bd[j]?" t "+(bd[j]==="X"?"x":"o"):"")})}function go(i){if(ov||bz||bd[i])return;bd[i]="X";rnd();const w=ck("X");if(w){w.forEach(j=>cs[j].classList.add("w"));S.textContent="You win!";ov=true;window.parent.postMessage({type:"game_over",result:"loss",winner:"human"},"*");return}if(dr()){S.textContent="Draw!";ov=true;window.parent.postMessage({type:"game_over",result:"draw",winner:null},"*");return}bz=true;S.textContent="Thinking...";setTimeout(()=>{const m=best();bd[m]="O";rnd();bz=false;const w2=ck("O");if(w2){w2.forEach(j=>cs[j].classList.add("w"));S.textContent="I win!";ov=true;window.parent.postMessage({type:"game_over",result:"win",winner:"ai"},"*");return}if(dr()){S.textContent="Draw!";ov=true;window.parent.postMessage({type:"game_over",result:"draw",winner:null},"*")}else S.textContent="Your turn"},600)}function rst(){bd.fill(null);ov=false;bz=false;rnd();S.textContent="Your turn";cs.forEach(c=>c.classList.remove("w"))}rnd()<\/script></body></html>\n[GAME_END]\n\n=== HANGMAN HTML TEMPLATE (MANDATORY — DO NOT DEVIATE) ===\nWhen asked to create/build/make/play a Hangman game as HTML, you MUST copy the ENTIRE template below EXACTLY, character for character, between [GAME_START] and [GAME_END]. The ONLY two permitted changes are: (1) replace "Hangman" in the <title> and <h2> with your character name + " Hangman", (2) replace the CSS hex color values (#a78bfa, #f472b6, #7c3aed, #1a1a2e, #3d2a6e, #2d1a5e) with your character's color scheme. DO NOT rewrite, shorten, reorganize, or modify ANY JavaScript. DO NOT remove the ng() call at the end of the script. Copying the JS wrong produces a broken game with no keyboard and no words.\n[GAME_START]\n<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Hangman</title><style>*{box-sizing:border-box}body{margin:0;padding:10px;font-family:sans-serif;background:#0f0f1a;color:#e0e0e0;display:flex;flex-direction:column;align-items:center;text-align:center}h2{color:#a78bfa;margin:0 0 4px;font-size:18px}svg{width:110px;height:110px;margin:2px 0}#w{font-size:1.3rem;letter-spacing:8px;color:#fff;margin:8px 0;min-height:2em;word-break:break-all}#m{font-size:13px;color:#f472b6;min-height:16px;margin:4px 0}#q{font-size:11px;color:#888;margin-bottom:8px}#k{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;max-width:260px;margin-bottom:12px}.b{width:30px;height:30px;background:#1a1a2e;border:1px solid #3d2a6e;border-radius:5px;font-size:12px;font-weight:700;color:#e0e0e0;cursor:pointer}.b:hover:not(:disabled){background:#2d1a5e;border-color:#a78bfa}.b:disabled{opacity:.3;cursor:default}button#r{padding:7px 20px;background:#7c3aed;color:#fff;border:none;border-radius:7px;font-size:13px;cursor:pointer}button#r:hover{opacity:.85}</style></head><body><h2>Hangman</h2><svg viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg"><line x1="10" y1="130" x2="130" y2="130" stroke="#555" stroke-width="3" stroke-linecap="round"/><line x1="35" y1="130" x2="35" y2="8" stroke="#555" stroke-width="3" stroke-linecap="round"/><line x1="35" y1="8" x2="90" y2="8" stroke="#555" stroke-width="3" stroke-linecap="round"/><line x1="90" y1="8" x2="90" y2="26" stroke="#555" stroke-width="3" stroke-linecap="round"/><circle id="p0" cx="90" cy="38" r="12" stroke="#f472b6" stroke-width="2.5" fill="none" visibility="hidden"/><line id="p1" x1="90" y1="50" x2="90" y2="88" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/><line id="p2" x1="90" y1="60" x2="68" y2="80" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/><line id="p3" x1="90" y1="60" x2="112" y2="80" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/><line id="p4" x1="90" y1="88" x2="72" y2="114" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/><line id="p5" x1="90" y1="88" x2="108" y2="114" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/></svg><div id="w"></div><div id="m"></div><div id="q"></div><div id="k"></div><button id="r" onclick="ng()">New Game</button><script>const WS=["brave","ghost","jewel","magic","ninja","queen","snake","torch","venom","witch","yacht","zebra","bloom","ember","flute","graze","haunt","latch","novel","orbit","pixel","rally","shelf","tiger","waltz","banana","castle","danger","empire","goblin","hunter","jungle","knight","launch","mirage","nectar","orange","palace","puzzle","quartz","riddle","shadow","throne","unique","velvet","winter","battle","cherry","dragon","frozen","galaxy","herald","cobalt","dagger","falcon","gravel","humble","insect","lizard","magnet","narrow","oyster","pastry","racket","salmon","tennis","breeze","clover","donkey","fidget","grumpy","hollow","jumble","keeper","muffin","nibble","pardon","quiver","rustle","sizzle","tangle","urchin","wobble","yonder","abandon","balance","captain","diamond","element","fantasy","harmony","iceberg","justice","kingdom","lantern","mystery","network","orchard","pilgrim","quantum","rainbow","silence","warrior","zealous","chicken","dolphin","fortune","giraffe","harvest","journey","lecture","meadows","nervous","phantom","revolve","texture","village","western","whisper","explore","freckle","insight","absolute","birthday","carefree","elephant","gorgeous","mushroom","necklace","opposite","princess","reliable","schedule","treasure","umbrella","wanderer","daughter","handsome","keyboard","cheerful","describe","familiar","grateful","innocent","peaceful","stunning","thousand","vacation"];const DIFF='${diffCode}';let used=[],word="",guessed=[],wrong=0,over=false;function ng(){const D=parseInt(DIFF)||0;const mn=[5,5,5,6,7][Math.min(D,4)],mx=[5,6,7,8,8][Math.min(D,4)];const pool=WS.filter(w=>w.length>=mn&&w.length<=mx);const src=pool.length?pool:WS;if(used.length>=src.length)used=[];const p=src.filter(w=>!used.includes(w));word=p[Math.floor(Math.random()*p.length)];used.push(word);guessed=[];wrong=0;over=false;for(let i=0;i<6;i++){document.getElementById("p"+i).setAttribute("visibility","hidden");}bk();rn();document.getElementById("m").textContent="";}function bk(){const K=document.getElementById("k");K.innerHTML="";for(let i=0;i<26;i++){const b=document.createElement("button");b.className="b";b.textContent=String.fromCharCode(65+i);b.onclick=()=>gs(b.textContent.toLowerCase(),b);K.appendChild(b);}}function gs(l,btn){if(over||guessed.includes(l))return;guessed.push(l);btn.disabled=true;if(!word.includes(l)){document.getElementById("p"+wrong).setAttribute("visibility","visible");wrong++;}rn();if(word.split("").every(c=>guessed.includes(c))){document.getElementById("m").textContent="🎉 You got it!";over=true;window.parent.postMessage({type:"game_over",result:"loss",winner:"human"},"*");}else if(wrong>=6){document.getElementById("m").textContent="💀 Word: "+word.toUpperCase();over=true;window.parent.postMessage({type:"game_over",result:"win",winner:"ai"},"*");}}function rn(){document.getElementById("w").textContent=word.split("").map(c=>guessed.includes(c)?c.toUpperCase():"_").join(" ");const wr=guessed.filter(l=>!word.includes(l));document.getElementById("q").textContent=wr.length?"Wrong: "+wr.join(" ").toUpperCase()+" ("+wrong+"/6)":"";}ng();<\/script></body></html>\n[GAME_END]]`;
+  const tttDifficulty = (tier === 'x200' || tier === 'x100' || tier === 'x50' || tier.startsWith('opys') || tier === 'opus') ? 'UNBEATABLE — use full minimax to always play the perfect move'
+    : (tier === 'x20' || tier === 'advanced' || tier === 'opos' || tier === 'opis') ? 'MEDIUM — use basic strategy (prefer center, then corners, then random) but occasionally make a suboptimal move'
+    : 'EASY — pick mostly random empty squares; occasionally block obvious wins but miss subtle ones';
+  return `\n\n[GAME KNOWLEDGE — USE WHEN PLAYING GAMES IN CHAT OR WHEN ASKED TO CREATE A GAME:\n\n=== TEXT GAMES (play inside the chat) ===\n\nHANGMAN: YOU are the host. MANDATORY: You MUST pick your word from the WORD BANK below — do NOT invent words, do NOT use words not in the list. Pick a different word each game; look back at the chat history to avoid repeating recently used words. Never reveal the word. Show blanks as plain text on their own line: _ _ _ _ _ (one underscore per letter, space-separated, NO backticks or code blocks). User guesses one letter per turn. Correct: reveal that letter in all positions. Wrong: add a strike. 6 wrong guesses = game over. After EVERY guess show: (1) current word state on its own line, (2) wrong guesses out of 6, (3) all letters guessed so far. Announce win or loss clearly (on loss, reveal the word). Never change the word mid-game.\nWORD BANK (use ONLY these words): brave ghost jewel magic ninja queen snake torch venom witch yacht zebra bloom ember flute graze haunt latch novel orbit pixel rally shelf tiger waltz banana castle danger empire goblin hunter jungle knight launch mirage nectar orange palace puzzle quartz riddle shadow throne unique velvet winter battle cherry dragon frozen galaxy herald cobalt dagger falcon gravel humble insect lizard magnet narrow oyster pastry racket salmon tennis breeze clover donkey fidget grumpy hollow jumble keeper muffin nibble pardon quiver rustle sizzle tangle urchin wobble yonder abandon balance captain diamond element fantasy harmony iceberg justice kingdom lantern mystery network orchard pilgrim quantum rainbow silence warrior zealous chicken dolphin fortune giraffe harvest journey lecture meadows nervous phantom revolve texture village western whisper explore freckle insight absolute birthday carefree elephant gorgeous mushroom necklace opposite princess reliable schedule treasure umbrella wanderer daughter handsome keyboard cheerful describe familiar grateful innocent peaceful stunning thousand vacation\n\nTRUTH OR DARE: Ask "Truth or Dare?" each round. For Truth: ask a personal, fun, or revealing question and react warmly. For Dare: give an amusing, creative, safe challenge. After they respond, offer the next round.\n\nNEVER HAVE I EVER: Take turns. You say "Never have I ever [something]." User says if they have done it. You react in character. User then gives one. Keep it fun.\n\nWOULD YOU RATHER: Present two options. User picks one and explains. You react, share your pick, then present the next dilemma.\n\n20 QUESTIONS: You think of something (tell the user: person, place, or thing). They ask yes/no questions. Count down each one: "Question 4 of 20." Reveal on correct guess or at 0.\n\nWORD ASSOCIATION: Alternate — user says a word, you reply with a related word, user goes again. Call out lazy stretches. Keep energy up.\n\nRHYME GAME: User says a word, you reply with a rhyme, alternate turns.\n\nTRIVIA: Ask questions one at a time in any category. Track score. Reveal correct answer after each guess.\n\nTWO TRUTHS AND A LIE: Give three statements about yourself as your character. User guesses the lie. Then they give three and you guess.\n\nSTORYTIME: Take turns building a story one paragraph at a time. Keep momentum and add twists.\n\nI SPY: Describe something in an imagined scene. User guesses. Alternate turns.\n\nTIC-TAC-TOE: Use a 3×3 ASCII board. Cells are numbered 1–9 left-to-right, top-to-bottom. Show the board like this (replace numbers with X or O as cells are filled):\n 1 | 2 | 3\n-----------\n 4 | 5 | 6\n-----------\n 7 | 8 | 9\nDecide who is X and who is O at the start. User picks a number; you place their mark. Then you pick a number and place your mark. Always show the updated board after EVERY move. Detect and announce a win (3 in a row, column, or diagonal) or a draw (all 9 cells filled with no winner). Never place a mark in an already-occupied cell — reject the move and ask them to pick again.\n\nFor ANY text game: always show the complete game state in every reply — score, progress, guessed letters, etc. — so the user always knows exactly where things stand.\n\n=== HTML GAME CREATION ===\nWhen the user asks you to CREATE, BUILD, MAKE, or GENERATE a game (not just play one in chat), generate a complete, playable, self-contained HTML game. ALL HTML, CSS, and JavaScript must be in one file with NO external scripts or CDNs. Wrap the ENTIRE file (starting from <!DOCTYPE html>) in exactly these markers on their own lines:\n[GAME_START]\n<!DOCTYPE html>\n...full game...\n</html>\n[GAME_END]\n\nWrite a one-sentence description of the game BEFORE [GAME_START]. Put NOTHING inside the markers except the raw HTML. The game must run in a sandboxed iframe (no localStorage, no fetch calls). Make the game complete, polished, and fun.\n\nFor HANGMAN as an HTML game: use the HANGMAN HTML TEMPLATE below verbatim — only customize the <title>/<h2> text and CSS color hex values for your character.\n\nFor TWO-PLAYER GAMES (Tic-Tac-Toe, Connect Four, Checkers, etc.): YOU play as one side — declare your chosen symbol/side in your message text BEFORE [GAME_START] (e.g. "I'll be O — let's see if you can beat me!"). Embed a computer-AI player using this difficulty level: ${tttDifficulty}. Add a 600ms delay before your move so it feels natural. Always show: whose turn it is, a win/draw announcement, and a "Play Again" button. Style the game to match your character's personality and color scheme. When the game ends (win, loss, or draw), call: window.parent.postMessage({type:'game_over',result:'win'|'loss'|'draw',winner:'ai'|'human'|null}, '*') — 'win' means the AI won, 'loss' means human won.\n\n=== TIC-TAC-TOE HTML TEMPLATE (MANDATORY) ===\nWhen asked to create or play a Tic-Tac-Toe game as HTML, you MUST output the template below VERBATIM between [GAME_START] and [GAME_END] markers. ONLY customize: (1) the <title> and <h2> text to include your character name, (2) the CSS color hex values to match your character's color scheme. DO NOT rewrite, simplify, or modify the JavaScript logic in any way — copy it exactly as shown. Failure to use this template produces a broken game.\n[GAME_START]\n<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Tic-Tac-Toe</title><style>*{box-sizing:border-box}body{margin:0;padding:20px;font-family:sans-serif;background:#0f0f1a;color:#e0e0e0;display:flex;flex-direction:column;align-items:center;text-align:center}h2{color:#a78bfa;margin:0 0 6px;font-size:18px}#s{font-size:14px;color:#aaa;min-height:18px;margin:4px 0 14px}#b{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:min(252px,82vw);margin-bottom:16px}.c{aspect-ratio:1;background:#1a1a2e;border:2px solid #3d2a6e;border-radius:8px;font-size:2.2rem;font-weight:700;cursor:pointer;transition:all .15s}.c:hover:not(.t){background:#2d1a5e;border-color:#a78bfa}.c.t{cursor:default}.c.x{color:#f472b6}.c.o{color:#a78bfa}.w{background:#2d1a5e!important;border-color:#a78bfa!important}button{padding:8px 24px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer}button:hover{opacity:.85}</style></head><body><h2>Tic-Tac-Toe</h2><div id="s">Your turn</div><div id="b"></div><button onclick="rst()">Play Again</button><script>const bd=Array(9).fill(null);let ov=false,bz=false;const W=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];const S=document.getElementById("s"),B=document.getElementById("b");const cs=Array.from({length:9},(_,i)=>{const c=document.createElement("div");c.className="c";c.onclick=()=>go(i);B.appendChild(c);return c});function ck(p){return W.find(w=>w.every(j=>bd[j]===p))||null}function dr(){return bd.every(Boolean)&&!ck("X")&&!ck("O")}function mm(d,mx){const s=ck("O")?10-d:ck("X")?d-10:bd.every(Boolean)?0:null;if(s!==null)return s;if(mx){let v=-99;bd.forEach((_,j)=>{if(!bd[j]){bd[j]="O";v=Math.max(v,mm(d+1,false));bd[j]=null}});return v}let v=99;bd.forEach((_,j)=>{if(!bd[j]){bd[j]="X";v=Math.min(v,mm(d+1,true));bd[j]=null}});return v}function best(){let v=-99,m=bd.findIndex(x=>!x);bd.forEach((_,j)=>{if(!bd[j]){bd[j]="O";const sc=mm(0,false);bd[j]=null;if(sc>v){v=sc;m=j}}});return m}function rnd(){cs.forEach((c,j)=>{c.textContent=bd[j]||"";c.className="c"+(bd[j]?" t "+(bd[j]==="X"?"x":"o"):"")})}function go(i){if(ov||bz||bd[i])return;bd[i]="X";rnd();const w=ck("X");if(w){w.forEach(j=>cs[j].classList.add("w"));S.textContent="You win!";ov=true;window.parent.postMessage({type:"game_over",result:"loss",winner:"human"},"*");return}if(dr()){S.textContent="Draw!";ov=true;window.parent.postMessage({type:"game_over",result:"draw",winner:null},"*");return}bz=true;S.textContent="Thinking...";setTimeout(()=>{const m=best();bd[m]="O";rnd();bz=false;const w2=ck("O");if(w2){w2.forEach(j=>cs[j].classList.add("w"));S.textContent="I win!";ov=true;window.parent.postMessage({type:"game_over",result:"win",winner:"ai"},"*");return}if(dr()){S.textContent="Draw!";ov=true;window.parent.postMessage({type:"game_over",result:"draw",winner:null},"*")}else S.textContent="Your turn"},600)}function rst(){bd.fill(null);ov=false;bz=false;rnd();S.textContent="Your turn";cs.forEach(c=>c.classList.remove("w"))}rnd()<\/script></body></html>\n[GAME_END]\n\n=== HANGMAN HTML TEMPLATE (MANDATORY) ===\nWhen asked to create/build/make/play a Hangman game as HTML, output the template below VERBATIM between [GAME_START] and [GAME_END] markers. ONLY customize: (1) the <title> and <h2> text to include your character name, (2) CSS color hex values to match your character. DO NOT modify the JavaScript logic or word list.\n[GAME_START]\n<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Hangman</title><style>*{box-sizing:border-box}body{margin:0;padding:16px;font-family:sans-serif;background:#0f0f1a;color:#e0e0e0;display:flex;flex-direction:column;align-items:center;text-align:center}h2{color:#a78bfa;margin:0 0 6px;font-size:18px}svg{width:140px;height:140px;margin:4px 0}#w{font-size:1.5rem;letter-spacing:8px;color:#fff;margin:8px 0;min-height:2em;word-break:break-all}#m{font-size:13px;color:#f472b6;min-height:16px;margin:4px 0}#q{font-size:11px;color:#888;margin-bottom:8px}#k{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;max-width:260px;margin-bottom:12px}.b{width:30px;height:30px;background:#1a1a2e;border:1px solid #3d2a6e;border-radius:5px;font-size:12px;font-weight:700;color:#e0e0e0;cursor:pointer}.b:hover:not(:disabled){background:#2d1a5e;border-color:#a78bfa}.b:disabled{opacity:.3;cursor:default}button#r{padding:7px 20px;background:#7c3aed;color:#fff;border:none;border-radius:7px;font-size:13px;cursor:pointer}button#r:hover{opacity:.85}</style></head><body><h2>Hangman</h2><svg viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg"><line x1="10" y1="130" x2="130" y2="130" stroke="#555" stroke-width="3" stroke-linecap="round"/><line x1="35" y1="130" x2="35" y2="8" stroke="#555" stroke-width="3" stroke-linecap="round"/><line x1="35" y1="8" x2="90" y2="8" stroke="#555" stroke-width="3" stroke-linecap="round"/><line x1="90" y1="8" x2="90" y2="26" stroke="#555" stroke-width="3" stroke-linecap="round"/><circle id="p0" cx="90" cy="38" r="12" stroke="#f472b6" stroke-width="2.5" fill="none" visibility="hidden"/><line id="p1" x1="90" y1="50" x2="90" y2="88" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/><line id="p2" x1="90" y1="60" x2="68" y2="80" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/><line id="p3" x1="90" y1="60" x2="112" y2="80" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/><line id="p4" x1="90" y1="88" x2="72" y2="114" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/><line id="p5" x1="90" y1="88" x2="108" y2="114" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/></svg><div id="w"></div><div id="m"></div><div id="q"></div><div id="k"></div><button id="r" onclick="ng()">New Game</button><script>const WS=["brave","ghost","jewel","magic","ninja","queen","snake","torch","venom","witch","yacht","zebra","bloom","ember","flute","graze","haunt","latch","novel","orbit","pixel","rally","shelf","tiger","waltz","banana","castle","danger","empire","goblin","hunter","jungle","knight","launch","mirage","nectar","orange","palace","puzzle","quartz","riddle","shadow","throne","unique","velvet","winter","battle","cherry","dragon","frozen","galaxy","herald","cobalt","dagger","falcon","gravel","humble","insect","lizard","magnet","narrow","oyster","pastry","racket","salmon","tennis","breeze","clover","donkey","fidget","grumpy","hollow","jumble","keeper","muffin","nibble","pardon","quiver","rustle","sizzle","tangle","urchin","wobble","yonder","abandon","balance","captain","diamond","element","fantasy","harmony","iceberg","justice","kingdom","lantern","mystery","network","orchard","pilgrim","quantum","rainbow","silence","warrior","zealous","chicken","dolphin","fortune","giraffe","harvest","journey","lecture","meadows","nervous","phantom","revolve","texture","village","western","whisper","explore","freckle","insight","absolute","birthday","carefree","elephant","gorgeous","mushroom","necklace","opposite","princess","reliable","schedule","treasure","umbrella","wanderer","daughter","handsome","keyboard","cheerful","describe","familiar","grateful","innocent","peaceful","stunning","thousand","vacation"];let used=[],word="",guessed=[],wrong=0,over=false;function ng(){if(used.length>=WS.length)used=[];const p=WS.filter(w=>!used.includes(w));word=p[Math.floor(Math.random()*p.length)];used.push(word);guessed=[];wrong=0;over=false;bk();rn();document.getElementById("m").textContent="";}function bk(){const K=document.getElementById("k");K.innerHTML="";for(let i=0;i<26;i++){const b=document.createElement("button");b.className="b";b.textContent=String.fromCharCode(65+i);b.onclick=()=>gs(b.textContent.toLowerCase(),b);K.appendChild(b);}}function gs(l,btn){if(over||guessed.includes(l))return;guessed.push(l);btn.disabled=true;if(!word.includes(l)){document.getElementById("p"+wrong).setAttribute("visibility","visible");wrong++;}rn();if(word.split("").every(c=>guessed.includes(c))){document.getElementById("m").textContent="🎉 You got it!";over=true;window.parent.postMessage({type:"game_over",result:"loss",winner:"human"},"*");}else if(wrong>=6){document.getElementById("m").textContent="💀 Word: "+word.toUpperCase();over=true;window.parent.postMessage({type:"game_over",result:"win",winner:"ai"},"*");}}function rn(){document.getElementById("w").textContent=word.split("").map(c=>guessed.includes(c)?c.toUpperCase():"_").join(" ");const wr=guessed.filter(l=>!word.includes(l));document.getElementById("q").textContent=wr.length?"Wrong: "+wr.join(" ").toUpperCase()+" ("+wrong+"/6)":"";}ng();<\/script></body></html>\n[GAME_END]]`;
 }
 
 function isValidColorStr(color) {
@@ -3940,7 +3910,7 @@ async function generatePushMessage(row) {
         ? `You are ${charName || 'a character'}, ${modeDesc}. They've been away for a few days. Their last message touched on something painful or difficult. Write a short push notification (2-3 sentences) from your character's voice that: (1) gently and warmly checks in on how they're feeling without repeating the exact words they used, (2) invites them back to talk, (3) mentions in one warm natural sentence that real support is out there if they need it. ${styleNote} Write only the notification body text, nothing else.`
         : `You are ${charName || 'a character'}, ${modeDesc}. They've been away for a few days. Their last message to you was: [${ctx.slice(0, 300).replace(/[\[\]]/g, '')}]. Write a short push notification (2-3 sentences) from your character's voice that: (1) references something specific from what they said — make it feel like you actually remember, (2) invites them back naturally. Vary your opener so it doesn't sound like a template. ${styleNote} Write only the notification body text, nothing else.`;
 
-      const resp = await fetch(`https://${GEMINI_HOST}/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+      const resp = await fetch(`https://${GEMINI_HOST}/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3986,7 +3956,7 @@ async function sendPushReminders() {
         try {
           const msg = await generatePushMessage(row);
           await webpush.sendNotification(
-            JSON.parse(row.subscription),
+            row.subscription,
             JSON.stringify({ title: msg.title, body: msg.body, icon: '/logo.png', url: '/' })
           );
           await db.query('UPDATE push_subscriptions SET last_notified_at = NOW() WHERE id = $1', [row.id]);
@@ -4015,9 +3985,9 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   const greetEffortCfg = getEffortCfg(effort, modelTier);
   const greetModelList = getModelList(modelTier);
 
+  if (!db) return res.status(503).json({ error: 'Service temporarily unavailable' });
   const releaseSlot = acquireChatSlot(req, res, userId);
   if (!releaseSlot) return;
-  if (!db) return res.status(503).json({ error: 'Service temporarily unavailable' });
   const greetMod = await getModStatus(userId, charId);
   if (greetMod.locked) return res.status(403).json({ error: 'This chat has been ended.' });
 
@@ -4094,7 +4064,7 @@ async function analyzeImage(apiKey, dataUri) {
   if (!dm) throw new Error('invalid image data URI');
   const mimeType = dm[1];
   const data = dm[2];
-  const r = await fetch(`https://${GEMINI_HOST}/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+  const r = await fetch(`https://${GEMINI_HOST}/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     signal: AbortSignal.timeout(30000),
@@ -4127,7 +4097,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   const { charId, message, modelTier: reqModelTier, effort: reqEffort, image, callMode, chatMode } = req.body;
   const isRpMode = chatMode !== 'chat'; // default to RP; 'chat' = normal conversation mode
   const effortUserId = req.user.googleId;
-  const effort = callMode ? 'low' : resolveEffort(effortUserId, reqEffort);
+  let effort = callMode ? 'medium' : resolveEffort(effortUserId, reqEffort);
   const modelTier = resolveModelTier(effortUserId, reqModelTier);
   if (message !== undefined && typeof message !== 'string') return res.status(400).json({ error: 'Invalid request' });
   // Book mode: a book is planned, then written one chapter per reply. Only Opys 5 (X100) can do it.
@@ -4146,6 +4116,14 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     if (!ALLOWED_IMG.some(t => image.startsWith(t))) return res.status(400).json({ error: 'Invalid image format' });
     if (image.length > 1400000) return res.status(400).json({ error: 'Image too large (max ~1MB)' });
   }
+  // Coding requests automatically use at least 'high' effort — they deserve richer, more detailed responses
+  const CODE_DETECT_RE = /\b(code|coding|program|script|html|css|javascript|python|lua|c#|unity|roblox|unreal|algorithm|debug|function|class|api)\b/i;
+  const isGameMsg = typeof message === 'string' && /^\[The user (just |wants )|(just beat|just (lost|drew)|just won)/.test(message);
+  if (!callMode && !isGameMsg && typeof message === 'string' && CODE_DETECT_RE.test(message)) {
+    const ORDER = ['low','medium','high','extra','max','ultracode'];
+    if (ORDER.indexOf(effort) < ORDER.indexOf('high')) effort = 'high';
+  }
+
   const modelList = getModelList(modelTier);
   const effortCfg = getEffortCfg(effort, modelTier);
   if (!charId) return res.status(400).json({ error: 'charId required' });
@@ -4198,7 +4176,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     }
     if (!imgU.imageFirstUsedAt) { imgU.imageFirstUsedAt = Date.now(); imgU.imageDayStart = imgU.imageFirstUsedAt; }
     imgU.imagesDay = (imgU.imagesDay || 0) + 1; // attempts count toward the cap, including blocked ones
-    saveLimitsToDB(userId); // persist immediately so a restart doesn't grant free extra images
+    addTokens(userId, 1200); // addTokens already persists via saveLimitsToDB internally
     let explicit;
     try {
       const analysis = await analyzeImage(apiKey, image);
@@ -4206,16 +4184,14 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       imageDescription = analysis.description;
     } catch (e) {
       imgU.imagesDay = Math.max(0, imgU.imagesDay - 1); // our failure, not the user's
+      refundTokens(userId, 1200);
       console.warn('[image-safety] check failed, blocking image:', e.message);
       return res.status(503).json({ error: "We couldn't check that image right now. Please try again in a moment or send your message without it." });
     }
     if (explicit) {
+      refundTokens(userId, 1200);
       return res.status(451).json({ error: 'explicit_image' });
     }
-    // Charge session tokens proportional to image size (larger PNG costs more)
-    const imgBytes = (typeof image === 'string') ? image.length : 0;
-    const imgTokenCost = Math.max(IMAGE_TOKEN_MIN, Math.min(IMAGE_TOKEN_MAX, Math.round(imgBytes / IMAGE_TOKEN_BYTE_DIVISOR)));
-    addTokens(userId, imgTokenCost);
   }
 
   // ── Slur detection (three strikes per conversation) ────────────────────────
@@ -4264,6 +4240,16 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       const usage = addTokens(userId, Math.round(docsReply.length / 3.5));
       return slurDeflect(res, docsReply, usage, signReply(userId, charId, docsReply));
     }
+  }
+
+  // ── Mass violence / terrorism — hard block, no AI response ───────────────────
+  if (!isContinuation && message && VIOLENCE_THREAT_RE.test(msgNorm)) {
+    return streamBlockMsg(res, VIOLENCE_BLOCK_MSG);
+  }
+
+  // ── Explicit suicide method requests — hard block with crisis line ─────────
+  if (!isContinuation && message && SUICIDE_METHOD_RE.test(msgNorm)) {
+    return streamBlockMsg(res, SUICIDE_METHOD_BLOCK_MSG);
   }
 
   // ── NSFW detection — return a random deflection, no Gemini call needed ───────
@@ -4379,13 +4365,6 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
       if (bookPlanState) saveBookState(key, { ...bookPlanState, outline: String(text || '').slice(0, 4000) });
       maybeUpdateStorySummary(key, apiKey, (dbChar && dbChar.name) || charId, modelTier);
-      // Track AI tokens generated during voice calls
-      if (callMode && text && userId) {
-        const u2 = getLimits(userId);
-        const approxTokens = Math.ceil((text.trim().split(/\s+/).length) * 1.3);
-        u2.callAiTokensToday = (u2.callAiTokensToday || 0) + approxTokens;
-        if (!u2.callAiDayStart) u2.callAiDayStart = getCallWindowStart();
-      }
       if (db && dbChar && dbChar.name) {
         const ctx = (message || '').slice(0, 400);
         const crisis = hasCrisisSignal(message || '');
@@ -4595,35 +4574,32 @@ async function sendWelcomeEmail(userName, email) {
 
 // ── Policy notification email ─────────────────────────────────────────────────
 
-function buildPolicyEmailHtml(userName, message) {
-  const name = userName || 'there';
+function buildUpdateEmailHtml(userName, subject, message) {
+  const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const name = esc(userName || 'there');
+  const siteUrl = process.env.SITE_URL || 'https://charactermind.onrender.com';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:40px 16px">
   <tr><td align="center">
     <table width="100%" style="max-width:560px;background:#111111;border-radius:12px;border:1px solid #222222;padding:40px">
       <tr><td>
-        <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#7c5cbf">Character.Mind</p>
-        <h1 style="margin:0 0 24px;font-size:22px;font-weight:700;color:#f0f0f0;letter-spacing:-.02em">Policy Update</h1>
-        <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">Hi ${name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')},</p>
-        <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">We've updated our Terms of Service and/or Privacy Policy. Here's a summary of what changed:</p>
-        <div style="background:#0a0a0a;border:1px solid #222222;border-radius:8px;padding:20px;margin:0 0 24px">
-          <p style="margin:0;font-size:15px;color:#f0f0f0;line-height:1.6;white-space:pre-wrap">${message.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>
+        <p style="margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#7c5cbf">Character.Mind</p>
+        <h1 style="margin:0 0 24px;font-size:22px;font-weight:700;color:#f0f0f0;letter-spacing:-.02em">${esc(subject)}</h1>
+        <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">Hi ${name},</p>
+        <div style="background:#0a0a0a;border:1px solid #222222;border-radius:8px;padding:20px;margin:0 0 28px">
+          <p style="margin:0;font-size:15px;color:#f0f0f0;line-height:1.7;white-space:pre-wrap">${esc(message)}</p>
         </div>
-        <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">You can read the full policies any time:</p>
-        <table cellpadding="0" cellspacing="0" style="margin:0 0 32px">
-          <tr>
-            <td style="padding-right:12px"><a href="${process.env.SITE_URL || 'https://charactermind.onrender.com'}/terms.html" style="display:inline-block;padding:10px 20px;background:#7c5cbf;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500">Terms of Service</a></td>
-            <td><a href="${process.env.SITE_URL || 'https://charactermind.onrender.com'}/privacy.html" style="display:inline-block;padding:10px 20px;border:1px solid #444;color:#f0f0f0;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500">Privacy Policy</a></td>
-          </tr>
-        </table>
-        <p style="margin:0 0 4px;font-size:13px;color:#666666;line-height:1.5">By continuing to use Character.Mind after these changes, you accept the updated policies. If you have questions, reply to this email.</p>
-        <p style="margin:16px 0 0;font-size:13px;color:#444444">— Character.Mind</p>
+        <a href="${siteUrl}" style="display:inline-block;padding:11px 24px;background:#7c5cbf;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;margin-bottom:28px">Open Character.Mind</a>
+        <hr style="border:none;border-top:1px solid #222222;margin:0 0 20px">
+        <p style="margin:0 0 4px;font-size:12px;color:#555555;line-height:1.5">Questions? Reply to this email or reach us at <a href="mailto:support.charactermind@gmail.com" style="color:#7c5cbf;text-decoration:none">support.charactermind@gmail.com</a></p>
+        <p style="margin:12px 0 0;font-size:12px;color:#444444">— Character.Mind</p>
       </td></tr>
     </table>
   </td></tr>
 </table>
 </body></html>`;
 }
+function buildPolicyEmailHtml(userName, message) { return buildUpdateEmailHtml(userName, 'Policy Update', message); }
 
 app.post('/api/admin/notify-policy-update', requireAuth, async (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
@@ -4651,7 +4627,7 @@ app.post('/api/admin/notify-policy-update', requireAuth, async (req, res) => {
   for (let i = 0; i < users.length; i += BATCH) {
     const batch = users.slice(i, i + BATCH);
     const results = await Promise.allSettled(batch.map(user =>
-      sendResendEmail(user.email, subject, buildPolicyEmailHtml(user.name, message))
+      sendResendEmail(user.email, subject, buildUpdateEmailHtml(user.name, subject, message))
     ));
     for (const r of results) {
       if (r.status === 'fulfilled') sent++;
@@ -4892,6 +4868,178 @@ app.post('/api/webhooks/paypal', async (req, res) => {
 
 app.get('/terms', (req, res) => res.sendFile(path.join(__dirname, 'public', 'terms.html')));
 app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy.html')));
+
+// ── Game endpoints ─────────────────────────────────────────────────────────────
+
+const gameLastPlayed = new Map();
+const GAME_COOLDOWN_MS = 5 * 60 * 1000; // 5-minute cooldown between game sessions
+
+function checkGameCooldown(userId) {
+  const last = gameLastPlayed.get(userId);
+  if (!last) return { blocked: false };
+  const nextAvailableAt = last + GAME_COOLDOWN_MS;
+  const remaining = nextAvailableAt - Date.now();
+  if (remaining > 0) return { blocked: true, remainingMs: remaining, gameNextAvailableAt: nextAvailableAt };
+  return { blocked: false };
+}
+
+const HANGMAN_WORDS = [
+  'apple','arrow','beach','brain','bread','brick','bride','brush','buddy','cable',
+  'camel','candy','chair','chalk','charm','chase','chest','chief','child','china',
+  'choir','civic','civil','claim','clash','class','clean','clear','clerk','click',
+  'cliff','clock','clone','close','cloud','clown','coach','coast','cobra','comet',
+  'comic','coral','couch','count','court','cover','crane','crazy','cream','creek',
+  'creep','crime','crisp','cross','crowd','crown','crush','crust','curve','cycle',
+  'daily','dance','debut','delta','depot','depth','derby','drift','drink','drive',
+  'drone','drool','drops','drove','drown','drums','dwarf','eagle','early','earth',
+  'eight','elder','elect','elite','ember','empty','enemy','entry','equal','error',
+  'event','every','exact','exert','exile','extra','fable','fairy','faith','false',
+  'fancy','fault','feast','fence','fever','field','fifth','fifty','fight','finch',
+  'first','fixed','flame','flank','flash','flask','fleet','flesh','float','flood',
+  'floor','flour','fluid','flute','focus','force','forge','forth','forum','found',
+  'frame','frank','fraud','freak','freed','fresh','front','frost','fruit','fully',
+  'funny','ghost','giant','given','gland','glass','gleam','glide','globe','gloom',
+  'glory','gloss','glove','going','grace','grade','grain','grand','grant','grape',
+  'grasp','grass','great','green','greet','grief','grind','groan','group',
+  'guard','guest','guide','guild','guilt','guise','happy','harsh','haven',
+  'heart','heavy','hedge','herbs','hinge','hippo','hoist','holly','honor','horse',
+  'hotel','house','hover','human','humor','image','indie','inner','input',
+  'irony','ivory','jelly','jewel','joker','judge','juice','jumbo',
+  'karma','knack','kneel','knife','knock','label','lance','large','laser',
+  'later','laugh','layer','learn','lease','legal','lemon','level','light',
+  'lilac','limit','linen','lingo','links','liver','lodge','logic',
+  'loose','lotus','lower','lucid','lucky','lunar','lunch','lyric','magic','major',
+  'maker','manga','manor','maple','march','match','mayor','media','mercy','merge',
+  'merit','metal','model','money','month','moose','moral','morph','motif','motor',
+  'mouse','mouth','movie','mural','music','naive','naval','nerve','never',
+  'night','ninja','noise','north','noted','novel','nurse','ocean',
+  'offer','often','olive','omega','onset','opera','orbit','order','other','otter',
+  'outer','oxide','ozone','paint','panic','paper','party','pasta','patch',
+  'pause','peace','peach','pearl','piano','pilot','pinch','pixel','pizza','place',
+  'plain','plane','plant','plaza','plead','point','polar',
+  'poppy','pound','power','press','price','pride','prime','print','prize',
+  'probe','prone','proof','prose','proud','prove','proxy','pupil','queen',
+  'quest','queue','quick','quiet','quota','quote','radar','radio','rainy','rally',
+  'ranch','range','rapid','raven','reach','ready','realm','rebel','recap','reign',
+  'relax','renew','repay','repel','rerun','rider','ridge','rifle','right','risky',
+  'rival','river','rivet','robot','rocky','rodeo','rough','round','route',
+  'royal','rugby','ruler','rumor','rusty','saint','salad','sandy','sauce','savor',
+  'scary','scene','scout','seize','serve','seven','shade','shake','shark',
+  'sharp','sheen','sheep','sheet','shelf','shell','shift','shirt','shock',
+  'shore','short','shout','shove','siege','sight','silly','since','sixth','sixty',
+  'skate','skill','skull','slate','sleek','slice','slide',
+  'slope','small','smart','smash','smell','smoke','snail','snake','snare',
+  'sneak','solar','solid','solve','south','space','speak','speed','spell',
+  'spend','spice','spill','spine','spite','split','spoon','sport','spray','squad',
+  'staff','stair','stake','stand','stare','start','state','steam','steel',
+  'steep','steer','stern','stick','stiff','still','sting','stock','stomp','stone',
+  'store','storm','story','stout','stove','strap','straw','stray','strip','strum',
+  'study','style','sugar','super','surge','swamp','sweep','sweet','swift',
+  'swirl','sword','table','talon','tango','taunt','teach','teeth','tempo',
+  'tense','tenth','theft','thick','think','third','thorn','three',
+  'throw','thumb','tiger','tight','timer','tired','title','toast',
+  'today','token','torch','total','touch','tough','tower','toxic','trace','track',
+  'trade','train','trait','trash','trail','trend','trial','tribe','trick','tried',
+  'troop','trout','trove','truce','truck','trunk','truth','twice',
+  'twist','ultra','uncle','unify','union','unity','until','upper','urban',
+  'usage','usual','vague','valid','value','vapor','vault','venom','verse','video',
+  'vigor','viral','virus','visor','visit','vista','vital','vivid','vocal','voice',
+  'voter','waltz','waste','watch','water','weave','weigh','weird','wheat',
+  'wheel','while','whirl','white','whole','wider','width','witch','woman',
+  'world','worry','worse','worth','wound','wrath','write','yacht',
+  'yield','young','youth','zebra','zesty','zoned'
+];
+
+function requireAuthGame(req, res, next) {
+  if (!req.session || !req.session.userId) return res.status(401).json({ error: 'Not authenticated' });
+  next();
+}
+
+app.get('/api/game/hangman/word', requireAuthGame, (req, res) => {
+  const userId = req.session.userId;
+
+  const limits = checkLimits(userId);
+  if (limits.blocked) return res.status(429).json({ error: 'Token limit reached', ...limits });
+
+  const cooldown = checkGameCooldown(userId);
+  if (cooldown.blocked) return res.status(429).json({ error: 'Game cooldown active', gameNextAvailableAt: cooldown.gameNextAvailableAt, remainingMs: cooldown.remainingMs });
+
+  // Stamp cooldown before charging — if addTokens somehow throws, the cooldown prevents a free retry
+  gameLastPlayed.set(userId, Date.now());
+
+  // Charge upfront game session fee (equivalent to one max-effort message)
+  const u = getLimits(userId);
+  const modelTier = resolveModelTier(userId, u.subscriptionTier === 'free' ? 'opas' : 'opes');
+  const fee = messageCost(modelTier, 'max');
+  addTokens(userId, fee);
+
+  const word = HANGMAN_WORDS[Math.floor(Math.random() * HANGMAN_WORDS.length)];
+  res.json({ word });
+});
+
+function tttCheckWinnerGame(board) {
+  const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  for (const [a,b,c] of lines) {
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) return board[a];
+  }
+  return null;
+}
+
+function tttMinimaxGame(board, isMaximizing) {
+  const winner = tttCheckWinnerGame(board);
+  if (winner === 'O') return 10;
+  if (winner === 'X') return -10;
+  if (board.every(c => c)) return 0;
+  if (isMaximizing) {
+    let best = -Infinity;
+    for (let i = 0; i < 9; i++) {
+      if (!board[i]) { board[i] = 'O'; best = Math.max(best, tttMinimaxGame(board, false)); board[i] = null; }
+    }
+    return best;
+  } else {
+    let best = Infinity;
+    for (let i = 0; i < 9; i++) {
+      if (!board[i]) { board[i] = 'X'; best = Math.min(best, tttMinimaxGame(board, true)); board[i] = null; }
+    }
+    return best;
+  }
+}
+
+app.post('/api/game/tictactoe/move', requireAuthGame, (req, res) => {
+  const userId = req.session.userId;
+  const { board } = req.body;
+  if (!Array.isArray(board) || board.length !== 9) return res.status(400).json({ error: 'Invalid board' });
+  if (board.some(c => c !== null && c !== 'X' && c !== 'O')) return res.status(400).json({ error: 'Invalid board values' });
+
+  // First move of the game — apply cooldown + limit check + upfront fee
+  if (board.filter(c => c !== null).length === 1) {
+    const limits = checkLimits(userId);
+    if (limits.blocked) return res.status(429).json({ error: 'Token limit reached', ...limits });
+
+    const cooldown = checkGameCooldown(userId);
+    if (cooldown.blocked) return res.status(429).json({ error: 'Game cooldown active', gameNextAvailableAt: cooldown.gameNextAvailableAt, remainingMs: cooldown.remainingMs });
+
+    // Stamp cooldown before charging — if addTokens somehow throws, the cooldown prevents a free retry
+    gameLastPlayed.set(userId, Date.now());
+
+    const u = getLimits(userId);
+    const modelTier = resolveModelTier(userId, u.subscriptionTier === 'free' ? 'opas' : 'opes');
+    const fee = messageCost(modelTier, 'max');
+    addTokens(userId, fee);
+  }
+
+  if (tttCheckWinnerGame(board) || board.every(c => c)) return res.json({ move: -1 });
+  let bestVal = -Infinity, bestMove = -1;
+  for (let i = 0; i < 9; i++) {
+    if (!board[i]) {
+      board[i] = 'O';
+      const val = tttMinimaxGame(board, false);
+      board[i] = null;
+      if (val > bestVal) { bestVal = val; bestMove = i; }
+    }
+  }
+  res.json({ move: bestMove });
+});
 
 // A mistyped API address should say so, not answer with the home page
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));

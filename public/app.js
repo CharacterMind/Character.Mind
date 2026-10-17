@@ -177,7 +177,7 @@ function showUpgradeModal() { openPricingModal(); }
 // ── Subscription tier data ────────────────────────────────────────────────────
 const PLAN_DATA = [
   {
-    key: 'free', name: 'Free', monthly: 0, annual: 0, coinsPerMonth: 0,
+    key: 'free', name: 'Free', monthly: 0, annual: 0,
     callsPerDay: 3, memosPerDay: 30,
     features: [
       'Opas & Opes: quick-witted, weirdly capable, zero fluff',
@@ -187,7 +187,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'advanced', name: 'Advanced', monthly: 9.99, annual: 59.99, coinsPerMonth: 2000,
+    key: 'advanced', name: 'Advanced', monthly: 9.99, annual: 59.99,
     callsPerDay: 5, memosPerDay: 50,
     features: [
       'Opis: sharper logic, built for mystery, never loses the thread',
@@ -198,7 +198,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'x20', name: 'X20', badge: 'Recommended', monthly: 39.99, annual: 239.99, coinsPerMonth: 8000,
+    key: 'x20', name: 'X20', badge: 'Recommended', monthly: 39.99, annual: 239.99,
     callsPerDay: 100, memosPerDay: 1000,
     features: [
       'Opus: proper emotional weight — subtext, inner conflict, the whole thing',
@@ -209,7 +209,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'x50', name: 'X50', badge: 'Best Value', monthly: 79.99, annual: 479.99, coinsPerMonth: 20000,
+    key: 'x50', name: 'X50', badge: 'Best Value', monthly: 79.99, annual: 479.99,
     callsPerDay: 250, memosPerDay: 2500,
     features: [
       'Opys: plans the scene before it writes it — tension beats, pacing, full arcs',
@@ -220,7 +220,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'x100', name: 'X100', badge: 'Ultimate', monthly: 159.99, annual: 959.99, coinsPerMonth: 50000,
+    key: 'x100', name: 'X100', badge: 'Ultimate', monthly: 159.99, annual: 959.99,
     callsPerDay: 500, memosPerDay: 5000,
     features: [
       'Opys 5: the flagship model, gated here on purpose',
@@ -232,7 +232,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'x200', name: 'X200', badge: 'Legend', monthly: 399.99, annual: 2399.99, coinsPerMonth: 150000,
+    key: 'x200', name: 'X200', badge: 'Legend', monthly: 399.99, annual: 2399.99,
     callsPerDay: 1500, memosPerDay: 15000,
     features: [
       'Opys 6: next-generation, exclusive — nothing else gets you here',
@@ -336,20 +336,17 @@ function formatLocalPrice(usdPrice) {
   }
 }
 
-function openPricingModal() {
-  const m = document.getElementById('pricingModal');
-  if (!m) return;
-  m.style.display = 'flex';
-  renderPricingCards();
-}
+function openPricingModal() { /* plans not available right now */ }
 function closePricingModal() {
   const m = document.getElementById('pricingModal');
   if (m) m.style.display = 'none';
 }
 function setPricingPeriod(period) {
+  // Yearly prices are only shown when yearly PayPal plans really exist (otherwise the person would be charged the monthly price).
+  if (!yearlyAvailable) period = 'monthly';
   pricingPeriod = period;
-  document.getElementById('pricingBtnMonthly')?.classList.toggle('pt-active', period === 'monthly');
-  document.getElementById('pricingBtnAnnual')?.classList.toggle('pt-active', period === 'annual');
+  document.getElementById('pricingBtnMonthly').classList.toggle('pt-active', period === 'monthly');
+  document.getElementById('pricingBtnAnnual').classList.toggle('pt-active', period === 'annual');
   renderPricingCards();
 }
 
@@ -357,62 +354,31 @@ function renderPricingCards() {
   const container = document.getElementById('pricingCards');
   if (!container) return;
   const currentTier = lastKnownUsage?.subscriptionTier || 'free';
-  const userCoins   = lastKnownUsage?.cmCoins || 0;
   container.innerHTML = PLAN_DATA.map(plan => {
     const isCurrent = plan.key === currentTier;
-    const cost = plan.coinsPerMonth || 0;
-    const priceStr = cost === 0 ? 'Free' : `🪙 ${cost.toLocaleString()}`;
-    const periodStr = cost === 0 ? 'forever' : '/ month';
-    const badge    = plan.badge ? `<div class="pc-badge">${escHtml(plan.badge)}</div>` : '';
-    const features = plan.features.map(f => `<li>✓ ${escHtml(f)}</li>`).join('');
-    let ctaText, ctaClass, ctaAttr;
-    if (isCurrent) {
-      ctaText = 'Current plan'; ctaClass = 'pc-cta pc-cta-current'; ctaAttr = 'disabled';
-    } else if (cost === 0) {
-      ctaText = 'Free plan'; ctaClass = 'pc-cta pc-cta-current'; ctaAttr = 'disabled';
-    } else if (userCoins < cost) {
-      const need = (cost - userCoins).toLocaleString();
-      ctaText = `Need ${need} more coins`; ctaClass = 'pc-cta pc-cta-current'; ctaAttr = 'disabled';
-    } else {
-      ctaText = 'Subscribe'; ctaClass = 'pc-cta'; ctaAttr = `onclick="subscribeWithCoins('${plan.key}')"`;
+    const price = pricingPeriod === 'annual' ? plan.annual : plan.monthly;
+    const priceStr = formatLocalPrice(price);
+    const periodStr = price === 0 ? 'forever' : pricingPeriod === 'annual' ? '/ year' : '/ month';
+    let perMonth = '<div class="pc-per-month"></div>';
+    if (plan.annual > 0 && pricingPeriod === 'annual') {
+      const savePct = Math.round((1 - plan.annual / (plan.monthly * 12)) * 100);
+      const perMonthLocal = formatLocalPrice(plan.annual / 12);
+      perMonth = `<div class="pc-per-month">~${perMonthLocal}/mo &nbsp;<span class="pc-save-pct">Save ${savePct}%</span></div>`;
     }
+    const badge = plan.badge ? `<div class="pc-badge">${escHtml(plan.badge)}</div>` : '';
+    const features = plan.features.map(f => `<li>✓ ${escHtml(f)}</li>`).join('');
+    const soon = !isCurrent && plan.key !== 'free';
+    const ctaText = isCurrent ? 'Current plan' : soon ? 'Coming soon' : 'Upgrade';
+    const ctaClass = 'pc-cta' + (isCurrent || soon ? ' pc-cta-current' : '');
     return `<div class="pricing-card${isCurrent ? ' pc-current' : ''}${plan.badge ? ' pc-featured' : ''}">
       ${badge}
       <div class="pc-name">${escHtml(plan.name)}</div>
       <div class="pc-price">${priceStr}<span class="pc-period"> ${periodStr}</span></div>
+      ${perMonth}
       <ul class="pc-features">${features}</ul>
-      <button class="${ctaClass}" ${ctaAttr}>${ctaText}</button>
+      <button class="${ctaClass}" ${isCurrent || soon ? 'disabled' : `onclick="handleUpgradeCta('${plan.key}')"`}>${ctaText}</button>
     </div>`;
   }).join('');
-}
-
-async function subscribeWithCoins(planKey) {
-  const plan = PLAN_DATA.find(p => p.key === planKey);
-  if (!plan || !plan.coinsPerMonth) return;
-  try {
-    const r = await fetch('/api/coins/redeem', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tier: planKey })
-    });
-    const d = await r.json();
-    if (d.ok) {
-      if (lastKnownUsage) {
-        lastKnownUsage.cmCoins = d.balance;
-        lastKnownUsage.coinTier = d.coinTier;
-        lastKnownUsage.coinTierExpires = d.coinTierExpires;
-        lastKnownUsage.subscriptionTier = d.effectiveTier;
-      }
-      updateSettingsCoinDisplay(d.balance);
-      closePricingModal();
-    } else {
-      alert(d.error === 'Not enough coins'
-        ? `You need ${(d.cost - d.balance).toLocaleString()} more C.M Coins to subscribe.`
-        : (d.error || 'Something went wrong. Please try again.'));
-    }
-  } catch(e) {
-    console.error('[subscribeWithCoins]', e);
-  }
 }
 
 // PayPal plan IDs (sandbox)
@@ -560,44 +526,42 @@ function updateSettingsPlanCard(tier) {
 }
 
 function renderSettingsTiers(currentTier) {
+  if (!paypalConfigLoaded) { loadPaypalConfig().then(() => renderSettingsTiers(currentTier)); return; }
+  if (!exchangeRates) {
+    Promise.all([loadExchangeRates(), ensurePricingCountry()]).then(() => renderSettingsTiers(currentTier));
+    return;
+  }
   const el = document.getElementById('settingsTiersSection');
   if (!el) return;
   const t = currentTier || lastKnownUsage?.subscriptionTier || 'free';
-  const userCoins = lastKnownUsage?.cmCoins || 0;
+  const period = pricingPeriod;
   const icons = {
     advanced: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M13 2.05v2.02c3.95.49 7 3.85 7 7.93 0 3.21-1.81 6-4.72 7.72L13 18v4l-1.73-1-1.27.73V18l-2.28 1.65C4.78 18 3 15.21 3 12c0-4.08 3.05-7.44 7-7.93V2.05h3zm-1 2.96C9.03 5.44 7 8.5 7 12c0 2.42 1.17 4.65 3 6.07V14h4v4.07c1.83-1.42 3-3.65 3-6.07 0-3.5-2.03-6.56-5-7z"/></svg>`,
     x20: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`,
     x50: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/></svg>`,
     x100: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/></svg>`,
-    x200: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>`,
   };
   const plans = PLAN_DATA.filter(p => p.key !== 'free');
   el.innerHTML = `
-    <div class="st2-header"><span class="st2-title">Plans</span></div>
+    <div class="st2-header">
+      <span class="st2-title">Plans</span>
+      ${yearlyAvailable ? `<div class="st2-toggle"><button class="st2-toggle-btn${period === 'monthly' ? ' st2-toggle-active' : ''}" onclick="setSettingsPeriod('monthly')">Monthly</button><button class="st2-toggle-btn${period === 'annual' ? ' st2-toggle-active' : ''}" onclick="setSettingsPeriod('annual')">Yearly</button></div>` : ''}
+    </div>
     <div class="st2-cards-wrap">
       ${plans.map(p => {
         const isCurrent = p.key === t;
-        const cost = p.coinsPerMonth || 0;
+        const price = period === 'annual' ? p.annual : p.monthly;
         const badge = p.badge ? `<div class="st2-badge">${escHtml(p.badge)}</div>` : '';
         const feats = p.features.slice(0, 3).map(f =>
           `<li class="st2-feat"><svg viewBox="0 0 12 12" width="10" height="10" fill="none" style="flex-shrink:0;margin-top:2px"><path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>${escHtml(f)}</li>`
         ).join('');
-        let btnText, btnClass, btnAttr;
-        if (isCurrent) {
-          btnText = 'Current'; btnClass = 'st2-btn st2-btn-current'; btnAttr = 'disabled';
-        } else if (userCoins < cost) {
-          const need = (cost - userCoins).toLocaleString();
-          btnText = `Need ${need} more`; btnClass = 'st2-btn st2-btn-current'; btnAttr = 'disabled';
-        } else {
-          btnText = 'Subscribe'; btnClass = 'st2-btn'; btnAttr = `onclick="subscribeWithCoins('${p.key}')"`;
-        }
         return `<div class="st2-card${isCurrent ? ' st2-current' : ''}${p.badge ? ' st2-featured' : ''}">
           ${badge}
           <div class="st2-icon-wrap">${icons[p.key] || ''}</div>
           <div class="st2-plan-name">${escHtml(p.name)}</div>
-          <div class="st2-price-row"><span class="st2-price">🪙 ${cost.toLocaleString()}</span><span class="st2-period">/mo</span></div>
+          <div class="st2-price-row"><span class="st2-price">${formatLocalPrice(price)}</span><span class="st2-period">${period === 'annual' ? '/yr' : '/mo'}</span></div>
           <ul class="st2-feats">${feats}</ul>
-          <button class="${btnClass}" ${btnAttr}>${btnText}</button>
+          <button class="st2-btn${isCurrent || !planBuyable(p.key) ? ' st2-btn-current' : ''}" ${isCurrent || !planBuyable(p.key) ? 'disabled' : `onclick="handleUpgradeCta('${p.key}')"`}>${isCurrent ? 'Current' : !planBuyable(p.key) ? 'Coming soon' : 'Subscribe'}</button>
         </div>`;
       }).join('')}
     </div>`;
@@ -1571,7 +1535,7 @@ function randomizeChatColors() {
   });
   // Re-randomize character name in: chat message headers, mobile header, info panel, active sidebar entry
   const freshName = colorizeNameHtml(currentChar.name, currentChar.color);
-  document.querySelectorAll('#messages .msg-name').forEach(el => { el.innerHTML = freshName; });
+  document.querySelectorAll('#messages .msg.ai .msg-name').forEach(el => { el.innerHTML = freshName; });
   const mobNm = document.getElementById('mobChatName');
   if (mobNm) mobNm.innerHTML = freshName;
   const infoNm = document.getElementById('infoName');
@@ -2580,6 +2544,7 @@ function abandonStream() {
 async function openChat(charId) {
   const nextChar = characters.find(c => c.id === charId);
   if (!nextChar) return;
+  bookClose();
   abandonStream();
   releaseChatInput();
   clearPendingImage();   // an attached picture belongs to the chat it was attached in
@@ -3070,7 +3035,7 @@ function updateImageAttachState(usage) {
 }
 
 // ── Send Message ──────────────────────────────────────────────────────────────
-async function sendMessage(overrideText, skipAppend, allowEmpty) {
+async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort) {
   if (!currentChar) return;
   const myEpoch = chatEpoch;   // taken BEFORE any waiting, so a chat switch during the request is noticed
   // If we're locked out (limit reached), re-show the modal with a new message every attempt
@@ -3087,13 +3052,6 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
   const input = document.getElementById('messageInput');
   const text = overrideText !== undefined ? overrideText : input.value.trim();
 
-  // Tic-Tac-Toe game trigger
-  if (/\btic.?tac.?toe\b|\bttt\b/i.test(text) && currentChar) {
-    if (!overrideText) { input.value = ''; autoResize(input); clearPendingImage(); }
-    openTTT();
-    return;
-  }
-
   const imgB64 = pendingImageB64;
   if (!overrideText) {
     input.value = '';
@@ -3106,6 +3064,23 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
     // Empty send from the button = let the AI keep talking. It costs tokens like any other reply.
     if (!allowEmpty || !document.getElementById('messages').children.length) return;
     skipAppend = true;
+  }
+
+  // ── Game trigger detection ─────────────────────────────────────────────────
+  if (!overrideText && text && currentChar) {
+    const t = text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').trim();
+    const isHangman = /\bhangman\b/.test(t);
+    const isTTT = /tic[\s]*tac[\s]*toe/.test(text.toLowerCase()) || /\bttt\b/.test(t);
+    if (isHangman || isTTT) {
+      appendMessage('user', text);
+      touchRecentChat(currentChar.id);
+      document.getElementById('chatWelcome').innerHTML = '';
+      playSound('send');
+      scrollToBottom();
+      if (isHangman) launchHangman();
+      else launchTicTacToe();
+      return;
+    }
   }
 
   if (!skipAppend) {
@@ -3139,7 +3114,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ charId: currentChar.id, message: text, modelTier: callModeActive ? 'opas' : selectedModelTier, effort: callModeActive ? 'low' : selectedEffort, ...(imgB64 ? { image: imgB64 } : {}), ...(callModeActive ? { callMode: true } : {}), ...(bookExtra ? { book: bookExtra } : {}), chatMode: rpMode ? 'rp' : 'chat' }),
+      body: JSON.stringify({ charId: currentChar.id, message: text, modelTier: callModeActive ? 'opas' : selectedModelTier, effort: callModeActive ? 'low' : (overrideEffort || selectedEffort), ...(imgB64 ? { image: imgB64 } : {}), ...(callModeActive ? { callMode: true } : {}), ...(bookExtra ? { book: bookExtra } : {}), chatMode: rpMode ? 'rp' : 'chat' }),
       signal: streamAbortCtrl.signal
     });
 
@@ -4028,70 +4003,7 @@ async function loadUsage() {
     updateSettingsPlanCard(usage.subscriptionTier);
     renderUserBadge();
     updateModelPickerLocks();
-    updateSettingsCoinDisplay(usage.cmCoins || 0, usage.coinsEarnedToday || 0, usage.coinDailyLimit || 100);
   } catch (_) {}
-}
-
-const COIN_MONTHLY_COST_CLIENT = { advanced: 2000, x20: 8000, x50: 20000, x100: 50000, x200: 150000 };
-const COIN_PLAN_LABELS = { advanced: 'Advanced', x20: 'x20', x50: 'x50', x100: 'x100', x200: 'x200' };
-
-function updateSettingsCoinDisplay(balance, earnedToday, dailyCap) {
-  const balEl = document.getElementById('settingsCoinBalance');
-  if (balEl) balEl.textContent = (balance || 0).toLocaleString();
-  const dailyEl = document.getElementById('settingsCoinDaily');
-  if (dailyEl) dailyEl.textContent = `${earnedToday || 0} / ${dailyCap || 100} today`;
-  renderSettingsTiers();
-  // Update sidebar nav coin badge
-  const navBtn = document.getElementById('navCoinsBtn');
-  const navCount = document.getElementById('navCoinsCount');
-  if (navBtn && currentUser) { navBtn.style.display = ''; }
-  if (navCount) navCount.textContent = (balance || 0).toLocaleString();
-}
-
-function renderCoinRedeemList(balance) {
-  const container = document.getElementById('settingsCoinsRedeemList');
-  if (!container) return;
-  container.innerHTML = Object.entries(COIN_MONTHLY_COST_CLIENT).map(([tier, cost]) => {
-    const canAfford = balance >= cost;
-    const label = COIN_PLAN_LABELS[tier] || tier;
-    return `<div class="coin-redeem-row">
-      <div class="coin-redeem-tier">${label}</div>
-      <div class="coin-redeem-cost">🪙 ${cost.toLocaleString()}<span class="coin-redeem-period">/mo</span></div>
-      <button class="coin-redeem-btn${canAfford ? '' : ' coin-redeem-btn-disabled'}"
-        ${canAfford ? `onclick="redeemCoinsForTier('${tier}',${cost})"` : 'disabled'}
-        title="${canAfford ? `Redeem ${cost.toLocaleString()} coins for 1 month of ${label}` : `Need ${(cost-balance).toLocaleString()} more coins`}">
-        ${canAfford ? 'Redeem' : 'Not enough'}
-      </button>
-    </div>`;
-  }).join('');
-}
-
-async function redeemCoinsForTier(tier, cost) {
-  if (!confirm(`Spend ${cost.toLocaleString()} CM Coins for 1 month of ${COIN_PLAN_LABELS[tier]}?`)) return;
-  try {
-    const r = await fetch('/api/coins/redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tier }) });
-    const data = await r.json();
-    if (!r.ok) { alert(data.error || 'Redemption failed'); return; }
-    showCoinToast(-cost, data.balance, `1 month of ${COIN_PLAN_LABELS[tier]} unlocked!`);
-    if (lastKnownUsage) { lastKnownUsage.cmCoins = data.balance; lastKnownUsage.subscriptionTier = data.effectiveTier; }
-    updateSettingsCoinDisplay(data.balance, lastKnownUsage?.coinsEarnedToday || 0, 100);
-    updateSettingsPlanCard(data.effectiveTier);
-    loadUsage();
-  } catch (e) { alert('Something went wrong. Please try again.'); }
-}
-
-function showCoinToast(delta, newBalance, customMsg) {
-  const existing = document.getElementById('cmCoinToast');
-  if (existing) existing.remove();
-  const toast = document.createElement('div');
-  toast.id = 'cmCoinToast';
-  toast.className = 'cm-coin-toast';
-  toast.innerHTML = customMsg
-    ? `<span class="cm-coin-toast-icon">🪙</span><span>${customMsg} Balance: ${newBalance.toLocaleString()}</span>`
-    : `<span class="cm-coin-toast-icon">🪙</span><span>+${delta} CM Coins! Balance: ${newBalance.toLocaleString()}</span>`;
-  document.body.appendChild(toast);
-  setTimeout(() => toast.classList.add('cm-coin-toast-show'), 10);
-  setTimeout(() => { toast.classList.remove('cm-coin-toast-show'); setTimeout(() => toast.remove(), 400); }, 3500);
 }
 
 function applySoftLaunch(on) {
@@ -4299,88 +4211,70 @@ function updateUsageModal(u) {
   const wSubEl = document.getElementById('usageWeeklySub');
   if (wSubEl) wSubEl.textContent = u.weeklyLimit ? (u.weeklyResetsAt ? formatResetTime(u.weeklyResetsAt) : 'Resets weekly') : 'No weekly limit on the free tier';
 
-  // ── Calls bar (real: AI tokens generated + duration used) ───────────────────
-  const callAiUsed   = u.callAiTokensToday || 0;
-  const callAiLimit  = u.callAiTokLimit    || 1;
-  const callSecUsed  = u.callSecsToday     || 0;
-  const callSecLimit = u.callSecsLimit     || 1;
-  const callAiPct    = Math.min(100, Math.round((callAiUsed  / callAiLimit)  * 100));
-  const callDurPct   = Math.min(100, Math.round((callSecUsed / callSecLimit) * 100));
-  const callsPct     = Math.max(callAiPct, callDurPct);
-  const callsBar     = document.getElementById('usageCallsBar');
-  const callsPctEl   = document.getElementById('usageCallsPct');
-  const callsSubEl   = document.getElementById('usageCallsSub');
-  if (callsBar)   { callsBar.style.width = callsPct + '%'; callsBar.className = 'usage-fill-modal ' + usageFillClass(callsPct); }
-  if (callsPctEl) callsPctEl.textContent = callsPct + '%';
-  const justEnded = callEndedAt > 0 && (Date.now() - callEndedAt) < 3000;
-  if (callsSubEl) {
-    if (justEnded && callAiUsed > 0) {
-      callsSubEl.textContent = `${callAiUsed.toLocaleString()} tokens generated`;
+  // ── Daily bars ────────────────────────────────────────────────────────────
+
+  function setBar(barId, pctId, subId, pct, subText, unlimited) {
+    const bar = document.getElementById(barId);
+    const pctEl = document.getElementById(pctId);
+    const subEl = document.getElementById(subId);
+    if (unlimited) {
+      if (pctEl) pctEl.textContent = '∞';
+      if (bar) { bar.style.width = '0%'; bar.className = 'usage-fill-modal green'; }
     } else {
-      callsSubEl.textContent = u.callWindowResetsAt ? 'Resets ' + formatResetTime(u.callWindowResetsAt) : 'Resets every 8 hours';
+      if (pctEl) pctEl.textContent = pct + '%';
+      if (bar) { bar.style.width = pct + '%'; bar.className = 'usage-fill-modal ' + usageFillClass(pct); }
     }
+    if (subEl && subText !== undefined) subEl.textContent = subText;
   }
 
-  // ── Images bar ───────────────────────────────────────────────────────────────
-  const imgTokUsed  = u.imageTokensUsed  || 0;
-  const imgTokLimit = u.imageTokensLimit || 0;
-  const imgsPct     = imgTokLimit > 0 ? Math.min(100, Math.round((imgTokUsed / imgTokLimit) * 100)) : 0;
-  const imgsBar     = document.getElementById('usageImagesBar');
-  const imgsPctEl   = document.getElementById('usageImagesPct');
-  const imgsSubEl   = document.getElementById('usageImagesSub');
-  if (imgsBar)   { imgsBar.style.width = imgsPct + '%'; imgsBar.className = 'usage-fill-modal ' + usageFillClass(imgsPct); }
-  if (imgsPctEl) imgsPctEl.textContent = imgsPct + '%';
-  if (imgsSubEl) imgsSubEl.textContent = u.imageResetAt ? 'Resets ' + formatResetTime(u.imageResetAt) : 'Resets 24 h after first use';
+  // Calls
+  const callsUnlimited = !u.callsLimit || u.callsLimit >= 9999;
+  const callsUsed = callsUnlimited ? 0 : Math.max(0, u.callsLimit - (u.callsRemaining || 0));
+  const callsPct = callsUnlimited ? 0 : Math.min(100, Math.round(callsUsed / u.callsLimit * 100));
+  setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct,
+    callsUnlimited ? 'Unlimited' : `${u.callsRemaining} of ${u.callsLimit} remaining`, callsUnlimited);
 
-  // ── Playtime (memos) bar ─────────────────────────────────────────────────────
-  const memTokUsed  = u.memoTokensUsed  || 0;
-  const memTokLimit = u.memoTokensLimit || 0;
-  const memosPct    = memTokLimit > 0 ? Math.min(100, Math.round((memTokUsed / memTokLimit) * 100)) : 0;
-  const memosBar    = document.getElementById('usageMemosBar');
-  const memosPctEl  = document.getElementById('usageMemosPct');
-  const memosSubEl  = document.getElementById('usageMemosSub');
-  if (memosBar)   { memosBar.style.width = memosPct + '%'; memosBar.className = 'usage-fill-modal ' + usageFillClass(memosPct); }
-  if (memosPctEl) memosPctEl.textContent = memosPct + '%';
-  if (memosSubEl) memosSubEl.textContent = 'Game & memory interactions today';
+  // Memos
+  const memosUnlimited = !u.memosLimit || u.memosLimit >= 9999;
+  const memosUsed = memosUnlimited ? 0 : Math.max(0, u.memosLimit - (u.memosRemaining || 0));
+  const memosPct = memosUnlimited ? 0 : Math.min(100, Math.round(memosUsed / u.memosLimit * 100));
+  setBar('usageMemosBar', 'usageMemosPct', 'usageMemosSub', memosPct,
+    memosUnlimited ? 'Unlimited' : `${u.memosRemaining} of ${u.memosLimit} remaining`, memosUnlimited);
 
-  checkCoinExpiry(u);
-}
+  // Images
+  const imgUnlimited = !u.imageLimit || u.imageLimit >= 9999;
+  const imgUsed = imgUnlimited ? 0 : (u.imagesDay || 0);
+  const imgLeft = imgUnlimited ? 0 : Math.max(0, u.imageLimit - imgUsed);
+  const imgPct = imgUnlimited ? 0 : Math.min(100, Math.round(imgUsed / u.imageLimit * 100));
+  const imgSub = imgUnlimited ? 'Unlimited' : (u.imageResetAt && imgUsed > 0
+    ? `${imgLeft} of ${u.imageLimit} remaining · resets ${formatResetTime(u.imageResetAt)}`
+    : `${imgLeft} of ${u.imageLimit} remaining`);
+  setBar('usageImagesBar', 'usageImagesPct', 'usageImagesSub', imgPct, imgSub, imgUnlimited);
 
-let _coinCanceledShown = false;
-function checkCoinExpiry(u) {
-  if (!u || _coinCanceledShown) return;
+  // Daily resets subtitle
+  const dailyResetsEl = document.getElementById('usageDailyResetsSub');
+  if (dailyResetsEl && u.callWindowResetsAt) {
+    dailyResetsEl.textContent = `Calls & memos · ${formatResetTime(u.callWindowResetsAt)}`;
+  }
+
+  // Game cooldown bar — fills green when ready, drains to orange/yellow while waiting
+  const gamePctEl = document.getElementById('usageGamePct');
+  const gameBar = document.getElementById('usageGameBar');
   const now = Date.now();
-  if (u.coinTier && u.coinTierExpires && u.coinTierExpires < now) {
-    _coinCanceledShown = true;
-    showCoinCanceledPopup(PLAN_LABELS[u.coinTier] || u.coinTier);
+  if (u.gameNextAvailableAt && u.gameNextAvailableAt > now) {
+    const COOLDOWN_MS = 5 * 60 * 1000;
+    const remaining = u.gameNextAvailableAt - now;
+    const elapsed = COOLDOWN_MS - remaining;
+    const elapsedPct = Math.min(100, Math.round(elapsed / COOLDOWN_MS * 100));
+    const secsLeft = Math.ceil(remaining / 1000);
+    const m = Math.floor(secsLeft / 60);
+    const s = secsLeft % 60;
+    if (gamePctEl) gamePctEl.textContent = `${m}:${String(s).padStart(2, '0')}`;
+    if (gameBar) { gameBar.style.width = elapsedPct + '%'; gameBar.className = 'usage-fill-modal ' + (elapsedPct >= 75 ? 'yellow' : 'orange'); }
+  } else {
+    if (gamePctEl) gamePctEl.textContent = 'Ready';
+    if (gameBar) { gameBar.style.width = '100%'; gameBar.className = 'usage-fill-modal green'; }
   }
-}
-
-function showCoinCanceledPopup(planName) {
-  let m = document.getElementById('coinCanceledModal');
-  if (!m) {
-    m = document.createElement('div');
-    m.id = 'coinCanceledModal';
-    m.className = 'modal-overlay';
-    m.style.cssText = 'display:flex;z-index:9999';
-    m.innerHTML = `<div class="coin-canceled-box">
-      <div class="cc-icon">🪙</div>
-      <h2 class="cc-title">Subscription Canceled</h2>
-      <p class="cc-body">Your <strong id="ccPlanName"></strong> plan has been canceled.<br>You've run out of C.M Coins.</p>
-      <div class="cc-btns">
-        <button class="cc-btn-coins" onclick="closeCoinCanceledModal();openSettings('account')">Get More Coins</button>
-        <button class="cc-btn-close" onclick="closeCoinCanceledModal()">Close</button>
-      </div>
-    </div>`;
-    document.body.appendChild(m);
-  }
-  document.getElementById('ccPlanName').textContent = planName;
-  m.style.display = 'flex';
-}
-
-function closeCoinCanceledModal() {
-  const m = document.getElementById('coinCanceledModal');
-  if (m) m.style.display = 'none';
 }
 
 function startUsageModalTimer() {
@@ -4747,10 +4641,25 @@ function confirmRewindToHere() {
   const msgs = [...document.getElementById('messages').querySelectorAll('.msg')];
   const idx = msgs.indexOf(msgEl);
   if (idx === -1) return;
-  // Keep the clicked message; delete only what comes after it
-  msgs.slice(idx + 1).forEach(m => m.remove());
-  saveHistoryLocal();
-  resyncServer();
+  const isUserMsg = msgEl.classList.contains('user');
+  if (isUserMsg) {
+    // User message: remove it AND everything after so the fresh send adds it back cleanly
+    const bubble = msgEl.querySelector('.bubble');
+    const text = bubble ? bubble.innerText.trim() : '';
+    msgs.slice(idx).forEach(m => m.remove());
+    if (!currentChar) return;
+    saveHistoryLocal(); // history no longer contains the removed message
+    const localHistory = loadHistoryLocal(currentChar.id);
+    clearPendingImage();
+    pushHistoryToServer(currentChar.id, localHistory)
+      .then(() => { if (text) sendMessage(text); })
+      .catch(() => { if (text) sendMessage(text); });
+  } else {
+    // AI message: remove it AND everything after it, then resync
+    msgs.slice(idx).forEach(m => m.remove());
+    saveHistoryLocal();
+    resyncServer();
+  }
 }
 
 function resyncServer() {
@@ -5089,43 +4998,26 @@ function dislikeBtn() {
 
 // ── Voice selection ───────────────────────────────────────────────────────────
 let selectedVoice = null;
-let ttsProvider = 'edge'; // 'edge' | 'gemini'
+let ttsProvider = 'edge'; // 'edge' | 'gemini' | 'browser'
 let geminiVoiceName = 'Aoede';
-let edgeVoiceName = 'en-US-AriaNeural';
 
 const GEMINI_TTS_VOICES = ['Aoede','Charon','Fenrir','Kore','Puck','Zephyr','Schedar','Sadaltager'];
 const GEMINI_VOICE_DESC = { Aoede:'Warm, expressive', Charon:'Deep, calm', Fenrir:'Strong, bold', Kore:'Clear, bright', Puck:'Upbeat, playful', Zephyr:'Light, breezy', Schedar:'Authoritative', Sadaltager:'Neutral, conversational' };
 
-const EDGE_TTS_VOICES = [
-  { id:'en-US-AriaNeural',       label:'Aria',        desc:'Warm, expressive' },
-  { id:'en-US-JennyNeural',      label:'Jenny',       desc:'Clear, bright' },
-  { id:'en-US-MichelleNeural',   label:'Michelle',    desc:'Authoritative, composed' },
-  { id:'en-US-SaraNeural',       label:'Sara',        desc:'Upbeat, playful' },
-  { id:'en-US-CoraNeural',       label:'Cora',        desc:'Light, breezy' },
-  { id:'en-US-AmberNeural',      label:'Amber',       desc:'Strong, bold' },
-  { id:'en-US-JaneNeural',       label:'Jane',        desc:'Deep, calm' },
-  { id:'en-US-MonicaNeural',     label:'Monica',      desc:'Neutral, conversational' },
-  { id:'en-US-GuyNeural',        label:'Guy',         desc:'Deep, calm — Male' },
-  { id:'en-US-DavisNeural',      label:'Davis',       desc:'Strong, bold — Male' },
-  { id:'en-US-TonyNeural',       label:'Tony',        desc:'Light, breezy — Male' },
-  { id:'en-US-JasonNeural',      label:'Jason',       desc:'Neutral, steady — Male' },
-];
-
 function getCharVoiceKey()   { return currentChar ? `cm_voice_${currentChar.id}` : null; }
 function getTTSProviderKey() { return currentChar ? `cm_tts_prov_${currentChar.id}` : null; }
 function getGeminiVoiceKey() { return currentChar ? `cm_gem_voice_${currentChar.id}` : null; }
-function getEdgeVoiceKey()   { return currentChar ? `cm_edge_voice_${currentChar.id}` : null; }
 
 function loadCharVoice() {
-  selectedVoice = null; ttsProvider = 'edge'; geminiVoiceName = 'Aoede'; edgeVoiceName = 'en-US-AriaNeural';
+  selectedVoice = null; ttsProvider = 'edge'; geminiVoiceName = 'Aoede';
   if (!currentChar) return;
   try {
     const p = localStorage.getItem(getTTSProviderKey());
-    if (['edge','gemini'].includes(p)) ttsProvider = p;
+    if (['edge','gemini','browser'].includes(p)) ttsProvider = p;
     const gv = localStorage.getItem(getGeminiVoiceKey());
     if (GEMINI_TTS_VOICES.includes(gv)) geminiVoiceName = gv;
-    const ev = localStorage.getItem(getEdgeVoiceKey());
-    if (ev && EDGE_TTS_VOICES.some(v => v.id === ev)) edgeVoiceName = ev;
+    const saved = localStorage.getItem(getCharVoiceKey());
+    if (saved) { const vs = window.speechSynthesis.getVoices(); selectedVoice = vs.find(v => v.voiceURI === saved) || null; }
   } catch(_) {}
 }
 
@@ -5169,13 +5061,26 @@ function renderVoiceList() {
   }
 
   if (ttsProvider === 'edge') {
-    list.innerHTML = EDGE_TTS_VOICES.map(v =>
-      `<button class="voice-item${edgeVoiceName === v.id ? ' active' : ''}" onclick="selectEdgeVoice('${escHtml(v.id)}',this)">
-        <div class="voice-item-main"><div class="voice-item-name">${escHtml(v.label)}</div><div class="voice-item-lang">${escHtml(v.desc)}</div></div>
-        <button class="voice-preview-btn" onclick="previewEdgeVoice('${escHtml(v.id)}',event)" title="Preview">▶</button>
-      </button>`).join('');
+    list.innerHTML = '<p style="font-size:.82rem;padding:10px 4px 4px;color:var(--text3,#888);line-height:1.5">Edge HD uses Microsoft Neural voices automatically matched to each character. Switch to Gemini to pick a specific voice.</p>';
     return;
   }
+
+  // Browser voices
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices.length) {
+    setTimeout(() => { if (document.getElementById('voiceList')) renderVoiceList(); }, 400);
+    list.innerHTML = '<div class="voice-empty">Loading voices…</div>';
+    return;
+  }
+  const saved = (() => { try { return localStorage.getItem(getCharVoiceKey()); } catch(_) { return null; } })();
+  const english = voices.filter(v => v.lang.startsWith('en'));
+  const displayVoices = english.length ? english : voices;
+  list.innerHTML = `<button class="voice-item${!saved ? ' active' : ''}" onclick="selectVoice(null,this)">
+    <div class="voice-item-main"><div class="voice-item-name">Default</div><div class="voice-item-lang">System default</div></div>
+  </button>` + displayVoices.map(v => `<button class="voice-item${saved === v.voiceURI ? ' active' : ''}" onclick="selectVoice('${escHtml(v.voiceURI)}',this)">
+    <div class="voice-item-main"><div class="voice-item-name">${escHtml(v.name)}</div><div class="voice-item-lang">${escHtml(v.lang)}</div></div>
+    <button class="voice-preview-btn" onclick="previewVoiceURI('${escHtml(v.voiceURI)}',event)" title="Preview">▶</button>
+  </button>`).join('');
 }
 
 function selectVoice(voiceURI, btn) {
@@ -5184,24 +5089,6 @@ function selectVoice(voiceURI, btn) {
   document.querySelectorAll('#voiceList .voice-item').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   selectedVoice = voiceURI ? (window.speechSynthesis.getVoices().find(v => v.voiceURI === voiceURI) || null) : null;
-}
-
-function selectEdgeVoice(v, btn) {
-  edgeVoiceName = v;
-  try { if (getEdgeVoiceKey()) localStorage.setItem(getEdgeVoiceKey(), v); } catch(_) {}
-  document.querySelectorAll('#voiceList .voice-item').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-}
-
-async function previewEdgeVoice(v, e) {
-  e?.stopPropagation();
-  try {
-    const r = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: `Hi! I'm ${currentChar?.name || 'your character'}.`, provider: 'edge', edgeVoice: v, charId: currentChar?.id || '' }) });
-    if (!r.ok) return;
-    const url = URL.createObjectURL(await r.blob());
-    const a = new Audio(url); a.onended = () => URL.revokeObjectURL(url); a.play().catch(() => {});
-  } catch(_) {}
 }
 
 function selectGeminiVoice(v, btn) {
@@ -5220,6 +5107,16 @@ async function previewGeminiVoice(v, e) {
     const url = URL.createObjectURL(await r.blob());
     const a = new Audio(url); a.onended = () => URL.revokeObjectURL(url); a.play().catch(() => {});
   } catch(_) {}
+}
+
+function previewVoiceURI(voiceURI, e) {
+  e?.stopPropagation();
+  const voice = window.speechSynthesis.getVoices().find(v => v.voiceURI === voiceURI);
+  if (!voice) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(`Hi, I'm ${currentChar?.name || 'your character'}. How can I help you today?`);
+  u.voice = voice;
+  window.speechSynthesis.speak(u);
 }
 
 // ── Plans panel ──────────────────────────────────────────────────────────────
@@ -5524,13 +5421,7 @@ let activeTTSUtterance = null;
 let activeTTSBtn = null;
 let activeTTSAudio = null;
 
-const gameIframeMap = new Map();
-
-function sanitizeGameHtml(html) {
-  // Fix corrupted Hangman WS word list (roleplay text leaks into JS array causing syntax errors)
-  const canonicalWS = '["brave","ghost","jewel","magic","ninja","queen","snake","torch","venom","witch","yacht","zebra","bloom","ember","flute","graze","haunt","latch","novel","orbit","pixel","rally","shelf","tiger","waltz","banana","castle","danger","empire","goblin","hunter","jungle","knight","launch","mirage","nectar","orange","palace","puzzle","quartz","riddle","shadow","throne","unique","velvet","winter","battle","cherry","dragon","frozen","galaxy","herald","cobalt","dagger","falcon","gravel","humble","insect","lizard","magnet","narrow","oyster","pastry","racket","salmon","tennis","breeze","clover","donkey","fidget","grumpy","hollow","jumble","keeper","muffin","nibble","pardon","quiver","rustle","sizzle","tangle","urchin","wobble","yonder","abandon","balance","captain","diamond","element","fantasy","harmony","iceberg","justice","kingdom","lantern","mystery","network","orchard","pilgrim","quantum","rainbow","silence","warrior","zealous","chicken","dolphin","fortune","giraffe","harvest","journey","lecture","meadows","nervous","phantom","revolve","texture","village","western","whisper","explore","freckle","insight","absolute","birthday","carefree","elephant","gorgeous","mushroom","necklace","opposite","princess","reliable","schedule","treasure","umbrella","wanderer","daughter","handsome","keyboard","cheerful","describe","familiar","grateful","innocent","peaceful","stunning","thousand","vacation"]';
-  return html.replace(/const WS=\[[\s\S]*?\];/, `const WS=${canonicalWS};`);
-}
+const gameIframeSet = new Set();
 
 function maybeRenderGame(bubble, charColor) {
   const raw = bubble.dataset.raw || '';
@@ -5538,7 +5429,7 @@ function maybeRenderGame(bubble, charColor) {
   const si = raw.indexOf(GSTART), ei = raw.indexOf(GEND);
   if (si === -1 || ei === -1 || ei <= si) return;
   const before = raw.slice(0, si).trimEnd();
-  const gameHtml = sanitizeGameHtml(raw.slice(si + GSTART.length, ei).trim());
+  const gameHtml = raw.slice(si + GSTART.length, ei).trim();
   if (!gameHtml) return;
   const after = raw.slice(ei + GEND.length).trimStart();
   bubble.innerHTML = '';
@@ -5583,18 +5474,14 @@ function createGameCard(htmlContent, accentColor) {
   const iframe = document.createElement('iframe');
   iframe.setAttribute('sandbox', 'allow-scripts');
   iframe.setAttribute('title', 'Playable game');
-  gameIframeMap.set(iframe, card);
+  gameIframeSet.add(iframe);
   frame.appendChild(iframe);
   card.appendChild(frame);
-  const resultBanner = document.createElement('div');
-  resultBanner.className = 'game-result-banner';
-  card.appendChild(resultBanner);
   let loaded = false, open = false;
   btn.addEventListener('click', () => {
     open = !open;
     frame.style.display = open ? '' : 'none';
     btn.textContent = open ? '✕ Close' : '▶ Play';
-    if (!open) resultBanner.classList.remove('shown');
     if (open && !loaded) {
       loaded = true;
       iframe.srcdoc = htmlContent;
@@ -5638,9 +5525,7 @@ const GAME_DRAW_SAYINGS = [
 
 window.addEventListener('message', function(ev) {
   if (!ev.data || ev.data.type !== 'game_over') return;
-  const sourceIframe = [...gameIframeMap.keys()].find(f => f.contentWindow === ev.source);
-  if (!sourceIframe) return;
-  const gameCard = gameIframeMap.get(sourceIframe);
+  if (![...gameIframeSet].some(f => f.contentWindow === ev.source)) return;
   const result = ev.data.result; // 'win', 'loss', 'draw'
   const winner = ev.data.winner; // 'ai', 'human', null
   let sayings;
@@ -5650,29 +5535,9 @@ window.addEventListener('message', function(ev) {
   else if (result === 'loss' && winner === 'ai') sayings = GAME_LOSE_SAYINGS;
   else sayings = GAME_DRAW_SAYINGS;
   const saying = sayings[Math.floor(Math.random() * sayings.length)];
-  const banner = gameCard && gameCard.querySelector('.game-result-banner');
-  if (banner) { banner.textContent = saying; banner.classList.add('shown'); }
-
-  // Charge session tokens for the completed game
-  if (currentUser) {
-    fetch('/api/game/played', { method: 'POST' })
-      .then(r => r.json())
-      .then(usage => { if (usage && usage.sessionLimit) updateUsageBars(usage); })
-      .catch(() => {});
-  }
-
-  // Award CM Coins on human win
-  if (winner === 'human' && currentUser) {
-    fetch('/api/coins/award', { method: 'POST' })
-      .then(r => r.json())
-      .then(data => {
-        if (data.awarded > 0) {
-          showCoinToast(data.awarded, data.balance);
-          if (lastKnownUsage) { lastKnownUsage.cmCoins = data.balance; lastKnownUsage.coinsEarnedToday = data.earnedToday; }
-          updateSettingsCoinDisplay(data.balance, data.earnedToday, data.dailyCap);
-        }
-      }).catch(() => {});
-  }
+  // Append a short character reaction message
+  const msgEl = appendMessage('ai', saying);
+  if (msgEl) scrollToBottom();
 });
 
 function addSwipeGesture(msgEl) {
@@ -5748,13 +5613,26 @@ async function toggleTTS(btn) {
   btn.classList.add('playing');
   activeTTSBtn = btn;
 
+  if (ttsProvider === 'browser') {
+    if (window.speechSynthesis) {
+      const u = new SpeechSynthesisUtterance(text.slice(0, 300));
+      if (selectedVoice) u.voice = selectedVoice;
+      activeTTSUtterance = u;
+      u.onend = () => stopActiveTTS(); u.onerror = () => stopActiveTTS();
+      window.speechSynthesis.speak(u);
+    } else { stopActiveTTS(); }
+    return;
+  }
+
+  let serverOk = false;
   try {
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName })
+      body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName })
     });
     if (r.ok) {
+      serverOk = true;
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
@@ -5762,10 +5640,18 @@ async function toggleTTS(btn) {
       audio.onended = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
       audio.onerror = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
       await audio.play().catch(() => { URL.revokeObjectURL(url); stopActiveTTS(); });
-    } else {
-      stopActiveTTS();
     }
-  } catch (_) { stopActiveTTS(); }
+  } catch (_) {}
+
+  if (!serverOk && activeTTSBtn === btn) {
+    if (window.speechSynthesis) {
+      const u = new SpeechSynthesisUtterance(text.slice(0, 300));
+      if (selectedVoice) u.voice = selectedVoice;
+      activeTTSUtterance = u;
+      u.onend = () => stopActiveTTS(); u.onerror = () => stopActiveTTS();
+      window.speechSynthesis.speak(u);
+    } else { stopActiveTTS(); }
+  }
 }
 
 function showMemoLimitBanner(resetsAt) {
@@ -5835,7 +5721,7 @@ async function callModeElevenTTS(text) {
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: clean, charId: currentChar?.id, provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName })
+      body: JSON.stringify({ text: clean, charId: currentChar?.id, provider: ttsProvider, geminiVoice: geminiVoiceName })
     });
     if (!r.ok) {
       if (r.status === 501) elevenTTSOk = false;
@@ -5857,7 +5743,6 @@ const CALL_INACTIVITY_MS = 15 * 60 * 1000;
 const CALL_DAILY_MAX_SECS = 15 * 60; // 15 minutes per day
 let callDurationTimer = null;
 let callSessionStartedAt = null;
-let callEndedAt = 0; // timestamp of last call end, for brief token flash
 
 function getCallSecsKey() {
   return 'cm_call_secs_' + new Date().toISOString().slice(0,10);
@@ -5909,13 +5794,6 @@ function stopCallDurationTimer() {
     const elapsed = Math.round((Date.now() - callSessionStartedAt) / 1000);
     addCallSecsUsed(elapsed);
     callSessionStartedAt = null;
-    if (elapsed > 0) {
-      callEndedAt = Date.now();
-      fetch('/api/call/end', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration: elapsed }) })
-        .then(r => r.ok ? r.json() : null)
-        .then(data => { if (data && data.sessionLimit) updateUsageBars(data); })
-        .catch(() => {});
-    }
   }
 }
 
@@ -6913,6 +6791,7 @@ function autoResize(el) {
 
 async function newChat() {
   if (!currentChar) return;
+  bookClose();
   abandonStream();
   releaseChatInput();
   const newChatCharId = currentChar.id; // capture before any async wait
@@ -7729,273 +7608,201 @@ function maybePromptPush() {
   setTimeout(() => { try { banner.remove(); } catch (_) {} }, 15000);
 }
 
-// ── Tic-Tac-Toe Mini-Game ────────────────────────────────────────────────────
+// ── Hangman widget ────────────────────────────────────────────────────────────
 
-const tttState = {
-  board: Array(9).fill(null), // null | 'X' | 'O'
-  gameOver: false,
-  playerTurn: true,
-  scores: { x: 0, o: 0, draw: 0 },
-  reacting: false
-};
-
-function openTTT() {
-  if (!currentChar) { alert('Start a conversation first'); return; }
-  const overlay = document.getElementById('tttOverlay');
-
-  // Populate avatar
-  const avatar = document.getElementById('tttCharAvatar');
-  if (currentChar.image) {
-    avatar.innerHTML = `<img src="${escHtml(currentChar.image)}" alt="${escHtml(currentChar.name || '')}">`;
-    avatar.style.background = '';
-    avatar.style.fontSize = '';
-  } else {
-    avatar.innerHTML = escHtml((currentChar.name || '?')[0].toUpperCase());
-    avatar.style.background = currentChar.color || '#7c3aed';
-    avatar.style.fontSize = '48px';
-  }
-
-  // Names & score labels
-  document.getElementById('tttCharName').textContent = currentChar.name || 'Character';
-  document.getElementById('tttScoreCharName').textContent = currentChar.name || 'Char';
-
-  // Character color accent on speech bubble
-  const bubble = document.getElementById('tttSpeechBubble');
-  if (currentChar.color) bubble.style.borderLeftColor = currentChar.color;
-
-  // Reset session scores, board, state
-  tttState.scores = { x: 0, o: 0, draw: 0 };
-  tttUpdateScoreDisplay();
-  tttDoReset();
-
-  overlay.style.display = 'flex';
-
-  // Opening reaction
-  tttGetReaction('The Tic-Tac-Toe game is starting. You are about to face your opponent.');
+function buildHangmanSVG(wrong) {
+  const parts = [
+    wrong >= 1 ? '<circle cx="100" cy="30" r="12" stroke="var(--text1)" stroke-width="3" fill="none"/>' : '',
+    wrong >= 2 ? '<line x1="100" y1="42" x2="100" y2="90" stroke="var(--text1)" stroke-width="3"/>' : '',
+    wrong >= 3 ? '<line x1="100" y1="55" x2="74" y2="75" stroke="var(--text1)" stroke-width="3"/>' : '',
+    wrong >= 4 ? '<line x1="100" y1="55" x2="126" y2="75" stroke="var(--text1)" stroke-width="3"/>' : '',
+    wrong >= 5 ? '<line x1="100" y1="90" x2="74" y2="120" stroke="var(--text1)" stroke-width="3"/>' : '',
+    wrong >= 6 ? '<line x1="100" y1="90" x2="126" y2="120" stroke="var(--text1)" stroke-width="3"/>' : '',
+  ].join('');
+  return `<svg viewBox="0 0 200 140" class="hangman-svg">
+    <line x1="20" y1="135" x2="180" y2="135" stroke="var(--text1)" stroke-width="3"/>
+    <line x1="60" y1="135" x2="60" y2="5" stroke="var(--text1)" stroke-width="3"/>
+    <line x1="60" y1="5" x2="100" y2="5" stroke="var(--text1)" stroke-width="3"/>
+    <line x1="100" y1="5" x2="100" y2="18" stroke="var(--text1)" stroke-width="3"/>
+    ${parts}
+  </svg>`;
 }
 
-function closeTTT() {
-  document.getElementById('tttOverlay').style.display = 'none';
-}
+async function launchHangman() {
+  const msgEl = document.createElement('div');
+  msgEl.className = 'msg game-widget';
+  msgEl.innerHTML = '<div class="game-loading">Setting up Hangman…</div>';
+  document.getElementById('messages').appendChild(msgEl);
+  scrollToBottom();
 
-function tttUpdateScoreDisplay() {
-  document.getElementById('tttScoreX').textContent = tttState.scores.x;
-  document.getElementById('tttScoreO').textContent = tttState.scores.o;
-  document.getElementById('tttScoreDraws').textContent = tttState.scores.draw;
-}
-
-function tttCheckWin(board) {
-  const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-  for (const [a, b, c] of lines) {
-    if (board[a] && board[a] === board[b] && board[a] === board[c])
-      return { winner: board[a], line: [a, b, c] };
-  }
-  if (board.every(c => c !== null)) return { winner: 'draw', line: null };
-  return { winner: null, line: null };
-}
-
-function tttMinimax(board, isMax) {
-  const { winner } = tttCheckWin(board);
-  if (winner === 'O') return 10;
-  if (winner === 'X') return -10;
-  if (winner === 'draw') return 0;
-  if (isMax) {
-    let best = -Infinity;
-    for (let i = 0; i < 9; i++) {
-      if (board[i] === null) {
-        board[i] = 'O';
-        best = Math.max(best, tttMinimax(board, false));
-        board[i] = null;
-      }
+  let word;
+  try {
+    const r = await fetch('/api/game/hangman/word');
+    const d = await r.json();
+    if (r.status === 429 && d.gameNextAvailableAt) {
+      const secsLeft = Math.ceil((d.gameNextAvailableAt - Date.now()) / 1000);
+      const minsLeft = Math.ceil(secsLeft / 60);
+      msgEl.innerHTML = `<div class="game-loading">⏳ Game cooldown — come back in ${minsLeft} minute${minsLeft !== 1 ? 's' : ''}.</div>`;
+      return;
     }
-    return best;
-  } else {
-    let best = Infinity;
-    for (let i = 0; i < 9; i++) {
-      if (board[i] === null) {
-        board[i] = 'X';
-        best = Math.min(best, tttMinimax(board, true));
-        board[i] = null;
-      }
-    }
-    return best;
+    if (!r.ok) { msgEl.innerHTML = '<div class="game-loading">Couldn\'t load game. Try again.</div>'; return; }
+    word = d.word.toLowerCase();
+  } catch (_) {
+    msgEl.innerHTML = '<div class="game-loading">Couldn\'t load game. Try again.</div>';
+    return;
   }
+
+  if (currentChar) {
+    const intro = `[The user wants to play Hangman with you. Announce the game in your character's voice — build suspense, tease the mystery word, describe the blank dashes dramatically. This is a big theatrical moment. Be elaborate and immersive.]`;
+    setTimeout(() => sendMessage(intro, true, false, 'max'), 200);
+  }
+
+  const guessed = new Set();
+  let wrongCount = 0;
+  const maxWrong = 6;
+
+  function renderHangman() {
+    const isWin = [...word].every(c => guessed.has(c));
+    const isLoss = wrongCount >= maxWrong;
+    const gameOver = isWin || isLoss;
+
+    const wordDisplay = [...word].map(c =>
+      `<span class="h-letter ${guessed.has(c) ? 'revealed' : 'blank'}">${guessed.has(c) ? c : '_'}</span>`
+    ).join('');
+
+    const wrongLetters = [...guessed].filter(c => !word.includes(c)).join(' ').toUpperCase();
+
+    const keys = 'abcdefghijklmnopqrstuvwxyz'.split('').map(c => {
+      const used = guessed.has(c);
+      const cls = used ? (word.includes(c) ? ' correct' : ' wrong') : '';
+      return `<button class="h-key${cls}" onclick="hangmanGuess(this,'${c}')" ${used || gameOver ? 'disabled' : ''}>${c.toUpperCase()}</button>`;
+    }).join('');
+
+    let statusHtml = '';
+    if (isWin) statusHtml = `<div class="game-status win">🎉 You got it! The word was <strong>${word.toUpperCase()}</strong>!</div>`;
+    else if (isLoss) statusHtml = `<div class="game-status lose">💀 Game over! The word was <strong>${word.toUpperCase()}</strong>.</div>`;
+
+    msgEl.innerHTML = `
+      <div class="game-header">
+        <span class="game-title">🎮 Hangman</span>
+        <span class="hangman-score">Wrong: ${wrongCount}/${maxWrong}</span>
+      </div>
+      <div class="hangman-figure">${buildHangmanSVG(wrongCount)}</div>
+      <div class="hangman-word">${wordDisplay}</div>
+      ${wrongLetters ? `<div class="hangman-wrong-list">✗ ${wrongLetters}</div>` : ''}
+      <div class="hangman-keyboard">${keys}</div>
+      ${statusHtml}
+      ${gameOver ? `<button class="game-new-btn" onclick="launchHangman();this.closest('.game-widget').remove()">Play Again</button>` : ''}
+    `;
+    scrollToBottom();
+
+    if (gameOver && currentChar) {
+      const result = isWin
+        ? `[The user just won Hangman — they correctly guessed the word "${word.toUpperCase()}"! React with a full, dramatic, immersive response in character. Make it a big deal: celebration, shock, disbelief, whatever fits your persona — but go all out. Rich detail, multiple beats, stay completely in character.]`
+        : `[The user just lost Hangman — they ran out of guesses and the word was "${word.toUpperCase()}". React with a full, dramatic, immersive response in character. Revel in it, console them, taunt them — whatever fits your persona. But go all out. Rich detail, multiple beats, stay completely in character.]`;
+      setTimeout(() => sendMessage(result, true, false, 'max'), 800);
+    }
+  }
+
+  window.hangmanGuess = function(btn, letter) {
+    if (guessed.has(letter)) return;
+    guessed.add(letter);
+    if (!word.includes(letter)) wrongCount++;
+    renderHangman();
+  };
+
+  renderHangman();
 }
 
-// Returns { winChance, blockChance } based on subscription tier.
-// Free is semi-dumb; higher tiers get progressively smarter.
-function tttSmartness() {
-  const tier = lastKnownUsage?.subscriptionTier || 'free';
-  return {
-    free:     { winChance: 0.00, blockChance: 0.00 },
-    advanced: { winChance: 0.35, blockChance: 0.28 },
-    x20:      { winChance: 0.60, blockChance: 0.52 },
-    x50:      { winChance: 0.78, blockChance: 0.72 },
-    x100:     { winChance: 0.93, blockChance: 0.90 },
-    x200:     { winChance: 0.98, blockChance: 0.97 },
-  }[tier] || { winChance: 0.00, blockChance: 0.00 };
-}
+// ── Tic-Tac-Toe widget ────────────────────────────────────────────────────────
 
-// Returns the index of an immediate winning move for `mark`, or -1.
-function tttFindWin(board, mark) {
+function tttClientCheck(board) {
   const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
   for (const [a,b,c] of lines) {
-    const cells = [board[a],board[b],board[c]];
-    const empties = [a,b,c].filter(i => board[i] === null);
-    if (empties.length === 1 && cells.filter(v => v === mark).length === 2) return empties[0];
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) return { winner: board[a], line: [a,b,c] };
   }
-  return -1;
+  if (board.every(c => c)) return { winner: 'draw', line: [] };
+  return null;
 }
 
-function tttRandomEmpty(board) {
-  const empties = board.map((v,i) => v === null ? i : -1).filter(i => i !== -1);
-  return empties.length ? empties[Math.floor(Math.random() * empties.length)] : -1;
-}
+function launchTicTacToe() {
+  let board = Array(9).fill(null);
+  let waiting = false;
 
-function tttBestMove(board) {
-  const { winChance, blockChance } = tttSmartness();
+  const msgEl = document.createElement('div');
+  msgEl.className = 'msg game-widget';
+  document.getElementById('messages').appendChild(msgEl);
+  scrollToBottom();
 
-  // 1. Try to win — but only with winChance probability
-  const winMove = tttFindWin(board, 'O');
-  if (winMove !== -1 && Math.random() < winChance) return winMove;
+  if (currentChar) {
+    const intro = `[The user wants to play Tic-Tac-Toe against you. Announce the game in your character's voice — confident, dramatic, maybe a little menacing or playful depending on your persona. Set the scene. This is a big moment. Be elaborate and immersive.]`;
+    setTimeout(() => sendMessage(intro, true, false, 'max'), 200);
+  }
 
-  // 2. Try to block player — but only with blockChance probability
-  const blockMove = tttFindWin(board, 'X');
-  if (blockMove !== -1 && Math.random() < blockChance) return blockMove;
+  function renderTTT(winData) {
+    const cells = board.map((val, i) => {
+      const inWin = winData && winData.line && winData.line.includes(i);
+      return `<button class="ttt-cell${val ? ' taken' : ''}${inWin ? ' win-cell' : ''}"
+        onclick="tttMove(${i})" ${val || waiting || winData ? 'disabled' : ''}>
+        ${val ? `<span class="${val === 'X' ? 'ttt-x' : 'ttt-o'}">${val}</span>` : ''}
+      </button>`;
+    }).join('');
 
-  // 3. Otherwise: random (dumb)
-  return tttRandomEmpty(board);
-}
+    let status = waiting ? 'Thinking…' : 'Your turn (X)';
+    if (winData) {
+      if (winData.winner === 'X') status = '🎉 You win!';
+      else if (winData.winner === 'O') status = '😤 You lose!';
+      else status = "🤝 It's a draw!";
+    }
 
-function tttBestMoveFull(board) {
-  let best = -Infinity, move = -1;
-  for (let i = 0; i < 9; i++) {
-    if (board[i] === null) {
-      board[i] = 'O';
-      const val = tttMinimax(board, false);
-      board[i] = null;
-      if (val > best) { best = val; move = i; }
+    msgEl.innerHTML = `
+      <div class="game-header">
+        <span class="game-title">🎮 Tic-Tac-Toe</span>
+        <span class="ttt-status-text">${status}</span>
+      </div>
+      <div class="ttt-board">${cells}</div>
+      ${winData ? `<button class="game-new-btn" onclick="launchTicTacToe();this.closest('.game-widget').remove()">Play Again</button>` : ''}
+    `;
+    scrollToBottom();
+
+    if (winData && currentChar) {
+      let result;
+      if (winData.winner === 'X') result = `[The user just beat you at Tic-Tac-Toe! React with a full, immersive, dramatic response in character. Don't just be a good sport — really FEEL this loss. Let your persona come through with intensity, every emotion, every beat. Go all out — elaborate, rich detail, completely in character.]`;
+      else if (winData.winner === 'draw') result = `[You and the user just drew at Tic-Tac-Toe — a perfect stalemate. React with a full, immersive response in character. A draw is its own drama. Make it feel significant and elaborate. Stay completely in character, go all out.]`;
+      else result = `[You just beat the user at Tic-Tac-Toe! React with a full, dramatic, immersive victory response in character. Revel in the win, make it theatrical and elaborate — every beat, every gesture, completely in character. Go all out.]`;
+      setTimeout(() => sendMessage(result, true, false, 'max'), 800);
     }
   }
-  return move;
-}
 
-function tttRender() {
-  const boardEl = document.getElementById('tttBoard');
-  if (!boardEl) return;
-  const { line } = tttCheckWin(tttState.board);
-  const winSet = line ? new Set(line) : new Set();
-  boardEl.innerHTML = tttState.board.map((cell, i) => {
-    let cls = 'ttt-cell';
-    if (cell === 'X') cls += ' ttt-cell-x';
-    else if (cell === 'O') cls += ' ttt-cell-o';
-    else cls += ' ttt-cell-empty';
-    if (winSet.has(i)) cls += ' ttt-cell-win';
-    return `<div class="${cls}" onclick="tttClick(${i})">${escHtml(cell || '')}</div>`;
-  }).join('');
-}
+  window.tttMove = async function(idx) {
+    if (board[idx] || waiting) return;
+    board[idx] = 'X';
+    waiting = true;
+    let winCheck = tttClientCheck(board);
+    renderTTT(winCheck);
+    if (winCheck) return;
 
-function tttClick(idx) {
-  if (!tttState.playerTurn || tttState.gameOver || tttState.board[idx]) return;
-  tttState.board[idx] = 'X';
-  tttRender();
-  const result = tttCheckWin(tttState.board);
-  if (result.winner) { tttHandleOutcome(result); return; }
-  tttState.playerTurn = false;
-  document.getElementById('tttStatus').textContent = `${currentChar?.name || 'Character'} is thinking…`;
-  setTimeout(tttAIMove, 700);
-}
-
-function tttAIMove() {
-  const move = tttBestMove(tttState.board);
-  if (move === -1) return;
-  tttState.board[move] = 'O';
-  tttRender();
-  const result = tttCheckWin(tttState.board);
-  if (result.winner) { tttHandleOutcome(result); return; }
-  tttState.playerTurn = true;
-  document.getElementById('tttStatus').textContent = 'Your turn';
-  const positions = ['top-left','top-center','top-right','middle-left','center','middle-right','bottom-left','bottom-center','bottom-right'];
-  tttGetReaction(`I just placed my piece in the ${positions[move]} square`);
-}
-
-async function tttGetReaction(situation) {
-  if (!currentChar) return;
-  if (tttState.reacting) return;
-  tttState.reacting = true;
-  const speechText = document.getElementById('tttSpeechText');
-  if (speechText) {
-    speechText.style.opacity = '0';
-    setTimeout(() => { if (speechText) { speechText.textContent = '…'; speechText.style.opacity = '1'; } }, 180);
-  }
-  try {
-    const res = await fetch('/api/game/react', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ charId: currentChar.id, situation })
-    });
-    const data = await res.json();
-    if (speechText) {
-      speechText.style.opacity = '0';
-      setTimeout(() => {
-        if (speechText) { speechText.textContent = data.text || '…'; speechText.style.opacity = '1'; }
-      }, 180);
-    }
-  } catch (_) {
-    if (speechText) { speechText.textContent = '…'; speechText.style.opacity = '1'; }
-  } finally {
-    tttState.reacting = false;
-  }
-}
-
-async function tttHandleOutcome(result) {
-  tttState.gameOver = true;
-  tttRender();
-  const playAgainBtn = document.getElementById('tttPlayAgainBtn');
-  if (playAgainBtn) playAgainBtn.style.display = '';
-  const statusEl = document.getElementById('tttStatus');
-  if (result.winner === 'X') {
-    if (statusEl) statusEl.textContent = 'You win! 🎉';
-    tttState.scores.x++;
-    tttUpdateScoreDisplay();
     try {
-      const r = await fetch('/api/coins/award', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source: 'ttt' })
+      const r = await fetch('/api/game/tictactoe/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ board })
       });
       const d = await r.json();
-      if (d.awarded > 0) {
-        showCoinToast(d.awarded, d.balance);
-        if (typeof updateSettingsCoinDisplay === 'function')
-          updateSettingsCoinDisplay(d.balance, d.earnedToday, d.dailyCap);
+      if (r.status === 429 && d.gameNextAvailableAt) {
+        const secsLeft = Math.ceil((d.gameNextAvailableAt - Date.now()) / 1000);
+        const minsLeft = Math.ceil(secsLeft / 60);
+        msgEl.innerHTML = `<div class="game-widget"><div class="game-loading">⏳ Game cooldown — come back in ${minsLeft} minute${minsLeft !== 1 ? 's' : ''}.</div></div>`;
+        scrollToBottom();
+        return;
       }
+      if (r.ok && d.move >= 0 && d.move < 9 && board[d.move] === null) board[d.move] = 'O';
     } catch (_) {}
-    tttGetReaction('You just beat me at Tic-Tac-Toe! I lost the game!');
-  } else if (result.winner === 'O') {
-    if (statusEl) statusEl.textContent = 'You lose.';
-    tttState.scores.o++;
-    tttUpdateScoreDisplay();
-    tttGetReaction('I just won the Tic-Tac-Toe game! I beat you!');
-  } else if (result.winner === 'draw') {
-    if (statusEl) statusEl.textContent = "It's a draw!";
-    tttState.scores.draw++;
-    tttUpdateScoreDisplay();
-    tttGetReaction('The Tic-Tac-Toe game ended in a draw. Neither of us won!');
-  }
-}
 
-function tttDoReset() {
-  tttState.board = Array(9).fill(null);
-  tttState.gameOver = false;
-  tttState.playerTurn = true;
-  tttRender();
-  const playAgainBtn = document.getElementById('tttPlayAgainBtn');
-  if (playAgainBtn) playAgainBtn.style.display = 'none';
-  const statusEl = document.getElementById('tttStatus');
-  if (statusEl) statusEl.textContent = 'Your turn';
-}
+    waiting = false;
+    winCheck = tttClientCheck(board);
+    renderTTT(winCheck);
+  };
 
-function tttReset() {
-  tttDoReset();
-  tttGetReaction('We are starting a new round of Tic-Tac-Toe. Get ready!');
+  renderTTT(null);
 }

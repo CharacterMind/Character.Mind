@@ -186,6 +186,66 @@
   }
   @media (max-height: 560px) { .trio { height: 110px; } .pal { --size: 74px; } .pal.d { --size: 88px; } }
 
+  /* ══════════════ VOID MODE (body.void) ══════════════ */
+  body.void .show { background: #030107; filter: none !important; }
+  body.void .band,
+  body.void .scan,
+  body.void .beams,
+  body.void .sparks,
+  body.void .flash-layer,
+  body.void .pulse-layer { display: none !important; }
+  body.void .vignette { opacity: 1 !important; background: radial-gradient(ellipse at 50% 60%, rgba(8,2,18,.05) 0%, rgba(3,1,7,.97) 60%) !important; }
+  body.void .ball { display: none; }
+
+  /* fog puffs */
+  .fog { position: absolute; inset: 0; pointer-events: none; }
+  .fog-puff { position: absolute; border-radius: 50%; filter: blur(50px); opacity: 0; animation: fog-drift var(--ft, 20s) ease-in-out infinite; animation-delay: var(--fd, 0s); }
+  @keyframes fog-drift {
+    0%   { transform: translate(var(--fx0, 0px), var(--fy0, 0px)) scale(1); opacity: 0; }
+    18%  { opacity: var(--fop, .5); }
+    82%  { opacity: var(--fop, .5); }
+    100% { transform: translate(var(--fx1, 40px), var(--fy1, -20px)) scale(1.18); opacity: 0; }
+  }
+  body:not(.void) .fog { display: none; }
+
+  /* void: characters sad and drooping with occasional shiver */
+  body.void .pal { animation: none !important; }
+  body.void .pal.l img, body.void .pal.l .rig-canvas {
+    animation: void-l 5s ease-in-out infinite !important;
+    animation-delay: 0s !important;
+    filter: drop-shadow(0 8px 32px rgba(40,0,80,1)) brightness(0.38) saturate(0.15) hue-rotate(220deg) !important;
+  }
+  body.void .pal.d img, body.void .pal.d .rig-canvas {
+    animation: void-d 6s ease-in-out infinite !important;
+    animation-delay: -1.8s !important;
+    filter: drop-shadow(0 8px 32px rgba(40,0,80,1)) brightness(0.38) saturate(0.15) hue-rotate(220deg) !important;
+  }
+  body.void .pal.p img, body.void .pal.p .rig-canvas {
+    animation: void-p 5.5s ease-in-out infinite !important;
+    animation-delay: -3.2s !important;
+    filter: drop-shadow(0 8px 32px rgba(40,0,80,1)) brightness(0.38) saturate(0.15) hue-rotate(220deg) !important;
+  }
+  @keyframes void-l {
+    0%,100% { transform: rotate(-6deg) translateY(0); }
+    50%     { transform: rotate(-8deg) translateY(6px); }
+  }
+  @keyframes void-d {
+    0%,100% { transform: scaleY(0.97) translateY(0); }
+    50%     { transform: scaleY(0.95) translateY(8px); }
+  }
+  @keyframes void-p {
+    0%,100% { transform: rotate(6deg) translateY(0); }
+    50%     { transform: rotate(8deg) translateY(6px); }
+  }
+  body.void .trio::after { background: radial-gradient(ellipse at center, rgba(70,0,100,.25), transparent 70%) !important; animation: none !important; }
+  body.void .logo { animation: none !important; -webkit-text-fill-color: rgba(255,255,255,.18) !important; filter: none !important; }
+  body.void .logo-bar { animation: none !important; opacity: .12; background: rgba(100,60,160,.6) !important; box-shadow: none !important; }
+  body.void .card { background: rgba(4,1,10,.9); border-color: rgba(70,30,110,.3); }
+  body.void .status .dot { background: #581c87 !important; box-shadow: 0 0 8px #581c87 !important; }
+  body.void .void-msg { display: block !important; }
+  body.void .normal-msg { display: none !important; }
+  .void-msg { display: none; }
+
   /* ---------- mobile: GPU-safe, no-flicker version ---------- */
   @media (max-width: 700px) {
     /* Lock to viewport — prevents iOS rubber-band overscroll which triggers
@@ -220,19 +280,19 @@
     body:not(.calm) .band.b2 { animation-duration: 7s !important; }
     body:not(.calm) .band.b3 { animation-duration: 10s !important; }
     body:not(.calm) .band.b4 { animation-duration: 13s !important; }
-    body:not(.calm) .logo { animation: logowave 1.2s linear infinite, logorgb 0.5s steps(1) infinite; }
+    body:not(.calm):not(.void) .logo { animation: logowave 1.2s linear infinite, logorgb 0.5s steps(1) infinite; }
 
     /* smaller dances: keep the energy, stop characters flying off-screen */
-    body:not(.calm) .pal.l img,
-    body:not(.calm) .pal.l .rig-canvas {
+    body:not(.calm):not(.void) .pal.l img,
+    body:not(.calm):not(.void) .pal.l .rig-canvas {
       animation: charglow 0.4s steps(1) infinite, lily-rave-mob 0.65s ease-in-out infinite !important;
     }
-    body:not(.calm) .pal.d img,
-    body:not(.calm) .pal.d .rig-canvas {
+    body:not(.calm):not(.void) .pal.d img,
+    body:not(.calm):not(.void) .pal.d .rig-canvas {
       animation: charglow 0.4s steps(1) infinite, doey-rave-mob 0.42s ease-in-out infinite !important;
     }
-    body:not(.calm) .pal.p img,
-    body:not(.calm) .pal.p .rig-canvas {
+    body:not(.calm):not(.void) .pal.p img,
+    body:not(.calm):not(.void) .pal.p .rig-canvas {
       animation: charglow 0.4s steps(1) infinite, poppy-rave-mob 0.55s ease-in-out infinite !important;
     }
     @keyframes lily-rave-mob {
@@ -302,7 +362,7 @@
   /* ═══════════════ FULL CONCERT BLAST (not calm) ═══════════════ */
 
   /* logo: hyper-fast wave + rapid RGB glow explosions */
-  body:not(.calm) .logo {
+  body:not(.calm):not(.void) .logo {
     animation: logowave 0.6s linear infinite, logorgb 0.28s steps(1) infinite;
   }
   @keyframes logorgb {
@@ -313,7 +373,7 @@
     67%  { filter: drop-shadow(0 4px 0 rgba(8,3,18,.9)) drop-shadow(0 0 36px #7700ff) drop-shadow(0 0 90px #7700ff); }
     83%  { filter: drop-shadow(0 4px 0 rgba(8,3,18,.9)) drop-shadow(0 0 36px #ff00cc) drop-shadow(0 0 90px #ff00cc); }
   }
-  body:not(.calm) .logo-bar {
+  body:not(.calm):not(.void) .logo-bar {
     animation-duration: 0.35s !important;
     height: 7px;
     box-shadow: 0 0 24px rgba(255,255,255,1), 0 0 60px rgba(255,100,255,.95) !important;
@@ -325,8 +385,8 @@
   body:not(.calm) .band.b3 { animation-duration: 3.4s !important; }
   body:not(.calm) .band.b4 { animation-duration: 4s !important; opacity: 0.45 !important; }
   body:not(.calm) .scan { animation-duration: 0.5s !important; }
-  body:not(.calm) .show { filter: saturate(3.5) brightness(1.35) contrast(1.12) !important; }
-  body:not(.calm) .vignette { opacity: .35 !important; }
+  body:not(.calm):not(.void) .show { filter: saturate(3.5) brightness(1.35) contrast(1.12) !important; }
+  body:not(.calm):not(.void) .vignette { opacity: .35 !important; }
   body:not(.calm) .beam { animation-duration: 0.38s !important; opacity: 1 !important; filter: blur(3px) !important; }
   body:not(.calm) .pulse-layer {
     animation-duration: 0.38s !important;
@@ -343,8 +403,8 @@
   }
 
   /* Lily: breakdancer — hops, spins all the way around, teleports sides */
-  body:not(.calm) .pal.l img,
-  body:not(.calm) .pal.l .rig-canvas {
+  body:not(.calm):not(.void) .pal.l img,
+  body:not(.calm):not(.void) .pal.l .rig-canvas {
     animation: charglow 0.28s steps(1) infinite, lily-rave 0.62s ease-in-out infinite !important;
   }
   @keyframes lily-rave {
@@ -361,8 +421,8 @@
   }
 
   /* Doey: rubber blob — extreme squash/stretch/skew, springs up and crashes down */
-  body:not(.calm) .pal.d img,
-  body:not(.calm) .pal.d .rig-canvas {
+  body:not(.calm):not(.void) .pal.d img,
+  body:not(.calm):not(.void) .pal.d .rig-canvas {
     animation: charglow 0.28s steps(1) infinite, doey-rave 0.42s ease-in-out infinite !important;
   }
   @keyframes doey-rave {
@@ -379,8 +439,8 @@
   }
 
   /* Poppy: marionette chaos — flips upside down, snaps side to side, random scale pops */
-  body:not(.calm) .pal.p img,
-  body:not(.calm) .pal.p .rig-canvas {
+  body:not(.calm):not(.void) .pal.p img,
+  body:not(.calm):not(.void) .pal.p .rig-canvas {
     animation: charglow 0.28s steps(1) infinite, poppy-rave 0.55s ease-in-out infinite !important;
   }
   @keyframes poppy-rave {
@@ -395,9 +455,9 @@
   }
 
   /* non-rigged CSS dance fallback: also fast */
-  body:not(.calm) .pal.l:not(.rigged) { animation-duration: 0.62s !important; }
-  body:not(.calm) .pal.d:not(.rigged) { animation-duration: 0.42s !important; }
-  body:not(.calm) .pal.p:not(.rigged) { animation-duration: 0.55s !important; }
+  body:not(.calm):not(.void) .pal.l:not(.rigged) { animation-duration: 0.62s !important; }
+  body:not(.calm):not(.void) .pal.d:not(.rigged) { animation-duration: 0.42s !important; }
+  body:not(.calm):not(.void) .pal.p:not(.rigged) { animation-duration: 0.55s !important; }
 
   /* full-screen color flash bursts */
   .flash-layer { position: absolute; inset: 0; mix-blend-mode: overlay; opacity: 0; pointer-events: none; background: #ff0000; }
@@ -428,6 +488,7 @@
   <div class="vignette"></div>
   <div class="sparks" id="sparks"></div>
   <div class="flash-layer" aria-hidden="true"></div>
+  <div class="fog" id="fog" aria-hidden="true"></div>
 </div>
 
 <div class="ep-overlay" id="epOverlay" aria-modal="true" role="dialog" aria-labelledby="epTitle">
@@ -438,6 +499,7 @@
     <div class="ep-btns">
       <button class="ep-btn calm" id="btnCalm">🔅 Use calm lighting</button>
       <button class="ep-btn full" id="btnFull">🎆 Full concert show</button>
+      <button class="ep-btn" id="btnVoid" style="background:rgba(20,5,40,.9);color:rgba(255,255,255,.7);border:1px solid rgba(100,50,150,.4);">🌑 Dark void</button>
     </div>
   </div>
 </div>
@@ -453,8 +515,10 @@
   </div>
 
   <section class="card" role="status" aria-live="polite">
-    <h1>We're under maintenance</h1>
-    <p>We're rebuilding a few things to make character.mind better. Lily, Doey and Poppy are playing until we're back, which should only take a few minutes.</p>
+    <h1 class="normal-msg">We're under maintenance</h1>
+    <h1 class="void-msg" style="font-size:clamp(20px,5vw,36px);">character.mind is down.</h1>
+    <p class="normal-msg">We're rebuilding a few things to make character.mind better. Lily, Doey and Poppy are playing until we're back, which should only take a few minutes.</p>
+    <p class="void-msg">We don't know when it'll be back. Lily, Poppy, and Doey are still here with you — waiting in the dark.</p>
     <div class="status"><span class="dot"></span><span id="statusText">This page refreshes by itself the moment we're ready</span></div>
     <p class="care">If you're having a hard time right now, please reach out to someone you trust or your local emergency services. You don't have to wait for us.</p>
   </section>
@@ -465,26 +529,54 @@
   // ---- light mode: 'full' (concert) or 'calm' (epilepsy-friendly) ----
   var _stored = null;
   try { _stored = localStorage.getItem('cm_lightMode'); } catch(e) {}
+  var _MODES = ['full', 'calm', 'void'];
   window.setLightMode = function setLightMode(m) {
     document.body.classList.toggle('calm', m === 'calm');
+    document.body.classList.toggle('void', m === 'void');
     var pill = document.getElementById('modePill');
-    if (pill) pill.textContent = m === 'calm' ? '🔅 Calm mode — tap to go wild' : '🎆 Full concert show — tap for calm';
+    var labels = { full: '🎆 Concert — tap to calm', calm: '🔅 Calm — tap for void', void: '🌑 Void — tap for concert' };
+    if (pill) pill.textContent = labels[m] || labels.full;
     try { localStorage.setItem('cm_lightMode', m); } catch(e) {}
     var ov = document.getElementById('epOverlay');
     if (ov) ov.classList.remove('ep-open');
   }
   window.toggleLightMode = function toggleLightMode() {
-    setLightMode(document.body.classList.contains('calm') ? 'full' : 'calm');
+    var cur = document.body.classList.contains('void') ? 'void' : document.body.classList.contains('calm') ? 'calm' : 'full';
+    var next = _MODES[(_MODES.indexOf(cur) + 1) % _MODES.length];
+    setLightMode(next);
   }
-  // wire buttons — DOM is ready here (script is at bottom of body)
   var _bc = document.getElementById('btnCalm');
   var _bf = document.getElementById('btnFull');
+  var _bv = document.getElementById('btnVoid');
   var _mp = document.getElementById('modePill');
   if (_bc) _bc.addEventListener('click', function() { window.setLightMode('calm'); });
   if (_bf) _bf.addEventListener('click', function() { window.setLightMode('full'); });
+  if (_bv) _bv.addEventListener('click', function() { window.setLightMode('void'); });
   if (_mp) _mp.addEventListener('click', function() { window.toggleLightMode(); });
   if (_stored) { setLightMode(_stored); }
   else { var _ov = document.getElementById('epOverlay'); if (_ov) _ov.classList.add('ep-open'); }
+
+  // fog puffs for void mode
+  var fog = document.getElementById('fog');
+  if (fog) {
+    var fogClrs = ['rgba(18,4,36,.75)','rgba(8,2,20,.7)','rgba(28,4,55,.7)','rgba(5,1,14,.8)','rgba(35,5,70,.6)','rgba(10,3,25,.75)'];
+    for (var fi = 0; fi < 9; fi++) {
+      var puff = document.createElement('div');
+      puff.className = 'fog-puff';
+      var sz = 220 + Math.random() * 380;
+      puff.style.width = sz + 'px'; puff.style.height = (sz * 0.48) + 'px';
+      puff.style.left = (Math.random() * 105 - 5) + '%'; puff.style.top = (Math.random() * 110 - 5) + '%';
+      puff.style.background = fogClrs[fi % fogClrs.length];
+      puff.style.setProperty('--ft', (16 + Math.random() * 18) + 's');
+      puff.style.setProperty('--fd', (-Math.random() * 20) + 's');
+      puff.style.setProperty('--fx0', ((Math.random() - .5) * 70) + 'px');
+      puff.style.setProperty('--fy0', ((Math.random() - .5) * 50) + 'px');
+      puff.style.setProperty('--fx1', ((Math.random() - .5) * 90) + 'px');
+      puff.style.setProperty('--fy1', ((Math.random() - .5) * 60) + 'px');
+      puff.style.setProperty('--fop', (.38 + Math.random() * .32).toFixed(2));
+      fog.appendChild(puff);
+    }
+  }
 
   var isMobile = window.innerWidth <= 700;
   var colours = ['#ff2d2d', '#ff8a00', '#ffe14d', '#7CFF4F', '#1fe0a0', '#22d3ee', '#3b82f6', '#7c3aed', '#e11dd4', '#ff5fa2', '#8b0000', '#ffb3b3', '#00ffcc', '#ff00aa', '#aaff00', '#00aaff', '#ff6600', '#cc00ff'];

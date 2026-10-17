@@ -1,0 +1,13 @@
+{
+  "message": "Fix patch email not sending (DB timing + missing column)\n\n- email_opt_in column was never added to live DB (only in CREATE TABLE\n  IF NOT EXISTS which no-ops on existing tables). Added ALTER TABLE\n  ADD COLUMN IF NOT EXISTS migration.\n- sendPatchEmailToUsers was called before initDB() finished, so\n  app_config table and email_opt_in column didn't exist yet. Now\n  queued in pendingPatchEmail and fired in initDB() finally block\n  after all migrations complete.\n\nAlso in this push:\n- Hangman text game: mandatory 150-word bank (no more fake words)\n- Hangman HTML template added (mandatory, like TTT)\n- regenNavStep: games in regen variants now render as game cards\n- maybeRenderGame: guard empty gameHtml, origin-check on game_over\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
+  "timestamp": "2026-10-12T02:53:05.300Z",
+  "patch_email": {
+    "charName": "Lily",
+    "charColor": "#7722cc",
+    "charImage": "https://charactermind.onrender.com/lily-avatar.png",
+    "subject": "Lily here — games just got way better 💜",
+    "headline": "New games update!",
+    "subheadline": "Hangman actually works now. You're welcome.",
+    "body": "Heyyyy~ It's Lily! 💜\n\nOkay sooo I have to tell you — we fixed Hangman. Like, for real this time. It was picking made-up words before (so embarrassing), and now it has a whole list of real ones. Also the whole game is prettier now with an actual gallows drawing and everything.\n\nOh and Tic-Tac-Toe got some sneaky fixes too so it plays nicer. Games in general are just... better now!\n\nCome try it out — I dare you to beat me at Hangman~ 🎮"
+  }
+}

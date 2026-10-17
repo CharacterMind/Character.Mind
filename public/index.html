@@ -22,7 +22,7 @@
 <link rel="icon" type="image/webp" href="/logo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=101">
+<link rel="stylesheet" href="style.css?v=98">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -95,38 +95,35 @@
 
     <div class="usage-modal-rule" id="usageWeeklyRule2" style="display:none"></div>
 
-    <!-- Calls -->
+    <!-- Daily limits: calls, memos, images -->
+    <div class="usage-modal-rule"></div>
     <div class="usage-section">
-      <div class="usage-sec-label-row">
-        <span class="usage-sec-label">Calls</span>
-        <span class="usage-sec-pct" id="usageCallsPct">0%</span>
-      </div>
-      <div class="usage-track-modal" style="margin-top:8px"><div class="usage-fill-modal green" id="usageCallsBar"></div></div>
-      <div class="usage-sec-sub" id="usageCallsSub" style="margin-top:6px"></div>
+      <div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);margin-bottom:16px">Daily</div>
+
+      <!-- Calls -->
+      <div class="usage-sec-label-row"><span class="usage-sec-label">Calls</span><span class="usage-sec-pct" id="usageCallsPct">—</span></div>
+      <div class="usage-track-modal" style="margin-top:6px"><div class="usage-fill-modal green" id="usageCallsBar"></div></div>
+      <div class="usage-sec-sub" id="usageCallsSub" style="margin-top:4px"></div>
+
+      <!-- Memos -->
+      <div class="usage-sec-label-row" style="margin-top:16px"><span class="usage-sec-label">Memos</span><span class="usage-sec-pct" id="usageMemosPct">—</span></div>
+      <div class="usage-track-modal" style="margin-top:6px"><div class="usage-fill-modal green" id="usageMemosBar"></div></div>
+      <div class="usage-sec-sub" id="usageMemosSub" style="margin-top:4px"></div>
+
+      <!-- Images -->
+      <div class="usage-sec-label-row" style="margin-top:16px"><span class="usage-sec-label">Images</span><span class="usage-sec-pct" id="usageImagesPct">—</span></div>
+      <div class="usage-track-modal" style="margin-top:6px"><div class="usage-fill-modal green" id="usageImagesBar"></div></div>
+      <div class="usage-sec-sub" id="usageImagesSub" style="margin-top:4px"></div>
+
+      <div class="usage-sec-sub" id="usageDailyResetsSub" style="margin-top:10px"></div>
     </div>
 
+    <!-- Game cooldown -->
     <div class="usage-modal-rule"></div>
-
-    <!-- Images -->
     <div class="usage-section">
-      <div class="usage-sec-label-row">
-        <span class="usage-sec-label">Images</span>
-        <span class="usage-sec-pct" id="usageImagesPct">0%</span>
-      </div>
-      <div class="usage-track-modal" style="margin-top:8px"><div class="usage-fill-modal green" id="usageImagesBar"></div></div>
-      <div class="usage-sec-sub" id="usageImagesSub" style="margin-top:6px"></div>
-    </div>
-
-    <div class="usage-modal-rule"></div>
-
-    <!-- Playtime (memos) -->
-    <div class="usage-section">
-      <div class="usage-sec-label-row">
-        <span class="usage-sec-label">Playtime</span>
-        <span class="usage-sec-pct" id="usageMemosPct">0%</span>
-      </div>
-      <div class="usage-track-modal" style="margin-top:8px"><div class="usage-fill-modal green" id="usageMemosBar"></div></div>
-      <div class="usage-sec-sub" id="usageMemosSub" style="margin-top:6px"></div>
+      <div class="usage-sec-label-row"><span class="usage-sec-label">🎮 Games</span><span class="usage-sec-pct" id="usageGamePct">—</span></div>
+      <div class="usage-track-modal" style="margin-top:6px"><div class="usage-fill-modal green" id="usageGameBar"></div></div>
+      <div class="usage-sec-sub" id="usageGameSub" style="margin-top:4px">5-minute cooldown between game sessions</div>
     </div>
 
     <div class="usage-modal-rule"></div>
@@ -139,8 +136,8 @@
     <div style="margin-top:12px;text-align:center" id="resetLimitsWrap" hidden>
       <button class="reset-limits-btn" onclick="adminResetLimits()" id="resetLimitsBtn">Reset limits</button>
       <div id="notifyWrap" style="margin-top:16px;border-top:1px solid var(--border2);padding-top:16px;text-align:left">
-        <p style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);margin-bottom:10px">Notify users of policy update</p>
-        <input id="notifySubject" type="text" placeholder="Subject line…" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:8px 10px;margin-bottom:8px;outline:none" />
+        <p style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);margin-bottom:10px">Send patch notes / update email</p>
+        <input id="notifySubject" type="text" placeholder="Subject — e.g. 'Patch 1.4 — Games, Usage UI & more'" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:8px 10px;margin-bottom:8px;outline:none" />
         <textarea id="notifyMsg" placeholder="Summarize what changed…" rows="4" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:8px 10px;margin-bottom:8px;outline:none;resize:vertical;font-family:inherit"></textarea>
         <button class="reset-limits-btn" onclick="adminNotifyUsers()" id="notifyBtn" style="width:100%;text-align:center">Send to all users</button>
       </div>
@@ -241,11 +238,6 @@
       <button class="nav-item" onclick="openUsageModal()">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg>
         <span>Usage</span>
-      </button>
-      <button class="nav-item nav-coins-btn" id="navCoinsBtn" onclick="openSettings('account')" style="display:none" title="CM Coins">
-        <span class="nav-coins-icon">🪙</span>
-        <span class="nav-coins-label">C.M Coins</span>
-        <span class="nav-coins-count" id="navCoinsCount">0</span>
       </button>
       <button id="userBadge" class="user-badge"></button>
     </div>
@@ -1064,61 +1056,6 @@
           <div class="settings-usage-bar-track"><div class="settings-usage-bar-fill" id="settingsWeeklyBar"></div></div>
           </div>
         </div>
-        <!-- CM Coins -->
-        <div class="coins-guide-section" id="settingsCoinsSection">
-          <div class="coins-guide-header">
-            <div class="coins-guide-header-left">
-              <span class="coins-guide-header-icon">🪙</span>
-              <div>
-                <div class="coins-guide-header-title">C.M Coins</div>
-                <div class="coins-guide-header-sub">Character.Mind Reward Currency</div>
-              </div>
-            </div>
-            <div class="coins-guide-balance-pill">
-              <span class="coins-guide-balance-num" id="settingsCoinBalance">0</span>
-              <span class="coins-guide-balance-unit">coins</span>
-              <span class="coins-guide-daily" id="settingsCoinDaily"></span>
-            </div>
-          </div>
-
-          <p class="coins-guide-intro">C.M Coins are Character.Mind's exclusive reward currency — earned through gameplay and redeemable for full subscription access. No payment required. The more you play, the more you unlock.</p>
-
-          <div class="coins-guide-steps">
-            <div class="coins-guide-step">
-              <div class="coins-guide-step-num">1</div>
-              <div class="coins-guide-step-body">
-                <div class="coins-guide-step-title">Start a conversation with any character</div>
-                <div class="coins-guide-step-desc">Open Character.Mind and begin a chat with any character in your collection. Every character is available — no paywalls on who you can talk to.</div>
-              </div>
-            </div>
-            <div class="coins-guide-step">
-              <div class="coins-guide-step-num">2</div>
-              <div class="coins-guide-step-body">
-                <div class="coins-guide-step-title">Challenge them to a mini-game</div>
-                <div class="coins-guide-step-desc">Ask your character to play <strong>Hangman</strong> or <strong>Tic-Tac-Toe</strong>. They'll respond in-character and the game begins right inside your conversation — no separate app needed.</div>
-              </div>
-            </div>
-            <div class="coins-guide-step">
-              <div class="coins-guide-step-num">3</div>
-              <div class="coins-guide-step-body">
-                <div class="coins-guide-step-title">Win to earn C.M Coins instantly</div>
-                <div class="coins-guide-step-desc">Beat the AI and coins are credited to your account immediately. Free accounts earn <strong>10 coins per win</strong>. Premium subscribers earn up to <strong>50 coins per win</strong>. Daily cap: <strong>100 coins</strong>.</div>
-              </div>
-            </div>
-            <div class="coins-guide-step">
-              <div class="coins-guide-step-num">4</div>
-              <div class="coins-guide-step-body">
-                <div class="coins-guide-step-title">Redeem for a subscription plan</div>
-                <div class="coins-guide-step-desc">When your balance reaches the plan threshold, subscribe above. Your plan renews each month automatically. If your balance ever runs short, your plan pauses — no surprise charges, ever.</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="coins-guide-tip">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="flex-shrink:0;margin-top:1px"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-            <span>Play consistently every day to reach Advanced in as little as <strong>20 days</strong> on a free account. Higher plans reward faster with more coins per win.</span>
-          </div>
-        </div>
       </div>
     </div>
   </div>
@@ -1154,6 +1091,7 @@
     <div class="voice-provider-tabs">
       <button class="voice-provider-tab" data-provider="edge" onclick="setTTSProvider('edge',this)">Edge HD</button>
       <button class="voice-provider-tab" data-provider="gemini" onclick="setTTSProvider('gemini',this)">Gemini HD</button>
+      <button class="voice-provider-tab" data-provider="browser" onclick="setTTSProvider('browser',this)">Browser</button>
     </div>
     <div class="voice-list" id="voiceList"></div>
   </div>
@@ -1219,8 +1157,12 @@
     </button>
     <h2 class="pricing-title">Choose your plan</h2>
     <p class="pricing-subtitle">Unlock advanced AI models.</p>
+    <div class="pricing-toggle">
+      <button id="pricingBtnMonthly" class="pt-btn pt-active" onclick="setPricingPeriod('monthly')">Monthly</button>
+      <button id="pricingBtnAnnual" class="pt-btn" onclick="setPricingPeriod('annual')">Annual <span class="pt-save-label">50% off</span></button>
+    </div>
     <div class="pricing-cards" id="pricingCards"></div>
-    <p class="pricing-footer">Subscriptions paid with C.M Coins — earned by playing games. Plans renew monthly and cancel automatically if you run out of coins.</p>
+    <p class="pricing-footer">Payments processed securely via PayPal. Cancel anytime. Prices shown in estimated local currency — billed in USD.</p>
   </div>
 </div>
 
@@ -1401,7 +1343,7 @@
   <div class="cvt-line"></div>
 </div>
 
-<script src="app.js?v=229"></script>
+<script src="app.js?v=219"></script>
 
 <!-- Session 90% warning toast -->
 <div id="sessionWarningToast">
@@ -1410,35 +1352,6 @@
     <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
   </span>
   <span class="toast-text" id="sessionToastText">You've used 90% of your session limit.</span>
-</div>
-<!-- Tic-Tac-Toe fullscreen modal -->
-<div id="tttOverlay" class="ttt-overlay" style="display:none">
-  <div class="ttt-screen">
-    <!-- Left: Character -->
-    <div class="ttt-char-panel">
-      <div class="ttt-char-avatar" id="tttCharAvatar"></div>
-      <div class="ttt-char-name" id="tttCharName">Character</div>
-      <div class="ttt-speech-bubble" id="tttSpeechBubble">
-        <span id="tttSpeechText">Let's play!</span>
-      </div>
-    </div>
-    <!-- Right: Game -->
-    <div class="ttt-game-panel">
-      <div class="ttt-top-bar">
-        <div class="ttt-score-display">
-          <span class="ttt-score-you">You <span id="tttScoreX">0</span></span>
-          <span class="ttt-score-sep">·</span>
-          <span class="ttt-score-draws">Draws <span id="tttScoreDraws">0</span></span>
-          <span class="ttt-score-sep">·</span>
-          <span class="ttt-score-char"><span id="tttScoreO">0</span> <span id="tttScoreCharName">Char</span></span>
-        </div>
-        <button class="ttt-close-btn" onclick="closeTTT()">✕</button>
-      </div>
-      <div class="ttt-board" id="tttBoard"></div>
-      <div class="ttt-status" id="tttStatus">Your turn</div>
-      <button class="ttt-play-again-btn" id="tttPlayAgainBtn" style="display:none" onclick="tttReset()">Play Again</button>
-    </div>
-  </div>
 </div>
 </body>
 </html>
