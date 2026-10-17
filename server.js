@@ -865,9 +865,9 @@ function sessionLimitFor(u) { return tokenLimitsFor(u).session; }
 function weeklyLimitFor(u) { return tokenLimitsFor(u).weekly; }
 const NSFW_BLOCK_TOKENS = 200;
 
-const TIER_CALL_LIMITS  = { free: 3,   advanced: 5,   x20: 100,  x50: 250,  x100: 500,  x200: 1500  };
+const TIER_CALL_LIMITS  = { free: 6,   advanced: 10,  x20: 100,  x50: 250,  x100: 500,  x200: 1500  };
 const TIER_MEMO_LIMITS  = { free: 30,  advanced: 50,  x20: 1000, x50: 2500, x100: 5000, x200: 15000 };
-const TIER_IMAGE_LIMITS = { free: 1,   advanced: 10,  x20: 200,  x50: 500,  x100: 1000, x200: 3000  };
+const TIER_IMAGE_LIMITS = { free: 3,   advanced: 15,  x20: 200,  x50: 500,  x100: 1000, x200: 3000  };
 
 function getCallLimitForUser(userId) {
   const tier = userLimits[userId]?.subscriptionTier || 'free';
@@ -965,6 +965,14 @@ function buildUsagePayload(u, userId) {
     gameNextAvailableAt: (() => { const last = userId && gameLastPlayed ? gameLastPlayed.get(userId) : null; return last ? last + GAME_COOLDOWN_MS : null; })()
   };
 }
+
+// Variable image token cost: scales with base64 payload size (larger PNG = more tokens)
+const IMAGE_TOKEN_BYTE_DIVISOR = 14;  // base64 chars ÷ this = raw tokens before clamp
+const IMAGE_TOKEN_MIN = 5000;         // ~3 images per free session (15k ÷ 5k)
+const IMAGE_TOKEN_MAX = 15000;        // 1 large image per free session
+// Variable call token cost: scales with duration
+const CALL_TOKENS_PER_SECOND = 40;
+const CALL_TOKEN_MIN = 2500;          // minimum per call (~6 short calls per free session)
 
 function addTokens(sid, tokens) {
   const u = getLimits(sid);
@@ -2833,6 +2841,18 @@ app.post('/api/call/start', requireAuth, (req, res) => {
   res.json({ allowed: true, callsToday: u.callsToday, callsLimit: callLimit === Infinity ? 9999 : callLimit, callsRemaining: remaining, resetsAt });
 });
 
+app.post('/api/call/end', requireAuth, (req, res) => {
+  const userId = req.user.googleId;
+  const { duration } = req.body; // seconds this call lasted
+  if (typeof duration === 'number' && duration > 0) {
+    // Charge session tokens proportional to call duration
+    const callTokenCost = Math.max(CALL_TOKEN_MIN, Math.ceil(duration * CALL_TOKENS_PER_SECOND));
+    const usage = addTokens(userId, callTokenCost);
+    return res.json({ ok: true, ...usage });
+  }
+  res.json({ ok: true });
+});
+
 const ELEVEN_KEY = process.env.ELEVENLABS_API_KEY || '';
 const ELEVEN_DEFAULT_VOICE = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM';
 let ELEVEN_VOICE_MAP = {
@@ -4176,7 +4196,8 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     }
     if (!imgU.imageFirstUsedAt) { imgU.imageFirstUsedAt = Date.now(); imgU.imageDayStart = imgU.imageFirstUsedAt; }
     imgU.imagesDay = (imgU.imagesDay || 0) + 1; // attempts count toward the cap, including blocked ones
-    addTokens(userId, 1200); // addTokens already persists via saveLimitsToDB internally
+    const imgTokenCost = Math.max(IMAGE_TOKEN_MIN, Math.min(IMAGE_TOKEN_MAX, Math.round((typeof image === 'string' ? image.length : 0) / IMAGE_TOKEN_BYTE_DIVISOR)));
+    addTokens(userId, imgTokenCost);
     let explicit;
     try {
       const analysis = await analyzeImage(apiKey, image);
@@ -4184,12 +4205,12 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       imageDescription = analysis.description;
     } catch (e) {
       imgU.imagesDay = Math.max(0, imgU.imagesDay - 1); // our failure, not the user's
-      refundTokens(userId, 1200);
+      refundTokens(userId, imgTokenCost);
       console.warn('[image-safety] check failed, blocking image:', e.message);
       return res.status(503).json({ error: "We couldn't check that image right now. Please try again in a moment or send your message without it." });
     }
     if (explicit) {
-      refundTokens(userId, 1200);
+      refundTokens(userId, imgTokenCost);
       return res.status(451).json({ error: 'explicit_image' });
     }
   }

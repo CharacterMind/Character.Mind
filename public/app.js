@@ -5794,6 +5794,12 @@ function stopCallDurationTimer() {
     const elapsed = Math.round((Date.now() - callSessionStartedAt) / 1000);
     addCallSecsUsed(elapsed);
     callSessionStartedAt = null;
+    if (elapsed > 0 && currentUser) {
+      fetch('/api/call/end', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration: elapsed }) })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data && data.sessionLimit) updateUsageBars(data); })
+        .catch(() => {});
+    }
   }
 }
 
