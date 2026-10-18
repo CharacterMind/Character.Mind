@@ -54,8 +54,8 @@ function clientMessageCost(tier, effort) {
 // Roughly how many visible characters a full reply has at each effort (used to ramp the live counter up to the cost)
 const EXPECTED_REPLY_CHARS = { low: 250, medium: 500, high: 1200, extra: 2500, max: 4000, ultracode: 12000 };
 // Every model is asked for a set number of words at High, Extra and Max (must match WORDS_BY_EFFORT / MODEL_WORDS in server.js)
-const WORDS_BY_EFFORT = { high: 350, extra: 600, max: 900, ultracode: 2500 };
-const MODEL_WORDS = { opas: 0.7, opes: 1, opis: 1.1, opos: 1.3, opus: 1.6, opys: 1.9, opys5: 3.5 };
+const WORDS_BY_EFFORT = { high: 800, extra: 1500, max: 2200, ultracode: 2500 };
+const MODEL_WORDS = { opas: 0.7, opes: 1.1, opis: 1.3, opos: 1.5, opus: 1.8, opys: 2.1, opys5: 3.5, opys6: 5.0 };
 function expectedReplyChars(tier, effort) {
   const b = baseTierOf(tier);
   if (b && WORDS_BY_EFFORT[effort]) return Math.round(WORDS_BY_EFFORT[effort] * MODEL_WORDS[b] / 50) * 50 * 6;   // about 6 characters a word
@@ -87,7 +87,7 @@ const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', 
 // This shows the true usage escalation from OPAS → Opys 5 at Max effort.
 const MAX_EFFORT_MULTIPLIERS = {};
 {
-  const baseline = OPAS_COST.medium; // 350 tokens — cheapest normal reply
+  const baseline = OPAS_COST.medium; // 420 tokens — cheapest normal reply
   const fmt = (x) => (Math.round(x * 10) / 10) + '×';
   for (const b of BASE_TIERS) MAX_EFFORT_MULTIPLIERS[b] = fmt(clientMessageCost(b, 'max') / baseline);
 }

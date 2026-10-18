@@ -818,7 +818,7 @@ const TIER_TOKEN_LIMITS = {
 // Strong words: fuck*, shit*, bitch*, bastard, dick*, cock*, cunt, twat, whore*, slut*, piss*, asshole*.
 // Mild words (damn, hell, crap, ass) are always free and never counted.
 const TIER_SWEAR_LIMITS = { free: 0, advanced: 10, x20: 35, x50: 100, x100: Infinity, x200: Infinity };
-const STRONG_SWEAR_RE = /\b(?:fucks?|fucking|fucker|fuckers?|motherfuckers?|shits?|shitty|bullshits?|bitchs?|bitching|bastards?|dickheads?|dicks?|cocks?|cocksuckers?|cunts?|twats?|whores?|slutss?|pissing|pissed|assholes?)\b/gi;
+const STRONG_SWEAR_RE = /\b(?:fucks?|fucking|fucker|fuckers?|motherfuckers?|shits?|shitty|bullshits?|bitchs?|bitching|bastards?|dickheads?|dicks?|cocks?|cocksuckers?|cunts?|twats?|whores?|sluts?|pissing|pissed|assholes?)\b/gi;
 function countSwears(text) { return (String(text || '').match(STRONG_SWEAR_RE) || []).length; }
 function getSwearLimitFor(tier) { return TIER_SWEAR_LIMITS[tier] ?? TIER_SWEAR_LIMITS.free; }
 function tokenLimitsFor(u) {
@@ -4569,8 +4569,8 @@ async function sendPlanWelcomeEmail(userName, email, planKey) {
       tagline: 'More time with the characters you love.',
       color: '#7c5cbf',
       perks: [
-        { icon: '🎙️', label: '5 voice calls per day', sub: 'Up from 3 on Free' },
-        { icon: '🔊', label: '50 read-alouds per day', sub: 'Up from 30 on Free' },
+        { icon: '🎙️', label: '8 voice calls per day', sub: 'Up from 6 on Free' },
+        { icon: '🔊', label: '40 read-alouds per day', sub: 'Up from 30 on Free' },
         { icon: '💬', label: 'Higher weekly message limit', sub: 'More room to explore longer conversations' },
         { icon: '✨', label: 'Access to every AI character', sub: 'All current and future characters included' },
       ]
@@ -4580,8 +4580,8 @@ async function sendPlanWelcomeEmail(userName, email, planKey) {
       tagline: 'For the ones who never want to stop.',
       color: '#9b59b6',
       perks: [
-        { icon: '🎙️', label: '100 voice calls per day', sub: 'Over 30× more than Free' },
-        { icon: '🔊', label: '1,000 read-alouds per day', sub: 'Basically unlimited for everyday use' },
+        { icon: '🎙️', label: '120 voice calls per day', sub: '20× more than Free' },
+        { icon: '🔊', label: '600 read-alouds per day', sub: 'Basically unlimited for everyday use' },
         { icon: '💬', label: 'Massively expanded weekly limit', sub: 'Built for power users and long sessions' },
         { icon: '✨', label: 'Access to every AI character', sub: 'All current and future characters included' },
         { icon: '⚡', label: 'Priority support', sub: 'Reach us at support.charactermind@gmail.com' },
