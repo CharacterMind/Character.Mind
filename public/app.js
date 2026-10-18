@@ -4471,6 +4471,23 @@ function generateUsageHeadline(u) {
   if (weeklyLimit && wPct >= 50) return 'Halfway through your weekly limit. You\'re doing great.';
   if (sPct >= 90) return 'Session almost full. Your next cooldown is close.';
   if (sPct >= 75) return 'Session getting full. Consider a fresh chat soon.';
+  // Predict if user will hit session limit before the window resets
+  if (u.sessionStartedAt && u.sessionExpiresAt && sessionTokens > 0) {
+    const elapsed = Date.now() - u.sessionStartedAt;
+    if (elapsed > 3 * 60 * 1000) { // need at least 3 min of data to estimate
+      const rate = sessionTokens / elapsed; // tokens per ms
+      const remaining = sessionLimit - sessionTokens;
+      const msToHitLimit = remaining / rate;
+      const msUntilReset = u.sessionExpiresAt - Date.now();
+      if (msToHitLimit < msUntilReset - 5 * 60 * 1000) { // only warn if >5min margin
+        const marginMs = msUntilReset - msToHitLimit;
+        const hrs = Math.floor(marginMs / (60 * 60 * 1000));
+        const mins = Math.round((marginMs % (60 * 60 * 1000)) / (60 * 1000));
+        const timeStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+        return `Heads up — at this pace you'll hit your session limit with ~${timeStr} still left in your window.`;
+      }
+    }
+  }
   if (weeklyResetsAt) {
     const DAY = 24 * 60 * 60 * 1000;
     const remaining = weeklyResetsAt - Date.now();
@@ -4611,9 +4628,9 @@ function updateUsageModal(u) {
     const secsLeft = Math.ceil(remaining / 1000);
     const m = Math.floor(secsLeft / 60);
     const s = secsLeft % 60;
-    if (gamePctEl) gamePctEl.textContent = `${m}:${String(s).padStart(2, '0')}`;
+    if (gamePctEl) gamePctEl.textContent = '0%';
     if (gameBar) { gameBar.style.width = remainPct + '%'; gameBar.className = 'usage-fill-modal ' + usageFillClass(remainPct); }
-    if (gameSubEl) gameSubEl.textContent = '5-minute cooldown between game sessions';
+    if (gameSubEl) gameSubEl.textContent = `Cooldown: ${m}:${String(s).padStart(2, '0')} left · 5-minute cooldown between sessions`;
   } else {
     if (gamePctEl) gamePctEl.textContent = '0%';
     if (gameBar) { gameBar.style.width = '0%'; gameBar.className = 'usage-fill-modal green'; }
@@ -8135,17 +8152,30 @@ async function launchHangman() {
   const guessed = new Set();
   let wrongCount = 0;
   const maxWrong = 6;
+  let coinAwarded = false;
 
   function renderHangman() {
     const isWin = [...word].every(c => guessed.has(c));
     const isLoss = wrongCount >= maxWrong;
     const gameOver = isWin || isLoss;
 
+    if (isWin && !coinAwarded && currentUser) {
+      coinAwarded = true;
+      fetch('/api/coins/award', { method: 'POST' })
+        .then(r => r.json())
+        .then(d => {
+          if (d && typeof d.balance === 'number') {
+            if (lastKnownUsage) lastKnownUsage.cmCoins = d.balance;
+            updateNavCoinDisplay(lastKnownUsage);
+            updateSettingsCoinDisplay(d.balance, d.earnedToday, d.dailyCap);
+          }
+        })
+        .catch(() => {});
+    }
+
     const wordDisplay = [...word].map(c =>
       `<span class="h-letter ${guessed.has(c) ? 'revealed' : 'blank'}">${guessed.has(c) ? c : '_'}</span>`
     ).join('');
-
-    const wrongLetters = [...guessed].filter(c => !word.includes(c)).join(' ').toUpperCase();
 
     const keys = 'abcdefghijklmnopqrstuvwxyz'.split('').map(c => {
       const used = guessed.has(c);
@@ -8164,7 +8194,6 @@ async function launchHangman() {
       </div>
       <div class="hangman-figure">${buildHangmanSVG(wrongCount)}</div>
       <div class="hangman-word">${wordDisplay}</div>
-      ${wrongLetters ? `<div class="hangman-wrong-list">✗ ${wrongLetters}</div>` : ''}
       <div class="hangman-keyboard">${keys}</div>
       ${statusHtml}
       ${gameOver ? `<button class="game-new-btn" onclick="launchHangman();this.closest('.game-widget').remove()">Play Again</button>` : ''}

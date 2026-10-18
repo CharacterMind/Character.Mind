@@ -799,24 +799,20 @@ const LIMITS = {
   CALL_DAILY: 3
 };
 
-// Plan limits: Free ≈ 4 msgs/session. Advanced ≈ 2× free (8 msgs). X20 = 20× free (80 msgs).
-const FREE_SESSION_TOKENS = 15000;
-const AVG_MESSAGE_TOKENS = 3600;
-const FREE_SESSION_MSGS  = Math.round(FREE_SESSION_TOKENS / AVG_MESSAGE_TOKENS); // ~4
-const ADV_SESSION_MSGS   = FREE_SESSION_MSGS + 2;                                // ~6 (slightly above free)
-const X20_SESSION_MSGS   = FREE_SESSION_MSGS * 20;                               // 80
-const WEEKLY_SESSIONS = 2;
-function limitsForMessages(sessionMessages) {
-  const session = sessionMessages * AVG_MESSAGE_TOKENS;
-  return { session, weekly: session * WEEKLY_SESSIONS };
-}
+// Session token limits. Every paid tier is an EXACT multiple of FREE_SESSION_TOKENS
+// so that "X20" really means 20×, "X50" really means 50×, etc.
+// Advanced = free + ~2 avg messages (a modest bump above free).
+// AVG_MESSAGE_TOKENS is kept for reference and UI estimates only.
+const FREE_SESSION_TOKENS = 25000;
+const AVG_MESSAGE_TOKENS  = 3600;
+const WEEKLY_SESSIONS     = 2;
 const TIER_TOKEN_LIMITS = {
-  free:     { ...limitsForMessages(FREE_SESSION_MSGS), weekly: Infinity },
-  advanced: limitsForMessages(ADV_SESSION_MSGS),
-  x20:      limitsForMessages(X20_SESSION_MSGS),
-  x50:      limitsForMessages(X20_SESSION_MSGS * 3),
-  x100:     limitsForMessages(X20_SESSION_MSGS * 6),
-  x200:     limitsForMessages(X20_SESSION_MSGS * 12),
+  free:     { session: FREE_SESSION_TOKENS,          weekly: Infinity },
+  advanced: { session: FREE_SESSION_TOKENS + 7200,   weekly: (FREE_SESSION_TOKENS + 7200) * WEEKLY_SESSIONS },
+  x20:      { session: FREE_SESSION_TOKENS * 20,     weekly: FREE_SESSION_TOKENS * 20  * WEEKLY_SESSIONS },
+  x50:      { session: FREE_SESSION_TOKENS * 50,     weekly: FREE_SESSION_TOKENS * 50  * WEEKLY_SESSIONS },
+  x100:     { session: FREE_SESSION_TOKENS * 100,    weekly: FREE_SESSION_TOKENS * 100 * WEEKLY_SESSIONS },
+  x200:     { session: FREE_SESSION_TOKENS * 200,    weekly: FREE_SESSION_TOKENS * 200 * WEEKLY_SESSIONS },
 };
 // Daily strong-profanity budget per subscription tier.
 // Free = 0 (Lily fumes but contains herself). Higher tiers unlock more.
@@ -5127,7 +5123,7 @@ app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'public', 'p
 // ── Game endpoints ─────────────────────────────────────────────────────────────
 
 const gameLastPlayed = new Map();
-const GAME_COOLDOWN_MS = 5 * 60 * 1000; // 5-minute cooldown between game sessions
+const GAME_COOLDOWN_MS = 0; // no cooldown between game sessions
 
 function checkGameCooldown(userId) {
   const last = gameLastPlayed.get(userId);
