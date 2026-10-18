@@ -5233,6 +5233,7 @@ app.post('/api/coins/award', requireAuth, async (req, res) => {
       return res.json({ awarded: 0, balance: u.cmCoins || 0, earnedToday: u.coinsEarnedToday, dailyCap: COIN_DAILY_CAP, capped: true });
     }
     const toAward = Math.min(earnPerWin, COIN_DAILY_CAP - (u.coinsEarnedToday || 0));
+    console.log(`[coins/award] uid=${uid} tier=${tier} award=${toAward} balance=${(u.cmCoins||0)+toAward}`);
     u.cmCoins = (u.cmCoins || 0) + toAward;
     u.coinsEarnedToday = (u.coinsEarnedToday || 0) + toAward;
     await db.query(
