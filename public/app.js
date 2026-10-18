@@ -814,6 +814,7 @@ setInterval(checkForUpdate, 90000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
 
 window.addEventListener('DOMContentLoaded', async () => {
+  checkWhatsNewDot();
   // Re-pop limit modal on ANY input interaction when locked out
   const inputEl = document.getElementById('messageInput');
   if (inputEl) {
@@ -4701,6 +4702,66 @@ function startUsageModalTimer() {
       } catch (_) {}
     }
   }, 10000);
+}
+
+async function openWhatsNew() {
+  const modal = document.getElementById('whatsNewModal');
+  modal.style.display = 'flex';
+  try { localStorage.setItem('cm_wn_seen', (window._announcements || [])[0]?.id || ''); } catch (_) {}
+  const dot = document.getElementById('whatsNewDot');
+  if (dot) dot.hidden = true;
+  const body = document.getElementById('whatsNewBody');
+  if (window._announcements) { renderWhatsNew(window._announcements, body); return; }
+  try {
+    const r = await fetch('/api/announcements');
+    const data = await r.json();
+    window._announcements = data;
+    renderWhatsNew(data, body);
+  } catch (_) {
+    body.innerHTML = '<div class="whats-new-loading">Failed to load.</div>';
+  }
+}
+
+function closeWhatsNew() {
+  document.getElementById('whatsNewModal').style.display = 'none';
+}
+
+function renderWhatsNew(announcements, body) {
+  if (!announcements.length) { body.innerHTML = '<div class="whats-new-loading">Nothing new yet!</div>'; return; }
+  body.innerHTML = announcements.map((a, i) => `
+    <div class="whats-new-entry">
+      <div class="wn-ver-row">
+        <span class="wn-ver-badge">${a.version}</span>
+        <span class="wn-date">${a.date}</span>
+      </div>
+      <div class="wn-headline">${a.title}</div>
+      <div class="wn-subline">${a.subtitle}</div>
+      ${a.character ? `<div class="wn-char-card">
+        <div class="wn-char-tag">New Character</div>
+        <div class="wn-char-name">${a.character.emoji || ''} ${a.character.name}</div>
+        <div class="wn-char-sub">${a.character.sub}</div>
+      </div>` : ''}
+      ${a.added?.length ? `<div class="wn-section-tag added">Added</div><ul class="wn-list">${a.added.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}
+      ${a.fixed?.length ? `<div class="wn-section-tag fixed">Fixed</div><ul class="wn-list">${a.fixed.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}
+      ${a.changed?.length ? `<div class="wn-section-tag changed">Changed</div><ul class="wn-list">${a.changed.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}
+    </div>
+    ${i < announcements.length - 1 ? '<div class="whats-new-divider"></div>' : ''}
+  `).join('');
+}
+
+async function checkWhatsNewDot() {
+  try {
+    const r = await fetch('/api/announcements');
+    const data = await r.json();
+    window._announcements = data;
+    if (!data.length) return;
+    let seen = '';
+    try { seen = localStorage.getItem('cm_wn_seen') || ''; } catch (_) {}
+    if (seen !== data[0].id) {
+      const dot = document.getElementById('whatsNewDot');
+      if (dot) dot.hidden = false;
+    }
+  } catch (_) {}
 }
 
 async function openUsageModal() {

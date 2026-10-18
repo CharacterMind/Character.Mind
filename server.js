@@ -5509,6 +5509,39 @@ app.get('/api/game/hangman/word', requireAuthGame, (req, res) => {
   res.json({ word });
 });
 
+// ── Announcements ──────────────────────────────────────────────────────────
+const ANNOUNCEMENTS = [
+  {
+    id: 'v254-doey',
+    version: 'v254',
+    date: 'Oct 2026',
+    title: 'DOEY has joined the Chat',
+    subtitle: 'The Doughman is here — and he brought a patch.',
+    character: { name: 'DOEY the Doughman', sub: 'Playtime Co. — Kitchen Division', emoji: '🫓' },
+    added: [
+      'DOEY the Doughman — now available to chat with',
+      'Hangman wins now award 5–20 coins based on word length, with a visible "+X coins!" popup',
+      'Hangman and Tic-Tac-Toe now survive page reloads — your game picks up right where you left off',
+      'Hangman words now range from 3 to 11+ letters with varying difficulty',
+      'Usage panel now warns you if you\'re on pace to hit your session limit early',
+      'Custom character creation — build and chat with your own characters',
+    ],
+    fixed: [
+      'Hangman no longer shows wrong guesses as letters below the word',
+      'Coin display now updates correctly after a win even when the usage panel hasn\'t loaded yet',
+    ],
+    changed: [
+      '5-minute cooldown between games removed — play back-to-back',
+      'Free accounts now get ~7 messages per session (up from ~4)',
+      'Paid tiers now use exact token multipliers — X20 is a true 20× free, no rounding',
+    ],
+  },
+];
+
+app.get('/api/announcements', (req, res) => {
+  res.json(ANNOUNCEMENTS);
+});
+
 function tttCheckWinnerGame(board) {
   const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
   for (const [a,b,c] of lines) {
