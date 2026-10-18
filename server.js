@@ -2258,6 +2258,104 @@ function callHuggingFaceStream(systemPrompt, messages, onChunk, onDone, onError,
   req.end();
 }
 
+// ── Groq backup streaming helper ─────────────────────────────────────────────
+// OpenAI-compatible API. Used automatically when Gemini exhausts all its models
+// on rate limits. The client never sees an error — requests queue here instead.
+const GROQ_BACKUP_HOST   = 'api.groq.com';
+const GROQ_BACKUP_MODELS = ['llama-3.1-8b-instant', 'llama3-8b-8192'];
+const groqBakBlockedUntil = {};
+
+function callGroqBackupStream(systemPrompt, messages, onChunk, onDone, onError, ctx, effortCfg, modelIndex, attempt) {
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!groqKey) return onError(new Error('GROQ_API_KEY not set'));
+  ctx = ctx || {};
+  modelIndex = modelIndex || 0;
+  attempt = attempt || 0;
+
+  const now = Date.now();
+  while (modelIndex < GROQ_BACKUP_MODELS.length && (groqBakBlockedUntil[GROQ_BACKUP_MODELS[modelIndex]] || 0) > now) modelIndex++;
+
+  if (modelIndex >= GROQ_BACKUP_MODELS.length) {
+    const soonest = Math.min(...GROQ_BACKUP_MODELS.map(m => groqBakBlockedUntil[m] || 0));
+    const wait = Math.max(2000, soonest - now + 500);
+    if (!ctx.aborted && attempt < 2 && wait <= 35000) {
+      console.log(`[groq-backup] all models rate-limited, queuing retry in ${wait}ms (attempt ${attempt + 1})`);
+      return setTimeout(() => {
+        if (ctx.aborted) return onError(new Error('client aborted'));
+        callGroqBackupStream(systemPrompt, messages, onChunk, onDone, onError, ctx, effortCfg, 0, attempt + 1);
+      }, wait);
+    }
+    return onError(new Error('Groq backup also rate-limited'));
+  }
+
+  const model = GROQ_BACKUP_MODELS[modelIndex];
+  const maxTokens = Math.min((effortCfg && effortCfg.maxOutputTokens) || 1000, 4096);
+  const body = JSON.stringify({
+    model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      ...messages.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '') })),
+    ],
+    max_tokens: maxTokens,
+    temperature: (effortCfg && effortCfg.temperature) || 0.9,
+    stream: true,
+  });
+
+  const req = https.request({
+    hostname: GROQ_BACKUP_HOST,
+    path: '/openai/v1/chat/completions',
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${groqKey}`,
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(body),
+    },
+  }, (res) => {
+    if (res.statusCode !== 200) {
+      let errBody = '';
+      if (typeof res.setEncoding === 'function') res.setEncoding('utf8');
+      res.on('data', d => { errBody += d; });
+      res.on('end', () => {
+        if (res.statusCode === 429) {
+          const retryAfterSec = Number(res.headers['retry-after'] || 60);
+          groqBakBlockedUntil[model] = Date.now() + retryAfterSec * 1000;
+          console.log(`[groq-backup] ${model} rate-limited for ${retryAfterSec}s, trying next`);
+          return callGroqBackupStream(systemPrompt, messages, onChunk, onDone, onError, ctx, effortCfg, modelIndex + 1, attempt);
+        }
+        onError(new Error(`Groq ${res.statusCode}: ${errBody.slice(0, 200)}`));
+      });
+      return;
+    }
+    if (typeof res.setEncoding === 'function') res.setEncoding('utf8');
+    let buf = '';
+    res.on('data', (chunk) => {
+      buf += chunk;
+      const lines = buf.split('\n');
+      buf = lines.pop() || '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') continue;
+        try { const j = JSON.parse(data); const t = j.choices?.[0]?.delta?.content || ''; if (t) onChunk(t); } catch (_) {}
+      }
+    });
+    res.on('end', () => {
+      if (buf) {
+        const d = buf.replace(/^data:\s*/, '').trim();
+        if (d && d !== '[DONE]') { try { const j = JSON.parse(d); const t = j.choices?.[0]?.delta?.content || ''; if (t) onChunk(t); } catch (_) {} }
+      }
+      onDone();
+      console.log(`[groq-backup] served reply via ${model}`);
+    });
+    res.on('error', onError);
+  });
+  req.setTimeout(60000, () => { req.destroy(); onError(new Error('Groq backup timeout')); });
+  req.on('error', onError);
+  if (ctx) ctx.req = req;
+  req.write(body);
+  req.end();
+}
+
 // ── Gemini API streaming helper ──────────────────────────────────────────────
 
 const GEMINI_HOST = 'generativelanguage.googleapis.com';
@@ -2493,15 +2591,25 @@ function startReplyStream(o) {
       try { close(); } catch (_) {}
     }
   };
+  // When Gemini exhausts all its models on rate limits, silently switch to Groq
+  // instead of returning an error. The SSE ping keeps the connection alive while
+  // Groq queues a retry if it's also busy.
+  const tryGroqBackup = (geminiErr) => {
+    if (released) return fail(geminiErr);
+    if (!process.env.GROQ_API_KEY || !/rate.limit|429|too many/i.test((geminiErr && geminiErr.message) || '')) return fail(geminiErr);
+    fullResponse = ''; held = '';
+    console.log('[backup] Gemini rate-limited — switching to Groq:', geminiErr.message);
+    callGroqBackupStream(system, messages, handleChunk, handleDone, (groqErr) => fail(groqErr), ctx, effortCfgFit);
+  };
   if (PLAYTIME_MIND_CHAR_IDS.has(charId) && process.env.HF_TOKEN) {
     callHuggingFaceStream(system, messages, handleChunk, handleDone, (hfErr) => {
       if (released) return fail(hfErr);
       fullResponse = ''; held = '';
       console.log('[playtime-mind] HF failed, falling back to Gemini:', hfErr && hfErr.message);
-      callGeminiStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), undefined, effortCfgFit, modelList, ctx);
+      callGeminiStream(apiKey, system, messages, handleChunk, handleDone, tryGroqBackup, undefined, effortCfgFit, modelList, ctx);
     }, ctx);
   } else {
-    callGeminiStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), undefined, effortCfgFit, modelList, ctx);
+    callGeminiStream(apiKey, system, messages, handleChunk, handleDone, tryGroqBackup, undefined, effortCfgFit, modelList, ctx);
   }
 }
 
