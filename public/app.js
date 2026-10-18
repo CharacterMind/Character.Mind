@@ -4520,10 +4520,8 @@ function updateUsageModal(u) {
   const isFree = !u.subscriptionTier || u.subscriptionTier === 'free';
   const weeklySection = document.getElementById('usageWeeklySection');
   const weeklyRule1   = document.getElementById('usageWeeklyRule');
-  const weeklyRule2   = document.getElementById('usageWeeklyRule2');
   if (weeklySection) weeklySection.style.display = isFree ? 'none' : '';
   if (weeklyRule1)   weeklyRule1.style.display   = isFree ? 'none' : '';
-  if (weeklyRule2)   weeklyRule2.style.display   = isFree ? 'none' : '';
 
   const sPct = Math.min(100, Math.round((u.sessionTokens / u.sessionLimit) * 100));
   const wPct = u.weeklyLimit ? Math.min(100, Math.round((u.weeklyTokens / u.weeklyLimit) * 100)) : 0;
