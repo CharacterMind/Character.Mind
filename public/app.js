@@ -2619,6 +2619,20 @@ function loadHistoryLocal(charId) {
   } catch (_) { return []; }
 }
 
+function saveActiveGame(charId, state) {
+  try { localStorage.setItem(userKey('cm_game_' + charId), JSON.stringify(state)); } catch (_) {}
+}
+function clearActiveGame(charId) {
+  try { localStorage.removeItem(userKey('cm_game_' + charId)); } catch (_) {}
+}
+function restoreActiveGame(charId) {
+  let state;
+  try { state = JSON.parse(localStorage.getItem(userKey('cm_game_' + charId))); } catch (_) { return; }
+  if (!state) return;
+  if (state.type === 'hangman') launchHangman(state);
+  else if (state.type === 'ttt') launchTicTacToe(state);
+}
+
 function savePastChatLocal(charId, messages) {
   if (!messages || messages.length === 0) return;
   if (!messages.some(m => m.role === 'user')) return;
@@ -2822,6 +2836,7 @@ async function openChat(charId) {
   }
   document.getElementById('messageInput').focus();
   scrollToBottom();
+  restoreActiveGame(currentChar.id);
 }
 
 function showLockedBar() {
@@ -8112,13 +8127,15 @@ function buildHangmanSVG(wrong) {
   </svg>`;
 }
 
-async function launchHangman() {
-  const lockoutBarEl = document.getElementById('lockoutBar');
-  if (lockoutBarEl && lockoutBarEl.style.display !== 'none') {
-    const lockoutType = currentLockoutType || 'session';
-    const displayStr = document.getElementById('lockoutCountdown')?.textContent || '';
-    showLimitModal(lockoutType, displayStr);
-    return;
+async function launchHangman(savedState) {
+  if (!savedState) {
+    const lockoutBarEl = document.getElementById('lockoutBar');
+    if (lockoutBarEl && lockoutBarEl.style.display !== 'none') {
+      const lockoutType = currentLockoutType || 'session';
+      const displayStr = document.getElementById('lockoutCountdown')?.textContent || '';
+      showLimitModal(lockoutType, displayStr);
+      return;
+    }
   }
   const msgEl = document.createElement('div');
   msgEl.className = 'msg game-widget';
@@ -8127,32 +8144,40 @@ async function launchHangman() {
   scrollToBottom();
 
   let word;
-  try {
-    const r = await fetch('/api/game/hangman/word');
-    const d = await r.json();
-    if (r.status === 429 && (d.type === 'session' || d.type === 'weekly')) {
-      msgEl.remove();
-      if (d.type === 'session') startCooldown(d.cooldownUntil, 'session', true);
-      else startCooldown(d.resetsAt, 'weekly', true);
+  if (savedState) {
+    word = savedState.word;
+  } else {
+    try {
+      const r = await fetch('/api/game/hangman/word');
+      const d = await r.json();
+      if (r.status === 429 && (d.type === 'session' || d.type === 'weekly')) {
+        msgEl.remove();
+        if (d.type === 'session') startCooldown(d.cooldownUntil, 'session', true);
+        else startCooldown(d.resetsAt, 'weekly', true);
+        return;
+      }
+      if (r.status === 429 && d.gameNextAvailableAt) {
+        const secsLeft = Math.ceil((d.gameNextAvailableAt - Date.now()) / 1000);
+        const minsLeft = Math.ceil(secsLeft / 60);
+        msgEl.innerHTML = `<div class="game-loading">⏳ Game cooldown — come back in ${minsLeft} minute${minsLeft !== 1 ? 's' : ''}.</div>`;
+        return;
+      }
+      if (!r.ok) { msgEl.innerHTML = '<div class="game-loading">Couldn\'t load game. Try again.</div>'; return; }
+      word = d.word.toLowerCase();
+    } catch (_) {
+      msgEl.innerHTML = '<div class="game-loading">Couldn\'t load game. Try again.</div>';
       return;
     }
-    if (r.status === 429 && d.gameNextAvailableAt) {
-      const secsLeft = Math.ceil((d.gameNextAvailableAt - Date.now()) / 1000);
-      const minsLeft = Math.ceil(secsLeft / 60);
-      msgEl.innerHTML = `<div class="game-loading">⏳ Game cooldown — come back in ${minsLeft} minute${minsLeft !== 1 ? 's' : ''}.</div>`;
-      return;
-    }
-    if (!r.ok) { msgEl.innerHTML = '<div class="game-loading">Couldn\'t load game. Try again.</div>'; return; }
-    word = d.word.toLowerCase();
-  } catch (_) {
-    msgEl.innerHTML = '<div class="game-loading">Couldn\'t load game. Try again.</div>';
-    return;
   }
 
   const guessed = new Set();
   let wrongCount = 0;
   const maxWrong = 6;
   let coinAwarded = false;
+  if (savedState) {
+    (savedState.guessed || []).forEach(c => guessed.add(c));
+    wrongCount = savedState.wrongCount || 0;
+  }
 
   function renderHangman() {
     const isWin = [...word].every(c => guessed.has(c));
@@ -8199,7 +8224,10 @@ async function launchHangman() {
       ${gameOver ? `<button class="game-new-btn" onclick="launchHangman();this.closest('.game-widget').remove()">Play Again</button>` : ''}
     `;
     scrollToBottom();
-
+    if (currentChar) {
+      if (gameOver) clearActiveGame(currentChar.id);
+      else saveActiveGame(currentChar.id, { type: 'hangman', word, guessed: [...guessed], wrongCount });
+    }
   }
 
   window.hangmanGuess = function(btn, letter) {
@@ -8223,15 +8251,17 @@ function tttClientCheck(board) {
   return null;
 }
 
-function launchTicTacToe() {
-  const lockoutBarEl = document.getElementById('lockoutBar');
-  if (lockoutBarEl && lockoutBarEl.style.display !== 'none') {
-    const lockoutType = currentLockoutType || 'session';
-    const displayStr = document.getElementById('lockoutCountdown')?.textContent || '';
-    showLimitModal(lockoutType, displayStr);
-    return;
+function launchTicTacToe(savedState) {
+  if (!savedState) {
+    const lockoutBarEl = document.getElementById('lockoutBar');
+    if (lockoutBarEl && lockoutBarEl.style.display !== 'none') {
+      const lockoutType = currentLockoutType || 'session';
+      const displayStr = document.getElementById('lockoutCountdown')?.textContent || '';
+      showLimitModal(lockoutType, displayStr);
+      return;
+    }
   }
-  let board = Array(9).fill(null);
+  let board = savedState ? (savedState.board || Array(9).fill(null)) : Array(9).fill(null);
   let waiting = false;
 
   const msgEl = document.createElement('div');
@@ -8264,7 +8294,10 @@ function launchTicTacToe() {
       ${winData ? `<button class="game-new-btn" onclick="launchTicTacToe();this.closest('.game-widget').remove()">Play Again</button>` : ''}
     `;
     scrollToBottom();
-
+    if (currentChar) {
+      if (winData) clearActiveGame(currentChar.id);
+      else saveActiveGame(currentChar.id, { type: 'ttt', board: [...board], waiting });
+    }
   }
 
   window.tttMove = async function(idx) {
@@ -8303,5 +8336,24 @@ function launchTicTacToe() {
     renderTTT(winCheck);
   };
 
-  renderTTT(null);
+  const restoredWin = savedState ? tttClientCheck(board) : null;
+  renderTTT(restoredWin);
+
+  if (savedState && savedState.waiting && !restoredWin) {
+    waiting = true;
+    renderTTT(null);
+    (async () => {
+      try {
+        const r = await fetch('/api/game/tictactoe/move', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ board })
+        });
+        const d = await r.json();
+        if (r.ok && d.move >= 0 && d.move < 9 && board[d.move] === null) board[d.move] = 'O';
+      } catch (_) {}
+      waiting = false;
+      renderTTT(tttClientCheck(board));
+    })();
+  }
 }
