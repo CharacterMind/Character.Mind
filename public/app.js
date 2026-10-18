@@ -25,10 +25,13 @@ const baseTierOf = (t) => {
 let selectedModelTier = 'opas';
 let selectedEffort = 'medium';
 let prefsLoadedFor = null;
+// Default model per subscription plan — higher plans get a smarter default automatically
+const PLAN_DEFAULT_MODEL = { free: 'opas', advanced: 'opes', x20: 'opes', x50: 'opus', x100: 'opys', x200: 'opys' };
 function loadAccountPrefs() {
   if (!currentUser || prefsLoadedFor === currentUser.googleId) return;
   prefsLoadedFor = currentUser.googleId;
-  selectedModelTier = 'opas';
+  const plan = lastKnownUsage?.subscriptionTier || 'free';
+  selectedModelTier = PLAN_DEFAULT_MODEL[plan] || 'opas';
   selectedEffort = 'medium';
   try {
     const t = localStorage.getItem(userKey('cm_model_tier'));
