@@ -3027,6 +3027,8 @@ function toggleRpMode() {
   rpMode = !rpMode;
   saveRpMode();
   updateRpModeUI();
+  // start fresh so RP history doesn't bleed into chat mode (and vice versa)
+  if (currentChar) newChat();
 }
 
 function updateRpModeUI() {
