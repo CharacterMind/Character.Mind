@@ -8191,8 +8191,10 @@ async function launchHangman(savedState) {
         .then(d => {
           if (d && typeof d.balance === 'number') {
             if (lastKnownUsage) lastKnownUsage.cmCoins = d.balance;
+            else lastKnownUsage = { cmCoins: d.balance };
             updateNavCoinDisplay(lastKnownUsage);
             updateSettingsCoinDisplay(d.balance, d.earnedToday, d.dailyCap);
+            if (d.awarded > 0) showWarning(`🪙 +${d.awarded} coins!`, 3000);
           }
         })
         .catch(() => {});
