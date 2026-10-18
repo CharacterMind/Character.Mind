@@ -208,42 +208,68 @@
   }
   body:not(.void) .fog { display: none; }
 
-  /* void: characters sad and drooping with occasional shiver */
+  /* void: characters sad, slow, drooping */
   body.void .pal { animation: none !important; }
   body.void .pal.l img, body.void .pal.l .rig-canvas {
-    animation: void-l 5s ease-in-out infinite !important;
+    animation: void-l 9s ease-in-out infinite !important;
     animation-delay: 0s !important;
     filter: drop-shadow(0 8px 32px rgba(40,0,80,1)) brightness(0.38) saturate(0.15) hue-rotate(220deg) !important;
   }
   body.void .pal.d img, body.void .pal.d .rig-canvas {
-    animation: void-d 6s ease-in-out infinite !important;
-    animation-delay: -1.8s !important;
+    animation: void-d 10s ease-in-out infinite !important;
+    animation-delay: -2.5s !important;
     filter: drop-shadow(0 8px 32px rgba(40,0,80,1)) brightness(0.38) saturate(0.15) hue-rotate(220deg) !important;
   }
   body.void .pal.p img, body.void .pal.p .rig-canvas {
-    animation: void-p 5.5s ease-in-out infinite !important;
-    animation-delay: -3.2s !important;
+    animation: void-p 8s ease-in-out infinite !important;
+    animation-delay: -5s !important;
     filter: drop-shadow(0 8px 32px rgba(40,0,80,1)) brightness(0.38) saturate(0.15) hue-rotate(220deg) !important;
   }
+  /* Lily: slow side-lean, too tired to stand straight */
   @keyframes void-l {
-    0%,100% { transform: rotate(-6deg) translateY(0); }
-    50%     { transform: rotate(-8deg) translateY(6px); }
+    0%,100% { transform: translateX(-18px) rotate(-16deg) translateY(2px); }
+    20%     { transform: translateX(-8px)  rotate(-9deg)  translateY(-16px); }
+    45%     { transform: translateX(-22px) rotate(-18deg) translateY(7px); }
+    70%     { transform: translateX(-10px) rotate(-8deg)  translateY(-10px); }
+    85%     { transform: translateX(-20px) rotate(-15deg) translateY(4px); }
   }
+  /* Doey: slow heavy breathing droop */
   @keyframes void-d {
-    0%,100% { transform: scaleY(0.97) translateY(0); }
-    50%     { transform: scaleY(0.95) translateY(8px); }
+    0%,100% { transform: scaleY(0.95) scaleX(1.03) translateY(3px)  rotate(-3deg); }
+    35%     { transform: scaleY(0.98) scaleX(1.01) translateY(-10px) rotate(-1deg); }
+    65%     { transform: scaleY(0.93) scaleX(1.04) translateY(8px)   rotate(-4deg); }
   }
+  /* Poppy: slow mournful pendulum */
   @keyframes void-p {
-    0%,100% { transform: rotate(6deg) translateY(0); }
-    50%     { transform: rotate(8deg) translateY(6px); }
+    0%,100% { transform: translateX(16px) rotate(14deg)  translateY(2px); }
+    25%     { transform: translateX(6px)  rotate(6deg)   translateY(-12px); }
+    55%     { transform: translateX(18px) rotate(16deg)  translateY(7px); }
+    78%     { transform: translateX(9px)  rotate(8deg)   translateY(-6px); }
   }
   body.void .trio::after { background: radial-gradient(ellipse at center, rgba(70,0,100,.25), transparent 70%) !important; animation: none !important; }
-  body.void .logo { animation: none !important; -webkit-text-fill-color: rgba(255,255,255,.18) !important; filter: none !important; }
-  body.void .logo-bar { animation: none !important; opacity: .12; background: rgba(100,60,160,.6) !important; box-shadow: none !important; }
+  /* void logo: slow grayscale wave — dark → white → black */
+  body.void .logo {
+    filter: none !important;
+    background-image: linear-gradient(90deg,
+      #000, #111, #2a2a2a, #555, #888, #bbb, #fff, #bbb, #777, #333, #0d0d0d, #000) !important;
+    background-size: 600% 100% !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    animation: logo-grief 9s linear infinite !important;
+  }
+  @keyframes logo-grief {
+    from { background-position: 0% 0; }
+    to   { background-position: 600% 0; }
+  }
+  body.void .logo-bar { animation: none !important; opacity: .1; background: #1e1e1e !important; box-shadow: none !important; }
   body.void .card { background: rgba(4,1,10,.9); border-color: rgba(70,30,110,.3); }
   body.void .status .dot { background: #581c87 !important; box-shadow: 0 0 8px #581c87 !important; }
   body.void .void-msg { display: block !important; }
   body.void .normal-msg { display: none !important; }
+  /* no lighting toggle when the site is down — void is the only mode */
+  body.void .mode-pill { display: none !important; }
   .void-msg { display: none; }
 
   /* ---------- mobile: GPU-safe, no-flicker version ---------- */
@@ -499,7 +525,6 @@
     <div class="ep-btns">
       <button class="ep-btn calm" id="btnCalm">🔅 Use calm lighting</button>
       <button class="ep-btn full" id="btnFull">🎆 Full concert show</button>
-      <button class="ep-btn" id="btnVoid" style="background:rgba(20,5,40,.9);color:rgba(255,255,255,.7);border:1px solid rgba(100,50,150,.4);">🌑 Dark void</button>
     </div>
   </div>
 </div>
@@ -527,34 +552,45 @@
 <script>
 (function () {
   // ---- light mode: 'full' (concert) or 'calm' (epilepsy-friendly) ----
+  // 'void' is not a user-selectable mode — it is entered automatically when the site is down.
   var _stored = null;
   try { _stored = localStorage.getItem('cm_lightMode'); } catch(e) {}
-  var _MODES = ['full', 'calm', 'void'];
+  var _MODES = ['full', 'calm'];
   window.setLightMode = function setLightMode(m) {
     document.body.classList.toggle('calm', m === 'calm');
     document.body.classList.toggle('void', m === 'void');
     var pill = document.getElementById('modePill');
-    var labels = { full: '🎆 Concert — tap to calm', calm: '🔅 Calm — tap for void', void: '🌑 Void — tap for concert' };
+    var labels = { full: '🎆 Concert — tap to calm', calm: '🔅 Calm — tap for concert' };
     if (pill) pill.textContent = labels[m] || labels.full;
-    try { localStorage.setItem('cm_lightMode', m); } catch(e) {}
+    if (m !== 'void') { try { localStorage.setItem('cm_lightMode', m); } catch(e) {} }
     var ov = document.getElementById('epOverlay');
     if (ov) ov.classList.remove('ep-open');
   }
   window.toggleLightMode = function toggleLightMode() {
-    var cur = document.body.classList.contains('void') ? 'void' : document.body.classList.contains('calm') ? 'calm' : 'full';
-    var next = _MODES[(_MODES.indexOf(cur) + 1) % _MODES.length];
-    setLightMode(next);
+    var cur = document.body.classList.contains('calm') ? 'calm' : 'full';
+    setLightMode(cur === 'full' ? 'calm' : 'full');
   }
   var _bc = document.getElementById('btnCalm');
   var _bf = document.getElementById('btnFull');
-  var _bv = document.getElementById('btnVoid');
   var _mp = document.getElementById('modePill');
   if (_bc) _bc.addEventListener('click', function() { window.setLightMode('calm'); });
   if (_bf) _bf.addEventListener('click', function() { window.setLightMode('full'); });
-  if (_bv) _bv.addEventListener('click', function() { window.setLightMode('void'); });
   if (_mp) _mp.addEventListener('click', function() { window.toggleLightMode(); });
-  if (_stored) { setLightMode(_stored); }
-  else { var _ov = document.getElementById('epOverlay'); if (_ov) _ov.classList.add('ep-open'); }
+  // Check whether the site is in 'down' mode — if so, auto-enter void, skip dialog.
+  fetch('/api/maintenance-status', { cache: 'no-store' })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(j) {
+      if (j && j.mode === 'down') {
+        window.setLightMode('void');
+        return;
+      }
+      if (_stored) { window.setLightMode(_stored === 'void' ? 'full' : _stored); }
+      else { var _ov = document.getElementById('epOverlay'); if (_ov) _ov.classList.add('ep-open'); }
+    })
+    .catch(function() {
+      if (_stored) { window.setLightMode(_stored === 'void' ? 'full' : _stored); }
+      else { var _ov = document.getElementById('epOverlay'); if (_ov) _ov.classList.add('ep-open'); }
+    });
 
   // fog puffs for void mode
   var fog = document.getElementById('fog');

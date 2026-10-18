@@ -424,10 +424,15 @@ const chatBurstLimiter = rateLimit({ windowMs: 60 * 1000, max: 40, standardHeade
 // The page checks /api/maintenance-status every 12 s and redirects users back automatically once off.
 let serverReady = false;
 let pendingPatchEmail = null;
-const maintenanceOn = () => !serverReady || /^(1|true|on)$/i.test(String(process.env.MAINTENANCE || '').trim());
+const maintenanceOn = () => !serverReady || /^(1|true|on|down)$/i.test(String(process.env.MAINTENANCE || '').trim());
+const maintenanceMode = () => {
+  if (!maintenanceOn()) return null;
+  const flag = String(process.env.MAINTENANCE || '').trim().toLowerCase();
+  return flag === 'down' ? 'down' : 'maintenance';
+};
 app.get('/api/maintenance-status', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  res.json({ maintenance: maintenanceOn() });
+  res.json({ maintenance: maintenanceOn(), mode: maintenanceMode() });
 });
 app.use((req, res, next) => {
   if (!maintenanceOn()) return next();
