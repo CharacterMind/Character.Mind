@@ -5505,7 +5505,13 @@ app.get('/api/game/hangman/word', requireAuthGame, (req, res) => {
   const fee = messageCost(modelTier, 'max');
   addTokens(userId, fee);
 
-  const word = HANGMAN_WORDS[Math.floor(Math.random() * HANGMAN_WORDS.length)];
+  // Higher tiers get longer/harder words; free gets short easy words
+  const hangTier = getLimits(userId).subscriptionTier || 'free';
+  const HANGMAN_MAX_LEN = { free: 5, advanced: 6, x20: 7, x50: 8, x100: 10, x200: Infinity };
+  const maxLen = HANGMAN_MAX_LEN[hangTier] ?? 5;
+  const eligible = HANGMAN_WORDS.filter(w => w.length <= maxLen);
+  const pool = eligible.length ? eligible : HANGMAN_WORDS;
+  const word = pool[Math.floor(Math.random() * pool.length)];
   res.json({ word });
 });
 
@@ -5570,6 +5576,9 @@ function tttMinimaxGame(board, isMaximizing) {
   }
 }
 
+// How often the AI picks randomly instead of optimally — higher = easier opponent
+const TTT_RANDOM_CHANCE = { free: 0.65, advanced: 0.4, x20: 0.2, x50: 0.08, x100: 0.02, x200: 0 };
+
 app.post('/api/game/tictactoe/move', requireAuthGame, (req, res) => {
   const userId = req.user.googleId;
   const { board } = req.body;
@@ -5594,9 +5603,21 @@ app.post('/api/game/tictactoe/move', requireAuthGame, (req, res) => {
   }
 
   if (tttCheckWinnerGame(board) || board.every(c => c)) return res.json({ move: -1 });
-  let bestVal = -Infinity, bestMove = -1;
-  for (let i = 0; i < 9; i++) {
-    if (!board[i]) {
+
+  const tier = getLimits(userId).subscriptionTier || 'free';
+  const randomChance = TTT_RANDOM_CHANCE[tier] ?? TTT_RANDOM_CHANCE.free;
+  const empty = board.map((v, i) => v ? null : i).filter(i => i !== null);
+
+  let bestMove;
+  if (Math.random() < randomChance) {
+    // Dumb move: random empty cell (but still block an immediate losing move on easy/medium)
+    const blockMove = empty.find(i => {
+      board[i] = 'X'; const wins = tttCheckWinnerGame(board); board[i] = null; return wins === 'X';
+    });
+    bestMove = (blockMove !== undefined && Math.random() > 0.35) ? blockMove : empty[Math.floor(Math.random() * empty.length)];
+  } else {
+    let bestVal = -Infinity; bestMove = empty[0];
+    for (const i of empty) {
       board[i] = 'O';
       const val = tttMinimaxGame(board, false);
       board[i] = null;
