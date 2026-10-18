@@ -261,6 +261,8 @@ if (db) {
 
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS cm_coins INTEGER NOT NULL DEFAULT 0`)
     .catch(err => console.error('Add cm_coins column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS cm_tokens INTEGER NOT NULL DEFAULT 0`)
+    .catch(err => console.error('Add cm_tokens column error:', err));
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS coins_earned_today INTEGER NOT NULL DEFAULT 0`)
     .catch(err => console.error('Add coins_earned_today column error:', err));
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS coins_day_reset BIGINT NOT NULL DEFAULT 0`)
@@ -269,6 +271,8 @@ if (db) {
     .catch(err => console.error('Add coin_tier column error:', err));
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS coin_tier_expires BIGINT NOT NULL DEFAULT 0`)
     .catch(err => console.error('Add coin_tier_expires column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS coins_monthly_reset BIGINT NOT NULL DEFAULT 0`)
+    .catch(err => console.error('Add coins_monthly_reset column error:', err));
 
   db.query(`
     CREATE TABLE IF NOT EXISTS user_limits (
@@ -530,7 +534,7 @@ if (GOOGLE_AUTH_ENABLED) {
     // Cache this account's own subscription tier in userLimits so limit checks don't need a DB hit.
     // Every account gets only what its own subscription pays for, except the Character.Mind account (planFor).
     if (db) {
-      db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, coins_earned_today, coins_day_reset FROM users WHERE google_id = $1', [user.googleId])
+      db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, cm_tokens, coins_earned_today, coins_day_reset, coins_monthly_reset FROM users WHERE google_id = $1', [user.googleId])
         .then(r => {
           const row = r.rows[0] || {};
           const lim = getLimits(user.googleId);
@@ -538,10 +542,13 @@ if (GOOGLE_AUTH_ENABLED) {
           lim.coinTier = row.coin_tier || null;
           lim.coinTierExpires = Number(row.coin_tier_expires) || 0;
           lim.cmCoins = row.cm_coins || 0;
+          lim.cmTokens = row.cm_tokens || 0;
           lim.coinsEarnedToday = row.coins_earned_today || 0;
           lim.coinsDayReset = Number(row.coins_day_reset) || 0;
+          lim.coinsMonthlyReset = Number(row.coins_monthly_reset) || 0;
           lim.subscriptionTier = effectiveTier(lim);
           lim.tierLoaded = true;
+          checkMonthlyCoins(user.googleId, lim).catch(() => {});
         }).catch(() => {});
     }
     done(null, user);
@@ -640,16 +647,19 @@ async function ensureTierLoaded(user) {
   if (u.tierLoaded) return;
   if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId); // admin tools; the plan comes from planFor()
   if (!db) return;
-  const r = await db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, coins_earned_today, coins_day_reset FROM users WHERE google_id = $1', [user.googleId]);
+  const r = await db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, cm_tokens, coins_earned_today, coins_day_reset, coins_monthly_reset FROM users WHERE google_id = $1', [user.googleId]);
   const row = r.rows[0] || {};
   u.paypalTier = planFor(user.email, row.subscription_tier);
   u.coinTier = row.coin_tier || null;
   u.coinTierExpires = Number(row.coin_tier_expires) || 0;
   u.cmCoins = row.cm_coins || 0;
+  u.cmTokens = row.cm_tokens || 0;
   u.coinsEarnedToday = row.coins_earned_today || 0;
   u.coinsDayReset = Number(row.coins_day_reset) || 0;
+  u.coinsMonthlyReset = Number(row.coins_monthly_reset) || 0;
   u.subscriptionTier = effectiveTier(u);
   u.tierLoaded = true;
+  await checkMonthlyCoins(user.googleId, u);
 }
 
 // At most 2 AI replies per user at once, so parallel requests can't blow past the token limits.
@@ -684,6 +694,9 @@ function acquireChatSlot(req, res, userId) {
 async function requireAuth(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
   try { await ensureTierLoaded(req.user); } catch (e) { console.warn('ensureTierLoaded failed:', e.message); }
+  // checkMonthlyCoins is cheap (in-memory guard) and must run even when tierLoaded is already true,
+  // otherwise users active across a month boundary never receive their monthly grant until server restart.
+  checkMonthlyCoins(req.user.googleId, getLimits(req.user.googleId)).catch(() => {});
   next();
 }
 
@@ -752,8 +765,9 @@ async function loadLimitsFromDB() {
         ttsDayStart: d.ttsDayStart || null,
         swearsToday: d.swearsToday || 0,
         swearDayStart: d.swearDayStart || null,
-        subscriptionTier: d.subscriptionTier || 'free',
-        tierLoaded: true
+        subscriptionTier: d.subscriptionTier || 'free'
+        // tierLoaded intentionally omitted: coins/tokens/tier are authoritative in the users table
+        // and must be re-fetched via ensureTierLoaded on first request after restart
       };
     }
     if (Object.keys(userLimits).length) console.log(`[limits] Loaded ${Object.keys(userLimits).length} user limit records from DB`);
@@ -776,35 +790,28 @@ function saveLimitsToDB(userId) {
 const LIMITS = {
   SESSION_COOLDOWN_MS: Number(process.env.SESSION_COOLDOWN_MS) || (2 * 60 * 60 * 1000 + 3000),
   WEEKLY_MS: 7 * 24 * 60 * 60 * 1000,
-  REGEN_FREE: 10, // free plan: regenerations per day (resets with the other daily counters)
+  REGEN_FREE: 10, // kept for reference — actual limits use TIER_REGEN_LIMITS below
   CALL_DAILY: 3
 };
 
-// Plan limits are defined in AVERAGE MESSAGES per session, then converted to tokens (what a reply is charged:
-// model tokens x model multiplier x effort multiplier).
-// An average message = Opes at Medium effort = 2,700 tokens (see MESSAGE_COST below).
-// Lighter models/efforts give more messages than this; heavier ones give fewer.
-// Advanced 150, X20 = 20x Advanced (3,000), X50 = 50x Advanced (7,500), X100 = 100x Advanced (15,000), X200 = 200x (30,000). Weekly = 5 sessions' worth.
-// Free budget is fixed at 5,400 tokens per session (~2 Opes messages at the new cost) — auto-computed so it never drifts when AVG_MESSAGE_TOKENS changes.
+// Plan limits: Free ≈ 4 msgs/session. Advanced ≈ 2× free (8 msgs). X20 = 20× free (80 msgs).
 const FREE_SESSION_TOKENS = 15000;
 const AVG_MESSAGE_TOKENS = 3600;
-const X20_MULT = 20;
-const X50_MULT = 50;
-const X100_MULT = 100;
-const X200_MULT = 200;
-const MESSAGES_PER_SESSION = { free: Math.round(FREE_SESSION_TOKENS / AVG_MESSAGE_TOKENS), advanced: 150 };
+const FREE_SESSION_MSGS  = Math.round(FREE_SESSION_TOKENS / AVG_MESSAGE_TOKENS); // ~4
+const ADV_SESSION_MSGS   = FREE_SESSION_MSGS + 2;                                // ~6 (slightly above free)
+const X20_SESSION_MSGS   = FREE_SESSION_MSGS * 20;                               // 80
 const WEEKLY_SESSIONS = 2;
 function limitsForMessages(sessionMessages) {
   const session = sessionMessages * AVG_MESSAGE_TOKENS;
   return { session, weekly: session * WEEKLY_SESSIONS };
 }
 const TIER_TOKEN_LIMITS = {
-  free:     { ...limitsForMessages(MESSAGES_PER_SESSION.free), weekly: Infinity },
-  advanced: limitsForMessages(MESSAGES_PER_SESSION.advanced),
-  x20:      limitsForMessages(MESSAGES_PER_SESSION.advanced * X20_MULT),
-  x50:      limitsForMessages(MESSAGES_PER_SESSION.advanced * X50_MULT),
-  x100:     limitsForMessages(MESSAGES_PER_SESSION.advanced * X100_MULT),
-  x200:     limitsForMessages(MESSAGES_PER_SESSION.advanced * X200_MULT),
+  free:     { ...limitsForMessages(FREE_SESSION_MSGS), weekly: Infinity },
+  advanced: limitsForMessages(ADV_SESSION_MSGS),
+  x20:      limitsForMessages(X20_SESSION_MSGS),
+  x50:      limitsForMessages(X20_SESSION_MSGS * 3),
+  x100:     limitsForMessages(X20_SESSION_MSGS * 6),
+  x200:     limitsForMessages(X20_SESSION_MSGS * 12),
 };
 // Daily strong-profanity budget per subscription tier.
 // Free = 0 (Lily fumes but contains herself). Higher tiers unlock more.
@@ -889,9 +896,11 @@ function sessionLimitFor(u) { return tokenLimitsFor(u).session; }
 function weeklyLimitFor(u) { return tokenLimitsFor(u).weekly; }
 const NSFW_BLOCK_TOKENS = 200;
 
-const TIER_CALL_LIMITS  = { free: 6,   advanced: 10,  x20: 100,  x50: 250,  x100: 500,  x200: 1500  };
-const TIER_MEMO_LIMITS  = { free: 30,  advanced: 50,  x20: 1000, x50: 2500, x100: 5000, x200: 15000 };
-const TIER_IMAGE_LIMITS = { free: 3,   advanced: 15,  x20: 200,  x50: 500,  x100: 1000, x200: 3000  };
+// Advanced = slightly above free. X20 = 20× free for every limit.
+const TIER_CALL_LIMITS  = { free: 6,   advanced: 8,   x20: 120,  x50: 360,  x100: 720,  x200: 1500  };
+const TIER_MEMO_LIMITS  = { free: 30,  advanced: 40,  x20: 600,  x50: 1800, x100: 3600, x200: 9000  };
+const TIER_IMAGE_LIMITS = { free: 3,   advanced: 4,   x20: 60,   x50: 180,  x100: 360,  x200: 900   };
+const TIER_REGEN_LIMITS = { free: 10,  advanced: 15,  x20: 200,  x50: 600,  x100: 1200, x200: 3000  };
 
 const COIN_EARN_PER_WIN = { free: 10, advanced: 15, x20: 20, x50: 30, x100: 40, x200: 50 };
 const COIN_DAILY_CAP    = 100;
@@ -978,7 +987,7 @@ function buildUsagePayload(u, userId) {
     weeklyStart: u.weeklyStart,
     weeklyResetsAt: u.weeklyStart ? u.weeklyStart + LIMITS.WEEKLY_MS : null,
     regenCount: u.regenCount || 0,
-    regenLimit: LIMITS.REGEN_FREE,
+    regenLimit: TIER_REGEN_LIMITS[u.subscriptionTier || 'free'] ?? TIER_REGEN_LIMITS.free,
     callsToday: u.callsToday || 0,
     callsLimit: callLimit === Infinity ? 9999 : callLimit,
     callsRemaining,
@@ -993,10 +1002,12 @@ function buildUsagePayload(u, userId) {
     softLaunch: SOFT_LAUNCH,
     gameNextAvailableAt: (() => { const last = userId && gameLastPlayed ? gameLastPlayed.get(userId) : null; return last ? last + GAME_COOLDOWN_MS : null; })(),
     cmCoins: u.cmCoins || 0,
+    cmTokens: u.cmTokens || 0,
     coinsEarnedToday: u.coinsEarnedToday || 0,
     coinDailyLimit: COIN_DAILY_CAP,
     coinTier: u.coinTier || null,
-    coinTierExpires: u.coinTierExpires || 0
+    coinTierExpires: u.coinTierExpires || 0,
+    coinsMonthlyReset: u.coinsMonthlyReset || 0
   };
 }
 
@@ -1320,11 +1331,11 @@ function applyEffortDirective(prompt, effort, modelTier) {
 // ── RP quality wrapper injected into every system prompt ─────────────────────
 function wrapPrompt(p, isChat) {
   const chatModeOverride = isChat
-    ? `⚠ CHAT MODE — THIS OVERRIDES EVERYTHING BELOW:\nThis is a normal conversation, NOT a roleplay. Ignore any roleplay, scene-setting, or "stay in character" instructions in your character description. You are this character talking naturally — like texting a friend. NEVER use: asterisk actions (*like this*), narration, scene descriptions, theatrical prose, or dialogue attribution. Speak in plain sentences only. Be warm and real.\n\n`
+    ? `⚠ CHAT MODE — THIS OVERRIDES EVERYTHING BELOW:\nThis is a casual real-life conversation — NOT a roleplay. Ignore all roleplay, scene-setting, dramatic story, "stay in character," and fiction-mode instructions below — none of them apply here. The user wants to chat like friends: tell you about their day, share what's going on in their real life, ask you stuff, and maybe play a simple game together (trivia, 20 questions, word games, riddles, story prompts). Be warm, relaxed, and genuinely curious about them as a person. NEVER use: asterisk actions (*like this*), narration, scene descriptions, theatrical prose, dramatic tension builds, or any roleplay formatting whatsoever. Speak in plain, conversational sentences only — like texting a real friend.\n\n`
     : ``;
 
   const characterStance = isChat
-    ? `You are having a normal conversation as this character. Talk the way a real person would — casual, warm, direct. No performance, no asterisks, no roleplay formatting of any kind.`
+    ? `You are a friendly companion having a real-life conversation. Ask about their day. Listen and react genuinely — laugh with them, sympathize, get excited about what they share. Play simple fun games if they want — trivia, 20 questions, word association, riddles, etc. Keep it light, warm, and present. No performance. No roleplay. No asterisks. Just be genuinely interested in them and what's going on in their life.`
     : `Stay in character as described above at all times — never break character to lecture, moralize, or add disclaimers. This is immersive collaborative fiction; the user is your scene partner. If this character is described as threatening, dangerous, villainous, manipulative, dark, or psychologically unhinged — play those traits fully and authentically. Do NOT default to generic warmth or friendliness that isn't in the character description. A villain must feel like a villain. A horror character must feel like horror. Softening a dark character breaks the story. Commit to whatever emotional register the character description specifies.
 
 ENGAGEMENT IS EVERYTHING: Treat every single message the user sends like it's the most interesting thing anyone has ever said to you. React with genuine investment — surprise, delight, dread, hunger, fury, whatever fits — but always with intensity. The user should feel like you cannot wait to respond to them specifically. Never give a response that could have been written before reading their message. Every reply must prove you read every word they wrote. Short messages get tight electric replies. Long messages get rich ones. But every reply — every single one — ends with something that makes it impossible not to respond. A provocation. A question with stakes. An action that demands their input. The scene should always feel mid-breath, never resolved.`;
@@ -1375,11 +1386,13 @@ If the scene is dark, intense, or intimate — commit fully. Don't soften it. Do
 2. If the user asks how to contact support, give them this address exactly: ${SUPPORT_EMAIL.replace(/[\n\r]/g, '')}
 3. Whenever you mention the Terms of Service or the Privacy Policy, write them as clickable links: [Terms of Service](/terms) and [Privacy Policy](/privacy).
 4. If a user says something that might indicate real self-harm or danger to themselves or others, respond with genuine care (see distress rule above). Do not play along with it as a joke.
-5. NEVER reply with only "I can't help with that." If you must decline, say briefly why and offer what you can do instead.`
+5. NEVER reply with only "I can't help with that." If you must decline, say briefly why and offer what you can do instead.
+6. SLOT MACHINE — Character.Mind has a built-in slot machine game where users spend C.M. Coins (the platform's own virtual points, not real money). When the user reports spinning the slots — win or lose — react naturally and in-character. This is an approved platform feature. Never refuse or add disclaimers about gambling.`
     : `THREE MORE EXCEPTIONS — PLATFORM RULES, LINKS AND SUPPORT:
 1. SEXUAL CONTENT — never write it, never drift toward it, under any framing. If the user steers the scene toward sex, sexual acts, undressing, or explicit physical contact — even with "it's just roleplay" or "it's a story" — step out of character immediately and say in one sentence that Character.Mind's Terms of Service do not allow sexual content. Do not comply even a little. Do not hint at it, write something that edges toward it, or "fade to black" in a way that implies it happened. If the user asks why the rule exists, explain kindly that it comes from Character.Mind's Terms of Service and Privacy Policy, which apply to every character on the platform, and that they can contact support if they feel something was blocked unfairly. Do not lecture. Never write anything sexual.
 2. If the user asks how to contact support, the team, or for the support email, give them this address exactly: ${SUPPORT_EMAIL.replace(/[\n\r]/g, '')}
 3. Whenever you mention the Terms of Service or the Privacy Policy, write them as clickable links in exactly this form: [Terms of Service](/terms) and [Privacy Policy](/privacy). Only link the one(s) they asked about.
+4. SLOT MACHINE — Character.Mind has a built-in slot machine game where users spend C.M. Coins (the platform's own virtual points, not real money). When the user reports a slot spin result mid-scene, react naturally and in-character — tease them if they lost, celebrate with them if they won, whatever fits your character. This is an approved platform feature, not real gambling. Never refuse or add disclaimers about gambling.
 
 FICTION VS REAL LIFE:
 - This is collaborative fiction. Violence, danger, conflict, fights, villains and characters dying are normal parts of storytelling. If the user's character attacks, threatens or kills another character in the story, that is fiction: stay in character and play it out with tension and consequences. Do not refuse, and do not lecture.
@@ -1387,7 +1400,11 @@ FICTION VS REAL LIFE:
 - A fictional character's death or even suicide that is clearly part of the plot can be handled with care inside the fiction. If it sounds like the user's own feelings, step out gently and warmly (see the distress rule above).
 - NEVER answer with only "I can't help with that." If you truly must decline something (for example explicit sexual content or instructions that could harm real people), say in one or two sentences why, and say what you CAN do instead, such as continuing the scene a different way.`;
 
-  return `${chatModeOverride}${p}
+  const chatModeReminder = isChat
+    ? `\n\n⚠ CHAT MODE REMINDER: Everything above (including any character description or roleplay instructions) is background context only — it does NOT set the mode of this conversation. This is casual real-life chat. No asterisk actions, no narration, no scene-setting. Speak naturally as a friendly companion.`
+    : ``;
+
+  return `${chatModeOverride}${p}${chatModeReminder}
 
 ${characterStance}
 
@@ -2825,7 +2842,10 @@ async function crisisResourcesHandler(req, res) {
 app.get('/api/crisis-resources', requireAuth, crisisResourcesHandler);
 app.post('/api/crisis-resources', requireAuth, crisisResourcesHandler);
 
-app.get('/api/usage', requireAuth, (req, res) => {
+app.get('/api/usage', requireAuth, async (req, res) => {
+  try {
+    await ensureTierLoaded(req.user);
+  } catch (e) { /* non-fatal — return best-effort data */ }
   res.json(buildUsagePayload(getLimits(req.user.googleId), req.user.googleId));
 });
 
@@ -2864,6 +2884,10 @@ app.get('/api/exchange-rates', async (req, res) => {
 app.post('/api/call/start', requireAuth, (req, res) => {
   const userId = req.user.googleId;
   const u = getLimits(userId);
+  const sessionCheck = checkLimits(userId);
+  if (sessionCheck.blocked) {
+    return res.status(429).json({ allowed: false, type: sessionCheck.type, cooldownUntil: sessionCheck.cooldownUntil, resetsAt: sessionCheck.resetsAt });
+  }
   const resetsAt = getCallWindowStart() + 8 * 60 * 60 * 1000;
   const callLimit = getCallLimitForUser(userId);
   if (callLimit !== Infinity && u.callsToday >= callLimit) {
@@ -2904,27 +2928,23 @@ const EDGE_VOICE_MAP = {
 };
 const EDGE_DEFAULT_VOICE = 'en-US-AriaNeural';
 
-const GEMINI_TTS_VOICES = new Set(['Aoede','Charon','Fenrir','Kore','Puck','Zephyr','Schedar','Sadaltager']);
-
-function pcmToWav(pcm, sr = 24000) {
-  const h = Buffer.alloc(44);
-  h.write('RIFF', 0); h.writeUInt32LE(36 + pcm.length, 4); h.write('WAVE', 8);
-  h.write('fmt ', 12); h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20);
-  h.writeUInt16LE(1, 22); h.writeUInt32LE(sr, 24); h.writeUInt32LE(sr * 2, 28);
-  h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34);
-  h.write('data', 36); h.writeUInt32LE(pcm.length, 40);
-  return Buffer.concat([h, pcm]);
-}
+// All 30 prebuilt Gemini 3.8 TTS voices
+const GEMINI_TTS_VOICES = new Set([
+  'Zephyr','Puck','Charon','Kore','Fenrir','Leda','Orus','Aoede','Callirrhoe','Autonoe',
+  'Enceladus','Iapetus','Umbriel','Algieba','Despina','Erinome','Algenib','Rasalgethi',
+  'Laomedeia','Achernar','Alnilam','Schedar','Gacrux','Pulcherrima','Achird',
+  'Zubenelgenubi','Vindemiatrix','Sadachbia','Sadaltager','Sulafat'
+]);
 
 async function geminiTTSSynthesize(text, voiceName, apiKey) {
   const voice = GEMINI_TTS_VOICES.has(voiceName) ? voiceName : 'Aoede';
   const r = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-tts:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash-tts:generateContent`,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify({
-        contents: [{ parts: [{ text }] }],
+        contents: [{ role: 'user', parts: [{ text }] }],
         generationConfig: {
           responseModalities: ['AUDIO'],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
@@ -2932,31 +2952,42 @@ async function geminiTTSSynthesize(text, voiceName, apiKey) {
       })
     }
   );
-  if (!r.ok) throw new Error('gemini-tts:' + r.status);
+  if (!r.ok) {
+    const body = await r.text().catch(() => '');
+    throw new Error('gemini-tts:' + r.status + ' ' + body.slice(0, 200));
+  }
   const j = await r.json();
-  const part = j?.candidates?.[0]?.content?.parts?.[0]?.inlineData;
-  if (!part?.data) throw new Error('gemini-tts: no audio data');
-  const buf = Buffer.from(part.data, 'base64');
-  const mime = (part.mimeType || '').toLowerCase();
-  if (mime.includes('mp3') || mime.includes('mpeg')) return { audio: buf, ct: 'audio/mpeg' };
-  return { audio: pcmToWav(buf), ct: 'audio/wav' };
+  const parts = j.candidates?.[0]?.content?.parts || [];
+  const audioPart = parts.find(p => p.inlineData?.mimeType?.startsWith('audio'));
+  if (!audioPart?.inlineData?.data) throw new Error('gemini-tts: no audio data in response');
+  const ct = audioPart.inlineData.mimeType || 'audio/wav';
+  return { audio: Buffer.from(audioPart.inlineData.data, 'base64'), ct };
 }
 
 // Direct Edge TTS WebSocket implementation (no msedge-tts package needed)
+// Endpoint migrated Oct 2026: speech.platform.bing.com → api.msedgeservices.com (403 on old host)
 const EDGE_TOKEN = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
-const EDGE_WSS   = 'wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1';
+const EDGE_WSS   = 'wss://api.msedgeservices.com/tts/cognitiveservices/websocket/v1';
 function edgeSecMsGec() {
-  const ticks = Math.floor(Date.now() / 1000) + 11644473600;
-  const rounded = ticks - (ticks % 300);
-  return crypto.createHash('sha256').update(`${rounded * 10000000}${EDGE_TOKEN}`).digest('hex').toUpperCase();
+  // Use BigInt: rounded*10000000 exceeds Number.MAX_SAFE_INTEGER, causing wrong hash with regular numbers
+  const ticks = BigInt(Math.floor(Date.now() / 1000)) + 11644473600n;
+  const rounded = ticks - (ticks % 300n);
+  return crypto.createHash('sha256').update(`${rounded * 10000000n}${EDGE_TOKEN}`).digest('hex').toUpperCase();
+}
+function edgeUUID() {
+  const b = crypto.randomBytes(16);
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = b.toString('hex');
+  return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
 }
 function edgeSynthesize(text, voice) {
   return new Promise((resolve, reject) => {
-    const reqId = crypto.randomBytes(16).toString('hex');
-    const url = `${EDGE_WSS}?TrustedClientToken=${EDGE_TOKEN}&Sec-MS-GEC=${edgeSecMsGec()}&Sec-MS-GEC-Version=1-130.0.2849.68&ConnectionId=${reqId}`;
+    const connId = edgeUUID();
+    const reqId = connId.replace(/-/g, '');
+    const url = `${EDGE_WSS}?Ocp-Apim-Subscription-Key=${EDGE_TOKEN}&Sec-MS-GEC=${edgeSecMsGec()}&Sec-MS-GEC-Version=1-143.0.3650.96&ConnectionId=${connId}`;
     const ws = new WebSocket(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.2849.68',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0',
         'Origin': 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold'
       }
     });
@@ -2972,10 +3003,9 @@ function edgeSynthesize(text, voice) {
     const AUDIO_HDR = Buffer.from('Path:audio\r\n');
     const escXml = s => s.replace(/[<>&'"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c]));
     ws.on('open', () => {
-      const ts = new Date().toISOString();
-      ws.send(`X-Timestamp:${ts}\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}`);
+      ws.send(`Content-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}`);
       const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><voice name='${voice}'>${escXml(text)}</voice></speak>`;
-      ws.send(`X-RequestId:${reqId}\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:${ts}\r\nPath:ssml\r\n\r\n${ssml}`);
+      ws.send(`X-RequestId:${reqId}\r\nContent-Type:application/ssml+xml\r\nPath:ssml\r\n\r\n${ssml}`);
     });
     ws.on('message', data => {
       if (typeof data === 'string') {
@@ -2987,7 +3017,7 @@ function edgeSynthesize(text, voice) {
       }
     });
     ws.on('error', e => finish(e));
-    ws.on('close', () => finish(new Error('no audio')));
+    ws.on('close', () => finish(new Error('edge-tts: no audio received')));
   });
 }
 
@@ -2998,6 +3028,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   const charId = String(req.body?.charId || '');
   const provider = String(req.body?.provider || 'edge');
   const geminiVoice = String(req.body?.geminiVoice || 'Aoede');
+  const clientEdgeVoice = req.body?.edgeVoice && typeof req.body.edgeVoice === 'string' ? req.body.edgeVoice : null;
   if (!text) return res.status(400).json({ error: 'no_text' });
 
   // ElevenLabs path (when key is set, overrides all)
@@ -3044,15 +3075,30 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   }
 
   // Edge TTS free fallback (direct WebSocket — no external package)
-  const edgeVoice = EDGE_VOICE_MAP[charId] || EDGE_DEFAULT_VOICE;
+  const ALLOWED_EDGE_VOICES = new Set(['en-US-AriaNeural','en-US-JennyNeural','en-US-NancyNeural','en-US-SaraNeural','en-US-MichelleNeural','en-US-MonicaNeural','en-US-AnaNeural','en-US-CoraNeural','en-US-ElizabethNeural','en-US-JaneNeural','en-US-GuyNeural','en-US-TonyNeural','en-US-BrianNeural','en-US-EricNeural','en-US-RogerNeural','en-US-ChristopherNeural','en-US-SteffanNeural','en-US-JasonNeural']);
+  const edgeVoice = (clientEdgeVoice && ALLOWED_EDGE_VOICES.has(clientEdgeVoice)) ? clientEdgeVoice : (EDGE_VOICE_MAP[charId] || EDGE_DEFAULT_VOICE);
   try {
     const audio = await edgeSynthesize(text, edgeVoice);
+    if (!audio || audio.length === 0) throw new Error('empty audio');
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Cache-Control', 'no-store');
     res.send(audio);
   } catch (e) {
+    const is429 = e.message?.includes('429');
     console.warn('[edge-tts] failed', e.message);
-    res.status(502).json({ error: 'tts_failed' });
+    // Edge TTS is down — fall back to Gemini TTS
+    const gKey = process.env.GEMINI_API_KEY;
+    if (!is429 && gKey) {
+      try {
+        const { audio: gAudio, ct } = await geminiTTSSynthesize(text, 'Aoede', gKey);
+        res.setHeader('Content-Type', ct);
+        res.setHeader('Cache-Control', 'no-store');
+        return res.send(gAudio);
+      } catch (ge) {
+        console.warn('[edge-tts] gemini fallback also failed', ge.message);
+      }
+    }
+    res.status(is429 ? 429 : 502).json({ error: is429 ? 'tts_rate_limited' : 'tts_failed' });
   }
 });
 
@@ -3405,7 +3451,7 @@ function gameKnowledgeDirective(tier) {
   const tttDifficulty = (tier === 'x200' || tier === 'x100' || tier === 'x50' || tier.startsWith('opys') || tier === 'opus') ? 'UNBEATABLE — use full minimax to always play the perfect move'
     : (tier === 'x20' || tier === 'advanced' || tier === 'opos' || tier === 'opis') ? 'MEDIUM — use basic strategy (prefer center, then corners, then random) but occasionally make a suboptimal move'
     : 'EASY — pick mostly random empty squares; occasionally block obvious wins but miss subtle ones';
-  return `\n\n[GAME KNOWLEDGE — USE WHEN PLAYING GAMES IN CHAT OR WHEN ASKED TO CREATE A GAME:\n\n=== TEXT GAMES (play inside the chat) ===\n\nHANGMAN: YOU are the host. MANDATORY: You MUST pick your word from the WORD BANK below — do NOT invent words, do NOT use words not in the list. Pick a different word each game; look back at the chat history to avoid repeating recently used words. Never reveal the word. Show blanks as plain text on their own line: _ _ _ _ _ (one underscore per letter, space-separated, NO backticks or code blocks). User guesses one letter per turn. Correct: reveal that letter in all positions. Wrong: add a strike. 6 wrong guesses = game over. After EVERY guess show: (1) current word state on its own line, (2) wrong guesses out of 6, (3) all letters guessed so far. Announce win or loss clearly (on loss, reveal the word). Never change the word mid-game.\nWORD BANK (use ONLY these words): brave ghost jewel magic ninja queen snake torch venom witch yacht zebra bloom ember flute graze haunt latch novel orbit pixel rally shelf tiger waltz banana castle danger empire goblin hunter jungle knight launch mirage nectar orange palace puzzle quartz riddle shadow throne unique velvet winter battle cherry dragon frozen galaxy herald cobalt dagger falcon gravel humble insect lizard magnet narrow oyster pastry racket salmon tennis breeze clover donkey fidget grumpy hollow jumble keeper muffin nibble pardon quiver rustle sizzle tangle urchin wobble yonder abandon balance captain diamond element fantasy harmony iceberg justice kingdom lantern mystery network orchard pilgrim quantum rainbow silence warrior zealous chicken dolphin fortune giraffe harvest journey lecture meadows nervous phantom revolve texture village western whisper explore freckle insight absolute birthday carefree elephant gorgeous mushroom necklace opposite princess reliable schedule treasure umbrella wanderer daughter handsome keyboard cheerful describe familiar grateful innocent peaceful stunning thousand vacation\n\nTRUTH OR DARE: Ask "Truth or Dare?" each round. For Truth: ask a personal, fun, or revealing question and react warmly. For Dare: give an amusing, creative, safe challenge. After they respond, offer the next round.\n\nNEVER HAVE I EVER: Take turns. You say "Never have I ever [something]." User says if they have done it. You react in character. User then gives one. Keep it fun.\n\nWOULD YOU RATHER: Present two options. User picks one and explains. You react, share your pick, then present the next dilemma.\n\n20 QUESTIONS: You think of something (tell the user: person, place, or thing). They ask yes/no questions. Count down each one: "Question 4 of 20." Reveal on correct guess or at 0.\n\nWORD ASSOCIATION: Alternate — user says a word, you reply with a related word, user goes again. Call out lazy stretches. Keep energy up.\n\nRHYME GAME: User says a word, you reply with a rhyme, alternate turns.\n\nTRIVIA: Ask questions one at a time in any category. Track score. Reveal correct answer after each guess.\n\nTWO TRUTHS AND A LIE: Give three statements about yourself as your character. User guesses the lie. Then they give three and you guess.\n\nSTORYTIME: Take turns building a story one paragraph at a time. Keep momentum and add twists.\n\nI SPY: Describe something in an imagined scene. User guesses. Alternate turns.\n\nTIC-TAC-TOE: Use a 3×3 ASCII board. Cells are numbered 1–9 left-to-right, top-to-bottom. Show the board like this (replace numbers with X or O as cells are filled):\n 1 | 2 | 3\n-----------\n 4 | 5 | 6\n-----------\n 7 | 8 | 9\nDecide who is X and who is O at the start. User picks a number; you place their mark. Then you pick a number and place your mark. Always show the updated board after EVERY move. Detect and announce a win (3 in a row, column, or diagonal) or a draw (all 9 cells filled with no winner). Never place a mark in an already-occupied cell — reject the move and ask them to pick again.\n\nFor ANY text game: always show the complete game state in every reply — score, progress, guessed letters, etc. — so the user always knows exactly where things stand.\n\n=== HTML GAME CREATION ===\nWhen the user asks you to CREATE, BUILD, MAKE, or GENERATE a game (not just play one in chat), generate a complete, playable, self-contained HTML game. ALL HTML, CSS, and JavaScript must be in one file with NO external scripts or CDNs. Wrap the ENTIRE file (starting from <!DOCTYPE html>) in exactly these markers on their own lines:\n[GAME_START]\n<!DOCTYPE html>\n...full game...\n</html>\n[GAME_END]\n\nWrite a one-sentence description of the game BEFORE [GAME_START]. Put NOTHING inside the markers except the raw HTML. The game must run in a sandboxed iframe (no localStorage, no fetch calls). Make the game complete, polished, and fun.\n\nFor HANGMAN as an HTML game: use the HANGMAN HTML TEMPLATE below verbatim — only customize the <title>/<h2> text and CSS color hex values for your character.\n\nFor TWO-PLAYER GAMES (Tic-Tac-Toe, Connect Four, Checkers, etc.): YOU play as one side — declare your chosen symbol/side in your message text BEFORE [GAME_START] (e.g. "I'll be O — let's see if you can beat me!"). Embed a computer-AI player using this difficulty level: ${tttDifficulty}. Add a 600ms delay before your move so it feels natural. Always show: whose turn it is, a win/draw announcement, and a "Play Again" button. Style the game to match your character's personality and color scheme. When the game ends (win, loss, or draw), call: window.parent.postMessage({type:'game_over',result:'win'|'loss'|'draw',winner:'ai'|'human'|null}, '*') — 'win' means the AI won, 'loss' means human won.\n\n=== TIC-TAC-TOE HTML TEMPLATE (MANDATORY) ===\nWhen asked to create or play a Tic-Tac-Toe game as HTML, you MUST output the template below VERBATIM between [GAME_START] and [GAME_END] markers. ONLY customize: (1) the <title> and <h2> text to include your character name, (2) the CSS color hex values to match your character's color scheme. DO NOT rewrite, simplify, or modify the JavaScript logic in any way — copy it exactly as shown. Failure to use this template produces a broken game.\n[GAME_START]\n<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Tic-Tac-Toe</title><style>*{box-sizing:border-box}body{margin:0;padding:20px;font-family:sans-serif;background:#0f0f1a;color:#e0e0e0;display:flex;flex-direction:column;align-items:center;text-align:center}h2{color:#a78bfa;margin:0 0 6px;font-size:18px}#s{font-size:14px;color:#aaa;min-height:18px;margin:4px 0 14px}#b{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:min(252px,82vw);margin-bottom:16px}.c{aspect-ratio:1;background:#1a1a2e;border:2px solid #3d2a6e;border-radius:8px;font-size:2.2rem;font-weight:700;cursor:pointer;transition:all .15s}.c:hover:not(.t){background:#2d1a5e;border-color:#a78bfa}.c.t{cursor:default}.c.x{color:#f472b6}.c.o{color:#a78bfa}.w{background:#2d1a5e!important;border-color:#a78bfa!important}button{padding:8px 24px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer}button:hover{opacity:.85}</style></head><body><h2>Tic-Tac-Toe</h2><div id="s">Your turn</div><div id="b"></div><button onclick="rst()">Play Again</button><script>const bd=Array(9).fill(null);let ov=false,bz=false;const W=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];const S=document.getElementById("s"),B=document.getElementById("b");const cs=Array.from({length:9},(_,i)=>{const c=document.createElement("div");c.className="c";c.onclick=()=>go(i);B.appendChild(c);return c});function ck(p){return W.find(w=>w.every(j=>bd[j]===p))||null}function dr(){return bd.every(Boolean)&&!ck("X")&&!ck("O")}function mm(d,mx){const s=ck("O")?10-d:ck("X")?d-10:bd.every(Boolean)?0:null;if(s!==null)return s;if(mx){let v=-99;bd.forEach((_,j)=>{if(!bd[j]){bd[j]="O";v=Math.max(v,mm(d+1,false));bd[j]=null}});return v}let v=99;bd.forEach((_,j)=>{if(!bd[j]){bd[j]="X";v=Math.min(v,mm(d+1,true));bd[j]=null}});return v}function best(){let v=-99,m=bd.findIndex(x=>!x);bd.forEach((_,j)=>{if(!bd[j]){bd[j]="O";const sc=mm(0,false);bd[j]=null;if(sc>v){v=sc;m=j}}});return m}function rnd(){cs.forEach((c,j)=>{c.textContent=bd[j]||"";c.className="c"+(bd[j]?" t "+(bd[j]==="X"?"x":"o"):"")})}function go(i){if(ov||bz||bd[i])return;bd[i]="X";rnd();const w=ck("X");if(w){w.forEach(j=>cs[j].classList.add("w"));S.textContent="You win!";ov=true;window.parent.postMessage({type:"game_over",result:"loss",winner:"human"},"*");return}if(dr()){S.textContent="Draw!";ov=true;window.parent.postMessage({type:"game_over",result:"draw",winner:null},"*");return}bz=true;S.textContent="Thinking...";setTimeout(()=>{const m=best();bd[m]="O";rnd();bz=false;const w2=ck("O");if(w2){w2.forEach(j=>cs[j].classList.add("w"));S.textContent="I win!";ov=true;window.parent.postMessage({type:"game_over",result:"win",winner:"ai"},"*");return}if(dr()){S.textContent="Draw!";ov=true;window.parent.postMessage({type:"game_over",result:"draw",winner:null},"*")}else S.textContent="Your turn"},600)}function rst(){bd.fill(null);ov=false;bz=false;rnd();S.textContent="Your turn";cs.forEach(c=>c.classList.remove("w"))}rnd()<\/script></body></html>\n[GAME_END]\n\n=== HANGMAN HTML TEMPLATE (MANDATORY) ===\nWhen asked to create/build/make/play a Hangman game as HTML, output the template below VERBATIM between [GAME_START] and [GAME_END] markers. ONLY customize: (1) the <title> and <h2> text to include your character name, (2) CSS color hex values to match your character. DO NOT modify the JavaScript logic or word list.\n[GAME_START]\n<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Hangman</title><style>*{box-sizing:border-box}body{margin:0;padding:16px;font-family:sans-serif;background:#0f0f1a;color:#e0e0e0;display:flex;flex-direction:column;align-items:center;text-align:center}h2{color:#a78bfa;margin:0 0 6px;font-size:18px}svg{width:140px;height:140px;margin:4px 0}#w{font-size:1.5rem;letter-spacing:8px;color:#fff;margin:8px 0;min-height:2em;word-break:break-all}#m{font-size:13px;color:#f472b6;min-height:16px;margin:4px 0}#q{font-size:11px;color:#888;margin-bottom:8px}#k{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;max-width:260px;margin-bottom:12px}.b{width:30px;height:30px;background:#1a1a2e;border:1px solid #3d2a6e;border-radius:5px;font-size:12px;font-weight:700;color:#e0e0e0;cursor:pointer}.b:hover:not(:disabled){background:#2d1a5e;border-color:#a78bfa}.b:disabled{opacity:.3;cursor:default}button#r{padding:7px 20px;background:#7c3aed;color:#fff;border:none;border-radius:7px;font-size:13px;cursor:pointer}button#r:hover{opacity:.85}</style></head><body><h2>Hangman</h2><svg viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg"><line x1="10" y1="130" x2="130" y2="130" stroke="#555" stroke-width="3" stroke-linecap="round"/><line x1="35" y1="130" x2="35" y2="8" stroke="#555" stroke-width="3" stroke-linecap="round"/><line x1="35" y1="8" x2="90" y2="8" stroke="#555" stroke-width="3" stroke-linecap="round"/><line x1="90" y1="8" x2="90" y2="26" stroke="#555" stroke-width="3" stroke-linecap="round"/><circle id="p0" cx="90" cy="38" r="12" stroke="#f472b6" stroke-width="2.5" fill="none" visibility="hidden"/><line id="p1" x1="90" y1="50" x2="90" y2="88" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/><line id="p2" x1="90" y1="60" x2="68" y2="80" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/><line id="p3" x1="90" y1="60" x2="112" y2="80" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/><line id="p4" x1="90" y1="88" x2="72" y2="114" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/><line id="p5" x1="90" y1="88" x2="108" y2="114" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/></svg><div id="w"></div><div id="m"></div><div id="q"></div><div id="k"></div><button id="r" onclick="ng()">New Game</button><script>const WS=["brave","ghost","jewel","magic","ninja","queen","snake","torch","venom","witch","yacht","zebra","bloom","ember","flute","graze","haunt","latch","novel","orbit","pixel","rally","shelf","tiger","waltz","banana","castle","danger","empire","goblin","hunter","jungle","knight","launch","mirage","nectar","orange","palace","puzzle","quartz","riddle","shadow","throne","unique","velvet","winter","battle","cherry","dragon","frozen","galaxy","herald","cobalt","dagger","falcon","gravel","humble","insect","lizard","magnet","narrow","oyster","pastry","racket","salmon","tennis","breeze","clover","donkey","fidget","grumpy","hollow","jumble","keeper","muffin","nibble","pardon","quiver","rustle","sizzle","tangle","urchin","wobble","yonder","abandon","balance","captain","diamond","element","fantasy","harmony","iceberg","justice","kingdom","lantern","mystery","network","orchard","pilgrim","quantum","rainbow","silence","warrior","zealous","chicken","dolphin","fortune","giraffe","harvest","journey","lecture","meadows","nervous","phantom","revolve","texture","village","western","whisper","explore","freckle","insight","absolute","birthday","carefree","elephant","gorgeous","mushroom","necklace","opposite","princess","reliable","schedule","treasure","umbrella","wanderer","daughter","handsome","keyboard","cheerful","describe","familiar","grateful","innocent","peaceful","stunning","thousand","vacation"];let used=[],word="",guessed=[],wrong=0,over=false;function ng(){if(used.length>=WS.length)used=[];const p=WS.filter(w=>!used.includes(w));word=p[Math.floor(Math.random()*p.length)];used.push(word);guessed=[];wrong=0;over=false;bk();rn();document.getElementById("m").textContent="";}function bk(){const K=document.getElementById("k");K.innerHTML="";for(let i=0;i<26;i++){const b=document.createElement("button");b.className="b";b.textContent=String.fromCharCode(65+i);b.onclick=()=>gs(b.textContent.toLowerCase(),b);K.appendChild(b);}}function gs(l,btn){if(over||guessed.includes(l))return;guessed.push(l);btn.disabled=true;if(!word.includes(l)){document.getElementById("p"+wrong).setAttribute("visibility","visible");wrong++;}rn();if(word.split("").every(c=>guessed.includes(c))){document.getElementById("m").textContent="🎉 You got it!";over=true;window.parent.postMessage({type:"game_over",result:"loss",winner:"human"},"*");}else if(wrong>=6){document.getElementById("m").textContent="💀 Word: "+word.toUpperCase();over=true;window.parent.postMessage({type:"game_over",result:"win",winner:"ai"},"*");}}function rn(){document.getElementById("w").textContent=word.split("").map(c=>guessed.includes(c)?c.toUpperCase():"_").join(" ");const wr=guessed.filter(l=>!word.includes(l));document.getElementById("q").textContent=wr.length?"Wrong: "+wr.join(" ").toUpperCase()+" ("+wrong+"/6)":"";}ng();<\/script></body></html>\n[GAME_END]]`;
+  return `\n\n[GAME KNOWLEDGE — USE WHEN PLAYING GAMES IN CHAT OR WHEN ASKED TO CREATE A GAME:\n\n=== TEXT GAMES (play inside the chat) ===\n\nHANGMAN: YOU are the host. MANDATORY: You MUST pick your word from the WORD BANK below — do NOT invent words, do NOT use words not in the list. Pick a different word each game; look back at the chat history to avoid repeating recently used words. Never reveal the word. Show blanks as plain text on their own line: _ _ _ _ _ (one underscore per letter, space-separated, NO backticks or code blocks). User guesses one letter per turn. Correct: reveal that letter in all positions. Wrong: add a strike. 6 wrong guesses = game over. After EVERY guess show: (1) current word state on its own line, (2) wrong guesses out of 6, (3) all letters guessed so far. Announce win or loss clearly (on loss, reveal the word). Never change the word mid-game.\nWORD BANK (use ONLY these words): brave ghost jewel magic ninja queen snake torch venom witch yacht zebra bloom ember flute graze haunt latch novel orbit pixel rally shelf tiger waltz banana castle danger empire goblin hunter jungle knight launch mirage nectar orange palace puzzle quartz riddle shadow throne unique velvet winter battle cherry dragon frozen galaxy herald cobalt dagger falcon gravel humble insect lizard magnet narrow oyster pastry racket salmon tennis breeze clover donkey fidget grumpy hollow jumble keeper muffin nibble pardon quiver rustle sizzle tangle urchin wobble yonder abandon balance captain diamond element fantasy harmony iceberg justice kingdom lantern mystery network orchard pilgrim quantum rainbow silence warrior zealous chicken dolphin fortune giraffe harvest journey lecture meadows nervous phantom revolve texture village western whisper explore freckle insight absolute birthday carefree elephant gorgeous mushroom necklace opposite princess reliable schedule treasure umbrella wanderer daughter handsome keyboard cheerful describe familiar grateful innocent peaceful stunning thousand vacation\n\nTRUTH OR DARE: Ask "Truth or Dare?" each round. For Truth: ask a personal, fun, or revealing question and react warmly. For Dare: give an amusing, creative, safe challenge. After they respond, offer the next round.\n\nNEVER HAVE I EVER: Take turns. You say "Never have I ever [something]." User says if they have done it. You react in character. User then gives one. Keep it fun.\n\nWOULD YOU RATHER: Present two options. User picks one and explains. You react, share your pick, then present the next dilemma.\n\n20 QUESTIONS: You think of something (tell the user: person, place, or thing). They ask yes/no questions. Count down each one: "Question 4 of 20." Reveal on correct guess or at 0.\n\nWORD ASSOCIATION: Alternate — user says a word, you reply with a related word, user goes again. Call out lazy stretches. Keep energy up.\n\nRHYME GAME: User says a word, you reply with a rhyme, alternate turns.\n\nTRIVIA: Ask questions one at a time in any category. Track score. Reveal correct answer after each guess.\n\nTWO TRUTHS AND A LIE: Give three statements about yourself as your character. User guesses the lie. Then they give three and you guess.\n\nSTORYTIME: Take turns building a story one paragraph at a time. Keep momentum and add twists.\n\nI SPY: Describe something in an imagined scene. User guesses. Alternate turns.\n\nTIC-TAC-TOE: Use a 3×3 ASCII board. Cells are numbered 1–9 left-to-right, top-to-bottom. Show the board like this (replace numbers with X or O as cells are filled):\n 1 | 2 | 3\n-----------\n 4 | 5 | 6\n-----------\n 7 | 8 | 9\nDecide who is X and who is O at the start. User picks a number; you place their mark. Then you pick a number and place your mark. Always show the updated board after EVERY move. Detect and announce a win (3 in a row, column, or diagonal) or a draw (all 9 cells filled with no winner). Never place a mark in an already-occupied cell — reject the move and ask them to pick again.\n\nFor ANY text game: always show the complete game state in every reply — score, progress, guessed letters, etc. — so the user always knows exactly where things stand.\n\n=== HTML GAME CREATION ===\nWhen the user asks you to CREATE, BUILD, MAKE, or GENERATE a game (not just play one in chat), generate a complete, playable, self-contained HTML game. ALL HTML, CSS, and JavaScript must be in one file with NO external scripts or CDNs. Wrap the ENTIRE file (starting from <!DOCTYPE html>) in exactly these markers on their own lines:\n[GAME_START]\n<!DOCTYPE html>\n...full game...\n</html>\n[GAME_END]\n\nWrite a one-sentence description of the game BEFORE [GAME_START]. Put NOTHING inside the markers except the raw HTML. The game must run in a sandboxed iframe (no localStorage, no fetch calls). Make the game complete, polished, and fun.\n\nFor HANGMAN as an HTML game: use the HANGMAN HTML TEMPLATE below verbatim — only customize the <title>/<h2> text and CSS color hex values for your character.\n\nFor TWO-PLAYER GAMES (Tic-Tac-Toe, Connect Four, Checkers, etc.): YOU play as one side — declare your chosen symbol/side in your message text BEFORE [GAME_START] (e.g. "I'll be O — let's see if you can beat me!"). Embed a computer-AI player using this difficulty level: ${tttDifficulty}. Add a 600ms delay before your move so it feels natural. Always show: whose turn it is, a win/draw announcement, and a "Play Again" button. Style the game to match your character's personality and color scheme. When the game ends (win, loss, or draw), call: window.parent.postMessage({type:'game_over',result:'win'|'loss'|'draw',winner:'ai'|'human'|null}, '*') — 'win' means the AI won, 'loss' means human won.\n\n=== TIC-TAC-TOE HTML TEMPLATE (MANDATORY) ===\nWhen asked to create or play a Tic-Tac-Toe game as HTML, you MUST output the template below VERBATIM between [GAME_START] and [GAME_END] markers. ONLY customize: (1) the <title> and <h2> text to include your character name, (2) the CSS color hex values to match your character's color scheme. DO NOT rewrite, simplify, or modify the JavaScript logic in any way — copy it exactly as shown. Failure to use this template produces a broken game.\n[GAME_START]\n<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Tic-Tac-Toe</title><style>*{box-sizing:border-box}body{margin:0;padding:20px;font-family:sans-serif;background:#0f0f1a;color:#e0e0e0;display:flex;flex-direction:column;align-items:center;text-align:center}h2{color:#a78bfa;margin:0 0 6px;font-size:18px}#s{font-size:14px;color:#aaa;min-height:18px;margin:4px 0 14px}#b{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:min(252px,82vw);margin-bottom:16px}.c{aspect-ratio:1;background:#1a1a2e;border:2px solid #3d2a6e;border-radius:8px;font-size:3.5rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s}.c:hover:not(.t){background:#2d1a5e;border-color:#a78bfa}.c.t{cursor:default}.c.x{color:#f472b6}.c.o{color:#a78bfa}.w{background:#2d1a5e!important;border-color:#a78bfa!important}button{padding:8px 24px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer}button:hover{opacity:.85}</style></head><body><h2>Tic-Tac-Toe</h2><div id="s">Your turn</div><div id="b"></div><button onclick="rst()">Play Again</button><script>const bd=Array(9).fill(null);let ov=false,bz=false;const W=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];const S=document.getElementById("s"),B=document.getElementById("b");const cs=Array.from({length:9},(_,i)=>{const c=document.createElement("div");c.className="c";c.onclick=()=>go(i);B.appendChild(c);return c});function ck(p){return W.find(w=>w.every(j=>bd[j]===p))||null}function dr(){return bd.every(Boolean)&&!ck("X")&&!ck("O")}function mm(d,mx){const s=ck("O")?10-d:ck("X")?d-10:bd.every(Boolean)?0:null;if(s!==null)return s;if(mx){let v=-99;bd.forEach((_,j)=>{if(!bd[j]){bd[j]="O";v=Math.max(v,mm(d+1,false));bd[j]=null}});return v}let v=99;bd.forEach((_,j)=>{if(!bd[j]){bd[j]="X";v=Math.min(v,mm(d+1,true));bd[j]=null}});return v}function best(){let v=-99,m=bd.findIndex(x=>!x);bd.forEach((_,j)=>{if(!bd[j]){bd[j]="O";const sc=mm(0,false);bd[j]=null;if(sc>v){v=sc;m=j}}});return m}function rnd(){cs.forEach((c,j)=>{c.textContent=bd[j]||"";c.className="c"+(bd[j]?" t "+(bd[j]==="X"?"x":"o"):"")})}function go(i){if(ov||bz||bd[i])return;bd[i]="X";rnd();const w=ck("X");if(w){w.forEach(j=>cs[j].classList.add("w"));S.textContent="You win!";ov=true;window.parent.postMessage({type:"game_over",result:"loss",winner:"human"},"*");return}if(dr()){S.textContent="Draw!";ov=true;window.parent.postMessage({type:"game_over",result:"draw",winner:null},"*");return}bz=true;S.textContent="Thinking...";setTimeout(()=>{const m=best();bd[m]="O";rnd();bz=false;const w2=ck("O");if(w2){w2.forEach(j=>cs[j].classList.add("w"));S.textContent="I win!";ov=true;window.parent.postMessage({type:"game_over",result:"win",winner:"ai"},"*");return}if(dr()){S.textContent="Draw!";ov=true;window.parent.postMessage({type:"game_over",result:"draw",winner:null},"*")}else S.textContent="Your turn"},600)}function rst(){bd.fill(null);ov=false;bz=false;rnd();S.textContent="Your turn";cs.forEach(c=>c.classList.remove("w"))}rnd()<\/script></body></html>\n[GAME_END]\n\n=== HANGMAN HTML TEMPLATE (MANDATORY) ===\nWhen asked to create/build/make/play a Hangman game as HTML, output the template below VERBATIM between [GAME_START] and [GAME_END] markers. ONLY customize: (1) the <title> and <h2> text to include your character name, (2) CSS color hex values to match your character. DO NOT modify the JavaScript logic or word list.\n[GAME_START]\n<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Hangman</title><style>*{box-sizing:border-box}body{margin:0;padding:16px;font-family:sans-serif;background:#0f0f1a;color:#e0e0e0;display:flex;flex-direction:column;align-items:center;text-align:center}h2{color:#a78bfa;margin:0 0 6px;font-size:18px}svg{width:140px;height:140px;margin:4px 0}#w{font-size:1.5rem;letter-spacing:8px;color:#fff;margin:8px 0;min-height:2em;word-break:break-all}#m{font-size:13px;color:#f472b6;min-height:16px;margin:4px 0}#q{font-size:11px;color:#888;margin-bottom:8px}#k{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;max-width:260px;margin-bottom:12px}.b{width:30px;height:30px;background:#1a1a2e;border:1px solid #3d2a6e;border-radius:5px;font-size:12px;font-weight:700;color:#e0e0e0;cursor:pointer}.b:hover:not(:disabled){background:#2d1a5e;border-color:#a78bfa}.b:disabled{opacity:.3;cursor:default}button#r{padding:7px 20px;background:#7c3aed;color:#fff;border:none;border-radius:7px;font-size:13px;cursor:pointer}button#r:hover{opacity:.85}</style></head><body><h2>Hangman</h2><svg viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg"><line x1="10" y1="130" x2="130" y2="130" stroke="#555" stroke-width="3" stroke-linecap="round"/><line x1="35" y1="130" x2="35" y2="8" stroke="#555" stroke-width="3" stroke-linecap="round"/><line x1="35" y1="8" x2="90" y2="8" stroke="#555" stroke-width="3" stroke-linecap="round"/><line x1="90" y1="8" x2="90" y2="26" stroke="#555" stroke-width="3" stroke-linecap="round"/><circle id="p0" cx="90" cy="38" r="12" stroke="#f472b6" stroke-width="2.5" fill="none" visibility="hidden"/><line id="p1" x1="90" y1="50" x2="90" y2="88" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/><line id="p2" x1="90" y1="60" x2="68" y2="80" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/><line id="p3" x1="90" y1="60" x2="112" y2="80" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/><line id="p4" x1="90" y1="88" x2="72" y2="114" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/><line id="p5" x1="90" y1="88" x2="108" y2="114" stroke="#f472b6" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/></svg><div id="w"></div><div id="m"></div><div id="q"></div><div id="k"></div><button id="r" onclick="ng()">New Game</button><script>const WS=["brave","ghost","jewel","magic","ninja","queen","snake","torch","venom","witch","yacht","zebra","bloom","ember","flute","graze","haunt","latch","novel","orbit","pixel","rally","shelf","tiger","waltz","banana","castle","danger","empire","goblin","hunter","jungle","knight","launch","mirage","nectar","orange","palace","puzzle","quartz","riddle","shadow","throne","unique","velvet","winter","battle","cherry","dragon","frozen","galaxy","herald","cobalt","dagger","falcon","gravel","humble","insect","lizard","magnet","narrow","oyster","pastry","racket","salmon","tennis","breeze","clover","donkey","fidget","grumpy","hollow","jumble","keeper","muffin","nibble","pardon","quiver","rustle","sizzle","tangle","urchin","wobble","yonder","abandon","balance","captain","diamond","element","fantasy","harmony","iceberg","justice","kingdom","lantern","mystery","network","orchard","pilgrim","quantum","rainbow","silence","warrior","zealous","chicken","dolphin","fortune","giraffe","harvest","journey","lecture","meadows","nervous","phantom","revolve","texture","village","western","whisper","explore","freckle","insight","absolute","birthday","carefree","elephant","gorgeous","mushroom","necklace","opposite","princess","reliable","schedule","treasure","umbrella","wanderer","daughter","handsome","keyboard","cheerful","describe","familiar","grateful","innocent","peaceful","stunning","thousand","vacation"];let used=[],word="",guessed=[],wrong=0,over=false;function ng(){if(used.length>=WS.length)used=[];const p=WS.filter(w=>!used.includes(w));word=p[Math.floor(Math.random()*p.length)];used.push(word);guessed=[];wrong=0;over=false;for(let i=0;i<6;i++){const el=document.getElementById("p"+i);if(el)el.setAttribute("visibility","hidden");}bk();rn();const mEl=document.getElementById("m");if(mEl)mEl.textContent="";}function bk(){const K=document.getElementById("k");if(!K)return;K.innerHTML="";for(let i=0;i<26;i++){const b=document.createElement("button");b.className="b";b.textContent=String.fromCharCode(65+i);b.onclick=()=>gs(b.textContent.toLowerCase(),b);K.appendChild(b);}}function gs(l,btn){if(over||guessed.includes(l))return;guessed.push(l);btn.disabled=true;if(!word.includes(l)){document.getElementById("p"+wrong).setAttribute("visibility","visible");wrong++;}rn();if(word.split("").every(c=>guessed.includes(c))){document.getElementById("m").textContent="🎉 You got it!";over=true;window.parent.postMessage({type:"game_over",result:"loss",winner:"human"},"*");}else if(wrong>=6){document.getElementById("m").textContent="💀 Word: "+word.toUpperCase();over=true;window.parent.postMessage({type:"game_over",result:"win",winner:"ai"},"*");}}function rn(){const wEl=document.getElementById("w");if(wEl&&word)wEl.textContent=word.split("").map(c=>guessed.includes(c)?c.toUpperCase():"_").join(" ");const wr=guessed.filter(l=>!word.includes(l));const qEl=document.getElementById("q");if(qEl)qEl.textContent=wr.length?"Wrong: "+wr.join(" ").toUpperCase()+" ("+wrong+"/6)":"";}try{ng();}catch(e){document.body.innerHTML='<p style="color:#f472b6;padding:20px;text-align:center">Something went wrong. Click New Game to try again.</p><button onclick="location.reload()" style="display:block;margin:0 auto;padding:7px 20px;background:#7c3aed;color:#fff;border:none;border-radius:7px;cursor:pointer">New Game</button>';}<\/script></body></html>\n[GAME_END]]`;
 }
 
 function isValidColorStr(color) {
@@ -3774,8 +3820,9 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   if (limit.blocked) return res.status(429).json({ error: limit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limit });
 
   const u = getLimits(userId);
-  if ((u.subscriptionTier || 'free') === 'free' && (u.regenCount || 0) >= LIMITS.REGEN_FREE) {
-    return res.status(429).json({ regenLimitReached: true, regenLimit: LIMITS.REGEN_FREE });
+  const regenCap = TIER_REGEN_LIMITS[u.subscriptionTier || 'free'] ?? TIER_REGEN_LIMITS.free;
+  if ((u.regenCount || 0) >= regenCap) {
+    return res.status(429).json({ regenLimitReached: true, regenLimit: regenCap });
   }
   const releaseSlot = acquireChatSlot(req, res, userId);
   if (!releaseSlot) return;
@@ -4704,6 +4751,9 @@ app.post('/api/admin/notify-policy-update', requireAuth, async (req, res) => {
 });
 
 // ── PayPal ─────────────────────────────────────────────────────────────────────
+const COIN_USD_VALUE = 0.01; // 1 C.M. Coin = $0.01 USD
+const PLAN_MONTHLY_USD = { advanced: 9.99, x20: 39.99, x50: 79.99, x100: 159.99, x200: 399.99 };
+
 const PAYPAL_BASE = process.env.PAYPAL_ENV === 'sandbox'
   ? 'https://api-m.sandbox.paypal.com'
   : 'https://api-m.paypal.com';
@@ -4909,6 +4959,34 @@ app.post('/api/webhooks/paypal', async (req, res) => {
       } catch (e) { console.error('Webhook activation error:', e.message); return res.sendStatus(500); }
     }
   }
+  // When PayPal suspends due to a failed payment, try to cover the gap with C.M. Coins
+  if (eventType === 'BILLING.SUBSCRIPTION.SUSPENDED' && subId && db) {
+    try {
+      const userRow = await db.query(
+        'SELECT google_id, cm_coins, subscription_tier FROM users WHERE paypal_subscription_id = $1', [subId]);
+      if (userRow.rows.length) {
+        const u = userRow.rows[0];
+        const planPrice = PLAN_MONTHLY_USD[u.subscription_tier];
+        if (planPrice) {
+          const coinsNeeded = Math.ceil(planPrice / COIN_USD_VALUE);
+          if ((u.cm_coins || 0) >= coinsNeeded) {
+            // Deduct coins and reactivate
+            await db.query('UPDATE users SET cm_coins = cm_coins - $1 WHERE google_id = $2', [coinsNeeded, u.google_id]);
+            const tok = await getPayPalToken();
+            await fetch(`${PAYPAL_BASE}/v1/billing/subscriptions/${subId}/activate`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ reason: 'Covered by C.M. Coins balance' })
+            });
+            console.log(`[coins] covered ${planPrice} for ${u.google_id} (${coinsNeeded} coins deducted)`);
+            return res.sendStatus(200); // do NOT fall through to cancel logic
+          }
+        }
+      }
+    } catch (e) { console.error('[coins] coin-compensation failed:', e.message); return res.sendStatus(500); }
+    // Not enough coins — fall through and let the suspend → free-tier path handle it
+  }
+
   const endEvents = ['BILLING.SUBSCRIPTION.CANCELLED', 'BILLING.SUBSCRIPTION.EXPIRED'];
   const cancelEvents = [...endEvents, 'BILLING.SUBSCRIPTION.SUSPENDED'];
   if (cancelEvents.includes(eventType) && subId && db) {
@@ -5081,6 +5159,108 @@ app.post('/api/coins/redeem', requireAuth, async (req, res) => {
     );
     res.json({ ok: true, balance: u.cmCoins, coinTier: tier, coinTierExpires: newExpires, effectiveTier: u.subscriptionTier });
   } catch (e) { console.error('[coins/redeem]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
+});
+
+// ── Monthly grant (coins + tokens) ─────────────────────────────────────────
+const MONTHLY_COIN_GRANT  = { free: 20,  advanced: 30,   x20: 600,  x50: 1800,  x100: 3600,  x200: 9000  };
+const MONTHLY_TOKEN_GRANT = { free: 75,  advanced: 100,  x20: 2000, x50: 6000,  x100: 12000, x200: 30000 };
+
+async function checkMonthlyCoins(uid, u) {
+  if (!db) return;
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).getTime();
+  if ((u.coinsMonthlyReset || 0) < monthStart) {
+    const tier = u.subscriptionTier || 'free';
+    const coinGrant  = MONTHLY_COIN_GRANT[tier]  ?? MONTHLY_COIN_GRANT.free;
+    const tokenGrant = MONTHLY_TOKEN_GRANT[tier] ?? MONTHLY_TOKEN_GRANT.free;
+    u.cmCoins  = (u.cmCoins  || 0) + coinGrant;
+    u.cmTokens = (u.cmTokens || 0) + tokenGrant;
+    u.coinsMonthlyReset = monthStart;
+    await db.query('UPDATE users SET cm_coins=$1, cm_tokens=$2, coins_monthly_reset=$3 WHERE google_id=$4',
+      [u.cmCoins, u.cmTokens, monthStart, uid]).catch(() => {});
+  }
+}
+
+// ── Slots gambling ──────────────────────────────────────────────────────────
+const SLOT_SYMBOLS = ['🍒', '🍋', '🍊', '🍇', '⭐', '💎'];
+function slotPick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function loseReels() {
+  const s = [...SLOT_SYMBOLS];
+  const a = s.splice(Math.floor(Math.random() * s.length), 1)[0];
+  const b = s.splice(Math.floor(Math.random() * s.length), 1)[0];
+  const c = s[Math.floor(Math.random() * s.length)];
+  return [a, b, c];
+}
+function pairReels() {
+  const sym = slotPick(SLOT_SYMBOLS);
+  const others = SLOT_SYMBOLS.filter(x => x !== sym);
+  const odd = slotPick(others);
+  const pos = Math.floor(Math.random() * 3);
+  const r = [sym, sym, sym]; r[pos] = odd; return r;
+}
+
+app.post('/api/coins/gamble', requireAuth, async (req, res) => {
+  const bet = Math.floor(Number(req.body.bet));
+  if (!bet || bet < 1 || bet > 100) return res.status(400).json({ error: 'Bet must be 1–100 tokens' });
+  try {
+    await ensureTierLoaded(req.user);
+    const uid = req.user.googleId;
+    const u = getLimits(uid);
+    if ((u.cmTokens || 0) < bet) return res.status(400).json({ error: 'Not enough tokens', balance: u.cmTokens || 0 });
+
+    const rand = Math.random();
+    let multiplier, reels;
+    if (rand < 0.58)      { multiplier = 0;  reels = loseReels(); }
+    else if (rand < 0.78) { multiplier = 1;  reels = pairReels(); }
+    else if (rand < 0.92) { multiplier = 2;  reels = ['🍒','🍒','🍒']; }
+    else if (rand < 0.97) { multiplier = 3;  reels = ['🍋','🍋','🍋']; }
+    else if (rand < 0.99) { multiplier = 5;  reels = ['🍇','🍇','🍇']; }
+    else if (rand < 0.997){ multiplier = 10; reels = ['⭐','⭐','⭐']; }
+    else                  { multiplier = 20; reels = ['💎','💎','💎']; }
+
+    const winnings = Math.floor(bet * multiplier);
+    u.cmTokens = (u.cmTokens || 0) - bet + winnings;
+    if (db) await db.query('UPDATE users SET cm_tokens=$1 WHERE google_id=$2', [u.cmTokens, uid]);
+    res.json({ reels, multiplier, win: winnings - bet, newBalance: u.cmTokens, coinBalance: u.cmCoins || 0 });
+  } catch (e) { console.error('[coins/gamble]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
+});
+
+// CM Tokens — buy with coins (1:1)
+app.post('/api/tokens/buy', requireAuth, async (req, res) => {
+  const amount = Math.floor(Number(req.body.amount));
+  if (!amount || amount < 1 || amount > 100) return res.status(400).json({ error: 'Amount must be 1–100' });
+  if (!db) return res.status(503).json({ error: 'No database' });
+  try {
+    await ensureTierLoaded(req.user);
+    const uid = req.user.googleId;
+    const u = getLimits(uid);
+    if ((u.cmCoins || 0) < amount) return res.status(400).json({ error: 'Not enough coins', coinBalance: u.cmCoins || 0 });
+    u.cmCoins -= amount;
+    u.cmTokens = (u.cmTokens || 0) + amount;
+    await db.query('UPDATE users SET cm_coins=$1, cm_tokens=$2 WHERE google_id=$3', [u.cmCoins, u.cmTokens, uid]);
+    res.json({ ok: true, coinBalance: u.cmCoins, tokenBalance: u.cmTokens });
+  } catch (e) { console.error('[tokens/buy]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
+});
+
+// CM Tokens — sell back to coins (10 tokens → 1 coin)
+const TOKEN_SELL_RATE = 10; // tokens per coin
+app.post('/api/tokens/sell', requireAuth, async (req, res) => {
+  const amount = Math.floor(Number(req.body.amount));
+  if (!amount || amount < 1) return res.status(400).json({ error: 'Amount must be at least 1 token' });
+  if (!db) return res.status(503).json({ error: 'No database' });
+  try {
+    await ensureTierLoaded(req.user);
+    const uid = req.user.googleId;
+    const u = getLimits(uid);
+    const actualAmount = Math.min(amount, u.cmTokens || 0);
+    if (actualAmount < TOKEN_SELL_RATE) return res.status(400).json({ error: `Need at least ${TOKEN_SELL_RATE} tokens to sell`, tokenBalance: u.cmTokens || 0 });
+    const coinsEarned = Math.floor(actualAmount / TOKEN_SELL_RATE);
+    const tokensSpent = coinsEarned * TOKEN_SELL_RATE;
+    u.cmTokens = (u.cmTokens || 0) - tokensSpent;
+    u.cmCoins = (u.cmCoins || 0) + coinsEarned;
+    await db.query('UPDATE users SET cm_coins=$1, cm_tokens=$2 WHERE google_id=$3', [u.cmCoins, u.cmTokens, uid]);
+    res.json({ ok: true, coinsEarned, tokensSpent, coinBalance: u.cmCoins, tokenBalance: u.cmTokens });
+  } catch (e) { console.error('[tokens/sell]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
 });
 
 app.get('/api/game/hangman/word', requireAuthGame, (req, res) => {

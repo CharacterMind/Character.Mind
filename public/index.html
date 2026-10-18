@@ -22,7 +22,7 @@
 <link rel="icon" type="image/webp" href="/logo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=98">
+<link rel="stylesheet" href="style.css?v=246">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -121,6 +121,7 @@
       <div class="usage-sec-sub" id="usageGameSub" style="margin-top:4px">5-minute cooldown between game sessions</div>
 
       <div class="usage-sec-sub" id="usageDailyResetsSub" style="margin-top:10px"></div>
+
     </div>
 
     <div class="usage-modal-rule"></div>
@@ -228,7 +229,7 @@
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
         <span>Safety Resources</span>
       </button>
-      <button class="nav-item" id="navPricingBtn" onclick="openPricingModal()" style="display:none">
+      <button class="nav-item" id="navPricingBtn" onclick="openPricingModal()">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm4.24 16L12 15.45 7.77 18l1.12-4.81-3.73-3.23 4.92-.42L12 5l1.92 4.53 4.92.42-3.73 3.23L16.23 18z"/></svg>
         <span>Subscription Plans</span>
       </button>
@@ -236,6 +237,15 @@
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg>
         <span>Usage</span>
       </button>
+      <div class="nav-coin-display" id="navCoinDisplay" style="display:none">
+        <span class="nav-coin-icon">🪙</span>
+        <span class="nav-coin-count" id="navCoinCount">0</span>
+        <span class="nav-coin-label">coins</span>
+        <span class="nav-coin-sep">·</span>
+        <span class="nav-coin-icon">🎟️</span>
+        <span class="nav-coin-count" id="navTokenCount">0</span>
+        <span class="nav-coin-label">tokens</span>
+      </div>
       <button id="userBadge" class="user-badge"></button>
     </div>
   </aside>
@@ -435,6 +445,7 @@
           <button class="btn-send" id="sendBtn" onclick="sendMessage(undefined, undefined, true)" title="Send (empty = let the AI keep talking)">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
           </button>
+          <button class="btn-slots" id="chatSlotsBtn" onclick="openSlotMachine()" title="Play slots" style="display:none">🎰</button>
           <button class="btn-call" id="callBtn" onclick="toggleCallMode()" title="Voice call">
             <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
           </button>
@@ -523,9 +534,30 @@
               </div>
               <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-            <button class="md-item" id="optOpis" style="display:none" disabled></button>
-            <button class="md-item" id="optOpos" style="display:none" disabled></button>
-            <button class="md-item" id="optOpus" style="display:none" disabled></button>
+            <button class="md-item" id="optOpis" onclick="selectOrUpgrade('opis')">
+              <div class="md-item-body">
+                <div class="md-item-name">Opis <span class="md-item-plan-tag">Advanced+</span></div>
+                <div class="md-item-sub">Sharper logic — built for mystery, never loses the thread</div>
+              </div>
+              <span class="md-upgrade-btn" onclick="event.stopPropagation();openPricingModal()">Upgrade</span>
+              <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="md-item" id="optOpos" onclick="selectOrUpgrade('opos')">
+              <div class="md-item-body">
+                <div class="md-item-name">Opos <span class="md-item-plan-tag">Advanced+</span></div>
+                <div class="md-item-sub">Plays GM — drives plot, voices every NPC</div>
+              </div>
+              <span class="md-upgrade-btn" onclick="event.stopPropagation();openPricingModal()">Upgrade</span>
+              <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="md-item" id="optOpus" onclick="selectOrUpgrade('opus')">
+              <div class="md-item-body">
+                <div class="md-item-name">Opus <span class="md-item-plan-tag">X20+</span></div>
+                <div class="md-item-sub">Proper emotional weight — subtext, inner conflict, the whole thing</div>
+              </div>
+              <span class="md-upgrade-btn" onclick="event.stopPropagation();openPricingModal()">Upgrade</span>
+              <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
             <button class="md-item" id="optOpys" style="display:none" disabled></button>
             <button class="md-item" id="optOpys5" style="display:none" disabled></button>
             <button class="md-item" id="optOpys6" style="display:none" disabled></button>
@@ -547,11 +579,11 @@
                 <span class="epp-item-name">High<span class="epp-item-sub">A full scene, three to five paragraphs</span></span>
                 <svg class="epp-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <button class="epp-item" id="effortOptExtra" onclick="setEffort('extra');closeAllPickers()" style="display:none">
+              <button class="epp-item" id="effortOptExtra" onclick="setEffort('extra');closeAllPickers()">
                 <span class="epp-item-name">Extra<span class="epp-item-sub">Long and detailed, planned before it is written</span></span>
                 <svg class="epp-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <button class="epp-item" id="effortOptMax" onclick="setEffort('max');closeAllPickers()" style="display:none">
+              <button class="epp-item" id="effortOptMax" onclick="setEffort('max');closeAllPickers()">
                 <span class="epp-item-name">Max<span class="epp-item-sub">Chapter-length: planned, written and checked</span></span>
                 <span class="epp-max-warn" id="effortMaxWarn">⚠ 3.3× or more usage</span>
                 <svg class="epp-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -751,9 +783,44 @@
       </div>
       <h2 class="welcome-greeting" id="welcomeGreeting">Welcome.</h2>
       <div class="welcome-divider"></div>
-      <h3 class="welcome-title">What's coming</h3>
-      <p class="welcome-sub">Character Mind is early and still in active development. Here's what's on the way.</p>
+      <h3 class="welcome-title">What's new</h3>
+      <p class="welcome-sub">Oct 17, 2026 — latest patch</p>
     </div>
+
+    <div class="welcome-features welcome-features--solo">
+      <div class="wf">
+        <span class="wf-icon">🪙</span>
+        <div>
+          <div class="wf-name">Coins in the sidebar <span class="welcome-soon-tag welcome-live-tag">New</span></div>
+          <div class="wf-desc">Your C.M. Coins balance is now always visible in the sidebar between the Usage button and your profile.</div>
+        </div>
+      </div>
+      <div class="wf">
+        <span class="wf-icon">🎰</span>
+        <div>
+          <div class="wf-name">Slot machine in chat <span class="welcome-soon-tag welcome-live-tag">New</span></div>
+          <div class="wf-desc">A 🎰 button appears in the chat bar when you're talking to a character. Spin the slots and your character reacts to whether you win or lose — in character.</div>
+        </div>
+      </div>
+      <div class="wf">
+        <span class="wf-icon">🎙️</span>
+        <div>
+          <div class="wf-name">Voice fixes <span class="welcome-soon-tag welcome-live-tag">Fixed</span></div>
+          <div class="wf-desc">Edge HD voices had a hash precision bug causing 403 errors — fixed. Gemini HD request format updated. Browser voice option removed.</div>
+        </div>
+      </div>
+      <div class="wf">
+        <span class="wf-icon">💬</span>
+        <div>
+          <div class="wf-name">Chat mode persists <span class="welcome-soon-tag welcome-live-tag">Fixed</span></div>
+          <div class="wf-desc">Chat vs. RP mode now remembers your choice across page reloads. No more getting flipped back to RP mode every time.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="welcome-divider" style="margin: 6px 0 12px"></div>
+    <h3 class="welcome-title">What's coming</h3>
+    <p class="welcome-sub">Character Mind is early and still in active development. Here's what's on the way.</p>
 
     <div class="welcome-features welcome-features--solo">
       <div class="wf">
@@ -778,16 +845,9 @@
         </div>
       </div>
       <div class="wf">
-        <span class="wf-icon">🎙️</span>
-        <div>
-          <div class="wf-name">Voices <span class="welcome-soon-tag">Live</span></div>
-          <div class="wf-desc">Hear your characters speak their replies out loud.</div>
-        </div>
-      </div>
-      <div class="wf">
         <span class="wf-icon">📞</span>
         <div>
-          <div class="wf-name">Calling your AI <span class="welcome-soon-tag">Live</span></div>
+          <div class="wf-name">Calling your AI <span class="welcome-soon-tag">Coming soon</span></div>
           <div class="wf-desc">Talk to your characters on a live voice call.</div>
         </div>
       </div>
@@ -1055,7 +1115,9 @@
             <div class="settings-coin-label">C.M. Coins</div>
             <div class="settings-coin-balance"><span id="settingsCoinBalance">0</span> coins</div>
             <div class="settings-coin-daily" id="settingsCoinDaily">0 / 100 today</div>
+            <div class="settings-coin-monthly" id="settingsCoinMonthly"></div>
           </div>
+          <button class="settings-coin-slots-btn" onclick="openSlotMachine()">🎰 Play Slots</button>
         </div>
         <div class="settings-usage-section">
           <div class="settings-usage-row">
@@ -1106,7 +1168,6 @@
     <div class="voice-provider-tabs">
       <button class="voice-provider-tab" data-provider="edge" onclick="setTTSProvider('edge',this)">Edge HD</button>
       <button class="voice-provider-tab" data-provider="gemini" onclick="setTTSProvider('gemini',this)">Gemini HD</button>
-      <button class="voice-provider-tab" data-provider="browser" onclick="setTTSProvider('browser',this)">Browser</button>
     </div>
     <div class="voice-list" id="voiceList"></div>
   </div>
@@ -1172,12 +1233,13 @@
     </button>
     <h2 class="pricing-title">Choose your plan</h2>
     <p class="pricing-subtitle">Unlock advanced AI models.</p>
+    <div id="pricingCoinRate" class="pricing-coin-rate"></div>
     <div class="pricing-toggle">
       <button id="pricingBtnMonthly" class="pt-btn pt-active" onclick="setPricingPeriod('monthly')">Monthly</button>
       <button id="pricingBtnAnnual" class="pt-btn" onclick="setPricingPeriod('annual')">Annual <span class="pt-save-label">50% off</span></button>
     </div>
     <div class="pricing-cards" id="pricingCards"></div>
-    <p class="pricing-footer">Payments processed securely via PayPal. Cancel anytime. Prices shown in estimated local currency — billed in USD.</p>
+    <p class="pricing-footer">Payments processed securely via PayPal. Cancel anytime. Prices shown in your local currency.</p>
   </div>
 </div>
 
@@ -1206,7 +1268,17 @@
       <div class="co-summary-title">Summary</div>
       <div class="co-summary-row">
         <span id="paypalCheckoutTitle" class="co-plan-name">Plan</span>
-        <span id="paypalCheckoutPrice" class="co-plan-price"></span>
+        <div class="co-price-col">
+          <span id="paypalCheckoutOrigPrice" class="co-orig-price" style="display:none"></span>
+          <span id="paypalCheckoutPrice" class="co-plan-price"></span>
+        </div>
+      </div>
+      <div id="co-coin-value-row" class="co-coin-value-row" style="display:none">
+        <div class="co-coin-value-line">
+          <span id="co-coin-label" class="co-coin-label"></span>
+          <span id="co-coin-value" class="co-coin-value"></span>
+        </div>
+        <div id="co-coin-save" class="co-coin-save"></div>
       </div>
       <div class="co-summary-divider"></div>
       <div class="co-summary-total">
@@ -1322,8 +1394,16 @@
 .co-summary-title { font-size: 18px; font-weight: 700; color: var(--text1); }
 .co-summary-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .co-plan-name { font-size: 14px; color: var(--text2); }
+.co-price-col { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+.co-orig-price { font-size: 12px; color: var(--text3); text-decoration: line-through; }
 .co-plan-price { font-size: 14px; font-weight: 600; color: var(--text1); }
+.co-plan-price.co-discounted { color: #4ade80; }
 .co-summary-divider { height: 1px; background: var(--border2); }
+.co-coin-value-row { display: flex; flex-direction: column; gap: 4px; background: rgba(139,92,246,.08); border-radius: 8px; padding: 8px 10px; }
+.co-coin-value-line { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.co-coin-label { font-size: 12px; color: var(--text3); }
+.co-coin-value { font-size: 12px; font-weight: 700; color: var(--accent-l); white-space: nowrap; }
+.co-coin-save { font-size: 11px; font-weight: 600; color: #4ade80; }
 .co-summary-total {
   display: flex; justify-content: space-between; align-items: center;
   font-size: 16px; font-weight: 700; color: var(--text1);
@@ -1358,7 +1438,71 @@
   <div class="cvt-line"></div>
 </div>
 
-<script src="app.js?v=224"></script>
+<!-- Slot machine overlay (accessible from chat toolbar and Settings) -->
+<div id="slotMachineOverlay" class="slot-overlay" style="display:none" onclick="if(event.target===this)closeSlotMachine()">
+  <div class="slot-modal">
+    <button class="slot-close-x" onclick="closeSlotMachine()" aria-label="Close">✕</button>
+    <div class="slot-cabinet">
+      <div class="slot-cab-top">
+        <div class="slot-cab-lights"><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="slot-cab-title">CHARACTER MIND</div>
+        <div class="slot-cab-lights"><span></span><span></span><span></span><span></span><span></span></div>
+      </div>
+      <div class="slot-balance-row">
+        <div class="slot-bal-item"><span>🎟️</span><span id="slotTokenDisplay">—</span></div>
+        <div class="slot-bal-item"><span>🪙</span><span id="slotBalanceDisplay">—</span></div>
+      </div>
+      <div class="slot-reel-area">
+        <div class="slot-payline"></div>
+        <div class="slot-reels">
+          <div class="slot-reel-win"><div class="slot-reel" id="slotReel0">🎰</div></div>
+          <div class="slot-reel-win"><div class="slot-reel" id="slotReel1">🎰</div></div>
+          <div class="slot-reel-win"><div class="slot-reel" id="slotReel2">🎰</div></div>
+        </div>
+      </div>
+      <div class="slot-result" id="slotResult"></div>
+      <div class="slot-bet-row">
+        <span class="slot-bet-label">BET</span>
+        <input type="range" id="slotBetSlider" min="1" max="100" value="10" class="slot-slider" oninput="document.getElementById('slotBetDisplay').textContent=this.value">
+        <span id="slotBetDisplay">10</span>
+        <span>🎟️</span>
+      </div>
+      <div class="slot-spin-row">
+        <div class="slot-auto-wrap">
+          <select id="slotAutoCount" class="slot-auto-select">
+            <option value="5">×5</option>
+            <option value="10" selected>×10</option>
+            <option value="25">×25</option>
+            <option value="50">×50</option>
+          </select>
+          <button class="slot-auto-btn" id="slotAutoBtn" onclick="toggleAutoSpin()">AUTO</button>
+        </div>
+        <button class="slot-spin-btn" id="slotSpinBtn" onclick="spinSlots()">SPIN</button>
+      </div>
+    </div>
+    <div class="slot-exchange">
+      <div class="slot-exchange-title">Exchange</div>
+      <div class="slot-ex-row">
+        <span class="slot-ex-label">Buy tokens <span class="slot-ex-rate">(1 coin = 1 🎟️)</span></span>
+        <div class="slot-ex-controls">
+          <input type="range" id="slotBuySlider" min="1" max="100" value="10" class="slot-slider" oninput="document.getElementById('slotBuyAmt').textContent=this.value">
+          <span id="slotBuyAmt">10</span>
+          <button class="slot-ex-btn buy" onclick="buyTokens()">BUY</button>
+        </div>
+      </div>
+      <div class="slot-ex-row">
+        <span class="slot-ex-label">Sell tokens <span class="slot-ex-rate">(10 🎟️ = 1 coin)</span></span>
+        <div class="slot-ex-controls">
+          <input type="range" id="slotSellSlider" min="10" max="100" step="10" value="10" class="slot-slider" oninput="document.getElementById('slotSellAmt').textContent=this.value">
+          <span id="slotSellAmt">10</span>
+          <button class="slot-ex-btn sell" onclick="sellTokens()">SELL</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js?v=246"></script>
 
 <!-- Session 90% warning toast -->
 <div id="sessionWarningToast">

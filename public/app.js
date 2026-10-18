@@ -178,33 +178,35 @@ function showUpgradeModal() { openPricingModal(); }
 const PLAN_DATA = [
   {
     key: 'free', name: 'Free', monthly: 0, annual: 0, coinsPerMonth: 0,
-    callsPerDay: 3, memosPerDay: 30,
+    callsPerDay: 6, memosPerDay: 30,
     features: [
       'Opas & Opes: quick-witted, weirdly capable, zero fluff',
       'Every character unlocked — no velvet rope',
-      '~2 replies per session on Opes (or ~5 on Opas) — it ends when you want more',
-      '1 image upload per day',
+      'Up to ~4 messages per session (token-limited)',
+      '10 regenerations per day · 3 image uploads per day',
     ],
   },
   {
     key: 'advanced', name: 'Advanced', monthly: 9.99, annual: 59.99, coinsPerMonth: 2000,
-    callsPerDay: 5, memosPerDay: 50,
+    callsPerDay: 8, memosPerDay: 40,
     features: [
       'Opis: sharper logic, built for mystery, never loses the thread',
       'Opos: plays GM — runs the whole room, drives plot, voices every NPC',
-      '150 replies per session — actually settle into a story',
-      '10 image uploads per day',
+      'Up to ~6 messages per session',
+      '15 regenerations per day',
+      '8 calls per day · 4 image uploads per day',
       'Everything in Free',
     ],
   },
   {
     key: 'x20', name: 'X20', badge: 'Recommended', monthly: 39.99, annual: 239.99, coinsPerMonth: 8000,
-    callsPerDay: 100, memosPerDay: 1000,
+    callsPerDay: 120, memosPerDay: 600,
     features: [
       'Opus: proper emotional weight — subtext, inner conflict, the whole thing',
-      'Replies run 1.6× longer — scenes don\'t cut short when they shouldn\'t',
-      '100 messages a day, every day — real writing sessions',
-      '200 image uploads per day',
+      'Up to ~80 messages per session — 20× free',
+      '200 regenerations per day — 20× free',
+      '120 calls per day · 60 image uploads per day',
+      '600 memos per day',
       'Everything in Advanced',
     ],
   },
@@ -245,6 +247,10 @@ const PLAN_DATA = [
     ],
   },
 ];
+
+// 1 coin = $0.01 USD — used to show the dollar value of coin-based subscriptions
+const COIN_USD_VALUE = 0.01;
+const MONTHLY_COIN_GRANT = { free: 20, advanced: 30, x20: 600, x50: 1800, x100: 3600, x200: 9000 };
 
 const PLAN_LABELS = { free: 'Free', advanced: 'Advanced', x20: 'X20', x50: 'X50', x100: 'X100', x200: 'X200' };
 const PLAN_SUBS = {
@@ -336,7 +342,14 @@ function formatLocalPrice(usdPrice) {
   }
 }
 
-function openPricingModal() { /* plans not available right now */ }
+function openPricingModal() {
+  const m = document.getElementById('pricingModal');
+  if (!m) return;
+  m.style.display = 'flex';
+  renderPricingCards();
+  // Load geo + exchange rates; re-render when both land so local currency shows correctly
+  Promise.all([ensurePricingCountry(), loadExchangeRates()]).then(() => renderPricingCards()).catch(() => {});
+}
 function closePricingModal() {
   const m = document.getElementById('pricingModal');
   if (m) m.style.display = 'none';
@@ -350,12 +363,22 @@ function setPricingPeriod(period) {
   renderPricingCards();
 }
 
+const ACTIVE_PLANS = ['advanced', 'x20'];
+
 function renderPricingCards() {
   const container = document.getElementById('pricingCards');
   if (!container) return;
   const currentTier = lastKnownUsage?.subscriptionTier || 'free';
   const userCoins = lastKnownUsage?.cmCoins || 0;
-  container.innerHTML = PLAN_DATA.map(plan => {
+
+  // Update coin-rate indicator in modal header
+  const rateEl = document.getElementById('pricingCoinRate');
+  if (rateEl) {
+    const localOneCoins = formatLocalPrice(COIN_USD_VALUE);
+    rateEl.innerHTML = `🪙 1 C.M. Coin&nbsp;≈&nbsp;<strong>${localOneCoins === 'Free' ? '$0.01' : localOneCoins}</strong>&nbsp;— shown in your local currency`;
+  }
+
+  container.innerHTML = PLAN_DATA.filter(p => ACTIVE_PLANS.includes(p.key)).map(plan => {
     const isCurrent = plan.key === currentTier;
     const price = pricingPeriod === 'annual' ? plan.annual : plan.monthly;
     const priceStr = formatLocalPrice(price);
@@ -370,12 +393,30 @@ function renderPricingCards() {
     const features = plan.features.map(f => `<li>✓ ${escHtml(f)}</li>`).join('');
     const coinCost = plan.coinsPerMonth || 0;
     let coinBtn = '';
+    let coinValueRow = '';
+    // Show the user's ACTUAL coin balance value toward this plan — not a fixed plan amount
+    if (userCoins > 0 && plan.monthly > 0) {
+      const cashPriceUSD = pricingPeriod === 'annual' ? (plan.annual / 12) : plan.monthly;
+      const userCoinValueUSD = userCoins * COIN_USD_VALUE;
+      const userCoinValueLocal = formatLocalPrice(userCoinValueUSD);
+      const monthsCovered = Math.floor(userCoinValueUSD / cashPriceUSD);
+      const pctCovered = Math.min(100, Math.round((userCoinValueUSD / cashPriceUSD) * 100));
+      const coverageBadge = monthsCovered >= 1
+        ? `<span class="pc-coin-save-badge">Covers ${monthsCovered} month${monthsCovered > 1 ? 's' : ''}</span>`
+        : pctCovered > 0
+          ? `<span class="pc-coin-coverage">Offsets ${pctCovered}% this month</span>`
+          : '';
+      coinValueRow = `<div class="pc-coin-value-row">
+        <span class="pc-coin-val-label">🪙 Your ${userCoins.toLocaleString()} coins ≈ <strong>${userCoinValueLocal}</strong></span>
+        ${coverageBadge}
+      </div>`;
+    }
     if (coinCost > 0 && !isCurrent) {
       if (userCoins >= coinCost) {
         coinBtn = `<button class="pc-cta pc-cta-coin" onclick="subscribeWithCoins('${plan.key}')">🪙 Use ${coinCost.toLocaleString()} coins</button>`;
       } else {
         const need = (coinCost - userCoins).toLocaleString();
-        coinBtn = `<button class="pc-cta pc-cta-current" disabled title="Need ${need} more coins">🪙 ${coinCost.toLocaleString()} coins</button>`;
+        coinBtn = `<button class="pc-cta pc-cta-current" disabled title="Need ${need} more coins">🪙 Need ${need} more coins</button>`;
       }
     }
     const soon = !isCurrent && plan.key !== 'free';
@@ -386,6 +427,7 @@ function renderPricingCards() {
       <div class="pc-name">${escHtml(plan.name)}</div>
       <div class="pc-price">${priceStr}<span class="pc-period"> ${periodStr}</span></div>
       ${perMonth}
+      ${coinValueRow}
       <ul class="pc-features">${features}</ul>
       <button class="${ctaClass}" ${isCurrent ? 'disabled' : `onclick="handleUpgradeCta('${plan.key}')"`}>${ctaText}</button>
       ${coinBtn}
@@ -412,7 +454,8 @@ async function subscribeWithCoins(planKey) {
         lastKnownUsage.coinTierExpires = d.coinTierExpires;
         lastKnownUsage.subscriptionTier = d.effectiveTier;
       }
-      updateSettingsCoinDisplay(d.balance);
+      updateSettingsCoinDisplay(d.balance, lastKnownUsage?.coinsEarnedToday || 0, lastKnownUsage?.coinDailyLimit || 100, lastKnownUsage?.coinsMonthlyReset);
+      updateNavCoinDisplay(lastKnownUsage);
       updateSettingsPlanCard(d.effectiveTier);
       renderPricingCards();
       closePricingModal();
@@ -467,10 +510,45 @@ async function openPaypalCheckout(planKey, period) {
 
   document.getElementById('paypalCheckoutTitle').textContent = `${plan.name} Plan${yearly ? ' (yearly)' : ''}`;
   const price = yearly ? plan.annual : plan.monthly;
-  const priceStr = `$${price.toFixed(2)} / ${yearly ? 'yr' : 'mo'}`;
-  document.getElementById('paypalCheckoutPrice').textContent = priceStr;
+  const periodLabel = yearly ? 'yr' : 'mo';
+
+  // User's coin balance offsets the price
+  const userCoins = lastKnownUsage?.cmCoins || 0;
+  const userCoinValueUSD = userCoins * COIN_USD_VALUE;
+  const discountUSD = Math.min(price, userCoinValueUSD);
+  const finalPrice = price - discountUSD;
+
+  const origPriceEl = document.getElementById('paypalCheckoutOrigPrice');
+  const priceEl = document.getElementById('paypalCheckoutPrice');
+  if (discountUSD > 0) {
+    if (origPriceEl) { origPriceEl.textContent = `$${price.toFixed(2)} / ${periodLabel}`; origPriceEl.style.display = ''; }
+    if (priceEl) { priceEl.textContent = `$${finalPrice.toFixed(2)} / ${periodLabel}`; priceEl.classList.add('co-discounted'); }
+  } else {
+    if (origPriceEl) origPriceEl.style.display = 'none';
+    if (priceEl) { priceEl.textContent = `$${price.toFixed(2)} / ${periodLabel}`; priceEl.classList.remove('co-discounted'); }
+  }
+
   const tot = document.getElementById('co-total-display');
-  if (tot) tot.textContent = `$${price.toFixed(2)}`;
+  if (tot) tot.textContent = `$${finalPrice.toFixed(2)}`;
+
+  // Coin row: show coins spent and leftover
+  const coinRow = document.getElementById('co-coin-value-row');
+  if (coinRow && userCoins > 0 && discountUSD > 0) {
+    const coinsSpent = Math.ceil(discountUSD / COIN_USD_VALUE);
+    const coinsLeft  = userCoins - coinsSpent;
+    document.getElementById('co-coin-label').textContent = `🪙 ${coinsSpent.toLocaleString()} coins applied`;
+    document.getElementById('co-coin-value').textContent = `-$${discountUSD.toFixed(2)}`;
+    const saveEl = document.getElementById('co-coin-save');
+    if (finalPrice === 0) {
+      saveEl.textContent = `Fully covered · ${coinsLeft.toLocaleString()} coin${coinsLeft !== 1 ? 's' : ''} remaining in your wallet`;
+    } else {
+      saveEl.textContent = `${coinsLeft.toLocaleString()} coin${coinsLeft !== 1 ? 's' : ''} remaining · $${finalPrice.toFixed(2)} still due`;
+    }
+    saveEl.style.display = '';
+    coinRow.style.display = '';
+  } else if (coinRow) {
+    coinRow.style.display = 'none';
+  }
   document.getElementById('paypal-checkout-status').textContent = '';
   document.getElementById('paypal-checkout-status').style.color = '';
   document.getElementById('paypalCheckoutModal').style.display = 'flex';
@@ -484,7 +562,7 @@ async function openPaypalCheckout(planKey, period) {
       if (cfg && cfg.planIds) Object.assign(PAYPAL_PLAN_IDS, cfg.planIds);
       await new Promise((resolve, reject) => {
         const s = document.createElement('script');
-        s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(cfg.clientId)}&vault=true&intent=subscription&components=buttons`;
+        s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(cfg.clientId)}&vault=true&intent=subscription&components=buttons&disable-funding=card,credit,paylater`;
         s.onload = resolve;
         s.onerror = reject;
         document.head.appendChild(s);
@@ -510,6 +588,7 @@ function initPayPalWidgets(planKey) {
     const ppContainer = document.getElementById('paypal-button-container');
     if (ppContainer) ppContainer.innerHTML = '';
     paypal.Buttons({
+      fundingSource: paypal.FUNDING.PAYPAL,
       style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'subscribe' },
       createSubscription(data, actions) {
         return actions.subscription.create({ plan_id: planId, custom_id: String(currentUser.googleId) });
@@ -571,47 +650,39 @@ function updateSettingsPlanCard(tier) {
 }
 
 function renderSettingsTiers(currentTier) {
-  if (!paypalConfigLoaded) { loadPaypalConfig().then(() => renderSettingsTiers(currentTier)); return; }
-  if (!exchangeRates) {
-    Promise.all([loadExchangeRates(), ensurePricingCountry()]).then(() => renderSettingsTiers(currentTier));
-    return;
-  }
   const el = document.getElementById('settingsTiersSection');
   if (!el) return;
-  const t = currentTier || lastKnownUsage?.subscriptionTier || 'free';
-  const period = pricingPeriod;
-  const userCoins = lastKnownUsage?.cmCoins || 0;
-  const icons = {
-    advanced: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M13 2.05v2.02c3.95.49 7 3.85 7 7.93 0 3.21-1.81 6-4.72 7.72L13 18v4l-1.73-1-1.27.73V18l-2.28 1.65C4.78 18 3 15.21 3 12c0-4.08 3.05-7.44 7-7.93V2.05h3zm-1 2.96C9.03 5.44 7 8.5 7 12c0 2.42 1.17 4.65 3 6.07V14h4v4.07c1.83-1.42 3-3.65 3-6.07 0-3.5-2.03-6.56-5-7z"/></svg>`,
-    x20: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`,
-    x50: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/></svg>`,
-    x100: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/></svg>`,
-  };
-  const plans = PLAN_DATA.filter(p => p.key !== 'free');
+  const t = currentTier || currentPlanKey() || 'free';
+  const period = (typeof pricingPeriod !== 'undefined' && pricingPeriod) ? pricingPeriod : 'monthly';
+  const chk = `<svg viewBox="0 0 24 24" fill="currentColor" width="9" height="9"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>`;
+  el.style.display = 'block';
   el.innerHTML = `
     <div class="st2-header">
-      <span class="st2-title">Plans</span>
-      ${yearlyAvailable ? `<div class="st2-toggle"><button class="st2-toggle-btn${period === 'monthly' ? ' st2-toggle-active' : ''}" onclick="setSettingsPeriod('monthly')">Monthly</button><button class="st2-toggle-btn${period === 'annual' ? ' st2-toggle-active' : ''}" onclick="setSettingsPeriod('annual')">Yearly</button></div>` : ''}
+      <div class="st2-title">Plans</div>
+      <div class="st2-toggle">
+        <button class="st2-toggle-btn ${period==='monthly'?'st2-toggle-active':''}" onclick="setSettingsPeriod('monthly')">Monthly</button>
+        <button class="st2-toggle-btn ${period==='annual'?'st2-toggle-active':''}" onclick="setSettingsPeriod('annual')">Annual</button>
+      </div>
     </div>
     <div class="st2-cards-wrap">
-      ${plans.map(p => {
+      ${PLAN_DATA.filter(p => ACTIVE_PLANS.includes(p.key)).map(p=>{
         const isCurrent = p.key === t;
         const price = period === 'annual' ? p.annual : p.monthly;
-        const badge = p.badge ? `<div class="st2-badge">${escHtml(p.badge)}</div>` : '';
-        const feats = p.features.slice(0, 3).map(f =>
-          `<li class="st2-feat"><svg viewBox="0 0 12 12" width="10" height="10" fill="none" style="flex-shrink:0;margin-top:2px"><path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>${escHtml(f)}</li>`
-        ).join('');
-        return `<div class="st2-card${isCurrent ? ' st2-current' : ''}${p.badge ? ' st2-featured' : ''}">
-          ${badge}
-          <div class="st2-icon-wrap">${icons[p.key] || ''}</div>
-          <div class="st2-plan-name">${escHtml(p.name)}</div>
-          <div class="st2-price-row"><span class="st2-price">${formatLocalPrice(price)}</span><span class="st2-period">${period === 'annual' ? '/yr' : '/mo'}</span></div>
-          <ul class="st2-feats">${feats}</ul>
-          <button class="st2-btn${isCurrent || !planBuyable(p.key) ? ' st2-btn-current' : ''}" ${isCurrent || !planBuyable(p.key) ? 'disabled' : `onclick="handleUpgradeCta('${p.key}')"`}>${isCurrent ? 'Current' : !planBuyable(p.key) ? 'Coming soon' : 'Subscribe'}</button>
-          ${!isCurrent && (p.coinsPerMonth || 0) > 0 ? userCoins >= (p.coinsPerMonth || 0) ? `<button class="st2-btn st2-btn-coin" onclick="subscribeWithCoins('${p.key}')">🪙 ${(p.coinsPerMonth||0).toLocaleString()}</button>` : `<button class="st2-btn st2-btn-current" disabled title="Need ${((p.coinsPerMonth||0)-userCoins).toLocaleString()} more coins">🪙 ${(p.coinsPerMonth||0).toLocaleString()}</button>` : ''}
+        return `
+        <div class="st2-card${p.badge==='Recommended'?' st2-featured':''}${isCurrent?' st2-current':''}">
+          ${p.badge&&!isCurrent?`<div class="st2-badge">${p.badge}</div>`:''}
+          <div class="st2-plan-name">${p.name}</div>
+          <div class="st2-price-row">
+            <div class="st2-price">${price===0?'Free':'$'+price}</div>
+            ${price>0?`<div class="st2-period">/${period==='annual'?'mo*':'mo'}</div>`:''}
+          </div>
+          <ul class="st2-feats">${p.features.map(f=>`<li class="st2-feat">${chk} ${f}</li>`).join('')}</ul>
+          <button class="st2-btn${isCurrent?' st2-btn-current':''}" ${isCurrent?'disabled':''} onclick="${isCurrent?'':'openPricingModal()'}">${isCurrent?'Current Plan':'Upgrade'}</button>
         </div>`;
       }).join('')}
-    </div>`;
+    </div>
+    ${period==='annual'?'<div style="font-size:10px;color:var(--text3);margin-top:6px;">* Billed annually</div>':''}
+  `;
 }
 
 function setSettingsPeriod(period) {
@@ -2599,6 +2670,7 @@ async function openChat(charId) {
   currentChar = nextChar;
   applyChatTheme(currentChar);
   updateRpModeUI();
+  if (lastKnownUsage) updateNavCoinDisplay(lastKnownUsage);
   // Never leave the previous character's messages on screen while the new chat loads
   const welcomeNow = document.getElementById('chatWelcome');
   document.getElementById('messages').innerHTML = '';
@@ -2949,10 +3021,11 @@ async function generateGreeting() {
 }
 
 // ── Image attachment ──────────────────────────────────────────────────────────
-let rpMode = true; // true = roleplay mode (default), false = normal chat mode
+let rpMode = false; // false = normal chat mode (default), true = roleplay mode
 
 function toggleRpMode() {
   rpMode = !rpMode;
+  saveRpMode();
   updateRpModeUI();
 }
 
@@ -2973,8 +3046,16 @@ function updateRpModeUI() {
 }
 
 function initRpMode() {
-  rpMode = true;
+  try {
+    const saved = localStorage.getItem('rpMode');
+    if (saved === 'rp') rpMode = true;
+    else rpMode = false;
+  } catch(_) { rpMode = false; }
   updateRpModeUI();
+}
+
+function saveRpMode() {
+  try { localStorage.setItem('rpMode', rpMode ? 'rp' : 'chat'); } catch(_) {}
 }
 
 let pendingImageB64 = null;
@@ -3760,6 +3841,7 @@ function updateUsageBars(usage) {
   updateUsageModal(usage);
   updateSettingsUsage(usage);
   updateImageAttachState(usage);
+  updateNavCoinDisplay(usage);
   if (usage.cooldownUntil && Date.now() < usage.cooldownUntil) {
     startCooldown(usage.cooldownUntil, 'session');
   } else if (usage.weeklyLimit && usage.weeklyTokens >= usage.weeklyLimit) {
@@ -4035,12 +4117,203 @@ function renderUsageBanners(usage) {
   }
 }
 
-function updateSettingsCoinDisplay(balance, earnedToday, dailyCap) {
+function updateSettingsCoinDisplay(balance, earnedToday, dailyCap, monthlyReset) {
   const balEl = document.getElementById('settingsCoinBalance');
   if (balEl) balEl.textContent = (balance || 0).toLocaleString();
   const dailyEl = document.getElementById('settingsCoinDaily');
   if (dailyEl) dailyEl.textContent = `${earnedToday || 0} / ${dailyCap || 100} today`;
+  const mEl = document.getElementById('settingsCoinMonthly');
+  if (mEl && monthlyReset) {
+    const now = new Date();
+    const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+    const granted = new Date(monthlyReset);
+    const thisMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const tier = lastKnownUsage?.subscriptionTier || 'free';
+    const grant = MONTHLY_COIN_GRANT[tier] ?? MONTHLY_COIN_GRANT.free;
+    if (granted >= thisMonth) {
+      mEl.textContent = `+${grant} bonus granted this month · Next: ${nextMonth.toLocaleDateString('en-US', {month:'short', day:'numeric'})}`;
+    } else {
+      mEl.textContent = `+${grant} bonus on ${nextMonth.toLocaleDateString('en-US', {month:'short', day:'numeric'})}`;
+    }
+  }
   renderSettingsTiers();
+}
+
+// ── Slot machine ───────────────────────────────────────────────────────────
+let slotSpinning = false;
+let slotAutoRunning = false;
+let slotAutoStop = false;
+const SLOT_SYMS = ['🍒','🍋','🍊','🍇','⭐','💎'];
+
+function updateSlotBalances(coinBal, tokenBal) {
+  const coinEl = document.getElementById('slotBalanceDisplay');
+  const tokEl = document.getElementById('slotTokenDisplay');
+  if (coinEl && coinBal !== undefined) coinEl.textContent = coinBal;
+  if (tokEl && tokenBal !== undefined) tokEl.textContent = tokenBal;
+}
+
+function openSlotMachine() {
+  const overlay = document.getElementById('slotMachineOverlay');
+  if (!overlay) return;
+  updateSlotBalances(lastKnownUsage?.cmCoins ?? 0, lastKnownUsage?.cmTokens ?? 0);
+  overlay.style.display = 'flex';
+}
+function closeSlotMachine() {
+  slotAutoStop = true;
+  const overlay = document.getElementById('slotMachineOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+async function spinSlots() {
+  if (slotSpinning) return;
+  const bet = parseInt(document.getElementById('slotBetSlider')?.value || '10');
+  const resultEl = document.getElementById('slotResult');
+  const spinBtn = document.getElementById('slotSpinBtn');
+  const reelEls = [0,1,2].map(i => document.getElementById(`slotReel${i}`));
+  const SPIN_SYMS = ['🍒','🍋','🍊','🍇','⭐','💎','7️⃣'];
+
+  slotSpinning = true;
+  if (spinBtn) spinBtn.disabled = true;
+  if (resultEl) { resultEl.textContent = ''; resultEl.className = 'slot-result'; }
+
+  const spinStart = Date.now();
+  const intervals = reelEls.map(r => {
+    if (r) r.classList.add('spinning');
+    return setInterval(() => {
+      if (r) r.textContent = SPIN_SYMS[Math.floor(Math.random() * SPIN_SYMS.length)];
+    }, 80);
+  });
+
+  try {
+    const res = await fetch('/api/coins/gamble', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bet })
+    });
+    const d = await res.json();
+    intervals.forEach(id => clearInterval(id));
+
+    if (!res.ok) {
+      reelEls.forEach(r => { if (r) { r.classList.remove('spinning'); r.textContent = '🎰'; } });
+      if (resultEl) { resultEl.textContent = d.error || 'Error'; resultEl.className = 'slot-result lose'; }
+      return false;
+    }
+
+    const elapsed = Date.now() - spinStart;
+    if (elapsed < 700) await new Promise(r => setTimeout(r, 700 - elapsed));
+
+    for (let i = 0; i < 3; i++) {
+      if (i > 0) await new Promise(r => setTimeout(r, 180));
+      if (reelEls[i]) { reelEls[i].classList.remove('spinning'); reelEls[i].textContent = d.reels[i]; }
+    }
+    await new Promise(r => setTimeout(r, 200));
+
+    if (d.multiplier === 0) {
+      if (resultEl) { resultEl.textContent = 'No match — better luck next time!'; resultEl.className = 'slot-result lose'; }
+    } else if (d.multiplier === 1) {
+      if (resultEl) { resultEl.textContent = `Two of a kind — bet returned!`; resultEl.className = 'slot-result'; }
+    } else {
+      const net = d.win;
+      if (resultEl) { resultEl.textContent = `${d.multiplier}× — you won ${net > 0 ? '+' : ''}${net} tokens! 🎉`; resultEl.className = 'slot-result win'; }
+    }
+
+    if (lastKnownUsage) { lastKnownUsage.cmTokens = d.newBalance; lastKnownUsage.cmCoins = d.coinBalance; }
+    updateSlotBalances(d.coinBalance, d.newBalance);
+    updateSettingsCoinDisplay(d.coinBalance, lastKnownUsage?.coinsEarnedToday || 0, lastKnownUsage?.coinDailyLimit || 100, lastKnownUsage?.coinsMonthlyReset);
+    updateNavCoinDisplay(lastKnownUsage);
+    return true;
+  } catch (e) {
+    intervals.forEach(id => clearInterval(id));
+    reelEls.forEach(r => { if (r) { r.classList.remove('spinning'); r.textContent = '🎰'; } });
+    if (resultEl) { resultEl.textContent = 'Something went wrong'; resultEl.className = 'slot-result lose'; }
+    return false;
+  } finally {
+    slotSpinning = false;
+    if (!slotAutoRunning && spinBtn) spinBtn.disabled = false;
+  }
+}
+
+async function toggleAutoSpin() {
+  if (slotAutoRunning) {
+    slotAutoStop = true;
+    return;
+  }
+  const count = parseInt(document.getElementById('slotAutoCount')?.value || '10');
+  const autoBtn = document.getElementById('slotAutoBtn');
+  const spinBtn = document.getElementById('slotSpinBtn');
+  slotAutoRunning = true;
+  slotAutoStop = false;
+  if (autoBtn) { autoBtn.textContent = 'STOP'; autoBtn.classList.add('stopping'); }
+  if (spinBtn) spinBtn.disabled = true;
+
+  const resultEl = document.getElementById('slotResult');
+  for (let i = 0; i < count; i++) {
+    if (slotAutoStop) break;
+    const tokenBal = lastKnownUsage?.cmTokens ?? 0;
+    const bet = parseInt(document.getElementById('slotBetSlider')?.value || '10');
+    if (tokenBal < bet) {
+      if (resultEl) { resultEl.textContent = 'Out of tokens!'; resultEl.className = 'slot-result lose'; }
+      break;
+    }
+    if (resultEl) { resultEl.textContent = `Auto spin ${i + 1}/${count}…`; resultEl.className = 'slot-result'; }
+    const ok = await spinSlots();
+    if (!ok) break;
+    if (i < count - 1 && !slotAutoStop) await new Promise(r => setTimeout(r, 400));
+  }
+
+  slotAutoRunning = false;
+  slotAutoStop = false;
+  if (autoBtn) { autoBtn.textContent = 'AUTO'; autoBtn.classList.remove('stopping'); }
+  if (spinBtn) spinBtn.disabled = false;
+
+}
+
+async function buyTokens() {
+  const amount = parseInt(document.getElementById('slotBuySlider')?.value || '10');
+  const resultEl = document.getElementById('slotResult');
+  try {
+    const res = await fetch('/api/tokens/buy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount })
+    });
+    const d = await res.json();
+    if (!res.ok) {
+      if (resultEl) { resultEl.textContent = d.error || 'Buy failed'; resultEl.className = 'slot-result lose'; }
+      return;
+    }
+    if (lastKnownUsage) { lastKnownUsage.cmCoins = d.coinBalance; lastKnownUsage.cmTokens = d.tokenBalance; }
+    updateSlotBalances(d.coinBalance, d.tokenBalance);
+    updateSettingsCoinDisplay(d.coinBalance, lastKnownUsage?.coinsEarnedToday || 0, lastKnownUsage?.coinDailyLimit || 100, lastKnownUsage?.coinsMonthlyReset);
+    updateNavCoinDisplay(lastKnownUsage);
+    if (resultEl) { resultEl.textContent = `Bought ${amount} tokens! 🎟️`; resultEl.className = 'slot-result win'; }
+  } catch (e) {
+    if (resultEl) { resultEl.textContent = 'Something went wrong'; resultEl.className = 'slot-result lose'; }
+  }
+}
+
+async function sellTokens() {
+  const amount = parseInt(document.getElementById('slotSellSlider')?.value || '10');
+  const resultEl = document.getElementById('slotResult');
+  try {
+    const res = await fetch('/api/tokens/sell', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount })
+    });
+    const d = await res.json();
+    if (!res.ok) {
+      if (resultEl) { resultEl.textContent = d.error || 'Sell failed'; resultEl.className = 'slot-result lose'; }
+      return;
+    }
+    if (lastKnownUsage) { lastKnownUsage.cmCoins = d.coinBalance; lastKnownUsage.cmTokens = d.tokenBalance; }
+    updateSlotBalances(d.coinBalance, d.tokenBalance);
+    updateSettingsCoinDisplay(d.coinBalance, lastKnownUsage?.coinsEarnedToday || 0, lastKnownUsage?.coinDailyLimit || 100, lastKnownUsage?.coinsMonthlyReset);
+    updateNavCoinDisplay(lastKnownUsage);
+    if (resultEl) { resultEl.textContent = `Sold ${d.tokensSpent} tokens → +${d.coinsEarned} coin${d.coinsEarned !== 1 ? 's' : ''} 🪙`; resultEl.className = 'slot-result win'; }
+  } catch (e) {
+    if (resultEl) { resultEl.textContent = 'Something went wrong'; resultEl.className = 'slot-result lose'; }
+  }
 }
 
 async function loadUsage() {
@@ -4058,18 +4331,17 @@ async function loadUsage() {
     updateSettingsPlanCard(usage.subscriptionTier);
     renderUserBadge();
     updateModelPickerLocks();
-    updateSettingsCoinDisplay(usage.cmCoins || 0, usage.coinsEarnedToday || 0, usage.coinDailyLimit || 100);
+    updateSettingsCoinDisplay(usage.cmCoins || 0, usage.coinsEarnedToday || 0, usage.coinDailyLimit || 100, usage.coinsMonthlyReset || 0);
   } catch (_) {}
 }
 
 function applySoftLaunch(on) {
   const d = on ? 'none' : '';
-  ['navPricingBtn', 'settingsPlanBadge'].forEach(id => {
+  ['settingsPlanBadge'].forEach(id => {
     const el = document.getElementById(id); if (el) el.style.display = d;
   });
-  document.querySelectorAll('.md-upgrade-btn, .settings-plan-upgrade-btn, .call-limit-upgrade-btn, .call-warning-upgrade, .warning-upgrade-link').forEach(el => { el.style.display = d; });
-  const upgradeSection = document.getElementById('settingsTiersSection');
-  if (upgradeSection) upgradeSection.style.display = d;
+  document.querySelectorAll('.md-upgrade-btn, .call-limit-upgrade-btn, .call-warning-upgrade, .warning-upgrade-link').forEach(el => { el.style.display = d; });
+  // settingsTiersSection and .settings-plan-upgrade-btn are always hidden (plan cards removed)
 }
 
 // Legacy stub so old callers (rewind, etc.) don't break
@@ -4219,6 +4491,21 @@ function applyUsageResets(u) {
   return u;
 }
 
+function updateNavCoinDisplay(u) {
+  const el = document.getElementById('navCoinDisplay');
+  const countEl = document.getElementById('navCoinCount');
+  const tokEl = document.getElementById('navTokenCount');
+  if (!el || !u) return;
+  const coins = u.cmCoins != null ? u.cmCoins : 0;
+  const tokens = u.cmTokens != null ? u.cmTokens : 0;
+  if (countEl) countEl.textContent = coins;
+  if (tokEl) tokEl.textContent = tokens;
+  el.style.display = currentUser ? 'flex' : 'none';
+  // Show/hide the 🎰 chat toolbar button
+  const chatSlotsBtn = document.getElementById('chatSlotsBtn');
+  if (chatSlotsBtn) chatSlotsBtn.style.display = (currentUser && currentChar) ? '' : 'none';
+}
+
 function updateUsageModal(u) {
   if (!u) return;
   applyUsageResets(u);
@@ -4283,24 +4570,27 @@ function updateUsageModal(u) {
     if (subEl && subText !== undefined) subEl.textContent = subText;
   }
 
-  // Calls — up to 6/day; longer calls drain faster
+  // Calls — limit is tier-dependent; use server-provided value
   const callsToday = u.callsToday || 0;
-  const callsPct = Math.min(100, Math.round(callsToday / 6 * 100));
+  const callsCap = u.callsLimit || 6;
+  const callsPct = Math.min(100, Math.round(callsToday / callsCap * 100));
   setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct,
-    'Up to 6 per day · longer calls drain faster', false);
+    `Up to ${callsCap} per day · longer calls drain faster`, false);
 
-  // Memos — up to 50/day; longer conversations drain faster
+  // Memos — limit is tier-dependent
   const memosToday = u.memosToday || 0;
-  const memosPct = Math.min(100, Math.round(memosToday / 50 * 100));
+  const memosCap = u.memosLimit || 30;
+  const memosPct = Math.min(100, Math.round(memosToday / memosCap * 100));
   setBar('usageMemosBar', 'usageMemosPct', 'usageMemosSub', memosPct,
-    'Up to 50 per day · longer conversations drain faster', false);
+    `Up to ${memosCap} per day · longer conversations drain faster`, false);
 
-  // Images — up to 3/day; larger images drain faster
+  // Images — limit is tier-dependent
   const imgUsed = u.imagesDay || 0;
-  const imgPct = Math.min(100, Math.round(imgUsed / 3 * 100));
+  const imgCap = u.imageLimit || 3;
+  const imgPct = Math.min(100, Math.round(imgUsed / imgCap * 100));
   const imgSub = u.imageResetAt && imgUsed > 0
-    ? `Up to 3 per day · larger images drain faster · resets ${formatResetTime(u.imageResetAt)}`
-    : 'Up to 3 per day · larger images drain faster';
+    ? `Up to ${imgCap} per day · larger images drain faster · resets ${formatResetTime(u.imageResetAt)}`
+    : `Up to ${imgCap} per day · larger images drain faster`;
   setBar('usageImagesBar', 'usageImagesPct', 'usageImagesSub', imgPct, imgSub, false);
 
   // Daily resets subtitle
@@ -4313,20 +4603,23 @@ function updateUsageModal(u) {
   const gamePctEl = document.getElementById('usageGamePct');
   const gameBar = document.getElementById('usageGameBar');
   const now = Date.now();
+  const gameSubEl = document.getElementById('usageGameSub');
   if (u.gameNextAvailableAt && u.gameNextAvailableAt > now) {
     const COOLDOWN_MS = 5 * 60 * 1000;
     const remaining = u.gameNextAvailableAt - now;
-    const elapsed = COOLDOWN_MS - remaining;
-    const elapsedPct = Math.min(100, Math.round(elapsed / COOLDOWN_MS * 100));
+    const remainPct = Math.min(100, Math.round(remaining / COOLDOWN_MS * 100));
     const secsLeft = Math.ceil(remaining / 1000);
     const m = Math.floor(secsLeft / 60);
     const s = secsLeft % 60;
     if (gamePctEl) gamePctEl.textContent = `${m}:${String(s).padStart(2, '0')}`;
-    if (gameBar) { gameBar.style.width = elapsedPct + '%'; gameBar.className = 'usage-fill-modal ' + (elapsedPct >= 75 ? 'yellow' : 'orange'); }
+    if (gameBar) { gameBar.style.width = remainPct + '%'; gameBar.className = 'usage-fill-modal ' + usageFillClass(remainPct); }
+    if (gameSubEl) gameSubEl.textContent = '5-minute cooldown between game sessions';
   } else {
-    if (gamePctEl) gamePctEl.textContent = 'Ready';
-    if (gameBar) { gameBar.style.width = '100%'; gameBar.className = 'usage-fill-modal green'; }
+    if (gamePctEl) gamePctEl.textContent = '0%';
+    if (gameBar) { gameBar.style.width = '0%'; gameBar.className = 'usage-fill-modal green'; }
+    if (gameSubEl) gameSubEl.textContent = '5-minute cooldown between game sessions';
   }
+
 }
 
 function startUsageModalTimer() {
@@ -5050,24 +5343,62 @@ function dislikeBtn() {
 
 // ── Voice selection ───────────────────────────────────────────────────────────
 let selectedVoice = null;
-let ttsProvider = 'edge'; // 'edge' | 'gemini' | 'browser'
+let ttsProvider = 'edge'; // 'edge' | 'gemini'
 let geminiVoiceName = 'Aoede';
+let edgeVoiceName = null; // null = auto-matched per character
 
-const GEMINI_TTS_VOICES = ['Aoede','Charon','Fenrir','Kore','Puck','Zephyr','Schedar','Sadaltager'];
-const GEMINI_VOICE_DESC = { Aoede:'Warm, expressive', Charon:'Deep, calm', Fenrir:'Strong, bold', Kore:'Clear, bright', Puck:'Upbeat, playful', Zephyr:'Light, breezy', Schedar:'Authoritative', Sadaltager:'Neutral, conversational' };
+const GEMINI_TTS_VOICES = [
+  'Zephyr','Puck','Charon','Kore','Fenrir','Leda','Orus','Aoede','Callirrhoe','Autonoe',
+  'Enceladus','Iapetus','Umbriel','Algieba','Despina','Erinome','Algenib','Rasalgethi',
+  'Laomedeia','Achernar','Alnilam','Schedar','Gacrux','Pulcherrima','Achird',
+  'Zubenelgenubi','Vindemiatrix','Sadachbia','Sadaltager','Sulafat'
+];
+const GEMINI_VOICE_DESC = {
+  Zephyr:'Bright', Puck:'Upbeat', Charon:'Informative', Kore:'Firm', Fenrir:'Excitable',
+  Leda:'Youthful', Orus:'Firm', Aoede:'Breezy', Callirrhoe:'Easy-going', Autonoe:'Bright',
+  Enceladus:'Breathy', Iapetus:'Clear', Umbriel:'Easy-going', Algieba:'Smooth', Despina:'Smooth',
+  Erinome:'Clear', Algenib:'Gravelly', Rasalgethi:'Informative', Laomedeia:'Upbeat',
+  Achernar:'Soft', Alnilam:'Firm', Schedar:'Even', Gacrux:'Mature', Pulcherrima:'Forward',
+  Achird:'Friendly', Zubenelgenubi:'Casual', Vindemiatrix:'Gentle', Sadachbia:'Lively',
+  Sadaltager:'Knowledgeable', Sulafat:'Warm'
+};
+
+const EDGE_TTS_VOICES = [
+  { id:'en-US-AriaNeural',        name:'Aria',        gender:'F', desc:'Expressive · warm' },
+  { id:'en-US-JennyNeural',       name:'Jenny',       gender:'F', desc:'Warm · gentle' },
+  { id:'en-US-NancyNeural',       name:'Nancy',       gender:'F', desc:'Natural · clear' },
+  { id:'en-US-SaraNeural',        name:'Sara',        gender:'F', desc:'Cheerful' },
+  { id:'en-US-MichelleNeural',    name:'Michelle',    gender:'F', desc:'Friendly' },
+  { id:'en-US-MonicaNeural',      name:'Monica',      gender:'F', desc:'Warm · relaxed' },
+  { id:'en-US-AnaNeural',         name:'Ana',         gender:'F', desc:'Youthful · child' },
+  { id:'en-US-CoraNeural',        name:'Cora',        gender:'F', desc:'Bright' },
+  { id:'en-US-ElizabethNeural',   name:'Elizabeth',   gender:'F', desc:'Mature · assured' },
+  { id:'en-US-JaneNeural',        name:'Jane',        gender:'F', desc:'Calm · professional' },
+  { id:'en-US-GuyNeural',         name:'Guy',         gender:'M', desc:'Confident' },
+  { id:'en-US-TonyNeural',        name:'Tony',        gender:'M', desc:'Friendly' },
+  { id:'en-US-BrianNeural',       name:'Brian',       gender:'M', desc:'Deep · clear' },
+  { id:'en-US-EricNeural',        name:'Eric',        gender:'M', desc:'Reliable' },
+  { id:'en-US-RogerNeural',       name:'Roger',       gender:'M', desc:'Strong' },
+  { id:'en-US-ChristopherNeural', name:'Christopher', gender:'M', desc:'Professional' },
+  { id:'en-US-SteffanNeural',     name:'Steffan',     gender:'M', desc:'Clear' },
+  { id:'en-US-JasonNeural',       name:'Jason',       gender:'M', desc:'Calm' },
+];
 
 function getCharVoiceKey()   { return currentChar ? `cm_voice_${currentChar.id}` : null; }
 function getTTSProviderKey() { return currentChar ? `cm_tts_prov_${currentChar.id}` : null; }
 function getGeminiVoiceKey() { return currentChar ? `cm_gem_voice_${currentChar.id}` : null; }
+function getEdgeVoiceKey()   { return currentChar ? `cm_edge_voice_${currentChar.id}` : null; }
 
 function loadCharVoice() {
-  selectedVoice = null; ttsProvider = 'edge'; geminiVoiceName = 'Aoede';
+  selectedVoice = null; ttsProvider = 'edge'; geminiVoiceName = 'Aoede'; edgeVoiceName = null;
   if (!currentChar) return;
   try {
     const p = localStorage.getItem(getTTSProviderKey());
-    if (['edge','gemini','browser'].includes(p)) ttsProvider = p;
+    if (['edge','gemini'].includes(p)) ttsProvider = p;
     const gv = localStorage.getItem(getGeminiVoiceKey());
     if (GEMINI_TTS_VOICES.includes(gv)) geminiVoiceName = gv;
+    const ev = localStorage.getItem(getEdgeVoiceKey());
+    if (ev && EDGE_TTS_VOICES.some(v => v.id === ev)) edgeVoiceName = ev;
     const saved = localStorage.getItem(getCharVoiceKey());
     if (saved) { const vs = window.speechSynthesis.getVoices(); selectedVoice = vs.find(v => v.voiceURI === saved) || null; }
   } catch(_) {}
@@ -5113,7 +5444,14 @@ function renderVoiceList() {
   }
 
   if (ttsProvider === 'edge') {
-    list.innerHTML = '<p style="font-size:.82rem;padding:10px 4px 4px;color:var(--text3,#888);line-height:1.5">Edge HD uses Microsoft Neural voices automatically matched to each character. Switch to Gemini to pick a specific voice.</p>';
+    list.innerHTML = `<button class="voice-item${!edgeVoiceName?' active':''}" onclick="selectEdgeVoice(null,this)">
+        <div class="voice-item-main"><div class="voice-item-name">Auto</div><div class="voice-item-lang">Matched to character</div></div>
+      </button>` +
+      EDGE_TTS_VOICES.map(v =>
+        `<button class="voice-item${edgeVoiceName===v.id?' active':''}" onclick="selectEdgeVoice('${v.id}',this)">
+          <div class="voice-item-main"><div class="voice-item-name">${v.name} <span style="font-size:10px;color:var(--text3)">${v.gender==='F'?'♀':'♂'}</span></div><div class="voice-item-lang">${v.desc}</div></div>
+          <button class="voice-preview-btn" onclick="previewEdgeVoice('${v.id}',event)" title="Preview">▶</button>
+        </button>`).join('');
     return;
   }
 
@@ -5148,6 +5486,24 @@ function selectGeminiVoice(v, btn) {
   try { if (getGeminiVoiceKey()) localStorage.setItem(getGeminiVoiceKey(), v); } catch(_) {}
   document.querySelectorAll('#voiceList .voice-item').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+}
+
+function selectEdgeVoice(v, btn) {
+  edgeVoiceName = v;
+  try { const k = getEdgeVoiceKey(); if (k) { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } } catch(_) {}
+  document.querySelectorAll('#voiceList .voice-item').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function previewEdgeVoice(v, e) {
+  e?.stopPropagation();
+  try {
+    const r = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: `Hi! I'm ${currentChar?.name || 'your character'}.`, provider: 'edge', edgeVoice: v, charId: currentChar?.id || '' }) });
+    if (!r.ok) return;
+    const url = URL.createObjectURL(await r.blob());
+    const a = new Audio(url); a.onended = () => URL.revokeObjectURL(url); a.play().catch(() => {});
+  } catch(_) {}
 }
 
 async function previewGeminiVoice(v, e) {
@@ -5705,7 +6061,7 @@ async function toggleTTS(btn) {
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName })
+      body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined })
     });
     if (r.ok) {
       serverOk = true;
@@ -6517,7 +6873,7 @@ async function regenerate() {
       if (res.status === 401) { isStreaming = false; window.location.href = '/'; return; }
       if (res.status === 429) {
         if (err.regenLimitReached) {
-          showWarning(`Free plan limit: ${err.regenLimit} regenerations used today. Upgrade for unlimited.`);
+          showWarning(`Daily limit reached: ${err.regenLimit} regenerations used today.${currentPlanKey() === 'free' ? ' Upgrade for more.' : ''}`);
         } else if (err.type === 'session') { startCooldown(err.cooldownUntil, 'session', true); }
         else if (err.type === 'weekly') { startCooldown(err.resetsAt, 'weekly', true); }
         // Restore current version
@@ -7740,6 +8096,13 @@ function buildHangmanSVG(wrong) {
 }
 
 async function launchHangman() {
+  const lockoutBarEl = document.getElementById('lockoutBar');
+  if (lockoutBarEl && lockoutBarEl.style.display !== 'none') {
+    const lockoutType = currentLockoutType || 'session';
+    const displayStr = document.getElementById('lockoutCountdown')?.textContent || '';
+    showLimitModal(lockoutType, displayStr);
+    return;
+  }
   const msgEl = document.createElement('div');
   msgEl.className = 'msg game-widget';
   msgEl.innerHTML = '<div class="game-loading">Setting up Hangman…</div>';
@@ -7750,6 +8113,12 @@ async function launchHangman() {
   try {
     const r = await fetch('/api/game/hangman/word');
     const d = await r.json();
+    if (r.status === 429 && (d.type === 'session' || d.type === 'weekly')) {
+      msgEl.remove();
+      if (d.type === 'session') startCooldown(d.cooldownUntil, 'session', true);
+      else startCooldown(d.resetsAt, 'weekly', true);
+      return;
+    }
     if (r.status === 429 && d.gameNextAvailableAt) {
       const secsLeft = Math.ceil((d.gameNextAvailableAt - Date.now()) / 1000);
       const minsLeft = Math.ceil(secsLeft / 60);
@@ -7761,11 +8130,6 @@ async function launchHangman() {
   } catch (_) {
     msgEl.innerHTML = '<div class="game-loading">Couldn\'t load game. Try again.</div>';
     return;
-  }
-
-  if (currentChar) {
-    const intro = `[The user wants to play Hangman with you. Announce the game in your character's voice — build suspense, tease the mystery word, describe the blank dashes dramatically. This is a big theatrical moment. Be elaborate and immersive.]`;
-    setTimeout(() => sendMessage(intro, true, false, 'max'), 200);
   }
 
   const guessed = new Set();
@@ -7807,12 +8171,6 @@ async function launchHangman() {
     `;
     scrollToBottom();
 
-    if (gameOver && currentChar) {
-      const result = isWin
-        ? `[The user just won Hangman — they correctly guessed the word "${word.toUpperCase()}"! React with a full, dramatic, immersive response in character. Make it a big deal: celebration, shock, disbelief, whatever fits your persona — but go all out. Rich detail, multiple beats, stay completely in character.]`
-        : `[The user just lost Hangman — they ran out of guesses and the word was "${word.toUpperCase()}". React with a full, dramatic, immersive response in character. Revel in it, console them, taunt them — whatever fits your persona. But go all out. Rich detail, multiple beats, stay completely in character.]`;
-      setTimeout(() => sendMessage(result, true, false, 'max'), 800);
-    }
   }
 
   window.hangmanGuess = function(btn, letter) {
@@ -7837,6 +8195,13 @@ function tttClientCheck(board) {
 }
 
 function launchTicTacToe() {
+  const lockoutBarEl = document.getElementById('lockoutBar');
+  if (lockoutBarEl && lockoutBarEl.style.display !== 'none') {
+    const lockoutType = currentLockoutType || 'session';
+    const displayStr = document.getElementById('lockoutCountdown')?.textContent || '';
+    showLimitModal(lockoutType, displayStr);
+    return;
+  }
   let board = Array(9).fill(null);
   let waiting = false;
 
@@ -7844,11 +8209,6 @@ function launchTicTacToe() {
   msgEl.className = 'msg game-widget';
   document.getElementById('messages').appendChild(msgEl);
   scrollToBottom();
-
-  if (currentChar) {
-    const intro = `[The user wants to play Tic-Tac-Toe against you. Announce the game in your character's voice — confident, dramatic, maybe a little menacing or playful depending on your persona. Set the scene. This is a big moment. Be elaborate and immersive.]`;
-    setTimeout(() => sendMessage(intro, true, false, 'max'), 200);
-  }
 
   function renderTTT(winData) {
     const cells = board.map((val, i) => {
@@ -7876,13 +8236,6 @@ function launchTicTacToe() {
     `;
     scrollToBottom();
 
-    if (winData && currentChar) {
-      let result;
-      if (winData.winner === 'X') result = `[The user just beat you at Tic-Tac-Toe! React with a full, immersive, dramatic response in character. Don't just be a good sport — really FEEL this loss. Let your persona come through with intensity, every emotion, every beat. Go all out — elaborate, rich detail, completely in character.]`;
-      else if (winData.winner === 'draw') result = `[You and the user just drew at Tic-Tac-Toe — a perfect stalemate. React with a full, immersive response in character. A draw is its own drama. Make it feel significant and elaborate. Stay completely in character, go all out.]`;
-      else result = `[You just beat the user at Tic-Tac-Toe! React with a full, dramatic, immersive victory response in character. Revel in the win, make it theatrical and elaborate — every beat, every gesture, completely in character. Go all out.]`;
-      setTimeout(() => sendMessage(result, true, false, 'max'), 800);
-    }
   }
 
   window.tttMove = async function(idx) {
@@ -7900,6 +8253,12 @@ function launchTicTacToe() {
         body: JSON.stringify({ board })
       });
       const d = await r.json();
+      if (r.status === 429 && (d.type === 'session' || d.type === 'weekly')) {
+        msgEl.remove();
+        if (d.type === 'session') startCooldown(d.cooldownUntil, 'session', true);
+        else startCooldown(d.resetsAt, 'weekly', true);
+        return;
+      }
       if (r.status === 429 && d.gameNextAvailableAt) {
         const secsLeft = Math.ceil((d.gameNextAvailableAt - Date.now()) / 1000);
         const minsLeft = Math.ceil(secsLeft / 60);
