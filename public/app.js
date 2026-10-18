@@ -4526,29 +4526,39 @@ function applyUsageResets(u) {
   return u;
 }
 
-function showCoinPop(amount) {
+function showCoinPop(amount, anchorEl) {
   const el = document.createElement('div');
+  // find a position — near the game widget if available, else center screen
+  let top = '50%', left = '50%';
+  const widget = anchorEl || document.querySelector('.game-widget');
+  if (widget) {
+    const r = widget.getBoundingClientRect();
+    top  = (r.top + r.height * 0.35) + 'px';
+    left = (r.left + r.width  * 0.5)  + 'px';
+  }
   el.style.cssText = `
-    position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.6);
+    position:fixed;top:${top};left:${left};
+    transform:translate(-50%,-50%) scale(0.6);
     background:linear-gradient(135deg,#7c3aed,#4f46e5);
     color:#fff;font-size:28px;font-weight:800;
     padding:22px 40px;border-radius:16px;
     box-shadow:0 8px 40px rgba(124,58,237,0.6);
     z-index:99999;pointer-events:none;
-    transition:transform .2s cubic-bezier(.34,1.56,.64,1),opacity .3s ease;
+    transition:transform .25s cubic-bezier(.34,1.56,.64,1),opacity .3s ease;
     opacity:0;white-space:nowrap;letter-spacing:.5px;
   `;
   el.textContent = `🪙 +${amount} coins!`;
   document.body.appendChild(el);
-  requestAnimationFrame(() => {
+  // double rAF so the browser commits the initial opacity:0 before we animate
+  requestAnimationFrame(() => requestAnimationFrame(() => {
     el.style.transform = 'translate(-50%,-50%) scale(1)';
-    el.style.opacity = '1';
-  });
+    el.style.opacity   = '1';
+  }));
   setTimeout(() => {
-    el.style.opacity = '0';
+    el.style.opacity   = '0';
     el.style.transform = 'translate(-50%,-60%) scale(0.9)';
     setTimeout(() => el.remove(), 350);
-  }, 2000);
+  }, 2200);
 }
 
 function updateNavCoinDisplay(u) {
