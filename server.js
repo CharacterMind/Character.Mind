@@ -5225,7 +5225,10 @@ app.post('/api/coins/award', requireAuth, async (req, res) => {
     const uid = req.user.googleId;
     const u = getLimits(uid);
     const tier = u.paypalTier || 'free';
-    const earnPerWin = Math.floor(Math.random() * 16) + 5; // random 5–20
+    const wLen = Math.max(3, Math.min(12, parseInt(req.body?.wordLength) || 6));
+    const minC = Math.max(5,  Math.round(wLen * 0.7));
+    const maxC = Math.min(20, Math.round(wLen * 1.9));
+    const earnPerWin = Math.floor(Math.random() * (maxC - minC + 1)) + minC;
     const utcMidnight = new Date(); utcMidnight.setUTCHours(0, 0, 0, 0);
     const dayStart = utcMidnight.getTime();
     if ((u.coinsDayReset || 0) < dayStart) { u.coinsEarnedToday = 0; u.coinsDayReset = dayStart; }

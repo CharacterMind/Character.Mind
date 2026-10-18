@@ -4525,6 +4525,31 @@ function applyUsageResets(u) {
   return u;
 }
 
+function showCoinPop(amount) {
+  const el = document.createElement('div');
+  el.style.cssText = `
+    position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.6);
+    background:linear-gradient(135deg,#7c3aed,#4f46e5);
+    color:#fff;font-size:28px;font-weight:800;
+    padding:22px 40px;border-radius:16px;
+    box-shadow:0 8px 40px rgba(124,58,237,0.6);
+    z-index:99999;pointer-events:none;
+    transition:transform .2s cubic-bezier(.34,1.56,.64,1),opacity .3s ease;
+    opacity:0;white-space:nowrap;letter-spacing:.5px;
+  `;
+  el.textContent = `🪙 +${amount} coins!`;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => {
+    el.style.transform = 'translate(-50%,-50%) scale(1)';
+    el.style.opacity = '1';
+  });
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transform = 'translate(-50%,-60%) scale(0.9)';
+    setTimeout(() => el.remove(), 350);
+  }, 2000);
+}
+
 function updateNavCoinDisplay(u) {
   const el = document.getElementById('navCoinDisplay');
   const countEl = document.getElementById('navCoinCount');
@@ -8186,7 +8211,11 @@ async function launchHangman(savedState) {
 
     if (isWin && !coinAwarded && currentUser) {
       coinAwarded = true;
-      fetch('/api/coins/award', { method: 'POST' })
+      fetch('/api/coins/award', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ wordLength: word.length })
+        })
         .then(r => r.json())
         .then(d => {
           if (d && typeof d.balance === 'number') {
@@ -8194,7 +8223,7 @@ async function launchHangman(savedState) {
             else lastKnownUsage = { cmCoins: d.balance };
             updateNavCoinDisplay(lastKnownUsage);
             updateSettingsCoinDisplay(d.balance, d.earnedToday, d.dailyCap);
-            if (d.awarded > 0) showWarning(`🪙 +${d.awarded} coins!`, 3000);
+            if (d.awarded > 0) showCoinPop(d.awarded);
           }
         })
         .catch(() => {});
