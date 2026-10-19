@@ -3712,35 +3712,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   const clientEdgeVoice = req.body?.edgeVoice && typeof req.body.edgeVoice === 'string' ? req.body.edgeVoice : null;
   if (!text) return res.status(400).json({ error: 'no_text' });
 
-  // ElevenLabs path (when key is set, overrides all)
-  if (ELEVEN_KEY) {
-    const userId = req.user.googleId;
-    const ttsU = getLimits(userId);
-    const ttsWindow = getCallWindowStart();
-    if (!ttsU.ttsDayStart || ttsU.ttsDayStart < ttsWindow) { ttsU.ttsCharsToday = 0; ttsU.ttsDayStart = ttsWindow; }
-    if ((ttsU.ttsCharsToday || 0) + text.length > TTS_DAILY_CHARS) return res.status(429).json({ error: 'tts_limit' });
-    ttsU.ttsCharsToday = (ttsU.ttsCharsToday || 0) + text.length;
-    saveLimitsToDB(userId);
-    const refund = () => { ttsU.ttsCharsToday = Math.max(0, (ttsU.ttsCharsToday || 0) - text.length); };
-    const voiceId = (Object.hasOwn(ELEVEN_VOICE_MAP, charId) && ELEVEN_VOICE_MAP[charId]) || ELEVEN_DEFAULT_VOICE;
-    try {
-      const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}/stream?output_format=mp3_44100_64`, {
-        method: 'POST',
-        headers: { 'xi-api-key': ELEVEN_KEY, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
-        body: JSON.stringify({ text, model_id: 'eleven_multilingual_v2' })
-      });
-      if (!r.ok || !r.body) { console.warn('[tts] ElevenLabs error', r.status); refund(); return res.status(502).json({ error: 'tts_failed' }); }
-      res.setHeader('Content-Type', 'audio/mpeg');
-      res.setHeader('Cache-Control', 'no-store');
-      return res.send(Buffer.from(await r.arrayBuffer()));
-    } catch (e) {
-      console.warn('[tts] ElevenLabs request failed', e.message);
-      refund();
-      return res.status(502).json({ error: 'tts_failed' });
-    }
-  }
-
-  // Gemini TTS path — apply same daily character cap as ElevenLabs
+  // Gemini TTS path — apply same daily character cap
   if (provider === 'gemini') {
     const gKey = process.env.GEMINI_API_KEY;
     if (!gKey) return res.status(502).json({ error: 'tts_failed' });
