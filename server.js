@@ -232,7 +232,7 @@ if (db) {
     .catch(err => console.error('DB init error:', err));
 
   db.query(`ALTER TABLE characters ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT FALSE`)
-    .then(() => db.query(`UPDATE characters SET is_hidden = TRUE WHERE id IN ('custom_1790897425575_lily', 'custom_1790776698867', 'custom_1790895746938_gracie') AND NOT is_hidden`))
+    .then(() => db.query(`UPDATE characters SET is_hidden = TRUE WHERE id IN ('custom_1790897425575_lily', 'custom_1790776698867', 'custom_1790895746938_gracie', 'custom_1790774765927') AND NOT is_hidden`))
     .then(r => { if (r && r.rowCount > 0) { console.log(`[MIGRATION] Hid ${r.rowCount} character(s)`); invalidateCharList(); } })
     .then(() => db.query(`UPDATE characters SET is_hidden = FALSE WHERE name = 'Miss Delight' AND is_hidden`))
     .catch(err => console.error('is_hidden migration error:', err));
