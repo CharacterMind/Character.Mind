@@ -427,6 +427,7 @@ if (db) {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `).catch(err => console.error('app_config table init error:', err));
+  initServiceCoins().catch(e => console.error('[service-coins] startup error:', e.message));
 
   db.query(`
     CREATE TABLE IF NOT EXISTS processed_coin_orders (
@@ -1218,6 +1219,49 @@ const IMAGE_TOKEN_MAX = 15000;        // 1 large image per free session
 // Variable call token cost: scales with duration
 const CALL_TOKENS_PER_SECOND = 25;
 const CALL_TOKEN_MIN = 1500;          // minimum per call (~10 short calls per free session)
+
+// ── Service Coin Budget ────────────────────────────────────────────────────────
+// Global owner-funded coin pool. Each user action drains it. When it hits 0, AI
+// responses are blocked for non-owner users until the owner tops it up.
+const SERVICE_COIN_COSTS = { chat: 1, call: 3, memo: 1, game: 2 };
+let serviceCoinsBal = null; // null = loading; Infinity = dev/no-DB (unlimited)
+
+async function initServiceCoins() {
+  if (!db) { serviceCoinsBal = Infinity; return; }
+  try {
+    const r = await db.query("SELECT value FROM app_config WHERE key='service_coins'");
+    if (r.rows.length) {
+      serviceCoinsBal = parseInt(r.rows[0].value) || 0;
+    } else {
+      serviceCoinsBal = 5000;
+      db.query("INSERT INTO app_config(key,value) VALUES('service_coins','5000') ON CONFLICT DO NOTHING").catch(() => {});
+    }
+    console.log('[service-coins] Balance:', serviceCoinsBal);
+  } catch (e) { serviceCoinsBal = Infinity; console.error('[service-coins] init error:', e.message); }
+}
+
+function isServiceOnline() {
+  return serviceCoinsBal === null || serviceCoinsBal === Infinity || serviceCoinsBal > 0;
+}
+
+function deductServiceCoins(amount) {
+  if (serviceCoinsBal === null || serviceCoinsBal === Infinity || !db) return;
+  serviceCoinsBal = Math.max(0, serviceCoinsBal - amount);
+  db.query(
+    "INSERT INTO app_config(key,value,updated_at) VALUES('service_coins',$1,NOW()) ON CONFLICT(key) DO UPDATE SET value=$1,updated_at=NOW()",
+    [String(serviceCoinsBal)]
+  ).catch(e => console.error('[service-coins] save error:', e.message));
+}
+
+async function addServiceCoinsBalance(amount) {
+  if (!db) return;
+  if (serviceCoinsBal === null) await initServiceCoins();
+  if (serviceCoinsBal !== Infinity) serviceCoinsBal = (serviceCoinsBal || 0) + amount;
+  await db.query(
+    "INSERT INTO app_config(key,value,updated_at) VALUES('service_coins',$1,NOW()) ON CONFLICT(key) DO UPDATE SET value=$1,updated_at=NOW()",
+    [String(serviceCoinsBal)]
+  );
+}
 
 function addTokens(sid, tokens) {
   const u = getLimits(sid);
@@ -2801,6 +2845,7 @@ function startReplyStream(o) {
   });
   const cost = isGreetMode ? 0 : messageCost(modelTier, effort);
   const reservation = isGreetMode ? { warnings: [] } : addTokens(userId, cost);
+  if (!isGreetMode && !getLimits(userId).neverLimit) deductServiceCoins(SERVICE_COIN_COSTS.chat);
   let fullResponse = '', held = '', released = false, finished = false;
   const send = (obj) => { try { res.write('data: ' + JSON.stringify(obj) + '\n\n'); } catch (_) {} };
   // While the AI is thinking or waiting for its turn, say "still here" every 10 seconds. Without this a long wait with no text can look
@@ -3296,6 +3341,7 @@ app.post('/api/call/end', requireAuth, (req, res) => {
   const rawCost = Math.max(CALL_TOKEN_MIN, Math.ceil(duration * CALL_TOKENS_PER_SECOND));
   const callTokenCost = tier === 'free' ? CALL_TOKEN_MIN : rawCost;
   const usage = addTokens(userId, callTokenCost);
+  if (!getLimits(userId).neverLimit) deductServiceCoins(SERVICE_COIN_COSTS.call);
   res.json({ ok: true, ...usage });
 });
 
@@ -3529,6 +3575,7 @@ app.post('/api/memo/use', requireAuth, (req, res) => {
   }
   u.memosToday = (u.memosToday || 0) + 1;
   addTokens(userId, 300); // addTokens already persists via saveLimitsToDB internally
+  if (!getLimits(userId).neverLimit) deductServiceCoins(SERVICE_COIN_COSTS.memo);
   const remaining = memoLimit === Infinity ? 9999 : memoLimit - u.memosToday;
   res.json({ allowed: true, memosToday: u.memosToday, memosLimit: memoLimit === Infinity ? 9999 : memoLimit, memosRemaining: remaining, resetsAt });
 });
@@ -3837,6 +3884,20 @@ app.post('/api/admin/wipe-my-data', requireAuth, async (req, res) => {
     ]).catch(() => {});
   }
   res.json({ ok: true });
+});
+
+// Service coin balance — owner reads and tops up
+app.get('/api/admin/service-coins', requireAuth, (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  res.json({ coins: serviceCoinsBal === Infinity ? null : (serviceCoinsBal || 0) });
+});
+
+app.post('/api/admin/service-coins/add', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  const amount = parseInt(req.body.amount);
+  if (!Number.isInteger(amount) || amount <= 0 || amount > 500000) return res.status(400).json({ error: 'Invalid amount' });
+  await addServiceCoinsBalance(amount);
+  res.json({ ok: true, coins: serviceCoinsBal });
 });
 
 // Which build is running. The page checks this now and then and offers a reload when the site has been updated,
@@ -4729,6 +4790,9 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   if (!callMode) {
     const limit = checkLimits(userId);
     if (limit.blocked) return res.status(429).json({ error: limit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limit });
+  }
+  if (!isServiceOnline() && !getLimits(userId).neverLimit) {
+    return res.status(503).json({ error: 'service_offline', message: 'The service is temporarily unavailable. Please check back soon.' });
   }
   const releaseSlot = acquireChatSlot(req, res, userId);
   if (!releaseSlot) return;
@@ -6005,6 +6069,7 @@ app.post('/api/game/played', requireAuth, async (req, res) => {
   try {
     const uid = req.user.googleId;
     const result = addTokens(uid, GAME_PLAY_TOKENS);
+    if (!getLimits(uid).neverLimit) deductServiceCoins(SERVICE_COIN_COSTS.game);
     res.json(result);
   } catch (e) { console.error('[game/played]', e.message); res.status(500).json({ error: 'Server error' }); }
 });

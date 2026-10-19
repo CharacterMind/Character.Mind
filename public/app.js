@@ -4735,6 +4735,38 @@ async function buySessionPack(pack) {
   }
 }
 
+async function adminLoadServiceCoins() {
+  if (!isOwner()) return;
+  const el = document.getElementById('serviceCoinsDisplay');
+  if (!el) return;
+  try {
+    const d = await fetch('/api/admin/service-coins').then(r => r.json());
+    const bal = d.coins === null ? '∞' : d.coins.toLocaleString();
+    el.textContent = `Balance: ${bal} coins`;
+    el.style.color = (d.coins !== null && d.coins < 500) ? '#ef4444' : 'var(--accent-l)';
+  } catch (_) { el.textContent = 'Balance: error'; }
+}
+
+async function adminAddServiceCoins() {
+  if (!isOwner()) return;
+  const inp = document.getElementById('serviceCoinsAmount');
+  const statusEl = document.getElementById('serviceCoinsStatus');
+  const amount = parseInt(inp?.value);
+  if (!amount || amount <= 0) { if (statusEl) statusEl.textContent = 'Enter a valid amount.'; return; }
+  const btn = document.getElementById('serviceCoinsAddBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
+  if (statusEl) statusEl.textContent = '';
+  try {
+    const d = await fetch('/api/admin/service-coins/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount }) }).then(r => r.json());
+    if (d.ok) {
+      if (statusEl) statusEl.textContent = `Done ✓ New balance: ${d.coins.toLocaleString()} coins`;
+      if (inp) inp.value = '';
+      await adminLoadServiceCoins();
+    } else { if (statusEl) statusEl.textContent = d.error || 'Failed.'; }
+  } catch (_) { if (statusEl) statusEl.textContent = 'Network error.'; }
+  if (btn) { btn.disabled = false; btn.textContent = 'Add Coins'; }
+}
+
 async function adminResetLimits() {
   if (!isOwner()) return;
   const btn = document.getElementById('resetLimitsBtn');
@@ -5037,14 +5069,14 @@ function generateUsageHeadline(u) {
   const wPct = weeklyLimit ? (weeklyTokens / weeklyLimit) * 100 : 0;
   if (cooldownUntil && Date.now() < cooldownUntil) {
     const t = formatResetTime(cooldownUntil);
-    return `Session paused. ${t}.`;
+    return `Session limit reached. ${t}.`;
   }
   if (weeklyLimit && weeklyTokens >= weeklyLimit) return 'Weekly limit reached. Take a break — you\'ll be back soon.';
   if (weeklyLimit && wPct >= 90) return 'Almost at your weekly limit. Wrapping up soon.';
   if (weeklyLimit && wPct >= 75) return 'You\'ve used most of your weekly limit — pace yourself.';
   if (weeklyLimit && wPct >= 50) return 'Halfway through your weekly limit. You\'re doing great.';
-  if (sPct >= 90) return 'Session almost full. Your next cooldown is close.';
-  if (sPct >= 75) return 'Session getting full. Consider a fresh chat soon.';
+  if (sPct >= 90) return 'Session almost full. Approaching your limit — it resets automatically.';
+  if (sPct >= 75) return 'Session getting full. Your usage window resets on a timer.';
   // Predict if user will hit weekly limit before the weekly reset
   if (weeklyLimit && weeklyStart && weeklyResetsAt && weeklyTokens > 0 && wPct < 75) {
     const elapsed = Date.now() - weeklyStart;
@@ -5529,6 +5561,7 @@ async function openUsageModal() {
   document.getElementById('usageModal').style.display = 'flex';
   const wrap = document.getElementById('resetLimitsWrap');
   if (wrap) wrap.hidden = !isOwner();
+  if (isOwner()) adminLoadServiceCoins();
   // Wire donation URL from constant; hide the row for the owner (they know it exists)
   const donateBtn = document.getElementById('usageDonateBtn');
   if (donateBtn) donateBtn.href = DONATION_URL;

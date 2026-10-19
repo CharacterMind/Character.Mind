@@ -22,7 +22,7 @@
 <link rel="icon" type="image/webp" href="/logo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=259">
+<link rel="stylesheet" href="style.css?v=260">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -265,6 +265,19 @@
         <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Token credit extends your chat limit. Coins are your spendable balance.</div>
         <div id="giveSelfStatus" style="font-size:12px;color:var(--accent-l);margin-bottom:8px;min-height:16px"></div>
         <button class="reset-limits-btn" onclick="adminGiveSelf()" id="giveSelfBtn" style="width:100%;text-align:center;background:linear-gradient(135deg,#065f46,#10b981)">Apply ⚡</button>
+      </div>
+      <div id="serviceCoinsWrap" style="margin-top:16px;border-top:1px solid var(--border2);padding-top:16px;text-align:left">
+        <p style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);margin-bottom:6px">🪙 Service Budget</p>
+        <p style="font-size:11px;color:var(--text3);margin:0 0 10px">Coins are deducted for every user action (chat=1, call=3, memo=1, game=2). When balance hits 0, AI stops for all users until you top up.</p>
+        <div id="serviceCoinsDisplay" style="font-size:13px;font-weight:600;color:var(--accent-l);margin-bottom:10px">Balance: loading…</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <div style="flex:1">
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Add coins</label>
+            <input id="serviceCoinsAmount" type="number" value="1000" min="1" max="500000" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:6px 10px;outline:none;font-family:inherit"/>
+          </div>
+        </div>
+        <div id="serviceCoinsStatus" style="font-size:12px;color:var(--accent-l);margin-bottom:8px;min-height:16px"></div>
+        <button class="reset-limits-btn" onclick="adminAddServiceCoins()" id="serviceCoinsAddBtn" style="width:100%;text-align:center;background:linear-gradient(135deg,#854d0e,#ca8a04)">Add Coins 🪙</button>
       </div>
     </div>
   </div>
@@ -1733,7 +1746,7 @@
   </div>
 </div>
 
-<script src="app.js?v=259"></script>
+<script src="app.js?v=260"></script>
 
 <!-- Session 90% warning toast -->
 <div id="sessionWarningToast">
