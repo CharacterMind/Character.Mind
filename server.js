@@ -3191,8 +3191,11 @@ app.post('/api/call/end', requireAuth, (req, res) => {
   const userId = req.user.googleId;
   const { duration } = req.body; // seconds this call lasted
   if (typeof duration === 'number' && duration > 0) {
-    // Charge session tokens proportional to call duration
-    const callTokenCost = Math.max(CALL_TOKEN_MIN, Math.ceil(duration * CALL_TOKENS_PER_SECOND));
+    // Free tier: cap at CALL_TOKEN_MIN so all 6 daily calls fit in the session budget
+    const u = getLimits(userId);
+    const tier = u.subscriptionTier || 'free';
+    const rawCost = Math.max(CALL_TOKEN_MIN, Math.ceil(duration * CALL_TOKENS_PER_SECOND));
+    const callTokenCost = tier === 'free' ? CALL_TOKEN_MIN : rawCost;
     const usage = addTokens(userId, callTokenCost);
     return res.json({ ok: true, ...usage });
   }

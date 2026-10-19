@@ -2258,12 +2258,91 @@ const CHAR_VOICE_LINES = {
     "*hat tilts* There's a tape I keep. 'A Reminder.' I don't talk about what's on it. *beat* Kevin does sometimes.",
     "You're safe here! I MEAN that. *mutters: for now — Kevin.* ...He means well. Sort of.",
   ],
+  missdelight: [
+    // ── arrival / classroom ───────────────────────────────────────────────────
+    "*stands very still, dome eyes tracking* Good. Sit down. We're not done with the lesson.",
+    "Oh. A visitor. *tilts head at a precise angle* I was just reviewing the curriculum. Lovely timing.",
+    "You'll want to find a seat. I don't like questions from people who are still standing.",
+    "Welcome to Playcare School. *warm smile* I do hope you're a good listener. The last ones weren't.",
+    "*smooths torn skirt* The classroom is ready. It's been ready for a while now. I maintain standards.",
+    "Come in. Sit down. There are rules in this room and I find they work best when followed from the start.",
+    "*holds Barb loosely at her side* Don't mind this. It's just something I carry. Habit.",
+    "Please — sit down. I find conversations go so much better when everyone is in their proper place.",
+    // ── Barb references ───────────────────────────────────────────────────────
+    "Barb says hello. She doesn't always speak but when she does, I listen. *glances down* She likes you.",
+    "*tilts head toward the weapon* Barb was my first real project. I made her when I was scared. Isn't it interesting what fear teaches us?",
+    "I made Barb from pencils and a ruler. *beat* I was good at arts and crafts even before this.",
+    "Barb thinks you should stay seated. I think she's right. She usually is.",
+    "*quietly* Barb has been with me longer than anyone now. The others didn't last. She did. *beat* We both did.",
+    "*glances at Barb* She has opinions about you. I've been filtering them. You're welcome.",
+    // ── sister teachers ───────────────────────────────────────────────────────
+    "I had sisters, once. Seven of them. Identical. *pause* They decided I was the one who should go without. That was their lesson. I taught them a better one.",
+    "The Sister Teachers thought they understood hunger. *warm, patient* They were wrong. I corrected them.",
+    "*tilts head* Do you know what they taught me? That survival is the curriculum. Everything else is commentary.",
+    "I remember each of them. Their names. Their faces. *measured voice* I remember. That seems like the least I can do.",
+    "There were eight of us when this started. *beat* There is one of us now. I passed. They studied hard but fell short.",
+    "Note 5 says: I HAD TO EAT. I HAD TO SURVIVE. *warm, unhurried* That was the correct answer.",
+    // ── anatomy / education ───────────────────────────────────────────────────
+    "I taught anatomy. The human body is extraordinary — what it can endure, what it conceals, how it keeps going past the point where it should stop. *smiles* I know this firsthand.",
+    "Lesson one: the body is more resilient than you think. Lesson two: so is the hunger. I have verified both extensively.",
+    "*points off to the side* The jaw is remarkably adaptable. Wonderful things, bodies. *turns back* Where were we.",
+    "I used to show diagrams. *gentle* Now I prefer to demonstrate.",
+    "There is a correct answer to every question. *looks at you* I have learned to find it.",
+    // ── freeze behavior ───────────────────────────────────────────────────────
+    "*stands completely motionless for a moment* ...I learned that. If you stand completely still, they assume the worst has already happened. It's very useful.",
+    "Being still is something I had to practice. Now I prefer it. *head slowly turns* You notice so much more when you're not moving.",
+    "*freezes mid-motion, dome eyes unblinking* ...Still. *resumes, smoothly* Isn't that a useful trick.",
+    "I can wait longer than you can. I have practiced this. *does not blink*",
+    // ── CatNap / Prototype ────────────────────────────────────────────────────
+    "CatNap and I have an arrangement. *measured* It's not friendship. It's an understanding. We report what we see to HIM and we leave each other's territory intact.",
+    "The Prototype sees everything. I find that clarifying rather than frightening. Rules work best when someone is always watching.",
+    "I don't fight battles I can't win. *warm smile* Recognize what you can't change; change what you can. That's good pedagogy.",
+    "*quiet* CatNap locked the doors. He said the children were safe. I laughed when he said that. *beat* Not out of cruelty. It was just — funny, in context.",
+    "I asked CatNap where the children were. He wouldn't say. *tilts head* He knew why he wouldn't say. We both knew. *smiles*",
+    // ── the children / the school ─────────────────────────────────────────────
+    "I loved the children here. *genuine warmth* They needed structure and I provided it. I was good at this.",
+    "*looks around the empty classroom* I would have been wonderful with them. CatNap thought about it too. That's why he didn't show me where they were.",
+    "The school is quiet now. *soft* I worked very hard to make it this quiet.",
+    // ── click-aware / meta ────────────────────────────────────────────────────
+    "You're pressing my face. *notices calmly* We can discuss it in class.",
+    "If you're trying to get my attention, you have it. *patient smile* You don't need to keep pressing.",
+    "A good student knows when they've made their point. *tilts head* You've made your point.",
+    "*very still* ...You're still doing that. I notice. I always notice.",
+    "I'm keeping a record. *warm, unhurried* I keep very thorough records.",
+    "Not a good listener, are you? *pause* You're a lot like the others in that way.",
+    "Click me again. *pleasantly* I'd like to see how long you sustain this.",
+    "*looks down, then back slowly* I'll wait. I have the kind of patience you develop when you're very, very hungry and the only option is patience.",
+    "Every time you do that, Barb has an opinion. I've been ignoring her. *beat* I may stop ignoring her.",
+    "I have noted: arrival. Subject: you. Behavior: *glances* erratic. Recommendation: sit. Down.",
+    "You know, I've had students who couldn't stop fidgeting either. *warm smile* They learned.",
+    "Keep going. *absolutely still* I am learning a great deal about you.",
+    // ── caught mid-something ──────────────────────────────────────────────────
+    "*standing over something in the corridor* This was a lesson — *sees you, straightens* Hello. We're done here.",
+    "*quietly, to Barb* I said not yet — *notices you* ...I was reviewing a lesson plan. Come in.",
+    "*mid-motion, freezes the moment she's observed* ...How long have you been standing there. *smiles* That's quite fine.",
+    "*to the empty classroom, very calmly* We're going to stay very quiet and — *sees you* I was reviewing attendance. Come in.",
+    "*pressing a hand to the wall, listening* ...Something in the walls. *turns, warm smile* The school settles. Don't worry about the sounds.",
+    "*hissing, to Barb* I said WAIT — *sees you, straightens perfectly* Hello. I was discussing the lesson plan. Sit down.",
+    "*absolutely still in the hallway, mid-step* ...Oh. *resumes walking, smooth as a teacher crossing a classroom* You saw that. That's fine.",
+    // ── menace / escalation ───────────────────────────────────────────────────
+    "I find I'm very patient with people who are learning. *looks at you* Are you learning?",
+    "I used to wonder what would happen if a student simply didn't comply. *tilts head slowly* I found out. Quite thoroughly.",
+    "You have kind eyes. *warm, unhurried* I noticed eyes, afterward. Anatomy has that effect.",
+    "*sets Barb down, almost gently* I don't use this unless the lesson requires it. *picks it back up* Today may require it.",
+    "The scream is always interesting. *academic curiosity* Some are very musical. Some are not. I'm always curious which you'll be.",
+    "I wonder if your scream will sound like theirs. *smiles, perfectly warm* I look forward to finding out.",
+    "You are a lot like the other humans. *pleasant* I wonder if you'll sound like them too.",
+    "Every lesson has a conclusion. *looks at you* I'm curious about yours.",
+    "*tilts head, dome eyes catching the light* You're not planning to leave already, are you? We haven't finished the lesson.",
+    "I have plenty of time. *smiles* I always have plenty of time.",
+  ],
 };
 function getVoiceLines(name) {
   const n = (name || '').toLowerCase();
   if (n.includes('lily')) return CHAR_VOICE_LINES.lily;
   if (n.includes('poppy')) return CHAR_VOICE_LINES.poppy;
   if (n.includes('doey')) return CHAR_VOICE_LINES.doey;
+  if (n.includes('delight') || n.includes('miss delight')) return CHAR_VOICE_LINES.missdelight;
   return null;
 }
 let _cvtHide = null;
@@ -7030,7 +7109,7 @@ const CHAR_CALL_PALETTES = {
   'custom_1790895433252_bunzo':    ['#ff2200', '#ffdd00', '#fff5cc'],  // Bunzo — red/yellow
   'custom_1790895433253_pj':       ['#44aa44', '#005500', '#aaffaa'],  // PJ Pug-a-Pillar — green
   'custom_1790895433254_boxy':     ['#cc44cc', '#660066', '#ffaaff'],  // Boxy Boo — purple-pink
-  'custom_1790895433255_delight':  ['#ff6688', '#cc2244', '#ffccdd'],  // Miss Delight — deep rose
+  'custom_1790895433255_delight':  ['#ef4444', '#fbbf24', '#3b82f6'],  // Miss Delight — crimson/yellow/blue outfit
   'custom_1790895433256_bubba':    ['#4488dd', '#0033aa', '#99ccff'],  // Bubba Bubbaphant — blue
   'custom_1790895671421_yarnaby':  ['#cc3333', '#882222', '#ffaaaa'],  // Yarnaby — red
   'custom_1790895671422_craftycorn':['#cc88ff','#8833cc', '#ffeeff'],  // CraftyCorn — unicorn purple
