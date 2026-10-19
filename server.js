@@ -802,7 +802,8 @@ async function loadLimitsFromDB() {
         ttsDayStart: d.ttsDayStart || null,
         swearsToday: d.swearsToday || 0,
         swearDayStart: d.swearDayStart || null,
-        subscriptionTier: d.subscriptionTier || 'free'
+        subscriptionTier: d.subscriptionTier || 'free',
+        tokenCredit: d.tokenCredit || 0
         // tierLoaded intentionally omitted: coins/tokens/tier are authoritative in the users table
         // and must be re-fetched via ensureTierLoaded on first request after restart
       };
@@ -855,7 +856,10 @@ const STRONG_SWEAR_RE = /\b(?:fucks?|fucking|fucker|fuckers?|motherfuckers?|shit
 function countSwears(text) { return (String(text || '').match(STRONG_SWEAR_RE) || []).length; }
 function getSwearLimitFor(tier) { return TIER_SWEAR_LIMITS[tier] ?? TIER_SWEAR_LIMITS.free; }
 function tokenLimitsFor(u) {
-  return TIER_TOKEN_LIMITS[u.subscriptionTier || 'free'] || TIER_TOKEN_LIMITS.free;
+  const base = TIER_TOKEN_LIMITS[u.subscriptionTier || 'free'] || TIER_TOKEN_LIMITS.free;
+  const credit = u.tokenCredit || 0;
+  if (!credit) return base;
+  return { session: base.session + credit, weekly: base.weekly === Infinity ? Infinity : base.weekly + credit };
 }
 // How fast each model tier burns your token allowance (top tiers cost far more).
 // Six models, each with its own job. (Older saved choices like "opys5" are read as the base model, see baseOf.)
@@ -964,7 +968,7 @@ const userLimits = {};
 function getLimits(sid) {
   const now = Date.now();
   if (!userLimits[sid]) {
-    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null, memosToday: 0, memoDayStart: null, imagesDay: 0, imageDayStart: null, imageFirstUsedAt: null, ttsCharsToday: 0, ttsDayStart: null, swearsToday: 0, swearDayStart: null, subscriptionTier: 'free' };
+    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null, memosToday: 0, memoDayStart: null, imagesDay: 0, imageDayStart: null, imageFirstUsedAt: null, ttsCharsToday: 0, ttsDayStart: null, swearsToday: 0, swearDayStart: null, subscriptionTier: 'free', tokenCredit: 0 };
   }
   const u = userLimits[sid];
   if (u.subscriptionTier === undefined) u.subscriptionTier = 'free';
@@ -3465,6 +3469,24 @@ app.post('/api/admin/reset-session', requireAuth, (req, res) => {
   u.sessionTokens = 0; u.sessionStartedAt = null; u.cooldownUntil = null; u.warned.session90 = false;
   saveLimitsToDB(req.user.googleId);
   res.json({ ok: true });
+});
+
+// Owner-only: grant yourself any token credit (extends your effective session + weekly limits) and/or coins
+app.post('/api/admin/give-self', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  const uid = req.user.googleId;
+  const { tokenCredit, coins } = req.body || {};
+  const u = getLimits(uid);
+  if (tokenCredit != null) {
+    u.tokenCredit = Math.max(0, Math.min(100_000_000, Number(tokenCredit) || 0));
+    saveLimitsToDB(uid);
+  }
+  if (coins != null) {
+    const amount = Math.max(0, Math.min(10_000_000, Number(coins) || 0));
+    if (db) await db.query('UPDATE users SET cm_coins = COALESCE(cm_coins, 0) + $1 WHERE google_id = $2', [amount, uid]).catch(() => {});
+    u.cmCoins = (u.cmCoins || 0) + amount;
+  }
+  res.json({ ok: true, tokenCredit: u.tokenCredit, cmCoins: u.cmCoins });
 });
 
 // One-time: stamp all characters created by the calling owner as CharacterMind

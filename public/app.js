@@ -4685,6 +4685,31 @@ async function adminSendCoinsToEmail() {
   if (btn) { btn.textContent = 'Send 💌'; btn.disabled = false; }
 }
 
+async function adminGiveSelf() {
+  if (!isOwner()) return;
+  const tokenCredit = Math.max(0, parseInt(document.getElementById('giveSelfTokens')?.value) || 0);
+  const coins = Math.max(0, parseInt(document.getElementById('giveSelfCoins')?.value) || 0);
+  const status = document.getElementById('giveSelfStatus');
+  const btn = document.getElementById('giveSelfBtn');
+  if (!tokenCredit && !coins) { if (status) status.textContent = 'Enter a token credit or coin amount.'; return; }
+  if (btn) { btn.textContent = 'Applying…'; btn.disabled = true; }
+  if (status) status.textContent = '';
+  try {
+    const d = await fetch('/api/admin/give-self', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tokenCredit, coins })
+    }).then(r => r.json());
+    if (d.ok) {
+      if (status) status.textContent = `✓ Token credit set to ${(d.tokenCredit || 0).toLocaleString()}${coins ? ` · +${coins.toLocaleString()} coins` : ''}`;
+      await refreshUsageManual();
+    } else {
+      if (status) status.textContent = d.error || 'Failed.';
+    }
+  } catch (_) { if (status) status.textContent = 'Request failed.'; }
+  if (btn) { btn.textContent = 'Apply ⚡'; btn.disabled = false; }
+}
+
 async function adminPostAnnouncement() {
   if (!isOwner()) return;
   const title = (document.getElementById('annTitle')?.value || '').trim();
