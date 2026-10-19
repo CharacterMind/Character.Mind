@@ -2248,8 +2248,9 @@ async function getCharPrompt(charId) {
   const hit = charPromptCache.get(charId);
   if (hit && Date.now() - hit.at < CHAR_PROMPT_TTL_MS) return hit.row;
   try {
-    const { rows } = await db.query('SELECT name, system_prompt, greeting, greeting_mode FROM characters WHERE id = $1', [charId]);
+    const { rows } = await db.query('SELECT name, system_prompt, greeting, greeting_mode, COALESCE(is_hidden, FALSE) AS is_hidden FROM characters WHERE id = $1', [charId]);
     if (rows.length) {
+      if (rows[0].is_hidden) return null;
       if (charPromptCache.size > 500) charPromptCache.clear();
       charPromptCache.set(charId, { row: rows[0], at: Date.now() });
       return rows[0];
