@@ -4841,6 +4841,21 @@ async function adminResetLimits() {
   if (btn) { btn.textContent = 'Reset limits'; btn.disabled = false; }
 }
 
+async function adminResetUserByEmail() {
+  if (!isOwner()) return;
+  const email = document.getElementById('sendToEmail')?.value?.trim();
+  if (!email) { showWarning('Enter an email first.'); return; }
+  const btn = document.getElementById('resetByEmailBtn');
+  if (btn) { btn.textContent = 'Resetting…'; btn.disabled = true; }
+  try {
+    const d = await fetch('/api/admin/reset-by-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) }).then(r => r.json());
+    const result = document.getElementById('sendToEmailResult');
+    if (d.ok) { if (result) result.textContent = `✓ Limits reset for ${d.email}`; showWarning(`Limits reset for ${d.email} ✓`, 5000); }
+    else { if (result) result.textContent = d.error || 'Reset failed'; showWarning(d.error || 'Reset failed.'); }
+  } catch (_) { showWarning('Reset failed.'); }
+  if (btn) { btn.textContent = 'Reset Limits ↺'; btn.disabled = false; }
+}
+
 document.addEventListener('keydown', e => {
   if (e.ctrlKey && e.shiftKey && e.key === '0') { e.preventDefault(); adminResetLimits(); }
 });

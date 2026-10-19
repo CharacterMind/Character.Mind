@@ -3945,6 +3945,22 @@ app.post('/api/admin/reset-mine', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// Owner-only: reset another user's limits by email — no secret required
+app.post('/api/admin/reset-by-email', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  if (!email) return res.status(400).json({ error: 'email required' });
+  if (!db) return res.status(503).json({ error: 'No database' });
+  try {
+    const r = await db.query('SELECT google_id FROM users WHERE LOWER(email)=$1', [email]);
+    if (!r.rows.length) return res.status(404).json({ error: 'User not found' });
+    const uid = r.rows[0].google_id;
+    delete userLimits[uid];
+    await db.query('DELETE FROM user_limits WHERE user_id = $1', [uid]);
+    res.json({ ok: true, email, reset: uid });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Owner-only: view the app as another plan (free/advanced/x20/x50/x100) to test limits and usage bars.
 // Lasts until the server restarts; your real owner access returns automatically.
 app.post('/api/admin/set-my-tier', requireAuth, (req, res) => {
