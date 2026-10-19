@@ -1027,16 +1027,32 @@ function getRank(allTimeCoins) {
   return RANKS[0];
 }
 
-// ── Mission definitions ─────────────────────────────────────────────────────
-const DAILY_MISSIONS = [
-  { id: 'login',    label: 'Log in today',                     target: 1, reward: 5,  type: 'login'    },
-  { id: 'messages', label: 'Send 5 messages',                  target: 5, reward: 10, type: 'messages' },
-  { id: 'chars',    label: 'Chat with 2 different characters', target: 2, reward: 15, type: 'chars'    },
+// ── Mission pool — ordered by unlock order. Show first N unclaimed at a time. ─
+const DAILY_MISSION_POOL = [
+  { id: 'login',    label: 'Log in today',                    target: 1,  reward: 5,  type: 'login'            },
+  { id: 'messages', label: 'Send 5 messages',                 target: 5,  reward: 10, type: 'messages'         },
+  { id: 'chars',    label: 'Chat with 2 different characters',target: 2,  reward: 15, type: 'chars'            },
+  { id: 'msg15',    label: 'Send 15 messages',                target: 15, reward: 20, type: 'messages'         },
+  { id: 'chars3',   label: 'Chat with 3 different characters',target: 3,  reward: 20, type: 'chars'            },
+  { id: 'call1',    label: 'Make a call today',               target: 1,  reward: 25, type: 'calls'            },
+  { id: 'msg30',    label: 'Send 30 messages',                target: 30, reward: 30, type: 'messages'         },
+  { id: 'gamble1',  label: 'Win a gamble today',              target: 1,  reward: 10, type: 'gamble_win_daily' },
+  { id: 'game1',    label: 'Play a game today',               target: 1,  reward: 15, type: 'games'            },
+  { id: 'chars5',   label: 'Chat with 5 different characters',target: 5,  reward: 30, type: 'chars'            },
 ];
-const WEEKLY_MISSIONS = [
-  { id: 'days',       label: 'Log in 5 days this week',  target: 5, reward: 50, type: 'days'       },
-  { id: 'gamble_win', label: 'Win 3 gambles this week',  target: 3, reward: 30, type: 'gamble_win' },
+const WEEKLY_MISSION_POOL = [
+  { id: 'days',       label: 'Log in 5 days this week',          target: 5,  reward: 50, type: 'days'            },
+  { id: 'gamble_win', label: 'Win 3 gambles this week',          target: 3,  reward: 30, type: 'gamble_win'      },
+  { id: 'wdays7',     label: 'Log in every day this week',       target: 7,  reward: 75, type: 'days'            },
+  { id: 'wmsg50',     label: 'Send 50 messages this week',       target: 50, reward: 50, type: 'messages_weekly' },
+  { id: 'wgamble7',   label: 'Win 7 gambles this week',          target: 7,  reward: 50, type: 'gamble_win'      },
+  { id: 'wchars5',    label: 'Chat with 5 characters this week', target: 5,  reward: 45, type: 'chars_weekly'    },
 ];
+const DAILY_SHOW = 3;  // how many unclaimed daily missions to show at once
+const WEEKLY_SHOW = 2; // how many unclaimed weekly missions to show at once
+// Alias flat arrays for claim-validation lookups
+const DAILY_MISSIONS  = DAILY_MISSION_POOL;
+const WEEKLY_MISSIONS = WEEKLY_MISSION_POOL;
 
 function getISOWeek(date) {
   const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -1056,14 +1072,28 @@ function parseMissionsData(raw) {
   if (data.day !== todayStr) {
     data.day = todayStr;
     data.dc = {};
-    data.claimed = data.claimed.filter(id => !DAILY_MISSIONS.find(m => m.id === id));
+    data.claimed = data.claimed.filter(id => !DAILY_MISSION_POOL.find(m => m.id === id));
   }
   if (data.week !== weekStr) {
     data.week = weekStr;
     data.wc = {};
-    data.claimed = data.claimed.filter(id => !WEEKLY_MISSIONS.find(m => m.id === id));
+    data.claimed = data.claimed.filter(id => !WEEKLY_MISSION_POOL.find(m => m.id === id));
   }
   return data;
+}
+
+function getMissionProgress(m, data) {
+  if (m.type === 'login')            return data.dc.login    || 0;
+  if (m.type === 'messages')         return data.dc.messages || 0;
+  if (m.type === 'chars')            return Array.isArray(data.dc.chars) ? data.dc.chars.length : 0;
+  if (m.type === 'calls')            return data.dc.calls    || 0;
+  if (m.type === 'games')            return data.dc.games    || 0;
+  if (m.type === 'gamble_win_daily') return data.dc.gamble_win_daily || 0;
+  if (m.type === 'days')             return data.wc.days       || 0;
+  if (m.type === 'gamble_win')       return data.wc.gamble_win || 0;
+  if (m.type === 'messages_weekly')  return data.wc.messages   || 0;
+  if (m.type === 'chars_weekly')     return Array.isArray(data.wc.chars) ? data.wc.chars.length : 0;
+  return 0;
 }
 
 async function trackMissionProgress(uid, type, extra) {
@@ -1081,11 +1111,19 @@ async function trackMissionProgress(uid, type, extra) {
       }
     } else if (type === 'message') {
       data.dc.messages = (data.dc.messages || 0) + 1;
+      data.wc.messages = (data.wc.messages || 0) + 1;
     } else if (type === 'char') {
       if (!Array.isArray(data.dc.chars)) data.dc.chars = [];
       if (extra && !data.dc.chars.includes(extra)) data.dc.chars.push(extra);
+      if (!Array.isArray(data.wc.chars)) data.wc.chars = [];
+      if (extra && !data.wc.chars.includes(extra)) data.wc.chars.push(extra);
     } else if (type === 'gamble_win') {
       data.wc.gamble_win = (data.wc.gamble_win || 0) + 1;
+      data.dc.gamble_win_daily = (data.dc.gamble_win_daily || 0) + 1;
+    } else if (type === 'call') {
+      data.dc.calls = (data.dc.calls || 0) + 1;
+    } else if (type === 'game') {
+      data.dc.games = (data.dc.games || 0) + 1;
     }
     await db.query('UPDATE users SET missions_data=$1 WHERE google_id=$2', [JSON.stringify(data), uid]);
   } catch (_) {}
@@ -3342,6 +3380,7 @@ app.post('/api/call/end', requireAuth, (req, res) => {
   const callTokenCost = tier === 'free' ? CALL_TOKEN_MIN : rawCost;
   const usage = addTokens(userId, callTokenCost);
   if (!getLimits(userId).neverLimit) deductServiceCoins(SERVICE_COIN_COSTS.call);
+  trackMissionProgress(userId, 'call').catch(() => {});
   res.json({ ok: true, ...usage });
 });
 
@@ -6070,6 +6109,7 @@ app.post('/api/game/played', requireAuth, async (req, res) => {
     const uid = req.user.googleId;
     const result = addTokens(uid, GAME_PLAY_TOKENS);
     if (!getLimits(uid).neverLimit) deductServiceCoins(SERVICE_COIN_COSTS.game);
+    trackMissionProgress(uid, 'game').catch(() => {});
     res.json(result);
   } catch (e) { console.error('[game/played]', e.message); res.status(500).json({ error: 'Server error' }); }
 });
@@ -6314,32 +6354,41 @@ app.get('/api/leaderboard', requireAuth, async (req, res) => {
 });
 
 // ── Missions ────────────────────────────────────────────────────────────────
+function buildMissionList(pool, data, showCount) {
+  const claimed = data.claimed;
+  const unclaimed = pool.filter(m => !claimed.includes(m.id));
+  // Show: all claimed missions (from this pool) + next N unclaimed
+  const visible = [
+    ...pool.filter(m => claimed.includes(m.id)),
+    ...unclaimed.slice(0, showCount),
+  ];
+  return visible.map(m => {
+    const progress = getMissionProgress(m, data);
+    return { ...m, progress, done: progress >= m.target, claimed: claimed.includes(m.id) };
+  });
+}
+
 app.get('/api/missions', requireAuth, async (req, res) => {
   if (!db) return res.status(503).json({ error: 'No database' });
   try {
     const { rows } = await db.query('SELECT missions_data FROM users WHERE google_id=$1', [req.user.googleId]);
     const data = parseMissionsData(rows[0]?.missions_data);
-    const daily = DAILY_MISSIONS.map(m => {
-      let progress = 0;
-      if (m.type === 'login')    progress = data.dc.login    || 0;
-      if (m.type === 'messages') progress = data.dc.messages || 0;
-      if (m.type === 'chars')    progress = Array.isArray(data.dc.chars) ? data.dc.chars.length : 0;
-      return { ...m, progress, done: progress >= m.target, claimed: data.claimed.includes(m.id) };
+    const daily  = buildMissionList(DAILY_MISSION_POOL,  data, DAILY_SHOW);
+    const weekly = buildMissionList(WEEKLY_MISSION_POOL, data, WEEKLY_SHOW);
+    const dailyClaimedCount  = DAILY_MISSION_POOL.filter(m => data.claimed.includes(m.id)).length;
+    const weeklyClaimedCount = WEEKLY_MISSION_POOL.filter(m => data.claimed.includes(m.id)).length;
+    res.json({
+      daily, weekly,
+      dailyCompleted: dailyClaimedCount,  dailyTotal: DAILY_MISSION_POOL.length,
+      weeklyCompleted: weeklyClaimedCount, weeklyTotal: WEEKLY_MISSION_POOL.length,
     });
-    const weekly = WEEKLY_MISSIONS.map(m => {
-      let progress = 0;
-      if (m.type === 'days')       progress = data.wc.days       || 0;
-      if (m.type === 'gamble_win') progress = data.wc.gamble_win || 0;
-      return { ...m, progress, done: progress >= m.target, claimed: data.claimed.includes(m.id) };
-    });
-    res.json({ daily, weekly });
   } catch (e) { console.error('[missions]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
 });
 
 app.post('/api/missions/claim', requireAuth, async (req, res) => {
   if (!db) return res.status(503).json({ error: 'No database' });
   const { id } = req.body || {};
-  const mission = [...DAILY_MISSIONS, ...WEEKLY_MISSIONS].find(m => m.id === id);
+  const mission = [...DAILY_MISSION_POOL, ...WEEKLY_MISSION_POOL].find(m => m.id === id);
   if (!mission) return res.status(400).json({ error: 'Unknown mission' });
   try {
     const uid = req.user.googleId;
@@ -6347,12 +6396,7 @@ app.post('/api/missions/claim', requireAuth, async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'User not found' });
     const data = parseMissionsData(rows[0].missions_data);
     if (data.claimed.includes(id)) return res.status(400).json({ error: 'Already claimed' });
-    let progress = 0;
-    if (mission.type === 'login')      progress = data.dc.login    || 0;
-    if (mission.type === 'messages')   progress = data.dc.messages || 0;
-    if (mission.type === 'chars')      progress = Array.isArray(data.dc.chars) ? data.dc.chars.length : 0;
-    if (mission.type === 'days')       progress = data.wc.days       || 0;
-    if (mission.type === 'gamble_win') progress = data.wc.gamble_win || 0;
+    const progress = getMissionProgress(mission, data);
     if (progress < mission.target) return res.status(400).json({ error: 'Mission not complete yet', progress, target: mission.target });
     data.claimed.push(id);
     const r = await db.query(

@@ -5460,29 +5460,45 @@ async function loadMissions() {
   }
 }
 function renderMissions(d) {
-  const section = (title, missions) => {
-    let html = `<div class="mission-section-title">${title}</div>`;
-    html += missions.map(m => {
-      const pct = Math.min(100, Math.round((m.progress / m.target) * 100));
-      const claimable = m.done && !m.claimed;
-      const claimed = m.claimed;
-      return `<div class="mission-card${m.done ? ' done' : ''}">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <span class="mission-label">${m.label}</span>
-          <span class="mission-reward">+${m.reward} 🪙</span>
-        </div>
-        <div class="mission-bar-wrap"><div class="mission-bar" style="width:${pct}%"></div></div>
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span class="mission-progress-text">${m.progress} / ${m.target}</span>
-          ${claimed ? '<span style="font-size:11px;color:var(--accent-l)">✓ Claimed</span>'
-            : `<button class="mission-claim-btn" ${claimable ? '' : 'disabled'} onclick="claimMission('${m.id}')">${claimable ? 'Claim' : 'Incomplete'}</button>`}
-        </div>
-      </div>`;
-    }).join('');
+  const missionCard = (m) => {
+    const pct = Math.min(100, Math.round((m.progress / m.target) * 100));
+    const claimable = m.done && !m.claimed;
+    return `<div class="mission-card${m.claimed ? ' done' : ''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <span class="mission-label">${m.label}</span>
+        <span class="mission-reward">+${m.reward} 🪙</span>
+      </div>
+      <div class="mission-bar-wrap"><div class="mission-bar" style="width:${pct}%"></div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="mission-progress-text">${m.progress} / ${m.target}</span>
+        ${m.claimed ? '<span style="font-size:11px;color:var(--accent-l)">✓ Claimed</span>'
+          : `<button class="mission-claim-btn" ${claimable ? '' : 'disabled'} onclick="claimMission('${m.id}')">${claimable ? 'Claim' : 'Incomplete'}</button>`}
+      </div>
+    </div>`;
+  };
+
+  const section = (title, missions, completed, total) => {
+    const counter = `<span style="font-size:11px;font-weight:500;color:var(--accent-l);margin-left:8px">${completed}/${total} complete</span>`;
+    let html = `<div class="mission-section-title">${title}${counter}</div>`;
+    const unclaimed = missions.filter(m => !m.claimed);
+    const claimed   = missions.filter(m => m.claimed);
+    if (unclaimed.length === 0 && claimed.length === 0) {
+      html += `<div style="text-align:center;padding:20px 0;font-size:13px;color:var(--text3)">No missions yet.</div>`;
+    } else if (unclaimed.length === 0 && completed >= total) {
+      // all pool missions done
+      const period = title.includes('Weekly') ? 'next week' : 'tomorrow';
+      html += claimed.map(missionCard).join('');
+      html += `<div style="text-align:center;padding:16px 0;font-size:13px;color:var(--accent-l)">🎉 All missions complete! Check back ${period}.</div>`;
+    } else {
+      html += claimed.map(missionCard).join('');
+      html += unclaimed.map(missionCard).join('');
+    }
     return html;
   };
+
   document.getElementById('missionsBody').innerHTML =
-    section('Daily Missions', d.daily) + section('Weekly Missions', d.weekly);
+    section('Daily Missions',  d.daily,  d.dailyCompleted  || 0, d.dailyTotal  || 0) +
+    section('Weekly Missions', d.weekly, d.weeklyCompleted || 0, d.weeklyTotal || 0);
 }
 async function claimMission(id) {
   try {
