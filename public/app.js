@@ -1216,19 +1216,19 @@ window.addEventListener('DOMContentLoaded', async () => {
     window.currentUser = currentUser;
   } catch (_) { currentUser = null; }
 
-  document.getElementById('appLoading').style.display = 'none';
-
   if (currentUser) {
     // Check for active account ban before showing the app
     await checkAndShowBan();
 
     document.getElementById('authLanding').style.display = 'none';
-    document.getElementById('app').style.display = 'flex';
     renderUserBadge();
     await loadCharacters();
     renderHome();
     renderDiscover();
     renderFeed();
+    // Show the app only after characters are rendered — avoids a blank-page flash
+    document.getElementById('appLoading').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
     loadUsage();
     doDailyCheckin();
     maybeShowWelcome();
@@ -1249,6 +1249,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       }
     }
   } else {
+    document.getElementById('appLoading').style.display = 'none';
     document.getElementById('authLanding').style.display = 'flex';
     document.getElementById('app').style.display = 'none';
     // Show error toast if auth failed or isn't configured yet

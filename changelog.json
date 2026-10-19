@@ -1,5 +1,16 @@
 [
   {
+    "id": "v308-image-flash-fix",
+    "version": "v308",
+    "date": "Oct 2026",
+    "title": "Images Load Instantly",
+    "subtitle": "Character images now appear the moment the page loads, with no blank flash.",
+    "fixed": [
+      "Character images now show immediately on page load — no more blank home page while loading",
+      "Loading spinner stays visible until all characters are ready, then the app appears fully populated"
+    ]
+  },
+  {
     "id": "v307-tts-fix",
     "version": "v307",
     "date": "Oct 2026",
