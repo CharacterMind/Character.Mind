@@ -6554,7 +6554,7 @@ function dislikeBtn() {
 
 // ── Voice selection ───────────────────────────────────────────────────────────
 let selectedVoice = null;
-let ttsProvider = 'edge'; // 'edge' | 'gemini'
+let ttsProvider = 'gemini'; // 'edge' | 'gemini'
 let geminiVoiceName = 'Aoede';
 let edgeVoiceName = null; // null = auto-matched per character
 
@@ -6601,7 +6601,7 @@ function getGeminiVoiceKey() { return currentChar ? `cm_gem_voice_${currentChar.
 function getEdgeVoiceKey()   { return currentChar ? `cm_edge_voice_${currentChar.id}` : null; }
 
 function loadCharVoice() {
-  selectedVoice = null; ttsProvider = 'edge'; geminiVoiceName = 'Aoede'; edgeVoiceName = null;
+  selectedVoice = null; ttsProvider = 'gemini'; geminiVoiceName = 'Aoede'; edgeVoiceName = null;
   if (!currentChar) return;
   try {
     const p = localStorage.getItem(getTTSProviderKey());
