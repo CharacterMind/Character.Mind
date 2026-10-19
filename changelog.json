@@ -1,5 +1,18 @@
 [
   {
+    "id": "v291-coin-costs",
+    "version": "v291",
+    "date": "Oct 2026",
+    "title": "Coin Economy: Pay Per Use",
+    "subtitle": "C.M. Coins are now spent on every action — priced by response length, call duration, and image size.",
+    "added": [
+      "Every AI response in chat now costs coins based on how long the reply is — longer responses cost more",
+      "Voice calls charge coins per second on the call, plus coins for each AI response during the call",
+      "Attaching an image costs coins based on the file size — larger images cost more",
+      "Coin balance updates immediately after each action — check the nav bar to see the impact"
+    ]
+  },
+  {
     "id": "v290-call-fixes",
     "version": "v290",
     "date": "Oct 2026",

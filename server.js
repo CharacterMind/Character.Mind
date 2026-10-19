@@ -1343,6 +1343,15 @@ const CALL_TOKEN_MIN = 1500;          // minimum per call (~10 short calls per f
 // Global owner-funded coin pool. Each user action drains it. When it hits 0, AI
 // responses are blocked for non-owner users until the owner tops it up.
 const SERVICE_COIN_COSTS = { chat: 1, call: 3, memo: 1, game: 2 };
+
+// User-facing coin costs — deducted from each user's cmCoins per action.
+// Priced by actual resource consumption ("extremely expensive" per owner's request).
+const USER_COIN_RATE_CHAT_CHARS  = 15;   // 1 coin per N chars of AI chat response (~5 tokens)
+const USER_COIN_MIN_CHAT         = 2;    // minimum per non-call message
+const USER_COIN_RATE_CALL_SECS   = 8;    // 1 coin per N seconds of call duration
+const USER_COIN_RATE_CALL_CHARS  = 60;   // 1 coin per N chars of in-call AI response
+const USER_COIN_RATE_IMAGE_B64   = 8000; // 1 coin per N base64 chars of image (~6 KB actual)
+const USER_COIN_MIN_IMAGE        = 4;    // minimum per image attachment
 let serviceCoinsBal = null; // null = loading; Infinity = dev/no-DB (unlimited)
 
 async function initServiceCoins() {
@@ -2253,6 +2262,21 @@ async function deductCoins(userId, amount) {
     const lim = getLimits(userId);
     lim.cmCoins = r.rows[0]?.cm_coins ?? lim.cmCoins;
   } catch (e) { console.error('deductCoins error:', e); }
+}
+
+// Synchronous variant: updates in-memory immediately so the balance is accurate
+// in the same-turn buildUsagePayload call; persists to DB fire-and-forget.
+function deductCoinsSync(userId, amount) {
+  if (amount <= 0) return getLimits(userId).cmCoins || 0;
+  const lim = getLimits(userId);
+  lim.cmCoins = Math.max(0, (lim.cmCoins || 0) - amount);
+  if (db) {
+    db.query(
+      'UPDATE users SET cm_coins = GREATEST(0, cm_coins - $1) WHERE google_id = $2',
+      [amount, userId]
+    ).catch(e => console.error('[deductCoinsSync]', e.message));
+  }
+  return lim.cmCoins;
 }
 
 async function applyViolenceBan(userId, warnOnly = false) {
@@ -3477,6 +3501,10 @@ app.post('/api/call/end', requireAuth, (req, res) => {
   const callTokenCost = tier === 'free' ? CALL_TOKEN_MIN : rawCost;
   const usage = addTokens(userId, callTokenCost);
   if (!getLimits(userId).neverLimit) deductServiceCoins(SERVICE_COIN_COSTS.call);
+  // Charge user coins for call duration (on top of per-response charges billed during the call)
+  if (!getLimits(userId).neverLimit) {
+    deductCoinsSync(userId, Math.max(1, Math.ceil(duration / USER_COIN_RATE_CALL_SECS)));
+  }
   trackMissionProgress(userId, 'call').catch(() => {});
   res.json({ ok: true, ...usage });
 });
@@ -5114,6 +5142,11 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       refundTokens(userId, imgTokenCost);
       return res.status(451).json({ error: 'explicit_image' });
     }
+    // Charge user coins for image — billed once image passes safety check, priced by file size
+    if (!getLimits(userId).neverLimit) {
+      const imgCoinCost = Math.max(USER_COIN_MIN_IMAGE, Math.ceil(image.length / USER_COIN_RATE_IMAGE_B64));
+      deductCoinsSync(userId, imgCoinCost);
+    }
   }
 
   // ── Slur detection (three strikes per conversation) ────────────────────────
@@ -5336,6 +5369,14 @@ app.post('/api/chat', requireAuth, async (req, res) => {
             _swearBudgetJustHit = true;
           }
         }
+      }
+      // Deduct user coins for the AI response — priced by response length
+      if (!getLimits(userId).neverLimit) {
+        const respLen = (text || '').length;
+        const coinCost = callMode
+          ? Math.max(0, Math.ceil(respLen / USER_COIN_RATE_CALL_CHARS))
+          : Math.max(USER_COIN_MIN_CHAT, Math.ceil(respLen / USER_COIN_RATE_CHAT_CHARS));
+        deductCoinsSync(userId, coinCost);
       }
       return _swearBudgetJustHit ? { swearBudgetHit: true } : {};
     },
