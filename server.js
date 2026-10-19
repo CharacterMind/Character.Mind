@@ -1346,12 +1346,11 @@ const SERVICE_COIN_COSTS = { chat: 1, call: 3, memo: 1, game: 2 };
 
 // User-facing coin costs — deducted from each user's cmCoins per action.
 // Priced by actual resource consumption ("extremely expensive" per owner's request).
-const USER_COIN_RATE_CHAT_CHARS  = 15;   // 1 coin per N chars of AI chat response (~5 tokens)
-const USER_COIN_MIN_CHAT         = 2;    // minimum per non-call message
-const USER_COIN_RATE_CALL_SECS   = 8;    // 1 coin per N seconds of call duration
-const USER_COIN_RATE_CALL_CHARS  = 60;   // 1 coin per N chars of in-call AI response
+const USER_COIN_RATE_CHAT_CHARS  = 50;   // 1 coin per N chars of AI chat response (~17 tokens)
+const USER_COIN_MIN_CHAT         = 1;    // minimum per non-call message
+const USER_COIN_RATE_CALL_CHARS  = 200;  // 1 coin per N chars — only charged when character speaks
 const USER_COIN_RATE_IMAGE_B64   = 8000; // 1 coin per N base64 chars of image (~6 KB actual)
-const USER_COIN_MIN_IMAGE        = 4;    // minimum per image attachment
+const USER_COIN_MIN_IMAGE        = 2;    // minimum per image attachment
 let serviceCoinsBal = null; // null = loading; Infinity = dev/no-DB (unlimited)
 
 async function initServiceCoins() {
@@ -3501,10 +3500,6 @@ app.post('/api/call/end', requireAuth, (req, res) => {
   const callTokenCost = tier === 'free' ? CALL_TOKEN_MIN : rawCost;
   const usage = addTokens(userId, callTokenCost);
   if (!getLimits(userId).neverLimit) deductServiceCoins(SERVICE_COIN_COSTS.call);
-  // Charge user coins for call duration (on top of per-response charges billed during the call)
-  if (!getLimits(userId).neverLimit) {
-    deductCoinsSync(userId, Math.max(1, Math.ceil(duration / USER_COIN_RATE_CALL_SECS)));
-  }
   trackMissionProgress(userId, 'call').catch(() => {});
   res.json({ ok: true, ...usage });
 });

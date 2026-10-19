@@ -1,5 +1,17 @@
 [
   {
+    "id": "v292-coin-tuning",
+    "version": "v292",
+    "date": "Oct 2026",
+    "title": "Coin Costs Tuned",
+    "subtitle": "Calls only cost coins when the character actually speaks, and rates are lower so 6 calls fit in a daily budget.",
+    "changed": [
+      "Voice calls no longer charge coins for time spent on the call — coins now only drain when the character responds",
+      "Chat and call response rates reduced so a normal day of coins supports up to ~6 calls",
+      "Image minimum coin cost lowered"
+    ]
+  },
+  {
     "id": "v291-coin-costs",
     "version": "v291",
     "date": "Oct 2026",
