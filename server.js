@@ -643,6 +643,7 @@ if (GOOGLE_AUTH_ENABLED) {
           lim.coinsEarnedAllTime = Number(row.coins_earned_all_time) || 0;
           lim.subscriptionTier = effectiveTier(lim);
           lim.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email) || TEST_ACCOUNTS.has(user.email);
+          lim.skipCoinDeduct = TEST_ACCOUNTS.has(user.email); // owner still drains coins; only test accounts skip
           lim.tierLoaded = true;
           checkMonthlyCoins(user.googleId, lim).catch(() => {});
           maybeTrackLogin(user.googleId);
@@ -766,6 +767,7 @@ async function ensureTierLoaded(user) {
   u.banUntil = row.ban_until ? new Date(row.ban_until).getTime() : null;
   u.subscriptionTier = effectiveTier(u);
   u.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email) || TEST_ACCOUNTS.has(user.email);
+  u.skipCoinDeduct = TEST_ACCOUNTS.has(user.email); // owner still drains coins; only test accounts skip
   u.tierLoaded = true;
   await checkMonthlyCoins(user.googleId, u);
 }
@@ -3807,10 +3809,8 @@ app.post('/api/memo/use', requireAuth, (req, res) => {
   }
   u.memosToday = (u.memosToday || 0) + 1;
   addTokens(userId, 300); // addTokens already persists via saveLimitsToDB internally
-  if (!getLimits(userId).neverLimit) {
-    deductServiceCoins(SERVICE_COIN_COSTS.memo);
-    deductCoinsSync(userId, USER_COIN_COST_MEMO);
-  }
+  if (!getLimits(userId).neverLimit) deductServiceCoins(SERVICE_COIN_COSTS.memo);
+  if (!getLimits(userId).skipCoinDeduct) deductCoinsSync(userId, USER_COIN_COST_MEMO);
   const remaining = memoLimit === Infinity ? 9999 : memoLimit - u.memosToday;
   res.json({ allowed: true, memosToday: u.memosToday, memosLimit: memoLimit === Infinity ? 9999 : memoLimit, memosRemaining: remaining, resetsAt });
 });
@@ -5178,7 +5178,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       return res.status(451).json({ error: 'explicit_image' });
     }
     // Charge user coins for image — flat fixed cost per attachment
-    if (!getLimits(userId).neverLimit) {
+    if (!getLimits(userId).skipCoinDeduct) {
       deductCoinsSync(userId, USER_COIN_COST_IMAGE);
     }
   }
@@ -5405,7 +5405,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         }
       }
       // Deduct user coins for the AI response — flat fixed cost per action
-      if (!getLimits(userId).neverLimit) {
+      if (!getLimits(userId).skipCoinDeduct) {
         deductCoinsSync(userId, callMode ? USER_COIN_COST_CALL : USER_COIN_COST_CHAT);
       }
       return _swearBudgetJustHit ? { swearBudgetHit: true } : {};
