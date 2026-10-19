@@ -7005,18 +7005,9 @@ async function callModeElevenTTS(text) {
   const clean = text.replace(/\*[^*]*\*/g, '').replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim();
   if (!clean) { if (callModeActive && gen === callGen) listenForSpeech(); return; }
 
-  const browserFallback = () => {
-    if (!callModeActive || gen !== callGen) return;
-    if (window.speechSynthesis) {
-      const u = new SpeechSynthesisUtterance(clean.slice(0, 500));
-      if (selectedVoice) u.voice = selectedVoice;
-      const done = () => { if (callModeActive && callGen === gen) listenForSpeech(); };
-      u.onend = done; u.onerror = done;
-      window.speechSynthesis.speak(u);
-    } else { listenForSpeech(); }
-  };
-
-  if (ttsProvider === 'browser') { browserFallback(); return; }
+  // In call mode we NEVER fall back to browser speech synthesis — it sounds robotic.
+  // If the HD voice is unavailable, just keep listening (response already appears as text).
+  if (ttsProvider === 'browser') { if (callModeActive && gen === callGen) listenForSpeech(); return; }
 
   // Split into sentences so we can start playing the first sentence immediately
   // while pre-fetching the next one — reduces the "falling behind" latency.
@@ -7059,7 +7050,9 @@ async function callModeElevenTTS(text) {
       }
       nextFetch = prefetch;
     }
-  } catch (_) { browserFallback(); }
+  } catch (_) {
+    if (callModeActive && gen === callGen) listenForSpeech();
+  }
 }
 
 // ── Call mode ─────────────────────────────────────────────────────────────────
