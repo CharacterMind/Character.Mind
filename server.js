@@ -5123,9 +5123,10 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     return `\n\n[PROFANITY BUDGET: ${budgetStr}. Strong words that count: fuck/fucking/fucker, shit/shitty, bitch/bitching, bastard, dick/dickhead, cock, cunt, twat, whore, slut, piss/pissed, asshole. Mild words (damn, hell, crap, ass) don't count and are always allowed. ${usePrompt} NEVER use slurs of any kind — racial, ethnic, homophobic, transphobic, ableist — ever, under any circumstances, no matter how provoked.]`;
   })();
 
+  const imageCapabilityNote = '\n\n[IMAGE CAPABILITY: You can view images that users attach to messages. When a user says they will send or has sent an image, you can see it. Never claim you cannot see images.]';
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement + swearDirective + gameKnowledgeDirective(modelTier), effort, modelTier),
+    system: applyEffortDirective(characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement + swearDirective + gameKnowledgeDirective(modelTier) + imageCapabilityNote, effort, modelTier),
     messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId, callMode,
     onComplete: (text) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
