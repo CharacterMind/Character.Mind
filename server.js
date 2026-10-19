@@ -1207,6 +1207,7 @@ function buildUsagePayload(u, userId) {
     coinsEarnedAllTime: u.coinsEarnedAllTime || 0,
     rank: getRank(u.coinsEarnedAllTime || 0),
     ranks: RANKS,
+    tokenCredit: u.tokenCredit || 0,
   };
 }
 
@@ -1215,8 +1216,8 @@ const IMAGE_TOKEN_BYTE_DIVISOR = 14;  // base64 chars ÷ this = raw tokens befor
 const IMAGE_TOKEN_MIN = 5000;         // ~3 images per free session (15k ÷ 5k)
 const IMAGE_TOKEN_MAX = 15000;        // 1 large image per free session
 // Variable call token cost: scales with duration
-const CALL_TOKENS_PER_SECOND = 40;
-const CALL_TOKEN_MIN = 2500;          // minimum per call (~6 short calls per free session)
+const CALL_TOKENS_PER_SECOND = 25;
+const CALL_TOKEN_MIN = 1500;          // minimum per call (~10 short calls per free session)
 
 function addTokens(sid, tokens) {
   const u = getLimits(sid);
@@ -3284,16 +3285,47 @@ app.post('/api/call/start', requireAuth, (req, res) => {
 app.post('/api/call/end', requireAuth, (req, res) => {
   const userId = req.user.googleId;
   const { duration } = req.body; // seconds this call lasted
-  if (typeof duration === 'number' && duration > 0) {
-    // Free tier: cap at CALL_TOKEN_MIN so all 6 daily calls fit in the session budget
-    const u = getLimits(userId);
-    const tier = u.subscriptionTier || 'free';
-    const rawCost = Math.max(CALL_TOKEN_MIN, Math.ceil(duration * CALL_TOKENS_PER_SECOND));
-    const callTokenCost = tier === 'free' ? CALL_TOKEN_MIN : rawCost;
-    const usage = addTokens(userId, callTokenCost);
-    return res.json({ ok: true, ...usage });
+  const u = getLimits(userId);
+  // Calls < 5 s are instant-ends (user opened and closed without speaking) — refund the slot
+  if (typeof duration !== 'number' || duration < 5) {
+    u.callsToday = Math.max(0, (u.callsToday || 1) - 1);
+    saveLimitsToDB(userId);
+    return res.json({ ok: true, refunded: true });
   }
-  res.json({ ok: true });
+  const tier = u.subscriptionTier || 'free';
+  const rawCost = Math.max(CALL_TOKEN_MIN, Math.ceil(duration * CALL_TOKENS_PER_SECOND));
+  const callTokenCost = tier === 'free' ? CALL_TOKEN_MIN : rawCost;
+  const usage = addTokens(userId, callTokenCost);
+  res.json({ ok: true, ...usage });
+});
+
+// ── Session Credit Packs ──────────────────────────────────────────────────────
+const SESSION_PACKS = {
+  sm: { tokens: 10000, coins: 75  },
+  md: { tokens: 25000, coins: 175 },
+  lg: { tokens: 50000, coins: 325 },
+};
+app.post('/api/usage/buy-pack', requireAuth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'No database' });
+  const { pack } = req.body;
+  if (!SESSION_PACKS[pack]) return res.status(400).json({ error: 'Invalid pack' });
+  const { tokens: tokenBoost, coins: coinCost } = SESSION_PACKS[pack];
+  const userId = req.user.googleId;
+  try {
+    const result = await db.query(
+      'UPDATE users SET cm_coins = cm_coins - $1 WHERE google_id = $2 AND cm_coins >= $1 RETURNING cm_coins',
+      [coinCost, userId]
+    );
+    if (!result.rows.length) return res.status(402).json({ error: 'Not enough coins' });
+    const u = getLimits(userId);
+    u.tokenCredit = (u.tokenCredit || 0) + tokenBoost;
+    u.cmCoins = result.rows[0].cm_coins;
+    saveLimitsToDB(userId);
+    res.json({ ok: true, ...buildUsagePayload(u, userId) });
+  } catch (e) {
+    console.error('[buy-pack]', e.message);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
 });
 
 const ELEVEN_KEY = process.env.ELEVENLABS_API_KEY || '';

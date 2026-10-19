@@ -4712,6 +4712,29 @@ function isOwner() {
   return currentUser?.email === 'support.charactermind@gmail.com';
 }
 
+async function buySessionPack(pack) {
+  const msg = document.getElementById('usagePackMsg');
+  if (msg) { msg.dataset.busy = '1'; msg.textContent = 'Purchasing…'; msg.style.color = 'var(--text3)'; }
+  try {
+    const d = await fetch('/api/usage/buy-pack', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pack }),
+    }).then(r => r.json());
+    if (d.ok) {
+      lastKnownUsage = d;
+      updateUsageModal(d);
+      if (msg) { delete msg.dataset.busy; msg.style.color = '#22c55e'; msg.textContent = '✓ Session boosted!'; }
+      setTimeout(() => { if (msg) { msg.style.color = ''; msg.textContent = d.cmCoins != null ? `Your balance: ${(d.cmCoins || 0).toLocaleString()} coins` : ''; } }, 3000);
+    } else {
+      if (msg) { delete msg.dataset.busy; msg.style.color = '#ef4444'; msg.textContent = d.error === 'Not enough coins' ? 'Not enough coins.' : (d.error || 'Purchase failed.'); }
+      setTimeout(() => { if (msg) { msg.style.color = ''; msg.textContent = lastKnownUsage?.cmCoins != null ? `Your balance: ${(lastKnownUsage.cmCoins || 0).toLocaleString()} coins` : ''; } }, 3500);
+    }
+  } catch (_) {
+    if (msg) { delete msg.dataset.busy; msg.style.color = '#ef4444'; msg.textContent = 'Network error.'; }
+  }
+}
+
 async function adminResetLimits() {
   if (!isOwner()) return;
   const btn = document.getElementById('resetLimitsBtn');
@@ -5143,6 +5166,32 @@ function updateUsageModal(u) {
   const weeklyRule1   = document.getElementById('usageWeeklyRule');
   if (weeklySection) weeklySection.style.display = isFree ? 'none' : '';
   if (weeklyRule1)   weeklyRule1.style.display   = isFree ? 'none' : '';
+
+  // Session Boost (tokenCredit)
+  const creditSection = document.getElementById('usageCreditsSection');
+  if (creditSection) {
+    const credit = u.tokenCredit || 0;
+    if (credit > 0) {
+      creditSection.style.display = '';
+      const baseLimit = (u.sessionLimit || 25000) - credit;
+      const creditUsed = Math.max(0, (u.sessionTokens || 0) - baseLimit);
+      const creditPct = Math.min(100, Math.round(creditUsed / credit * 100));
+      const bar = document.getElementById('usageCreditsBar');
+      const pctEl = document.getElementById('usageCreditsPct');
+      const subEl = document.getElementById('usageCreditsSub');
+      if (bar) bar.style.width = creditPct + '%';
+      if (pctEl) pctEl.textContent = Math.round(credit / 1000) + 'K tokens remaining';
+      if (subEl) subEl.textContent = 'Session boost active · boosts expire when your session resets';
+    } else {
+      creditSection.style.display = 'none';
+    }
+  }
+
+  // Show coins balance in boost section
+  const packMsg = document.getElementById('usagePackMsg');
+  if (packMsg && !packMsg.dataset.busy) {
+    packMsg.textContent = u.cmCoins != null ? `Your balance: ${(u.cmCoins || 0).toLocaleString()} coins` : '';
+  }
 
   const sPct = Math.min(100, Math.round((u.sessionTokens / u.sessionLimit) * 100));
   const wPct = u.weeklyLimit ? Math.min(100, Math.round((u.weeklyTokens / u.weeklyLimit) * 100)) : 0;

@@ -22,7 +22,7 @@
 <link rel="icon" type="image/webp" href="/logo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=257">
+<link rel="stylesheet" href="style.css?v=258">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -98,6 +98,16 @@
       <div class="usage-sec-sub" id="usageSessionSub" style="margin-top:6px"></div>
     </div>
 
+    <!-- Session Credits (shown only when active) -->
+    <div id="usageCreditsSection" style="display:none">
+      <div class="usage-sec-label-row">
+        <span class="usage-sec-label">✨ Session Boost</span>
+        <span class="usage-sec-pct" id="usageCreditsPct" style="color:#8b5cf6"></span>
+      </div>
+      <div class="usage-track-modal" style="margin-top:8px"><div class="usage-fill-modal" id="usageCreditsBar" style="background:#8b5cf6"></div></div>
+      <div class="usage-sec-sub" id="usageCreditsSub" style="margin-top:6px"></div>
+    </div>
+
     <div class="usage-modal-rule" id="usageWeeklyRule" style="display:none"></div>
 
     <!-- Weekly -->
@@ -137,6 +147,28 @@
 
       <div class="usage-sec-sub" id="usageDailyResetsSub" style="margin-top:10px"></div>
 
+    </div>
+
+    <!-- Boost session with coins -->
+    <div class="usage-modal-rule"></div>
+    <div id="usageBoostSection" style="padding:0 0 4px">
+      <div style="font-size:13px;font-weight:600;color:var(--text1);margin-bottom:6px">🚀 Boost your session</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Spend coins to extend your session limit.</div>
+      <div style="display:flex;gap:8px">
+        <button class="usage-pack-btn" onclick="buySessionPack('sm')">
+          <span class="pack-tokens">+10K</span>
+          <span class="pack-sub">75 coins</span>
+        </button>
+        <button class="usage-pack-btn" onclick="buySessionPack('md')">
+          <span class="pack-tokens">+25K</span>
+          <span class="pack-sub">175 coins</span>
+        </button>
+        <button class="usage-pack-btn" onclick="buySessionPack('lg')">
+          <span class="pack-tokens">+50K</span>
+          <span class="pack-sub">325 coins</span>
+        </button>
+      </div>
+      <div id="usagePackMsg" style="font-size:12px;color:var(--text3);margin-top:8px;min-height:16px"></div>
     </div>
 
     <div class="usage-modal-rule"></div>
@@ -1707,7 +1739,7 @@
   </div>
 </div>
 
-<script src="app.js?v=257"></script>
+<script src="app.js?v=258"></script>
 
 <!-- Session 90% warning toast -->
 <div id="sessionWarningToast">

@@ -1762,6 +1762,17 @@ html, body {
   color: #fff; transition: opacity .15s;
 }
 .usage-donate-btn:hover { opacity: .88; }
+
+/* Session boost pack buttons */
+.usage-pack-btn {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  gap: 3px; padding: 10px 6px; border-radius: 10px; border: 1.5px solid var(--border2);
+  background: var(--bg2); cursor: pointer; transition: border-color .15s, background .15s;
+}
+.usage-pack-btn:hover { border-color: #8b5cf6; background: var(--bg3); }
+.usage-pack-btn .pack-tokens { font-size: 14px; font-weight: 700; color: #8b5cf6; }
+.usage-pack-btn .pack-sub { font-size: 11px; color: var(--text3); }
+
 .usage-updated-row {
   display: flex; align-items: center; justify-content: center;
   padding: 12px 24px 14px; gap: 6px;
