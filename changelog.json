@@ -1,5 +1,19 @@
 [
   {
+    "id": "v281-fixes",
+    "version": "v281",
+    "date": "Oct 2026",
+    "title": "Call & UI Bug Fixes",
+    "subtitle": "Voice stops when you hang up, images show correctly, and the usage panel is back in order.",
+    "fixed": [
+      "Voice no longer keeps playing after you end a call — browser speech is now properly stopped on hang-up",
+      "Call mode no longer falls back to robotic browser speech when the server voice is unavailable — it silently continues listening instead",
+      "Images sent in chat now show a 📷 placeholder in history instead of the text '[image]'",
+      "Image-only messages are no longer silently dropped from local chat history",
+      "Session Credits section moved back below Weekly in the Usage panel"
+    ]
+  },
+  {
     "id": "v280-admin",
     "version": "v280",
     "date": "Oct 2026",

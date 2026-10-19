@@ -22,7 +22,7 @@
 <link rel="icon" type="image/svg+xml" href="/logo-icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=279">
+<link rel="stylesheet" href="style.css?v=281">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -98,6 +98,18 @@
       <div class="usage-sec-sub" id="usageSessionSub" style="margin-top:6px"></div>
     </div>
 
+    <div class="usage-modal-rule" id="usageWeeklyRule" style="display:none"></div>
+
+    <!-- Weekly -->
+    <div class="usage-section" id="usageWeeklySection" style="display:none">
+      <div class="usage-sec-label-row">
+        <span class="usage-sec-label">Weekly</span>
+        <span class="usage-sec-pct" id="usageWeeklyPct">0%</span>
+      </div>
+      <div class="usage-track-modal" style="margin-top:8px"><div class="usage-fill-modal green" id="usageWeeklyBar"></div></div>
+      <div class="usage-sec-sub" id="usageWeeklySub" style="margin-top:6px"></div>
+    </div>
+
     <!-- Session Credits -->
     <div id="usageCreditsSection" style="margin-top:4px">
       <div style="background:var(--credits-bg,rgba(139,92,246,0.08));border:1px solid var(--credits-border,rgba(139,92,246,0.22));border-radius:12px;padding:14px 16px">
@@ -127,18 +139,6 @@
           </button>
         </div>
       </div>
-    </div>
-
-    <div class="usage-modal-rule" id="usageWeeklyRule" style="display:none"></div>
-
-    <!-- Weekly -->
-    <div class="usage-section" id="usageWeeklySection" style="display:none">
-      <div class="usage-sec-label-row">
-        <span class="usage-sec-label">Weekly</span>
-        <span class="usage-sec-pct" id="usageWeeklyPct">0%</span>
-      </div>
-      <div class="usage-track-modal" style="margin-top:8px"><div class="usage-fill-modal green" id="usageWeeklyBar"></div></div>
-      <div class="usage-sec-sub" id="usageWeeklySub" style="margin-top:6px"></div>
     </div>
 
     <!-- Variable limits: calls, memos, images -->
@@ -1787,7 +1787,7 @@
   </div>
 </div>
 
-<script src="app.js?v=280"></script>
+<script src="app.js?v=281"></script>
 
 <!-- Session 90% warning toast -->
 <div id="sessionWarningToast">

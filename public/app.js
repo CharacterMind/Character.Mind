@@ -2907,13 +2907,14 @@ function saveHistoryLocal() {
   if (!currentChar) return;
   try {
     const msgs = document.getElementById('messages');
-    const items = [...msgs.querySelectorAll('.msg')].map(el => el.classList.contains('nsfw-msg')
-      ? { role: 'ai', content: '', card: 'nsfw', variant: Number(el.dataset.nsfwVariant) || 0 }
-      : {
-          role: el.classList.contains('user') ? 'user' : 'ai',
-          content: bubbleToRaw(el.querySelector('.bubble')),
-          ...(el.dataset.sig ? { sig: el.dataset.sig } : {})
-        }).filter(m => (m.content || m.card) && !(m.role === 'ai' && /^\s*⚠️/.test(m.content)));
+    const items = [...msgs.querySelectorAll('.msg')].map(el => {
+      if (el.classList.contains('nsfw-msg')) return { role: 'ai', content: '', card: 'nsfw', variant: Number(el.dataset.nsfwVariant) || 0 };
+      const role = el.classList.contains('user') ? 'user' : 'ai';
+      const bubble = el.querySelector('.bubble');
+      const imgEl = el.querySelector('.msg-img');
+      const content = bubble ? bubbleToRaw(bubble) : (imgEl ? '[image]' : '');
+      return { role, content, ...(el.dataset.sig ? { sig: el.dataset.sig } : {}) };
+    }).filter(m => (m.content || m.card) && !(m.role === 'ai' && /^\s*⚠️/.test(m.content)));
     const all = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}');
     all[currentChar.id] = items.slice(-150);
     localStorage.setItem(userKey('cm_history'), JSON.stringify(all));
@@ -6120,8 +6121,8 @@ function appendMessage(role, text, imgB64, lite) {
         <span class="msg-name" style="color:var(--text3)">You</span>${editedTag}
         ${msgMenuHtml('user')}
       </div>
-      ${imgB64 ? `<img class="msg-img" src="${imgB64}" alt="attachment">` : ''}
-      ${text ? `<div class="bubble">${escHtml(text)}</div>` : ''}`;
+      ${imgB64 ? `<img class="msg-img" src="${imgB64}" alt="attachment">` : (text === '[image]' ? `<div class="bubble" style="opacity:0.55;font-size:12px">📷 Image</div>` : '')}
+      ${text && text !== '[image]' ? `<div class="bubble">${escHtml(text)}</div>` : ''}`;
   }
   document.getElementById('messages').appendChild(div);
   if (role === 'ai') addSwipeGesture(div);
@@ -7131,7 +7132,7 @@ function callModeTTS(bubble) {
   window.speechSynthesis?.cancel();
   stopCallAudio();
   if (elevenTTSOk) { callModeElevenTTS(text); return; }
-  callModeBrowserTTS(text);
+  if (callModeActive) setTimeout(() => listenForSpeech(), 300);
 }
 
 let elevenTTSOk = true;
@@ -7236,7 +7237,7 @@ async function callModeElevenTTS(text) {
       nextFetch = prefetch;
     }
   } catch (_) {
-    if (callModeActive && gen === callGen) callModeBrowserTTS(text);
+    if (callModeActive && gen === callGen) setTimeout(() => listenForSpeech(), 300);
   }
 }
 
@@ -7667,6 +7668,7 @@ function endCallMode() {
   stopCallDurationTimer();
   clearCallInactivityTimer();
   stopCallAudio();
+  window.speechSynthesis?.cancel();
   if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
   stopActiveTTS();
   document.getElementById('callBtn')?.classList.remove('active');
