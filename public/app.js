@@ -5822,25 +5822,10 @@ function confirmRewindToHere() {
   const msgs = [...document.getElementById('messages').querySelectorAll('.msg')];
   const idx = msgs.indexOf(msgEl);
   if (idx === -1) return;
-  const isUserMsg = msgEl.classList.contains('user');
-  if (isUserMsg) {
-    // User message: remove it AND everything after so the fresh send adds it back cleanly
-    const bubble = msgEl.querySelector('.bubble');
-    const text = bubble ? bubble.innerText.trim() : '';
-    msgs.slice(idx).forEach(m => m.remove());
-    if (!currentChar) return;
-    saveHistoryLocal(); // history no longer contains the removed message
-    const localHistory = loadHistoryLocal(currentChar.id);
-    clearPendingImage();
-    pushHistoryToServer(currentChar.id, localHistory)
-      .then(() => { if (text) sendMessage(text); })
-      .catch(() => { if (text) sendMessage(text); });
-  } else {
-    // AI message: remove it AND everything after it, then resync
-    msgs.slice(idx).forEach(m => m.remove());
-    saveHistoryLocal();
-    resyncServer();
-  }
+  // Keep the rewound-to message; delete only what comes after it
+  msgs.slice(idx + 1).forEach(m => m.remove());
+  saveHistoryLocal();
+  resyncServer();
 }
 
 function resyncServer() {

@@ -3650,7 +3650,7 @@ app.delete('/api/conversations/:charId/history', requireAuth, async (req, res) =
 
 // When true: only Lily/Poppy visible in character list. Set SOFT_LAUNCH=true in env vars to re-enable.
 const SOFT_LAUNCH = process.env.SOFT_LAUNCH === 'true';
-const OWNER_EMAILS = new Set(['support.charactermind@gmail.com', 'davey252572727@gmail.com']); // admin tools
+const OWNER_EMAILS = new Set(['support.charactermind@gmail.com']); // admin tools
 // Only the Character.Mind business account gets the top plan without paying. Every other account (including the
 // other admin login) gets exactly what its own subscription pays for.
 const FREE_TOP_PLAN_EMAILS = new Set(['support.charactermind@gmail.com']);
@@ -4624,7 +4624,7 @@ async function analyzeImage(apiKey, dataUri) {
   if (!dm) throw new Error('invalid image data URI');
   const mimeType = dm[1];
   const data = dm[2];
-  const r = await fetch(`https://${GEMINI_HOST}/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`, {
+  const r = await fetch(`https://${GEMINI_HOST}/v1beta/models/${GEMINI_FALLBACKS[0]}:generateContent?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     signal: AbortSignal.timeout(30000),
@@ -4894,7 +4894,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         ...messagesForGroq.slice(0, lastIdx),
         {
           role: 'user',
-          content: (base ? base + '\n\n' : '') + '[The user shared an image. React naturally in character — step out of character briefly with a short parenthetical like (Wow, that looks...) then continue as yourself.]',
+          content: (base ? base + '\n\n' : '') + `[The user sent you an image. It shows: ${imageDescription}. React naturally to what you see.]`,
           ...(imgMatch ? { imageData: { mimeType: imgMatch[1], data: imgMatch[2] } } : {})
         }
       ];
