@@ -2066,7 +2066,7 @@ async function deductCoins(userId, amount) {
   if (!db || amount <= 0) return;
   try {
     const r = await db.query(
-      'UPDATE users SET cm_coins = GREATEST(0, cm_coins - $1) RETURNING cm_coins WHERE google_id = $2',
+      'UPDATE users SET cm_coins = GREATEST(0, cm_coins - $1) WHERE google_id = $2 RETURNING cm_coins',
       [amount, userId]
     );
     const lim = getLimits(userId);
@@ -2396,7 +2396,7 @@ function persistConv(key) {
 
 // The AI model sometimes answers with a bare canned refusal ("I can't help with that"), e.g. for roleplay violence.
 // When a whole reply is just that, we replace it with an actual explanation.
-const BARE_REFUSAL_RE = /^\s*(?:i['’]?m\s+sorry,?\s*(?:but\s*)?|sorry,?\s*(?:but\s*)?)?i\s*(?:can['’]?t|cannot|won['’]?t|am\s+unable\s+to|am\s+not\s+able\s+to)\s+(?:help(?!\s+but\b|\s+\w+ing\b)|assist|continue|comply|do\s+that|go\s+there|engage|provide|write\s+that)/i;
+const BARE_REFUSAL_RE = /^\s*(?:i['']?m\s+sorry,?\s*(?:but\s*)?|sorry,?\s*(?:but\s*)?)?i\s*(?:can['']?t|cannot|won['']?t|am\s+unable\s+to|am\s+not\s+able\s+to)\s+(?:help(?!\s+but\b|\s+\w+ing\b)|assist|continue|comply|do\s+that|go\s+there|engage|provide|write\s+that)/i;
 function isBareRefusal(text) {
   return typeof text === 'string' && text.length < 220 && BARE_REFUSAL_RE.test(text);
 }
@@ -3764,7 +3764,8 @@ app.post('/api/admin/revoke-subscription', requireAuth, async (req, res) => {
   lim.subscriptionTier = 'free';
   lim.tierLoaded = true;
   if (subId) cancelPayPalSubscription(subId, 'Revoked by admin').catch(() => {});
-  console.log(`[admin] revoke-subscription: ${name} (${uid}) was ${oldTier} → free${subId ? `, PayPal sub ${subId} cancelled` : ''}`);
+  const subNote = subId ? ', PayPal sub ' + subId + ' cancelled' : '';
+  console.log('[admin] revoke-subscription: ' + name + ' (' + uid + ') was ' + oldTier + ' -> free' + subNote);
   res.json({ ok: true, name, previousTier: oldTier });
 });
 
@@ -4762,12 +4763,12 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       await setModStatus(userId, charId, newStrikes, true);
       conversations[key] = [];
       persistConv(key);
-      res.setHeader(‘Content-Type’, ‘text/event-stream’);
-      res.setHeader(‘Cache-Control’, ‘no-cache’);
-      res.setHeader(‘Connection’, ‘keep-alive’);
-      res.setHeader(‘X-Accel-Buffering’, ‘no’);
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
       res.flushHeaders();
-      res.write(`data: ${JSON.stringify({ conversationEnded: true, locked: true, reason: "We’ve given you plenty of warnings. This chat has been permanently ended." })}\n\n`);
+      res.write(`data: ${JSON.stringify({ conversationEnded: true, locked: true, reason: "We've given you plenty of warnings. This chat has been permanently ended." })}\n\n`);
       res.end();
       return;
     }
