@@ -1022,7 +1022,7 @@ const TIER_IMAGE_LIMITS = { free: 3,   advanced: 4,   x20: 60,   x50: 180,  x100
 const TIER_REGEN_LIMITS = { free: 10,  advanced: 15,  x20: 200,  x50: 600,  x100: 1200, x200: 3000  };
 
 const COIN_EARN_PER_WIN = { free: 10, advanced: 15, x20: 20, x50: 30, x100: 40, x200: 50 };
-const COIN_DAILY_CAP    = 100;
+const COIN_DAILY_CAP    = 2000; // raised — subscription multipliers can push earnings high
 const COIN_MONTHLY_COST = { advanced: 2000, x20: 8000, x50: 20000, x100: 50000, x200: 150000 };
 const TIER_RANK         = { free: 0, advanced: 1, x20: 2, x50: 3, x100: 4, x200: 5 };
 
@@ -1157,8 +1157,9 @@ function maybeTrackLogin(uid) {
 
 // ── Daily Check-in Coin Grind ─────────────────────────────────────────────────
 // Base reward per day; streak multipliers give bonus coins on milestone days.
-const CHECKIN_BASE = 10;
-const CHECKIN_STREAK_BONUS = { 3: 5, 7: 20, 14: 40, 30: 80 }; // added to base at milestone streak
+// Subscription tier further multiplies the total earned (see TIER_EARN_MULT).
+const CHECKIN_BASE = 50;
+const CHECKIN_STREAK_BONUS = { 3: 25, 7: 75, 14: 150, 30: 300 }; // added to base at milestone streak
 
 function checkinTodayStr() {
   const n = new Date();
@@ -1200,7 +1201,8 @@ async function checkDailyCheckin(uid) {
   const bonus = Object.entries(CHECKIN_STREAK_BONUS)
     .filter(([day]) => newStreak % parseInt(day) === 0)
     .reduce((acc, [, val]) => Math.max(acc, val), 0);
-  const coins = CHECKIN_BASE + bonus;
+  const mult = earnMult(uid);
+  const coins = Math.round((CHECKIN_BASE + bonus) * mult);
   const bonusDay = bonus > 0;
 
   // Award coins in DB and update streak fields
@@ -1344,13 +1346,19 @@ const CALL_TOKEN_MIN = 1500;          // minimum per call (~10 short calls per f
 // responses are blocked for non-owner users until the owner tops it up.
 const SERVICE_COIN_COSTS = { chat: 1, call: 3, memo: 1, game: 2 };
 
-// User-facing coin costs — deducted from each user's cmCoins per action.
-// Priced by actual resource consumption ("extremely expensive" per owner's request).
-const USER_COIN_RATE_CHAT_CHARS  = 50;   // 1 coin per N chars of AI chat response (~17 tokens)
-const USER_COIN_MIN_CHAT         = 1;    // minimum per non-call message
-const USER_COIN_RATE_CALL_CHARS  = 200;  // 1 coin per N chars — only charged when character speaks
-const USER_COIN_RATE_IMAGE_B64   = 8000; // 1 coin per N base64 chars of image (~6 KB actual)
-const USER_COIN_MIN_IMAGE        = 2;    // minimum per image attachment
+// ── User-facing flat coin costs ───────────────────────────────────────────────
+// Fixed per-action regardless of response length or image size.
+const USER_COIN_COST_CHAT  = 25;  // per AI chat response
+const USER_COIN_COST_CALL  = 35;  // per AI call response (only when character speaks)
+const USER_COIN_COST_IMAGE = 50;  // per image attachment
+const USER_COIN_COST_MEMO  = 20;  // per memo use
+
+// Subscription earning multiplier — higher tiers earn MORE from missions/games/check-in
+const TIER_EARN_MULT = { free: 1, advanced: 1.5, x20: 2, x50: 3, x100: 5, x200: 8 };
+function earnMult(userId) {
+  const tier = userLimits[userId]?.subscriptionTier || 'free';
+  return TIER_EARN_MULT[tier] ?? 1;
+}
 let serviceCoinsBal = null; // null = loading; Infinity = dev/no-DB (unlimited)
 let ownerCachedGid = null; // owner's google_id, resolved at startup so deductions work before first login
 
@@ -3717,7 +3725,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
       const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}/stream?output_format=mp3_44100_64`, {
         method: 'POST',
         headers: { 'xi-api-key': ELEVEN_KEY, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
-        body: JSON.stringify({ text, model_id: 'eleven_flash_v2_5' })
+        body: JSON.stringify({ text, model_id: 'eleven_multilingual_v2' })
       });
       if (!r.ok || !r.body) { console.warn('[tts] ElevenLabs error', r.status); refund(); return res.status(502).json({ error: 'tts_failed' }); }
       res.setHeader('Content-Type', 'audio/mpeg');
@@ -3799,7 +3807,10 @@ app.post('/api/memo/use', requireAuth, (req, res) => {
   }
   u.memosToday = (u.memosToday || 0) + 1;
   addTokens(userId, 300); // addTokens already persists via saveLimitsToDB internally
-  if (!getLimits(userId).neverLimit) deductServiceCoins(SERVICE_COIN_COSTS.memo);
+  if (!getLimits(userId).neverLimit) {
+    deductServiceCoins(SERVICE_COIN_COSTS.memo);
+    deductCoinsSync(userId, USER_COIN_COST_MEMO);
+  }
   const remaining = memoLimit === Infinity ? 9999 : memoLimit - u.memosToday;
   res.json({ allowed: true, memosToday: u.memosToday, memosLimit: memoLimit === Infinity ? 9999 : memoLimit, memosRemaining: remaining, resetsAt });
 });
@@ -5166,10 +5177,9 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       refundTokens(userId, imgTokenCost);
       return res.status(451).json({ error: 'explicit_image' });
     }
-    // Charge user coins for image — billed once image passes safety check, priced by file size
+    // Charge user coins for image — flat fixed cost per attachment
     if (!getLimits(userId).neverLimit) {
-      const imgCoinCost = Math.max(USER_COIN_MIN_IMAGE, Math.ceil(image.length / USER_COIN_RATE_IMAGE_B64));
-      deductCoinsSync(userId, imgCoinCost);
+      deductCoinsSync(userId, USER_COIN_COST_IMAGE);
     }
   }
 
@@ -5394,13 +5404,9 @@ app.post('/api/chat', requireAuth, async (req, res) => {
           }
         }
       }
-      // Deduct user coins for the AI response — priced by response length
+      // Deduct user coins for the AI response — flat fixed cost per action
       if (!getLimits(userId).neverLimit) {
-        const respLen = (text || '').length;
-        const coinCost = callMode
-          ? Math.max(0, Math.ceil(respLen / USER_COIN_RATE_CALL_CHARS))
-          : Math.max(USER_COIN_MIN_CHAT, Math.ceil(respLen / USER_COIN_RATE_CHAT_CHARS));
-        deductCoinsSync(userId, coinCost);
+        deductCoinsSync(userId, callMode ? USER_COIN_COST_CALL : USER_COIN_COST_CHAT);
       }
       return _swearBudgetJustHit ? { swearBudgetHit: true } : {};
     },
@@ -6452,7 +6458,8 @@ app.post('/api/coins/award', requireAuth, async (req, res) => {
     const wLen = serverWordLen ?? Math.max(3, Math.min(12, parseInt(req.body?.wordLength) || 6));
     const minC = Math.max(5,  Math.round(wLen * 0.7));
     const maxC = Math.min(20, Math.round(wLen * 1.9));
-    const earnPerWin = Math.floor(Math.random() * (maxC - minC + 1)) + minC;
+    const baseEarn = Math.floor(Math.random() * (maxC - minC + 1)) + minC;
+    const earnPerWin = Math.round(baseEarn * earnMult(uid));
     const utcMidnight = new Date(); utcMidnight.setUTCHours(0, 0, 0, 0);
     const dayStart = utcMidnight.getTime();
     if ((u.coinsDayReset || 0) < dayStart) { u.coinsEarnedToday = 0; u.coinsDayReset = dayStart; }
@@ -6714,7 +6721,7 @@ app.post('/api/missions/claim', requireAuth, async (req, res) => {
     const progress = getMissionProgress(mission, data);
     if (progress < mission.target) return res.status(400).json({ error: 'Mission not complete yet', progress, target: mission.target });
     data.claimed.push(id);
-    const actualReward = applyMissionMult(mission.reward);
+    const actualReward = Math.round(applyMissionMult(mission.reward) * earnMult(uid));
     const r = await db.query(
       'UPDATE users SET missions_data=$1, cm_coins=cm_coins+$2, coins_earned_all_time=COALESCE(coins_earned_all_time,0)+$2 WHERE google_id=$3 RETURNING cm_coins, coins_earned_all_time',
       [JSON.stringify(data), actualReward, uid]

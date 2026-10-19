@@ -1,5 +1,18 @@
 [
   {
+    "id": "v297-coin-overhaul",
+    "version": "v297",
+    "date": "Oct 2026",
+    "title": "Coin Economy Overhaul & HD Voice",
+    "subtitle": "Flat costs, subscription earn multipliers, and ElevenLabs Multilingual v2 voice.",
+    "changed": [
+      "Coin costs are now flat fixed amounts — no more variable length-based pricing: chat costs 25 coins, calls 35, images 50, memos 20",
+      "Higher subscriptions now earn more from everything — daily check-in, missions, and game wins all multiply based on your tier (free 1×, Advanced 1.5×, X20 2×, X50 3×, X100 5×, X200 8×)",
+      "Daily check-in base reward raised from 10 to 50 coins; streak bonuses also significantly increased",
+      "Voices in calls upgraded to ElevenLabs Multilingual v2 — the most human-sounding model available"
+    ]
+  },
+  {
     "id": "v295-voice-fixes",
     "version": "v295",
     "date": "Oct 2026",
