@@ -4756,6 +4756,7 @@ async function doDailyCheckin() {
     const streakTxt = d.streak > 1 ? ` (${d.streak}-day streak 🔥)` : '';
     const bonusTxt  = d.bonusDay    ? ` Streak bonus!` : '';
     showCheckinToast(d.coins, streakTxt + bonusTxt, d.streak);
+    loadUsage();
   } catch (_) {}
 }
 

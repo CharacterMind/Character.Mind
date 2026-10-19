@@ -1,5 +1,15 @@
 [
   {
+    "id": "v288-checkin-coins",
+    "version": "v288",
+    "date": "Oct 2026",
+    "title": "Daily Check-In Coin Fix",
+    "subtitle": "Your coin count now updates immediately after the daily check-in reward.",
+    "fixed": [
+      "Coin counter in the nav bar now updates right away after earning daily check-in coins — no more needing to refresh or open the usage panel to see the new balance"
+    ]
+  },
+  {
     "id": "v287-edit-fixes",
     "version": "v287",
     "date": "Oct 2026",
