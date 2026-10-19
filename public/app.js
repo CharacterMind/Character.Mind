@@ -640,6 +640,126 @@ function closePaypalCheckout() {
   currentCheckoutPlan = null;
 }
 
+// ── Coin Shop ─────────────────────────────────────────────────────────────────
+const COIN_USD_VALUE_CLIENT = 0.01;
+let coinPacks = null;
+let coinShopSelectedPack = null;
+let coinOrderSdkLoaded = false;
+let coinOrderSdkLoading = false;
+
+async function openCoinShop() {
+  if (!currentUser) { showWarning('Sign in to buy coins.'); return; }
+  document.getElementById('coinShopModal').style.display = 'flex';
+  document.getElementById('coinShopStatus').textContent = '';
+  document.getElementById('coinShopPaypalBtn').innerHTML = '';
+  coinShopSelectedPack = null;
+
+  if (!coinPacks) {
+    try {
+      const d = await fetch('/api/paypal/coin-packs').then(r => r.json());
+      coinPacks = d.packs || [];
+    } catch (_) { coinPacks = []; }
+  }
+
+  const container = document.getElementById('coinShopPacks');
+  container.innerHTML = '';
+  for (const pack of coinPacks) {
+    const perDollar = Math.round(pack.coins / pack.price);
+    const card = document.createElement('div');
+    card.className = 'coin-pack-card';
+    card.dataset.packId = pack.id;
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div>
+          <div style="font-weight:700;font-size:15px">${pack.label}</div>
+          <div style="font-size:13px;color:var(--text3);margin-top:2px">🪙 ${pack.coins.toLocaleString()} coins · ${perDollar} coins/$</div>
+        </div>
+        <div style="font-weight:700;font-size:18px;white-space:nowrap">$${pack.price.toFixed(2)}</div>
+      </div>`;
+    card.onclick = () => selectCoinPack(pack);
+    container.appendChild(card);
+  }
+}
+
+function closeCoinShop() {
+  document.getElementById('coinShopModal').style.display = 'none';
+  coinShopSelectedPack = null;
+}
+
+async function selectCoinPack(pack) {
+  coinShopSelectedPack = pack;
+  document.querySelectorAll('.coin-pack-card').forEach(c => c.classList.toggle('selected', c.dataset.packId === pack.id));
+  document.getElementById('coinShopStatus').textContent = '';
+  const btnWrap = document.getElementById('coinShopPaypalBtn');
+  btnWrap.innerHTML = '';
+
+  if (!coinOrderSdkLoaded && !coinOrderSdkLoading) {
+    coinOrderSdkLoading = true;
+    document.getElementById('coinShopStatus').textContent = 'Loading payment system…';
+    try {
+      const cfg = await fetch('/api/paypal/config').then(r => r.json());
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(cfg.clientId)}&intent=capture&components=buttons&disable-funding=card,credit,paylater&data-namespace=paypalOrder`;
+        s.dataset.namespace = 'paypalOrder';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+      coinOrderSdkLoaded = true;
+      document.getElementById('coinShopStatus').textContent = '';
+    } catch (_) {
+      document.getElementById('coinShopStatus').textContent = 'Failed to load payment system. Refresh and try again.';
+      coinOrderSdkLoading = false;
+      return;
+    }
+  }
+
+  if (coinOrderSdkLoaded) renderCoinPaypalButton(pack);
+}
+
+function renderCoinPaypalButton(pack) {
+  const btnWrap = document.getElementById('coinShopPaypalBtn');
+  btnWrap.innerHTML = '';
+  if (typeof paypalOrder === 'undefined') return;
+  try {
+    paypalOrder.Buttons({
+      fundingSource: paypalOrder.FUNDING.PAYPAL,
+      style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'pay' },
+      async createOrder() {
+        const d = await fetch('/api/paypal/create-coin-order', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ packId: pack.id })
+        }).then(r => r.json());
+        if (!d.orderId) throw new Error(d.error || 'Could not create order');
+        return d.orderId;
+      },
+      async onApprove(data) {
+        document.getElementById('coinShopStatus').textContent = 'Processing payment…';
+        try {
+          const d = await fetch('/api/paypal/capture-coin-order', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId: data.orderID })
+          }).then(r => r.json());
+          if (d.ok) {
+            document.getElementById('coinShopStatus').style.color = '#22c55e';
+            document.getElementById('coinShopStatus').textContent = `✓ ${d.coins.toLocaleString()} coins added! Balance: ${d.newBalance.toLocaleString()}`;
+            if (lastKnownUsage) lastKnownUsage.cmCoins = d.newBalance;
+            loadUsage();
+            setTimeout(closeCoinShop, 3000);
+          } else {
+            document.getElementById('coinShopStatus').textContent = d.error || 'Payment failed.';
+          }
+        } catch (_) { document.getElementById('coinShopStatus').textContent = 'Network error. Contact support.'; }
+      },
+      onError(err) {
+        document.getElementById('coinShopStatus').textContent = 'Payment error. Please try again.';
+        console.error('Coin PayPal error:', err);
+      }
+    }).render('#coinShopPaypalBtn');
+  } catch (err) { console.error('Coin PayPal render error:', err); }
+}
+
 
 function updateSettingsPlanCard(tier) {
   const t = tier || lastKnownUsage?.subscriptionTier || 'free';

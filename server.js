@@ -552,6 +552,7 @@ if (GOOGLE_AUTH_ENABLED) {
           lim.coinsDayReset = Number(row.coins_day_reset) || 0;
           lim.coinsMonthlyReset = Number(row.coins_monthly_reset) || 0;
           lim.subscriptionTier = effectiveTier(lim);
+          lim.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email); // owner account: no token/coin costs
           lim.tierLoaded = true;
           checkMonthlyCoins(user.googleId, lim).catch(() => {});
         }).catch(() => {});
@@ -663,6 +664,7 @@ async function ensureTierLoaded(user) {
   u.coinsDayReset = Number(row.coins_day_reset) || 0;
   u.coinsMonthlyReset = Number(row.coins_monthly_reset) || 0;
   u.subscriptionTier = effectiveTier(u);
+  u.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email);
   u.tierLoaded = true;
   await checkMonthlyCoins(user.googleId, u);
 }
@@ -965,6 +967,7 @@ function getLimits(sid) {
 
 function checkLimits(sid) {
   const u = getLimits(sid);
+  if (u.neverLimit) return { blocked: false };
   const now = Date.now();
   if (u.cooldownUntil && now < u.cooldownUntil) return { blocked: true, type: 'session', cooldownUntil: u.cooldownUntil };
   if (u.weeklyStart && u.weeklyTokens >= weeklyLimitFor(u)) return { blocked: true, type: 'weekly', resetsAt: u.weeklyStart + LIMITS.WEEKLY_MS };
@@ -1022,6 +1025,7 @@ const CALL_TOKEN_MIN = 2500;          // minimum per call (~6 short calls per fr
 
 function addTokens(sid, tokens) {
   const u = getLimits(sid);
+  if (u.neverLimit) return { warnings: [], ...buildUsagePayload(u, sid) };
   const now = Date.now();
   // Clock starts on first actual message
   if (!u.weeklyStart) u.weeklyStart = now;
@@ -4916,6 +4920,77 @@ app.post('/api/admin/send-coins-to-email', requireAuth, async (req, res) => {
 });
 
 // ── PayPal ─────────────────────────────────────────────────────────────────────
+// ── Coin purchase packages ──────────────────────────────────────────────────────
+const COIN_PACKS = [
+  { id: 'starter', label: 'Starter',    coins:    500, price:  4.99 },
+  { id: 'small',   label: 'Small',      coins:  1_200, price:  9.99 },
+  { id: 'medium',  label: 'Medium',     coins:  3_000, price: 24.99 },
+  { id: 'large',   label: 'Large',      coins:  7_500, price: 49.99 },
+  { id: 'xl',      label: 'Extra Large',coins: 18_000, price: 99.99 },
+  { id: 'mega',    label: 'Mega',       coins: 50_000, price:249.99 },
+];
+
+app.get('/api/paypal/coin-packs', (req, res) => {
+  res.json({ packs: COIN_PACKS });
+});
+
+app.post('/api/paypal/create-coin-order', requireAuth, async (req, res) => {
+  const { packId } = req.body;
+  const pack = COIN_PACKS.find(p => p.id === packId);
+  if (!pack) return res.status(400).json({ error: 'Invalid pack' });
+  try {
+    const token = await getPayPalToken();
+    const order = await fetch(`${PAYPAL_BASE}/v2/checkout/orders`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        intent: 'CAPTURE',
+        purchase_units: [{
+          amount: { currency_code: 'USD', value: pack.price.toFixed(2) },
+          description: `Character Mind — ${pack.label} Coin Pack (${pack.coins.toLocaleString()} coins)`,
+          custom_id: `${req.user.googleId}|${pack.id}`,
+        }],
+        application_context: { brand_name: 'Character Mind', shipping_preference: 'NO_SHIPPING', user_action: 'PAY_NOW' },
+      }),
+    }).then(r => r.json());
+    if (!order.id) return res.status(500).json({ error: 'Could not create order' });
+    res.json({ orderId: order.id });
+  } catch (e) { console.error('[coin-order]', e.message); res.status(500).json({ error: 'PayPal error' }); }
+});
+
+app.post('/api/paypal/capture-coin-order', requireAuth, async (req, res) => {
+  const { orderId } = req.body;
+  if (typeof orderId !== 'string' || !/^[A-Z0-9]{6,30}$/.test(orderId)) return res.status(400).json({ error: 'Invalid order' });
+  try {
+    const token = await getPayPalToken();
+    const capture = await fetch(`${PAYPAL_BASE}/v2/checkout/orders/${orderId}/capture`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'PayPal-Request-Id': `cm-coin-${orderId}` },
+    }).then(r => r.json());
+    if (capture.status !== 'COMPLETED') return res.status(400).json({ error: 'Payment not completed', status: capture.status });
+
+    const unit = capture.purchase_units?.[0];
+    const customId = unit?.payments?.captures?.[0]?.custom_id || '';
+    const [capGoogleId, packId] = customId.split('|');
+
+    if (capGoogleId !== req.user.googleId) return res.status(403).json({ error: 'Order mismatch' });
+    const pack = COIN_PACKS.find(p => p.id === packId);
+    if (!pack) return res.status(400).json({ error: 'Unknown pack' });
+
+    if (!db) return res.status(503).json({ error: 'No database' });
+    const { rows } = await db.query(
+      'UPDATE users SET cm_coins = cm_coins + $1 WHERE google_id = $2 RETURNING cm_coins',
+      [pack.coins, req.user.googleId]
+    );
+    const newBalance = rows[0]?.cm_coins ?? 0;
+    const lim = getLimits(req.user.googleId);
+    if (lim) lim.cmCoins = newBalance;
+
+    console.log(`[coin-purchase] ${pack.coins} coins → ${req.user.googleId} (${pack.label}, $${pack.price})`);
+    res.json({ ok: true, coins: pack.coins, newBalance, pack: pack.label });
+  } catch (e) { console.error('[coin-capture]', e.message); res.status(500).json({ error: 'PayPal error' }); }
+});
+
 const COIN_USD_VALUE = 0.01; // 1 C.M. Coin = $0.01 USD
 const PLAN_MONTHLY_USD = { advanced: 9.99, x20: 39.99, x50: 79.99, x100: 159.99, x200: 399.99 };
 
