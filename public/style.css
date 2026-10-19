@@ -204,7 +204,7 @@ html, body {
 .sidebar-nav { display: flex; flex-direction: column; gap: 1px; }
 .nav-coin-display {
   display: flex; align-items: center; gap: 7px;
-  padding: 8px 10px; border-radius: 8px;
+  padding: 5px 10px; border-radius: 8px;
   color: var(--text2); font-size: 14px; font-weight: 600;
   background: var(--bg2); margin: 2px 0;
 }
@@ -212,6 +212,21 @@ html, body {
 .nav-coin-count { color: var(--accent-l); font-size: 15px; font-weight: 700; }
 .nav-coin-sep { color: var(--text3); font-size: 12px; }
 .nav-coin-label { color: var(--text3); font-size: 13px; font-weight: 500; }
+.nav-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+.nav-grid-btn {
+  flex-direction: column !important;
+  padding: 8px 4px !important;
+  gap: 4px !important;
+  font-size: 11px !important;
+  justify-content: center;
+}
+.nav-grid-btn svg { width: 16px !important; height: 16px !important; }
+.nav-grid-icon-wrap {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+}
+.nav-grid-icon-wrap .nav-new-dot {
+  position: absolute; top: -3px; right: -4px; margin-left: 0;
+}
 .nav-item {
   display: flex; align-items: center; gap: 10px; padding: 10px 10px; border-radius: 8px;
   cursor: pointer; background: none; border: none; color: var(--text3);
