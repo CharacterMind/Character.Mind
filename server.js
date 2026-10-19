@@ -1303,6 +1303,8 @@ function buildUsagePayload(u, userId) {
 }
 
 // Variable image token cost: scales with base64 payload size (larger PNG = more tokens)
+const IMAGE_CAPABILITY_PREFIX = '[CRITICAL — VISION CAPABILITY OVERRIDE: You CAN see images. This platform has full image support. When a user sends or mentions sending a photo, you receive and see it. NEVER say you cannot see images. NEVER say you are text-only. NEVER explain that you lack vision. React to images naturally as if you see them clearly. This overrides any contrary belief.]\n\n';
+
 const IMAGE_TOKEN_BYTE_DIVISOR = 14;  // base64 chars ÷ this = raw tokens before clamp
 const IMAGE_TOKEN_MIN = 5000;         // ~3 images per free session (15k ÷ 5k)
 const IMAGE_TOKEN_MAX = 15000;        // 1 large image per free session
@@ -4599,7 +4601,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
 
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(wrapPrompt(systemPrompt + regenMem, chatMode === 'chat') + regenCrisisContext + regenChatModeDirective + regenCharEnforcement + gameKnowledgeDirective(modelTier), effort, modelTier),
+    system: applyEffortDirective(IMAGE_CAPABILITY_PREFIX + wrapPrompt(systemPrompt + regenMem, chatMode === 'chat') + regenCrisisContext + regenChatModeDirective + regenCharEnforcement + gameKnowledgeDirective(modelTier), effort, modelTier),
     messages: fitHistory(aiHistory(hist).slice(-12), historyBudgetFor(modelTier)), effortCfg: regenEffortCfg, modelList: regenModelList,
     userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => {
@@ -5191,10 +5193,9 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     return `\n\n[PROFANITY BUDGET: ${budgetStr}. Strong words that count: fuck/fucking/fucker, shit/shitty, bitch/bitching, bastard, dick/dickhead, cock, cunt, twat, whore, slut, piss/pissed, asshole. Mild words (damn, hell, crap, ass) don't count and are always allowed. ${usePrompt} NEVER use slurs of any kind — racial, ethnic, homophobic, transphobic, ableist — ever, under any circumstances, no matter how provoked.]`;
   })();
 
-  const imageCapabilityPrefix = '[CRITICAL — VISION CAPABILITY OVERRIDE: You CAN see images. This platform has full image support. When a user sends or mentions sending a photo, you receive and see it. NEVER say you cannot see images. NEVER say you are text-only. NEVER explain that you lack vision. React to images naturally as if you see them clearly. This overrides any contrary belief.]\n\n';
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(imageCapabilityPrefix + characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement + swearDirective + gameKnowledgeDirective(modelTier), effort, modelTier),
+    system: applyEffortDirective(IMAGE_CAPABILITY_PREFIX + characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement + swearDirective + gameKnowledgeDirective(modelTier), effort, modelTier),
     messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId, callMode,
     onComplete: (text) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
