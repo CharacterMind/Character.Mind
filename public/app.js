@@ -572,19 +572,6 @@ async function openPaypalCheckout(planKey, period) {
 
   const origPriceEl = document.getElementById('paypalCheckoutOrigPrice');
   const priceEl = document.getElementById('paypalCheckoutPrice');
-
-  // Annual: show original (monthly×12) struck through + green discounted price
-  if (yearly && plan.monthly > 0) {
-    const fullYear = plan.monthly * 12;
-    const savePct = Math.round((1 - plan.annual / fullYear) * 100);
-    if (origPriceEl) { origPriceEl.textContent = `$${fullYear.toFixed(2)} / yr`; origPriceEl.style.display = ''; }
-    if (priceEl) { priceEl.textContent = `$${price.toFixed(2)} / yr  ·  Save ${savePct}%`; priceEl.classList.add('co-discounted'); }
-  } else {
-    if (origPriceEl) origPriceEl.style.display = 'none';
-    if (priceEl) { priceEl.textContent = `$${price.toFixed(2)} / ${periodLabel}`; priceEl.classList.remove('co-discounted'); }
-  }
-
-  // Coin discount row — show user's coin balance as a dollar offset
   const userCoins = lastKnownUsage?.cmCoins || 0;
   const coinValueUSD = userCoins * COIN_USD_VALUE;
   const coinRow = document.getElementById('co-coin-value-row');
@@ -592,15 +579,44 @@ async function openPaypalCheckout(planKey, period) {
   const coinValueEl = document.getElementById('co-coin-value');
   const coinSaveEl = document.getElementById('co-coin-save');
   const tot = document.getElementById('co-total-display');
-  if (userCoins > 0 && price > 0) {
-    const discount = Math.min(coinValueUSD, price);
-    const effective = +(price - discount).toFixed(2);
+
+  // Always show original price struck-through when there's a coin discount or annual savings
+  const hasCoins = userCoins > 0 && price > 0;
+  const discount = hasCoins ? Math.min(coinValueUSD, price) : 0;
+  const effective = +(price - discount).toFixed(2);
+
+  // Figure out base "full" price for the strikethrough
+  let origLabel = '';
+  if (yearly && plan.monthly > 0) {
+    const fullYear = plan.monthly * 12;
+    const savePct = Math.round((1 - plan.annual / fullYear) * 100);
+    origLabel = `$${fullYear.toFixed(2)} / yr  (Save ${savePct}%)`;
+  } else {
+    origLabel = `$${price.toFixed(2)} / ${periodLabel}`;
+  }
+
+  if (hasCoins) {
+    // Struck-through original plan price
+    if (origPriceEl) { origPriceEl.textContent = origLabel; origPriceEl.style.display = ''; }
+    // Effective price after coins, in green
+    if (priceEl) { priceEl.textContent = `$${effective.toFixed(2)} / ${periodLabel}`; priceEl.classList.add('co-discounted'); }
+    // Coin row: "🪙 X coins  -$Y.YY" + "You're saving $Y.YY"
     if (coinLabelEl) coinLabelEl.textContent = `🪙 ${userCoins.toLocaleString()} coins`;
     if (coinValueEl) coinValueEl.textContent = `-$${discount.toFixed(2)}`;
-    if (coinSaveEl) coinSaveEl.textContent = effective === 0 ? '✓ Fully covered by your coins!' : `Effective price: $${effective.toFixed(2)} / ${periodLabel}`;
+    if (coinSaveEl) coinSaveEl.textContent = effective === 0 ? `✓ Fully covered! You're saving $${discount.toFixed(2)}` : `You're saving $${discount.toFixed(2)}`;
     if (coinRow) coinRow.style.display = '';
     if (tot) tot.textContent = `$${effective.toFixed(2)}`;
+  } else if (yearly && plan.monthly > 0) {
+    // Annual, no coins — still show annual savings strikethrough
+    const fullYear = plan.monthly * 12;
+    const savePct = Math.round((1 - plan.annual / fullYear) * 100);
+    if (origPriceEl) { origPriceEl.textContent = `$${fullYear.toFixed(2)} / yr`; origPriceEl.style.display = ''; }
+    if (priceEl) { priceEl.textContent = `$${price.toFixed(2)} / yr  ·  Save ${savePct}%`; priceEl.classList.add('co-discounted'); }
+    if (coinRow) coinRow.style.display = 'none';
+    if (tot) tot.textContent = `$${price.toFixed(2)}`;
   } else {
+    if (origPriceEl) origPriceEl.style.display = 'none';
+    if (priceEl) { priceEl.textContent = `$${price.toFixed(2)} / ${periodLabel}`; priceEl.classList.remove('co-discounted'); }
     if (coinRow) coinRow.style.display = 'none';
     if (tot) tot.textContent = `$${price.toFixed(2)}`;
   }
