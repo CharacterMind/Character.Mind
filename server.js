@@ -4859,6 +4859,43 @@ app.post('/api/admin/notify-policy-update', requireAuth, async (req, res) => {
   res.json({ ok: true, sent, errors, total: users.length });
 });
 
+// ── Admin coin giveaway ────────────────────────────────────────────────────────
+app.post('/api/admin/donate-coins', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  if (!db) return res.status(503).json({ error: 'No database' });
+
+  const { pool = 1000, activeDays = null, preview = false } = req.body;
+  const poolAmt = Math.max(1, Math.min(100000, parseInt(pool) || 1000));
+  const days    = activeDays ? Math.max(1, parseInt(activeDays)) : null;
+
+  let query  = `SELECT google_id FROM users WHERE email IS NOT NULL AND email != ''`;
+  const args = [];
+  if (days) { args.push(days); query += ` AND last_seen >= NOW() - ($${args.length} * INTERVAL '1 day')`; }
+
+  const { rows } = await db.query(query, args);
+  const n = rows.length;
+  if (!n) return res.json({ ok: true, preview: true, users: 0, pool: poolAmt, perUser: 0, total: 0 });
+
+  const perUser  = Math.floor(poolAmt / n);
+  const leftover = poolAmt - perUser * n; // leftover goes to first user
+
+  if (preview) {
+    return res.json({ ok: true, preview: true, users: n, pool: poolAmt, perUser, total: poolAmt });
+  }
+
+  let updated = 0;
+  for (let i = 0; i < n; i++) {
+    const coins = perUser + (i === 0 ? leftover : 0);
+    try {
+      await db.query('UPDATE users SET cm_coins = cm_coins + $1 WHERE google_id = $2', [coins, rows[i].google_id]);
+      updated++;
+    } catch (e) { console.error('[donate-coins]', rows[i].google_id, e.message); }
+  }
+
+  console.log(`[admin] donate-coins: ${poolAmt} coins → ${updated}/${n} users (${perUser} each)`);
+  res.json({ ok: true, preview: false, users: n, distributed: updated, pool: poolAmt, perUser, total: poolAmt });
+});
+
 // ── PayPal ─────────────────────────────────────────────────────────────────────
 const COIN_USD_VALUE = 0.01; // 1 C.M. Coin = $0.01 USD
 const PLAN_MONTHLY_USD = { advanced: 9.99, x20: 39.99, x50: 79.99, x100: 159.99, x200: 399.99 };

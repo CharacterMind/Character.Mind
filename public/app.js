@@ -4413,6 +4413,54 @@ async function adminNotifyUsers() {
   if (btn) { btn.textContent = 'Send to all users'; btn.disabled = false; }
 }
 
+async function adminGiveawayPreview() {
+  if (!isOwner()) return;
+  const pool = parseInt(document.getElementById('giveawayPool')?.value) || 1000;
+  const days = parseInt(document.getElementById('giveawayDays')?.value) || null;
+  const btn  = document.getElementById('giveawayPreviewBtn');
+  const info = document.getElementById('giveawayPreview');
+  if (btn) { btn.textContent = 'Loading…'; btn.disabled = true; }
+  try {
+    const d = await fetch('/api/admin/donate-coins', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pool, activeDays: days, preview: true })
+    }).then(r => r.json());
+    if (d.ok) {
+      if (info) info.textContent = d.users
+        ? `${d.users} users · ${d.perUser} coins each · ${d.total} total`
+        : 'No eligible users found.';
+    } else {
+      if (info) info.textContent = d.error || 'Preview failed.';
+    }
+  } catch (_) { if (info) info.textContent = 'Preview failed.'; }
+  if (btn) { btn.textContent = 'Preview'; btn.disabled = false; }
+}
+
+async function adminGiveawaySend() {
+  if (!isOwner()) return;
+  const pool = parseInt(document.getElementById('giveawayPool')?.value) || 1000;
+  const days = parseInt(document.getElementById('giveawayDays')?.value) || null;
+  const info = document.getElementById('giveawayPreview');
+  if (!confirm(`Send ${pool} coins to ${days ? `users active in last ${days} days` : 'ALL users'}?\n\nThis cannot be undone.`)) return;
+  const btn = document.getElementById('giveawaySendBtn');
+  if (btn) { btn.textContent = 'Sending…'; btn.disabled = true; }
+  try {
+    const d = await fetch('/api/admin/donate-coins', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pool, activeDays: days, preview: false })
+    }).then(r => r.json());
+    if (d.ok && !d.preview) {
+      showWarning(`🎁 Sent! ${d.perUser} coins × ${d.distributed} users (${d.total} total) ✓`, 8000);
+      if (info) info.textContent = `✓ Distributed ${d.total} coins to ${d.distributed} users.`;
+    } else {
+      showWarning(d.error || 'Giveaway failed.');
+    }
+  } catch (_) { showWarning('Giveaway failed.'); }
+  if (btn) { btn.textContent = 'Send Coins 🎁'; btn.disabled = false; }
+}
+
 // ── Usage Modal ───────────────────────────────────────────────────────────────
 let usageModalTimer = null;
 let lastKnownUsage = null;
