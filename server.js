@@ -231,6 +231,21 @@ if (db) {
     .then(r => { if (r && r.rowCount > 0) console.log('[MIGRATION] Updated Doey blue to brighter #60a5fa'); })
     .catch(err => console.error('DB init error:', err));
 
+  db.query(`ALTER TABLE characters ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT FALSE`)
+    .then(() => db.query(`UPDATE characters SET is_hidden = TRUE WHERE id IN ('custom_1790897425575_lily', 'custom_1790776698867') AND NOT is_hidden`))
+    .then(r => { if (r && r.rowCount > 0) console.log(`[MIGRATION] Hid ${r.rowCount} character(s) (Lily, Poppy)`); })
+    .catch(err => console.error('is_hidden migration error:', err));
+
+  // Sync Miss Delight's DB record to the current template on every startup
+  {
+    const tpl = matchCharacterTemplate('miss delight');
+    if (tpl) db.query(
+      `UPDATE characters SET system_prompt=$1, tagline=$2, greeting=$3, greeting_mode=$4, color=$5, tags=$6 WHERE id='custom_1790895433255_delight'`,
+      [tpl.systemPrompt, tpl.tagline, tpl.greeting, tpl.greetingMode, tpl.color, JSON.stringify(tpl.tags)]
+    ).then(r => { if (r.rowCount > 0) console.log('[MIGRATION] Synced Miss Delight DB record from template'); })
+      .catch(err => console.error('Miss Delight sync error:', err));
+  }
+
   db.query(`
     CREATE TABLE IF NOT EXISTS users (
       google_id TEXT PRIMARY KEY,
@@ -3548,12 +3563,13 @@ app.get('/api/characters', charReadLimiter, async (req, res) => {
     const gen = charListGen;
     if (charListCache.rows && Date.now() - charListCache.at < CHAR_LIST_TTL_MS) rows = charListCache.rows;
     else rows = (await db.query(
-      'SELECT id, name, tagline, description, system_prompt, greeting, greeting_mode, color, creator_name, device_id, (image IS NOT NULL AND length(image) > 0) AS has_image, COALESCE(length(image), 0) AS image_len, tags, interactions, created_at FROM characters ORDER BY created_at DESC'
+      'SELECT id, name, tagline, description, system_prompt, greeting, greeting_mode, color, creator_name, device_id, (image IS NOT NULL AND length(image) > 0) AS has_image, COALESCE(length(image), 0) AS image_len, tags, interactions, created_at, COALESCE(is_hidden, FALSE) AS is_hidden FROM characters ORDER BY created_at DESC'
     )).rows;
     if (rows !== charListCache.rows && gen === charListGen) charListCache = { at: Date.now(), rows };
-    if (SOFT_LAUNCH) rows = rows.filter(r => /lily|poppy/i.test(r.name));
     const authed = !!req.user;
     const isOwnerUser = !!(userId && ownerGoogleIds.has(userId));
+    if (SOFT_LAUNCH) rows = rows.filter(r => /lily|poppy/i.test(r.name));
+    if (!isOwnerUser) rows = rows.filter(r => !r.is_hidden);
     res.json(rows.map(r => {
       const official = !!(r.device_id && ownerGoogleIds.has(r.device_id));
       const mine = !!(userId && r.device_id === userId);
