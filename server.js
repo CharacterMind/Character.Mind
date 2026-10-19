@@ -537,8 +537,14 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
-const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
-if (!process.env.SESSION_SECRET) console.error('SECURITY: SESSION_SECRET env var not set — sessions will not survive restarts. Set this in your environment variables.');
+// Derive a stable secret from DATABASE_URL when SESSION_SECRET isn't set so
+// sessions survive server restarts without every user being signed out.
+const SESSION_SECRET = process.env.SESSION_SECRET ||
+  crypto.createHash('sha256')
+    .update(process.env.DATABASE_URL || 'cm-no-db-fallback')
+    .update('cm-session-salt-v1')
+    .digest('hex');
+if (!process.env.SESSION_SECRET) console.warn('[session] SESSION_SECRET not set — using DATABASE_URL-derived secret (stable across restarts). Set SESSION_SECRET in Render env vars for best security.');
 
 // Persist sessions to Postgres so they survive server restarts
 if (db) {
@@ -2897,7 +2903,7 @@ function getEffortCfg(effort, tier) {
 
 // Every AI reply the server writes is signed, so a chat synced back from a browser can't smuggle in
 // fake "assistant" lines. The signature covers the account, the character and the exact text.
-const REPLY_SIGN_KEY = process.env.REPLY_SIGN_KEY || process.env.SESSION_SECRET || (() => { console.error('ERROR: Neither REPLY_SIGN_KEY nor SESSION_SECRET is set — reply signatures will break on every restart'); return crypto.randomBytes(32).toString('hex'); })();
+const REPLY_SIGN_KEY = process.env.REPLY_SIGN_KEY || SESSION_SECRET;
 function signReply(userId, charId, content) {
   return crypto.createHmac('sha256', REPLY_SIGN_KEY).update(userId + '|' + charId + '|' + content).digest('base64url').slice(0, 24);
 }
