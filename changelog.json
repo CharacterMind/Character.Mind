@@ -45,14 +45,33 @@
     ]
   },
   {
+    "id": "v285-cropimg",
+    "version": "v285",
+    "date": "Oct 2026",
+    "title": "Image Processing Fix",
+    "subtitle": "Attaching images no longer causes a phantom page request.",
+    "fixed": [
+      "Image cropping no longer triggers a silent browser page request when processing an attachment that has no source URL"
+    ]
+  },
+  {
     "id": "v284-fixes",
     "version": "v284",
     "date": "Oct 2026",
     "title": "Image History Fix",
     "subtitle": "Images in chat history now stay as images after the first save.",
     "fixed": [
-      "Image messages in history no longer turn into plain '📷 Image' text after the first session — they now correctly save and reload as image placeholders",
-      "Attaching an image no longer causes the browser to silently re-request the page — preview thumbnail uses a safe empty placeholder"
+      "Image messages in history no longer turn into plain '📷 Image' text after the first session — they now correctly save and reload as image placeholders"
+    ]
+  },
+  {
+    "id": "v283-thumbnail",
+    "version": "v283",
+    "date": "Oct 2026",
+    "title": "Image Thumbnail Fix",
+    "subtitle": "Attaching an image no longer silently re-requests the page.",
+    "fixed": [
+      "Image preview thumbnail in the chat input bar now uses a safe empty placeholder — no more phantom page request every time you attach an image"
     ]
   },
   {
