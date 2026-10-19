@@ -191,7 +191,7 @@
 <div class="hero">
   <div class="hero-badge">Legal Document</div>
   <h1 class="hero-title">Privacy Policy</h1>
-  <p class="hero-meta">Effective <span>October 3, 2026</span> &nbsp;·&nbsp; Last updated <span>October 3, 2026</span></p>
+  <p class="hero-meta">Effective <span>October 3, 2026</span> &nbsp;·&nbsp; Last updated <span>October 18, 2026</span></p>
 </div>
 
 <div class="layout">
@@ -204,7 +204,7 @@
       <li><a href="#s3a" class="toc-link">3a. Location &amp; Safety</a></li>
       <li><a href="#s4"  class="toc-link">4. Third-Party Services</a></li>
       <li><a href="#s5"  class="toc-link">5. Data Retention</a></li>
-      <li><a href="#s6"  class="toc-link">6. Email Communications</a></li>
+      <li><a href="#s6"  class="toc-link">6. Wellness Check-ins &amp; Push</a></li>
       <li><a href="#s7"  class="toc-link">7. Data Security</a></li>
       <li><a href="#s8"  class="toc-link">8. Children's Privacy</a></li>
       <li><a href="#s9"  class="toc-link">9. Your Rights</a></li>
@@ -241,7 +241,10 @@
         <li><strong>Data kept in your browser:</strong> To load quickly, your device keeps a copy of your recent chats, past chats, profile picture, display name and preferences in your browser's local storage. Signing out does not erase it. To remove it, clear this site's data in your browser settings.</li>
         <li><strong>Recent chats:</strong> A list of characters you have recently chatted with, stored to populate your sidebar.</li>
         <li><strong>Usage data:</strong> Token counts, session start times, and weekly usage totals, used to enforce plan limits and display your usage dashboard.</li>
-        <li><strong>Subscription tier and PayPal subscription ID:</strong> Your current plan (Free, Advanced, X20, X50, or X100) and, for paid subscribers, the PayPal subscription identifier linked to your account, stored in our database.</li>
+        <li><strong>Subscription tier and PayPal subscription ID:</strong> Your current plan (Free, Advanced, X20, or X50) and, for paid subscribers, the PayPal subscription identifier linked to your account, stored in our database.</li>
+        <li><strong>C.M. Coins balance:</strong> Your virtual coin balance and daily coin-earning activity, stored in our database. Coins have no monetary value and cannot be withdrawn.</li>
+        <li><strong>Push notification subscription:</strong> If you enable push notifications, your browser's push subscription endpoint and encryption keys are stored in our database so we can deliver notifications to your device. You can revoke this permission in your browser settings at any time.</li>
+        <li><strong>Wellness check-in preferences (optional):</strong> If you opt in to wellness check-in messages, we store your preference (on/off), your chosen frequency, and optionally a phone number you provide. The phone number is stored solely for future voice-call features; it is not used for any other purpose. You can update or remove these at any time from Settings → Wellness.</li>
         <li><strong>Content moderation records:</strong> Per-conversation violation strike counts (for our hate speech and slur policy) are stored to enforce our 3-strike moderation system. These records are tied to your account and character pair, not to your individual messages.</li>
         <li><strong>User-created characters:</strong> Any characters you create, including their name, description, system prompt, and associated image.</li>
       </ul>
@@ -268,6 +271,9 @@
         <li>To populate your recent chats sidebar</li>
         <li>To process subscription payments via PayPal and send email receipts after successful charges</li>
         <li>To send service-related emails (such as subscription receipts, policy updates, and important account notices) to the email address associated with your Google account</li>
+        <li>To send wellness check-in messages — periodic emails and push notifications from the AI character you chat with most — only if you have opted in. You may opt out at any time from Settings → Wellness.</li>
+        <li>To credit and track your C.M. Coins balance, including coins earned through games and coins granted by platform giveaways</li>
+        <li>To deliver push notifications to your device, including check-in messages and platform announcements, if you have enabled push notifications</li>
         <li>To detect and prevent abuse or violations of our Terms of Service</li>
       </ul>
     </div>
@@ -309,7 +315,8 @@
         <li><strong>ElevenLabs</strong> — text-to-speech provider, used only when voice calls are available. The text of a character's reply is sent to ElevenLabs to generate spoken audio. No account information is transmitted.</li>
         <li><strong>Neon (PostgreSQL)</strong> — our database host, where user data, conversations, and character definitions are stored.</li>
         <li><strong>Render</strong> — our hosting provider, where the application server runs.</li>
-        <li><strong>PayPal</strong> — payment processing for paid subscriptions.</li>
+        <li><strong>PayPal</strong> — payment processing for paid subscriptions and C.M. Coin purchases.</li>
+        <li><strong>Resend</strong> — transactional email delivery. Your email address and the content of service emails (receipts, wellness check-ins, platform updates) are transmitted to Resend to be delivered. Resend does not use this data for advertising.</li>
         <li><strong>ip-api.com</strong> — geographic location service used during crisis detection. Only your IP is shared; no account information is transmitted.</li>
         <li><strong>Nominatim / OpenStreetMap</strong> — reverse-geocoding service. When you open the Resources panel and grant GPS permission, your device's coordinates are sent to Nominatim to determine your city, province, and country.</li>
       </ul>
@@ -332,8 +339,10 @@
 
     <div class="section" id="s6">
       <p class="section-num">Section 06</p>
-      <h2>Email Communications</h2>
-      <p>By creating an account, you agree to receive service-related emails such as important policy updates and account notices. These are not marketing emails. We do not send promotional emails without your explicit opt-in.</p>
+      <h2>Email Communications, Wellness Check-ins &amp; Push Notifications</h2>
+      <p><strong>Service emails:</strong> By creating an account, you agree to receive service-related emails such as important policy updates and account notices. These are not marketing emails. We do not send promotional emails without your explicit opt-in.</p>
+      <p><strong>Wellness check-ins:</strong> If you opt in to wellness check-ins (Settings → Wellness), the character you chat with most will periodically send you a personal email and push notification to check in on how you are doing. These messages are sent on the schedule you choose (every 3 days, weekly, or every two weeks). Every check-in email includes a reference to the 988 Suicide &amp; Crisis Lifeline. You can turn this off at any time from Settings → Wellness.</p>
+      <p><strong>Push notifications:</strong> If you enable push notifications in your browser, we may send you real-time notifications including wellness check-ins, platform announcements, and activity alerts. You can revoke push notification permission in your browser settings at any time.</p>
       <p>To stop receiving service emails, contact us at <a href="mailto:support.charactermind@gmail.com">support.charactermind@gmail.com</a>. Note that opting out of service emails may mean you miss important updates about your account or the platform.</p>
     </div>
 

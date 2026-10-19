@@ -4797,6 +4797,21 @@ function generateUsageHeadline(u) {
   if (weeklyLimit && wPct >= 50) return 'Halfway through your weekly limit. You\'re doing great.';
   if (sPct >= 90) return 'Session almost full. Your next cooldown is close.';
   if (sPct >= 75) return 'Session getting full. Consider a fresh chat soon.';
+  // Predict if user will hit weekly limit before the weekly reset
+  if (weeklyLimit && weeklyStart && weeklyResetsAt && weeklyTokens > 0 && wPct < 75) {
+    const elapsed = Date.now() - weeklyStart;
+    if (elapsed > 30 * 60 * 1000) { // need at least 30 min of data
+      const rate = weeklyTokens / elapsed;
+      const msToHitWeekly = (weeklyLimit - weeklyTokens) / rate;
+      const msUntilWeeklyReset = weeklyResetsAt - Date.now();
+      if (msToHitWeekly < msUntilWeeklyReset - 2 * 60 * 60 * 1000) { // warn if >2hr before reset
+        const hitAt = Date.now() + msToHitWeekly;
+        const dayName = new Date(hitAt).toLocaleDateString('en-US', { weekday: 'long' });
+        const timeStr = new Date(hitAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        return `Heads up — at this pace you'll hit your weekly limit around ${dayName} at ${timeStr}, before your reset.`;
+      }
+    }
+  }
   // Predict if user will hit session limit before the window resets
   if (u.sessionStartedAt && u.sessionExpiresAt && sessionTokens > 0) {
     const elapsed = Date.now() - u.sessionStartedAt;
