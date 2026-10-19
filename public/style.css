@@ -2181,6 +2181,10 @@ html, body {
 .slot-bet-label { font-size: 10px; font-weight: 800; color: #b8891a; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
 .slot-bet-row #slotBetDisplay { font-size: 13px; font-weight: 700; color: #d4a017; min-width: 28px; text-align: right; }
 .slot-slider { flex: 1; accent-color: #b8891a; }
+.slot-num-input { background: #1a1a1a; color: #d4a017; border: 1px solid #444; border-radius: 8px; padding: 5px 8px; font-size: 13px; font-weight: 700; width: 80px; text-align: center; -moz-appearance: textfield; }
+.slot-num-input::-webkit-outer-spin-button, .slot-num-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.slot-num-input:focus { outline: none; border-color: #b8891a; }
+.slot-auto-num { width: 60px; }
 .slot-spin-row { display: flex; gap: 8px; align-items: stretch; }
 .slot-auto-wrap { display: flex; gap: 4px; }
 .slot-auto-select { background: #1a1a1a; color: #bbb; border: 1px solid #333; border-radius: 8px; padding: 0 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
@@ -2198,8 +2202,6 @@ html, body {
 .slot-ex-label { font-size: 12px; color: #999; font-weight: 600; }
 .slot-ex-rate { font-weight: 400; color: #555; }
 .slot-ex-controls { display: flex; align-items: center; gap: 8px; }
-.slot-ex-controls .slot-slider { flex: 1; }
-.slot-ex-controls span { font-size: 13px; font-weight: 600; color: #ccc; min-width: 24px; text-align: right; }
 .slot-ex-btn { padding: 5px 14px; border: none; border-radius: 7px; font-size: 12px; font-weight: 700; cursor: pointer; }
 .slot-ex-btn.buy { background: #16a34a; color: #fff; }
 .slot-ex-btn.buy:hover { background: #15803d; }

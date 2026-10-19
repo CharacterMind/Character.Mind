@@ -22,7 +22,7 @@
 <link rel="icon" type="image/svg+xml" href="/logo-icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=297">
+<link rel="stylesheet" href="style.css?v=298">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -1733,18 +1733,12 @@
       <div class="slot-result" id="slotResult"></div>
       <div class="slot-bet-row">
         <span class="slot-bet-label">BET</span>
-        <input type="range" id="slotBetSlider" min="1" max="100" value="10" class="slot-slider" oninput="document.getElementById('slotBetDisplay').textContent=this.value">
-        <span id="slotBetDisplay">10</span>
+        <input type="number" id="slotBetSlider" min="1" max="500" value="10" class="slot-num-input">
         <span>🎟️</span>
       </div>
       <div class="slot-spin-row">
         <div class="slot-auto-wrap">
-          <select id="slotAutoCount" class="slot-auto-select">
-            <option value="5">×5</option>
-            <option value="10" selected>×10</option>
-            <option value="25">×25</option>
-            <option value="50">×50</option>
-          </select>
+          <input type="number" id="slotAutoCount" min="1" max="500" value="10" class="slot-num-input slot-auto-num" placeholder="×">
           <button class="slot-auto-btn" id="slotAutoBtn" onclick="toggleAutoSpin()">AUTO</button>
         </div>
         <button class="slot-spin-btn" id="slotSpinBtn" onclick="spinSlots()">SPIN</button>
@@ -1755,16 +1749,14 @@
       <div class="slot-ex-row">
         <span class="slot-ex-label">Buy tokens <span class="slot-ex-rate">(1 coin = 1 🎟️)</span></span>
         <div class="slot-ex-controls">
-          <input type="range" id="slotBuySlider" min="1" max="100" value="10" class="slot-slider" oninput="document.getElementById('slotBuyAmt').textContent=this.value">
-          <span id="slotBuyAmt">10</span>
+          <input type="number" id="slotBuySlider" min="1" max="10000" value="10" class="slot-num-input">
           <button class="slot-ex-btn buy" onclick="buyTokens()">BUY</button>
         </div>
       </div>
       <div class="slot-ex-row">
         <span class="slot-ex-label">Sell tokens <span class="slot-ex-rate">(10 🎟️ = 1 coin)</span></span>
         <div class="slot-ex-controls">
-          <input type="range" id="slotSellSlider" min="10" max="100" step="10" value="10" class="slot-slider" oninput="document.getElementById('slotSellAmt').textContent=this.value">
-          <span id="slotSellAmt">10</span>
+          <input type="number" id="slotSellSlider" min="10" max="100000" step="10" value="10" class="slot-num-input">
           <button class="slot-ex-btn sell" onclick="sellTokens()">SELL</button>
         </div>
       </div>
@@ -1772,7 +1764,7 @@
   </div>
 </div>
 
-<script src="app.js?v=297"></script>
+<script src="app.js?v=298"></script>
 
 <!-- Session 90% warning toast -->
 <div id="sessionWarningToast">

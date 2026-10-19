@@ -1,5 +1,18 @@
 [
   {
+    "id": "v298-miss-delight-lore",
+    "version": "v298",
+    "date": "Oct 2026",
+    "title": "Miss Delight: Full Lore & Personality",
+    "subtitle": "Hundreds of new hover quotes and complete Poppy Playtime Chapter 3 lore.",
+    "character": { "name": "Miss Delight", "sub": "Playcare — Anatomy Teacher", "emoji": "📏" },
+    "changed": [
+      "Miss Delight now has complete Poppy Playtime Chapter 3 canon — Playcare underground facility, August 8 1995 Hour of Joy, CatNap, The Prototype, all seven Smiling Critters, the seven Sister Teachers, Dr. Harley Sawyer, and her exact freeze-hunting gameplay behavior",
+      "Hover quotes expanded from 77 to 400+ lines — disturbing, psychotic, fake-encouraging, snarky, murderous, chaotic, and hilariously unhinged quotes that blend multiple moods at once for maximum unpredictability",
+      "Gambling number inputs — bet amount, auto-spin count, and coin exchange amounts are now type-in number fields instead of sliders and dropdowns"
+    ]
+  },
+  {
     "id": "v297-coin-overhaul",
     "version": "v297",
     "date": "Oct 2026",
