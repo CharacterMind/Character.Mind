@@ -124,7 +124,7 @@ for (const [plan, rank] of Object.entries(PLAN_RANK)) {
 function liveReplyCost() {
   let tier = callModeActive ? 'opas' : selectedModelTier;
   const plan = (typeof lastKnownUsage !== 'undefined' && lastKnownUsage && lastKnownUsage.subscriptionTier) || 'free';
-  if (!(PLAN_MODEL_TIERS[plan] || PLAN_MODEL_TIERS.free).includes(tier)) tier = 'opes';
+  if (!(PLAN_MODEL_TIERS[plan] || PLAN_MODEL_TIERS.free).includes(tier)) tier = 'opas';
   const effort = callModeActive ? 'low' : (OPES_COST[selectedEffort] ? selectedEffort : 'medium');
   return { cost: clientMessageCost(tier, effort), effort, tier };
 }
@@ -179,6 +179,7 @@ const MODEL_ICONS = {
   opus: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
   opys: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
   opys5: '<path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/>',
+  opys6: '<path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/>',
 };
 
 for (const k of Object.keys(MODEL_ICONS)) if (!MODEL_ICONS[k]) MODEL_ICONS[k] = MODEL_ICONS.opys;
@@ -4853,6 +4854,29 @@ async function adminClearUserBalance() {
     }
   } catch (_) { if (info) info.textContent = 'Request failed.'; }
   if (btn) { btn.textContent = 'Clear Balance 🗑'; btn.disabled = false; }
+}
+
+async function adminRevokeSubscription() {
+  if (!isOwner()) return;
+  const email = (document.getElementById('sendToEmail')?.value || '').trim();
+  const info = document.getElementById('sendToEmailResult');
+  if (!email) { if (info) info.textContent = 'Enter an email address.'; return; }
+  const btn = document.getElementById('revokeSubBtn');
+  if (btn) { btn.textContent = 'Revoking…'; btn.disabled = true; }
+  if (info) info.textContent = '';
+  try {
+    const d = await fetch('/api/admin/revoke-subscription', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    }).then(r => r.json());
+    if (d.ok) {
+      if (info) info.textContent = `✓ Subscription revoked for ${d.name || email} (was ${d.previousTier})`;
+    } else {
+      if (info) info.textContent = d.error || 'Failed.';
+    }
+  } catch (_) { if (info) info.textContent = 'Request failed.'; }
+  if (btn) { btn.textContent = 'Revoke Sub 🔒'; btn.disabled = false; }
 }
 
 async function adminGiveSelf() {

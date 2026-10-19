@@ -658,7 +658,7 @@ app.get('/auth/google/callback',
     req.session.showWelcome = true;
     if (isPopup) {
       req.session.save(() => {
-        res.send('<!DOCTYPE html><html><body><script>try{window.opener.postMessage({type:"auth-success"},"*");}catch(e){}window.close();</script></body></html>');
+        res.send(`<!DOCTYPE html><html><body><script>try{window.opener.postMessage({type:"auth-success"},"${SITE_URL}");}catch(e){}window.close();</script></body></html>`);
       });
       return;
     }
@@ -2049,13 +2049,30 @@ const VIOLENCE_WARN_1 = "🚫 Character.Mind does not allow requests for real-wo
 const VIOLENCE_WARN_LOCK = "🚫 Your account has been temporarily suspended for repeated real-world violence requests. Check the app for your ban expiry countdown.";
 
 // Ban durations per strike count (escalating, never permanent)
+// Index 0 = 2nd offense (first actual ban — 1st offense is warn-only), Index 1 = 3rd offense, etc.
 const VIOLENCE_BAN_MS = [
-  24 * 60 * 60 * 1000,         // 1st: 24 hours
-  3  * 24 * 60 * 60 * 1000,    // 2nd: 3 days
-  7  * 24 * 60 * 60 * 1000,    // 3rd: 7 days
-  30 * 24 * 60 * 60 * 1000,    // 4th: 30 days
-  90 * 24 * 60 * 60 * 1000,    // 5th+: 90 days
+  24 * 60 * 60 * 1000,         // 2nd offense: 24 hours
+  3  * 24 * 60 * 60 * 1000,    // 3rd offense: 3 days
+  7  * 24 * 60 * 60 * 1000,    // 4th offense: 7 days
+  30 * 24 * 60 * 60 * 1000,    // 5th offense: 30 days
+  90 * 24 * 60 * 60 * 1000,    // 6th+ offense: 90 days
 ];
+
+// Coin deductions per offense (index = newStrikes - 1; index 0 = 1st offense/warning)
+const VIOLENCE_COIN_DEDUCTIONS = [50, 100, 250, 500, 1000, 2000];
+const SLUR_COIN_DEDUCTIONS = [25, 50, 100]; // per slur strike (1, 2, 3+)
+
+async function deductCoins(userId, amount) {
+  if (!db || amount <= 0) return;
+  try {
+    const r = await db.query(
+      'UPDATE users SET cm_coins = GREATEST(0, cm_coins - $1) RETURNING cm_coins WHERE google_id = $2',
+      [amount, userId]
+    );
+    const lim = getLimits(userId);
+    lim.cmCoins = r.rows[0]?.cm_coins ?? lim.cmCoins;
+  } catch (e) { console.error('deductCoins error:', e); }
+}
 
 async function applyViolenceBan(userId, warnOnly = false) {
   if (!db) return null;
@@ -2065,15 +2082,19 @@ async function applyViolenceBan(userId, warnOnly = false) {
     const newStrikes = currentStrikes + 1;
     const lim = getLimits(userId);
     lim.violenceStrikes = newStrikes;
+    const coinDeduction = VIOLENCE_COIN_DEDUCTIONS[Math.min(newStrikes - 1, VIOLENCE_COIN_DEDUCTIONS.length - 1)];
     if (warnOnly) {
       await db.query('UPDATE users SET violence_strikes=$1 WHERE google_id=$2', [newStrikes, userId]);
-      return { strikes: newStrikes };
+      deductCoins(userId, coinDeduction).catch(() => {});
+      return { strikes: newStrikes, coinsDeducted: coinDeduction };
     }
-    const durationMs = VIOLENCE_BAN_MS[Math.min(newStrikes - 1, VIOLENCE_BAN_MS.length - 1)];
+    // Use newStrikes - 2 so the 2nd offense maps to VIOLENCE_BAN_MS[0] (24h), not [1] (3 days)
+    const durationMs = VIOLENCE_BAN_MS[Math.min(newStrikes - 2, VIOLENCE_BAN_MS.length - 1)];
     const banUntil = new Date(Date.now() + durationMs);
     await db.query('UPDATE users SET violence_strikes=$1, ban_until=$2 WHERE google_id=$3', [newStrikes, banUntil, userId]);
     lim.banUntil = banUntil.getTime();
-    return { banUntil: banUntil.getTime(), strikes: newStrikes, durationMs };
+    deductCoins(userId, coinDeduction).catch(() => {});
+    return { banUntil: banUntil.getTime(), strikes: newStrikes, durationMs, coinsDeducted: coinDeduction };
   } catch (e) { console.error('applyViolenceBan error:', e); return null; }
 }
 
@@ -3279,7 +3300,6 @@ let ELEVEN_VOICE_MAP = {
 };
 try { Object.assign(ELEVEN_VOICE_MAP, JSON.parse(process.env.ELEVENLABS_VOICES || '{}')); } catch (_) {}
 const TTS_DAILY_CHARS = 2000;
-const ttsUsage = new Map();
 
 // Edge TTS neural voice map (free fallback — Microsoft neural voices)
 const EDGE_VOICE_MAP = {
@@ -3715,12 +3735,37 @@ app.post('/api/admin/clear-user-balance', requireAuth, async (req, res) => {
   const { rows } = await db.query('SELECT google_id, name FROM users WHERE email = $1', [email.trim().toLowerCase()]);
   if (!rows.length) return res.status(404).json({ error: 'User not found' });
   const uid = rows[0].google_id;
-  await db.query('UPDATE users SET cm_coins = 0, cm_tokens = 0 WHERE google_id = $1', [uid]);
+  await db.query('UPDATE users SET cm_coins = 0, cm_tokens = 0, coins_earned_all_time = 0 WHERE google_id = $1', [uid]);
   const lim = getLimits(uid);
   lim.cmCoins = 0;
   lim.cmTokens = 0;
+  lim.coinsEarnedAllTime = 0;
   console.log(`[admin] clear-user-balance: ${rows[0].name} (${uid})`);
   res.json({ ok: true, name: rows[0].name });
+});
+
+app.post('/api/admin/revoke-subscription', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  if (!db) return res.status(503).json({ error: 'No database' });
+  const { email } = req.body || {};
+  if (!email?.trim()) return res.status(400).json({ error: 'Email required' });
+  const { rows } = await db.query(
+    'SELECT google_id, name, paypal_subscription_id, subscription_tier FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+    [email.trim()]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'User not found' });
+  const { google_id: uid, name, paypal_subscription_id: subId, subscription_tier: oldTier } = rows[0];
+  if (oldTier === 'free' || !oldTier) return res.status(400).json({ error: 'User has no active subscription' });
+  await db.query(
+    'UPDATE users SET subscription_tier = $1, paypal_subscription_id = NULL WHERE google_id = $2',
+    ['free', uid]
+  );
+  const lim = getLimits(uid);
+  lim.subscriptionTier = 'free';
+  lim.tierLoaded = true;
+  if (subId) cancelPayPalSubscription(subId, 'Revoked by admin').catch(() => {});
+  console.log(`[admin] revoke-subscription: ${name} (${uid}) was ${oldTier} → free${subId ? `, PayPal sub ${subId} cancelled` : ''}`);
+  res.json({ ok: true, name, previousTier: oldTier });
 });
 
 // One-time: stamp all characters created by the calling owner as CharacterMind
@@ -4711,14 +4756,16 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   const msgNorm = normalizeMsg(message);
   if (!isContinuation && message && hasSlur(msgNorm)) {
     const newStrikes = modStatus.strikes + 1;
+    const slurCoinDeduction = SLUR_COIN_DEDUCTIONS[Math.min(newStrikes - 1, SLUR_COIN_DEDUCTIONS.length - 1)];
+    deductCoins(userId, slurCoinDeduction).catch(() => {});
     if (newStrikes >= 3) {
       await setModStatus(userId, charId, newStrikes, true);
       conversations[key] = [];
       persistConv(key);
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
+      res.setHeader(‘Content-Type’, ‘text/event-stream’);
+      res.setHeader(‘Cache-Control’, ‘no-cache’);
+      res.setHeader(‘Connection’, ‘keep-alive’);
+      res.setHeader(‘X-Accel-Buffering’, ‘no’);
       res.flushHeaders();
       res.write(`data: ${JSON.stringify({ conversationEnded: true, locked: true, reason: "We’ve given you plenty of warnings. This chat has been permanently ended." })}\n\n`);
       res.end();
@@ -5300,8 +5347,8 @@ app.post('/api/admin/send-coins-to-email', requireAuth, async (req, res) => {
   const bonus = Math.max(5, Math.ceil(coins * 0.10));
   const totalCoins = coins + bonus;
 
-  await db.query(
-    'UPDATE users SET cm_coins = cm_coins + $1, coins_earned_all_time = COALESCE(coins_earned_all_time,0) + $1 WHERE google_id = $2',
+  const coinUpd = await db.query(
+    'UPDATE users SET cm_coins = cm_coins + $1, coins_earned_all_time = COALESCE(coins_earned_all_time,0) + $1 WHERE google_id = $2 RETURNING cm_coins',
     [totalCoins, user.google_id]
   );
   if (tokens > 0) {
@@ -5309,7 +5356,7 @@ app.post('/api/admin/send-coins-to-email', requireAuth, async (req, res) => {
   }
   // Keep in-memory limits in sync
   const ul = getLimits(user.google_id);
-  ul.cmCoins = (ul.cmCoins || 0) + totalCoins;
+  ul.cmCoins = coinUpd.rows[0]?.cm_coins ?? (ul.cmCoins || 0) + totalCoins;
   ul.coinsEarnedAllTime = (ul.coinsEarnedAllTime || 0) + totalCoins;
   if (tokens > 0) ul.cmTokens = (ul.cmTokens || 0) + tokens;
 
@@ -5347,7 +5394,7 @@ app.post('/api/admin/send-coins-to-email', requireAuth, async (req, res) => {
     sendResendEmail(user.user_email, `🎁 You've received a gift from Character.Mind!`, htmlEmail, bodyText).catch(() => {});
   }
 
-  res.json({ ok: true, email: email.trim(), name: user.name, coins: totalCoins, bonus, tokens, newBalance: user.cm_coins + totalCoins });
+  res.json({ ok: true, email: email.trim(), name: user.name, coins: totalCoins, bonus, tokens, newBalance: ul.cmCoins });
 });
 
 // ── PayPal ─────────────────────────────────────────────────────────────────────
@@ -6003,6 +6050,7 @@ async function checkMonthlyCoins(uid, u) {
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).getTime();
   if ((u.coinsMonthlyReset || 0) < monthStart) {
+    u.coinsMonthlyReset = monthStart; // optimistic guard — prevents concurrent calls from double-granting
     const tier = u.subscriptionTier || 'free';
     const coinGrant  = MONTHLY_COIN_GRANT[tier]  ?? MONTHLY_COIN_GRANT.free;
     const tokenGrant = MONTHLY_TOKEN_GRANT[tier] ?? MONTHLY_TOKEN_GRANT.free;
