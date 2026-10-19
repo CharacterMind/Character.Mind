@@ -4428,9 +4428,12 @@ async function spinSlots() {
       if (resultEl) { resultEl.textContent = 'No match — better luck next time!'; resultEl.className = 'slot-result lose'; }
     } else if (d.multiplier === 1) {
       if (resultEl) { resultEl.textContent = `Two of a kind — bet returned!`; resultEl.className = 'slot-result'; }
+    } else if (d.multiplier === 10) {
+      const net = d.win;
+      if (resultEl) { resultEl.textContent = `💎 JACKPOT! 10× — you won +${net} tokens! 🎉`; resultEl.className = 'slot-result win'; }
     } else {
       const net = d.win;
-      if (resultEl) { resultEl.textContent = `${d.multiplier}× — you won ${net > 0 ? '+' : ''}${net} tokens! 🎉`; resultEl.className = 'slot-result win'; }
+      if (resultEl) { resultEl.textContent = `${d.multiplier}× — you won +${net} tokens! 🎉`; resultEl.className = 'slot-result win'; }
     }
 
     if (lastKnownUsage) { lastKnownUsage.cmTokens = d.newBalance; lastKnownUsage.cmCoins = d.coinBalance; }

@@ -5660,15 +5660,22 @@ app.post('/api/coins/gamble', requireAuth, async (req, res) => {
     const u = getLimits(uid);
     if ((u.cmTokens || 0) < bet) return res.status(400).json({ error: 'Not enough tokens', balance: u.cmTokens || 0 });
 
+    // 50% lose | 50% win breakdown:
+    //   20% pair (1x — bet returned)
+    //   18% 2x  (common)
+    //    7% 3x
+    //    3% 5x
+    //  1.5% 7x
+    //  0.5% 10x (rare)
     const rand = Math.random();
     let multiplier, reels;
-    if (rand < 0.58)      { multiplier = 0;  reels = loseReels(); }
-    else if (rand < 0.78) { multiplier = 1;  reels = pairReels(); }
-    else if (rand < 0.92) { multiplier = 2;  reels = ['🍒','🍒','🍒']; }
-    else if (rand < 0.97) { multiplier = 3;  reels = ['🍋','🍋','🍋']; }
-    else if (rand < 0.99) { multiplier = 5;  reels = ['🍇','🍇','🍇']; }
-    else if (rand < 0.997){ multiplier = 10; reels = ['⭐','⭐','⭐']; }
-    else                  { multiplier = 20; reels = ['💎','💎','💎']; }
+    if (rand < 0.50)       { multiplier = 0;  reels = loseReels(); }
+    else if (rand < 0.70)  { multiplier = 1;  reels = pairReels(); }
+    else if (rand < 0.88)  { multiplier = 2;  reels = ['🍒','🍒','🍒']; }
+    else if (rand < 0.95)  { multiplier = 3;  reels = ['🍋','🍋','🍋']; }
+    else if (rand < 0.98)  { multiplier = 5;  reels = ['🍇','🍇','🍇']; }
+    else if (rand < 0.995) { multiplier = 7;  reels = ['⭐','⭐','⭐']; }
+    else                   { multiplier = 10; reels = ['💎','💎','💎']; }
 
     const winnings = Math.floor(bet * multiplier);
     u.cmTokens = (u.cmTokens || 0) - bet + winnings;
