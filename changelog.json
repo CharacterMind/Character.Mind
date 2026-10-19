@@ -1,5 +1,39 @@
 [
   {
+    "id": "v280-admin",
+    "version": "v280",
+    "date": "Oct 2026",
+    "title": "Admin Tools & Testing Improvements",
+    "subtitle": "Easier account management and testing without burning your service coin budget.",
+    "added": [
+      "Reset any user's limits by email — new 'Reset Limits' button in the admin panel",
+      "TEST_ACCOUNTS env var — emails listed there get unlimited usage so testing doesn't drain service coins"
+    ]
+  },
+  {
+    "id": "v279-voice",
+    "version": "v279",
+    "date": "Oct 2026",
+    "title": "Voice Calls Always Work Now",
+    "subtitle": "Browser speech fills in automatically when the server voice is unavailable.",
+    "fixed": [
+      "Voice calls no longer go silent when the server TTS is unreachable — browser speech synthesis takes over automatically",
+      "CharacterMind logo now appears in the top-left corner of the call screen"
+    ]
+  },
+  {
+    "id": "v278-visuals",
+    "version": "v278",
+    "date": "Oct 2026",
+    "title": "Call Screen & Logo Fixes",
+    "subtitle": "No more blinding yellow, and the logo is finally visible.",
+    "fixed": [
+      "Call screen orb colors are now screen-safe — DogDay, KickinChicken and other bright characters no longer wash out to blinding white",
+      "CharacterMind sidebar logo is now a crisp SVG icon visible at any size — replaces the dark 1920×1080 image that was invisible at small sizes",
+      "Server no longer crashes on startup when VAPID_PRIVATE_KEY is not set — push notifications gracefully disabled instead"
+    ]
+  },
+  {
     "id": "v277-hardening",
     "version": "v277",
     "date": "Oct 2026",
