@@ -3609,7 +3609,7 @@ const EDGE_VOICE_MAP = {
 };
 const EDGE_DEFAULT_VOICE = 'en-US-AriaNeural';
 
-// All 30 prebuilt Gemini 3.8 TTS voices
+// All 30 prebuilt Gemini 2.5 Flash TTS voices
 const GEMINI_TTS_VOICES = new Set([
   'Zephyr','Puck','Charon','Kore','Fenrir','Leda','Orus','Aoede','Callirrhoe','Autonoe',
   'Enceladus','Iapetus','Umbriel','Algieba','Despina','Erinome','Algenib','Rasalgethi',
@@ -3620,7 +3620,7 @@ const GEMINI_TTS_VOICES = new Set([
 async function geminiTTSSynthesize(text, voiceName, apiKey) {
   const voice = GEMINI_TTS_VOICES.has(voiceName) ? voiceName : 'Aoede';
   const r = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash-tts:generateContent`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },

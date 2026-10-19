@@ -1,5 +1,15 @@
 [
   {
+    "id": "v305-gemini-tts-fix",
+    "version": "v305",
+    "date": "Oct 2026",
+    "title": "Gemini Voice Fixed",
+    "subtitle": "The natural human-sounding Gemini voice now actually works — the wrong model name was silently sending everyone to robot browser voice.",
+    "fixed": [
+      "Gemini TTS was failing silently for every single request due to an incorrect API model name — the server was calling a model that doesn't exist, getting an error, and falling back to the robotic browser speech synthesis voice. Corrected to the real Gemini 2.5 Flash TTS model."
+    ]
+  },
+  {
     "id": "v304-coin-deduct-fix2",
     "version": "v304",
     "date": "Oct 2026",
