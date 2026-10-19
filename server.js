@@ -5633,7 +5633,7 @@ function tttMinimaxGame(board, isMaximizing) {
 }
 
 // How often the AI picks randomly instead of optimally — higher = easier opponent
-const TTT_RANDOM_CHANCE = { free: 0.65, advanced: 0.4, x20: 0.2, x50: 0.08, x100: 0.02, x200: 0 };
+const TTT_RANDOM_CHANCE = { free: 0.92, advanced: 0.78, x20: 0.55, x50: 0.25, x100: 0.06, x200: 0 };
 
 app.post('/api/game/tictactoe/move', requireAuthGame, (req, res) => {
   const userId = req.user.googleId;
