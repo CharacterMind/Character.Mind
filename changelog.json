@@ -1,5 +1,57 @@
 [
   {
+    "id": "v304-coin-deduct-fix2",
+    "version": "v304",
+    "date": "Oct 2026",
+    "title": "Coin Deduction Fix (Owner Account)",
+    "subtitle": "Coins now correctly drain for the owner account even when it's listed in the test accounts env var.",
+    "fixed": [
+      "Owner account coins were not subtracting after messages, images, or memos — this happened when the owner email was also in TEST_ACCOUNTS on the server; now the owner always drains coins regardless of TEST_ACCOUNTS"
+    ]
+  },
+  {
+    "id": "v303-gemini-default",
+    "version": "v303",
+    "date": "Oct 2026",
+    "title": "Gemini Voice is Now the Default",
+    "subtitle": "New users and anyone without a saved voice preference now get the natural-sounding Gemini Aoede voice.",
+    "changed": [
+      "Default TTS voice switched from Edge (robotic) to Gemini Aoede — the more human-sounding voice is now what everyone hears unless they've set a different preference"
+    ]
+  },
+  {
+    "id": "v302-remove-elevenlabs-tts",
+    "version": "v302",
+    "date": "Oct 2026",
+    "title": "Removed ElevenLabs Voice Override",
+    "subtitle": "Gemini and Edge voices are fully restored — ElevenLabs is no longer hijacking every call.",
+    "fixed": [
+      "ElevenLabs TTS was overriding the voice for every user any time its API key was set on the server — completely ignoring the Gemini and Edge voice settings. ElevenLabs TTS has been removed from the voice pipeline; Gemini and Edge voices work as intended"
+    ]
+  },
+  {
+    "id": "v301-coin-deduct-owner",
+    "version": "v301",
+    "date": "Oct 2026",
+    "title": "Coin Deduction Enabled for Owner",
+    "subtitle": "The owner account's coin balance now correctly drains on every chat, call, image, and memo.",
+    "fixed": [
+      "Owner account was never having coins deducted — the unlimited-usage flag was accidentally blocking coin subtraction. Fixed: only test accounts skip coin deduction; the owner account drains coins normally"
+    ]
+  },
+  {
+    "id": "v300-checkout-coin-discount",
+    "version": "v300",
+    "date": "Oct 2026",
+    "title": "Checkout: Real Coin Dollar Discount",
+    "subtitle": "Original price is now crossed out and your coin savings shown in dollars at checkout.",
+    "fixed": [
+      "Checkout now shows the original plan price crossed out with a green effective price below it — your coin balance converts to a dollar discount and the total reflects what you actually owe",
+      "\"You're saving $X.XX\" message appears under the coin line so you see exactly what your coins are worth",
+      "If your coins cover the entire plan cost the total shows $0.00 with a confirmation message"
+    ]
+  },
+  {
     "id": "v299-checkout-discount",
     "version": "v299",
     "date": "Oct 2026",
