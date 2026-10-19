@@ -1,5 +1,19 @@
 [
   {
+    "id": "v289-cooldown-logo",
+    "version": "v289",
+    "date": "Oct 2026",
+    "title": "Cooldowns Back & Logo Update",
+    "subtitle": "5-minute game cooldown is back, cooldown modal glitch fixed, and the logo now has brackets.",
+    "fixed": [
+      "5-minute cooldown between Hangman and Tic-Tac-Toe game sessions is restored — the usage panel now correctly shows the countdown",
+      "Fixed a glitch where the session-limit modal could close prematurely if a new cooldown started within 2 seconds of the previous one expiring"
+    ],
+    "changed": [
+      "Logo now shows as [c.m] with brackets in the sidebar — centered to match the Character.AI style"
+    ]
+  },
+  {
     "id": "v288-checkin-coins",
     "version": "v288",
     "date": "Oct 2026",

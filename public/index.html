@@ -22,7 +22,7 @@
 <link rel="icon" type="image/svg+xml" href="/logo-icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=288">
+<link rel="stylesheet" href="style.css?v=289">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -49,8 +49,10 @@
 <!-- Loading screen — shown until auth check resolves -->
 <div id="appLoading" class="app-loading">
   <div class="app-loading-logo">
+    <span class="logo-bracket">[</span>
     <img class="logo-icon logo-img" src="/logo-icon.svg" alt="c.m">
     <span class="logo-text">character.mind</span>
+    <span class="logo-bracket">]</span>
   </div>
 </div>
 
@@ -58,8 +60,10 @@
 <div id="authLanding" class="auth-landing" style="display:none">
   <div class="auth-card">
     <div class="auth-logo">
+      <span class="logo-bracket">[</span>
       <img class="logo-icon logo-img" src="/logo-icon.svg" alt="c.m">
       <span class="logo-text">character.mind</span>
+      <span class="logo-bracket">]</span>
     </div>
     <h1 class="auth-headline">Bring any character<br>to life.</h1>
     <p class="auth-sub">Create and chat with AI characters.</p>
@@ -319,8 +323,10 @@
     <div class="sidebar-top">
       <div class="sidebar-header-row">
         <div class="logo" onclick="showHome()">
+          <span class="logo-bracket">[</span>
           <img class="logo-icon logo-img" src="/logo-icon.svg" alt="c.m">
-          <span class="logo-text">character.mind</span>
+          <span class="logo-text">c.m</span>
+          <span class="logo-bracket">]</span>
         </div>
         <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" onclick="toggleSidebar()" title="Collapse sidebar">
           <svg viewBox="0 0 24 24" fill="currentColor" width="17" height="17"><path d="M18.41 16.59L13.82 12l4.59-4.59L17 6l-6 6 6 6zM6 6h2v12H6z"/></svg>
@@ -998,8 +1004,10 @@
 
     <div class="welcome-header">
       <div class="welcome-logo">
+        <span class="logo-bracket">[</span>
         <img class="logo-icon logo-img" src="/logo-icon.svg" alt="c.m">
         <span class="logo-text">character.mind</span>
+        <span class="logo-bracket">]</span>
       </div>
       <h2 class="welcome-greeting" id="welcomeGreeting">Welcome.</h2>
       <div class="welcome-divider"></div>
@@ -1778,7 +1786,7 @@
   </div>
 </div>
 
-<script src="app.js?v=288"></script>
+<script src="app.js?v=289"></script>
 
 <!-- Session 90% warning toast -->
 <div id="sessionWarningToast">

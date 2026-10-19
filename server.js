@@ -6154,7 +6154,7 @@ app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'public', 'p
 // ── Game endpoints ─────────────────────────────────────────────────────────────
 
 const gameLastPlayed = new Map();
-const GAME_COOLDOWN_MS = 0; // no cooldown between game sessions
+const GAME_COOLDOWN_MS = 5 * 60 * 1000; // 5-minute cooldown between game sessions
 
 function checkGameCooldown(userId) {
   const last = gameLastPlayed.get(userId);

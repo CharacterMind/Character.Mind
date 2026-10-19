@@ -4316,7 +4316,7 @@ function clearLockout() {
   // Auto-close the limit modal after a 2s grace period so the user briefly sees it unlock
   const modal = document.getElementById('limitModal');
   if (modal && modal.style.display !== 'none') {
-    setTimeout(() => { if (modal) modal.style.display = 'none'; }, 2000);
+    setTimeout(() => { if (modal && modal.style.display !== 'none') modal.style.display = 'none'; }, 2000);
   }
   if (!isStreaming) {
     const inp = document.getElementById('messageInput');
