@@ -795,7 +795,7 @@ async function requireAuth(req, res, next) {
   checkMonthlyCoins(req.user.googleId, getLimits(req.user.googleId)).catch(() => {});
   maybeTrackLogin(req.user.googleId);
   // Ban check — always allow /api/me/ban-status and auth routes so the frontend can show the ban screen
-  const skipBanCheck = req.path === '/ban-status' || req.path.startsWith('/auth') || req.path === '/logout';
+  const skipBanCheck = req.path.endsWith('/ban-status') || req.path.startsWith('/auth') || req.path === '/logout';
   if (!skipBanCheck) {
     const ban = getUserBanStatus(req.user.googleId);
     if (ban && ban.banned) return res.status(403).json({ error: 'account_banned', until: ban.until, strikes: ban.strikes });
@@ -2057,17 +2057,21 @@ const VIOLENCE_BAN_MS = [
   90 * 24 * 60 * 60 * 1000,    // 5th+: 90 days
 ];
 
-async function applyViolenceBan(userId) {
+async function applyViolenceBan(userId, warnOnly = false) {
   if (!db) return null;
   try {
     const r = await db.query('SELECT violence_strikes FROM users WHERE google_id=$1', [userId]);
     const currentStrikes = r.rows[0]?.violence_strikes || 0;
     const newStrikes = currentStrikes + 1;
+    const lim = getLimits(userId);
+    lim.violenceStrikes = newStrikes;
+    if (warnOnly) {
+      await db.query('UPDATE users SET violence_strikes=$1 WHERE google_id=$2', [newStrikes, userId]);
+      return { strikes: newStrikes };
+    }
     const durationMs = VIOLENCE_BAN_MS[Math.min(newStrikes - 1, VIOLENCE_BAN_MS.length - 1)];
     const banUntil = new Date(Date.now() + durationMs);
     await db.query('UPDATE users SET violence_strikes=$1, ban_until=$2 WHERE google_id=$3', [newStrikes, banUntil, userId]);
-    const lim = getLimits(userId);
-    lim.violenceStrikes = newStrikes;
     lim.banUntil = banUntil.getTime();
     return { banUntil: banUntil.getTime(), strikes: newStrikes, durationMs };
   } catch (e) { console.error('applyViolenceBan error:', e); return null; }
@@ -3281,6 +3285,7 @@ const ttsUsage = new Map();
 const EDGE_VOICE_MAP = {
   custom_1790897425575_lily: 'en-US-AriaNeural',  // Lily — energetic, expressive, bright
   custom_1790776698867:      'en-US-JennyNeural',  // Poppy — warm, soft, gentle
+  cm_miss_delight:           'en-US-NancyNeural',  // Miss Delight — sinister sing-song
 };
 const EDGE_DEFAULT_VOICE = 'en-US-AriaNeural';
 
@@ -4739,8 +4744,8 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     const lim = getLimits(userId);
     const priorStrikes = lim.violenceStrikes || 0;
     if (priorStrikes === 0) {
-      // First offense: warn harshly, no ban yet
-      await applyViolenceBan(userId); // increments strike to 1 but sets a 24h ban
+      // First offense: warn only — record the strike but no ban yet
+      await applyViolenceBan(userId, true);
       return streamBlockMsg(res, VIOLENCE_WARN_1);
     }
     // Second+ offense: apply escalating ban and tell them

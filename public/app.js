@@ -7171,7 +7171,7 @@ const CHAR_CALL_PALETTES = {
   'custom_1790895433252_bunzo':    ['#ff2200', '#ffdd00', '#fff5cc'],  // Bunzo — red/yellow
   'custom_1790895433253_pj':       ['#44aa44', '#005500', '#aaffaa'],  // PJ Pug-a-Pillar — green
   'custom_1790895433254_boxy':     ['#cc44cc', '#660066', '#ffaaff'],  // Boxy Boo — purple-pink
-  'custom_1790895433255_delight':  ['#ef4444', '#fbbf24', '#3b82f6'],  // Miss Delight — crimson/yellow/blue outfit
+  'cm_miss_delight':               ['#ef4444', '#fbbf24', '#3b82f6'],  // Miss Delight — crimson/yellow/blue outfit
   'custom_1790895433256_bubba':    ['#4488dd', '#0033aa', '#99ccff'],  // Bubba Bubbaphant — blue
   'custom_1790895671421_yarnaby':  ['#cc3333', '#882222', '#ffaaaa'],  // Yarnaby — red
   'custom_1790895671422_craftycorn':['#cc88ff','#8833cc', '#ffeeff'],  // CraftyCorn — unicorn purple
