@@ -27,8 +27,11 @@ app.set('trust proxy', 1);
 // ── Web Push / VAPID ──────────────────────────────────────────────────────────
 const VAPID_PUBLIC  = process.env.VAPID_PUBLIC_KEY  || 'BDcJpwPtlElqlzyIr_8NQkgLUtXxDbZfWsEs1ml-iWXfEHETPZ8eGBEG9ucsrMzUXbbaFFKY7riDyLT1m2BCJl8';
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY;
-if (!VAPID_PRIVATE) throw new Error('VAPID_PRIVATE_KEY env var is required');
-webpush.setVapidDetails('mailto:support@charactermind.ai', VAPID_PUBLIC, VAPID_PRIVATE);
+if (VAPID_PRIVATE) {
+  webpush.setVapidDetails('mailto:support@charactermind.ai', VAPID_PUBLIC, VAPID_PRIVATE);
+} else {
+  console.warn('[push] VAPID_PRIVATE_KEY not set — push notifications disabled');
+}
 
 // Character-specific push reminder message pools
 const PUSH_REMINDER_MSGS = {
@@ -4824,11 +4827,13 @@ async function sendPushReminders() {
       await Promise.allSettled(batch.map(async (row) => {
         try {
           const msg = await generatePushMessage(row);
-          await webpush.sendNotification(
-            row.subscription,
-            JSON.stringify({ title: msg.title, body: msg.body, icon: '/logo.png', url: '/' })
-          );
-          await db.query('UPDATE push_subscriptions SET last_notified_at = NOW() WHERE id = $1', [row.id]);
+          if (VAPID_PRIVATE) {
+            await webpush.sendNotification(
+              row.subscription,
+              JSON.stringify({ title: msg.title, body: msg.body, icon: '/logo.png', url: '/' })
+            );
+            await db.query('UPDATE push_subscriptions SET last_notified_at = NOW() WHERE id = $1', [row.id]);
+          }
         } catch (err) {
           if (err.statusCode === 410 || err.statusCode === 404) {
             db.query('DELETE FROM push_subscriptions WHERE id = $1', [row.id]).catch(() => {});
@@ -7006,10 +7011,12 @@ app.post('/api/cron/check-ins', async (req, res) => {
               icon: '/logo.png',
               url: charUrl,
             };
-            webpush.sendNotification(
-              { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-              JSON.stringify(payload)
-            ).catch(() => {});
+            if (VAPID_PRIVATE) {
+              webpush.sendNotification(
+                { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+                JSON.stringify(payload)
+              ).catch(() => {});
+            }
           }
         } else {
           failed++;
