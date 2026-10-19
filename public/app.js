@@ -7398,30 +7398,30 @@ async function startCallMode() {
 
 // Per-character color palettes for the call screen swirl animation
 const CHAR_CALL_PALETTES = {
-  'custom_1790776698867':          ['#2255cc', '#cc1122', '#f0eaff'],  // Poppy — blue dress, red hair
-  'custom_1790774765927':          ['#e8c87a', '#c4763a', '#f5e0b0'],  // Doey — warm dough
-  'custom_1790766558393':          ['#446688', '#223344', '#99ccee'],  // The Doctor — cool slate
-  'custom_1790894243871_huggy':    ['#1155dd', '#001133', '#00aacc'],  // Huggy Wuggy — deep blue
-  'custom_1790894243872_mll':      ['#ff1493', '#cc0099', '#ffaad4'],  // Mommy Long Legs — hot pink
-  'custom_1790894243873_catnap':   ['#bb22aa', '#4d0040', '#ee77dd'],  // CatNap — warm magenta-purple
-  'custom_1790894243874_dogday':   ['#ffcc00', '#ff8800', '#fffff0'],  // DogDay — yellow/orange
+  'custom_1790776698867':          ['#2255cc', '#991122', '#0d0022'],  // Poppy — blue dress, red hair
+  'custom_1790774765927':          ['#6a5000', '#5a3000', '#130e00'],  // Doey — warm dough
+  'custom_1790766558393':          ['#446688', '#223344', '#0a1520'],  // The Doctor — cool slate
+  'custom_1790894243871_huggy':    ['#1155dd', '#001133', '#003344'],  // Huggy Wuggy — deep blue
+  'custom_1790894243872_mll':      ['#cc1177', '#880066', '#200018'],  // Mommy Long Legs — hot pink
+  'custom_1790894243873_catnap':   ['#991188', '#4d0040', '#1a0015'],  // CatNap — warm magenta-purple
+  'custom_1790894243874_dogday':   ['#806600', '#804400', '#0d0c00'],  // DogDay — golden amber (screen-safe)
   'custom_1790894243875_prototype':['#888899', '#1a1a22', '#0044cc'],  // The Prototype — steel/electric
-  'custom_1790894243876_kissy':    ['#ffaac8', '#ff77aa', '#aaccff'],  // Kissy Missy — baby pink
-  'custom_1790895433252_bunzo':    ['#ff2200', '#ffdd00', '#fff5cc'],  // Bunzo — red/yellow
-  'custom_1790895433253_pj':       ['#44aa44', '#005500', '#aaffaa'],  // PJ Pug-a-Pillar — green
-  'custom_1790895433254_boxy':     ['#cc44cc', '#660066', '#ffaaff'],  // Boxy Boo — purple-pink
-  'cm_miss_delight':               ['#ef4444', '#fbbf24', '#3b82f6'],  // Miss Delight — crimson/yellow/blue outfit
-  'custom_1790895433256_bubba':    ['#4488dd', '#0033aa', '#99ccff'],  // Bubba Bubbaphant — blue
-  'custom_1790895671421_yarnaby':  ['#cc3333', '#882222', '#ffaaaa'],  // Yarnaby — red
-  'custom_1790895671422_craftycorn':['#cc88ff','#8833cc', '#ffeeff'],  // CraftyCorn — unicorn purple
-  'custom_1790895671423_pickypiggy':['#ff99bb','#ee5588', '#ffddee'],  // PickyPiggy — pink
-  'custom_1790895671424_kickin':   ['#ffee44', '#dd9900', '#fffbcc'],  // KickinChicken — yellow
-  'custom_1790895671425_bobby':    ['#dd3333', '#880000', '#ffbbbb'],  // BobbyBearhug — red
-  'custom_1790895671426_hoppy':    ['#44cc44', '#227722', '#ccffcc'],  // HoppyHopscotch — green
-  'custom_1790895746935_elliot':   ['#334477', '#1a2244', '#7799cc'],  // Elliot Ludwig — navy
-  'custom_1790895746936_stella':   ['#cc9955', '#886633', '#ffe5aa'],  // Stella — warm brown
-  'custom_1790895746937_leith':    ['#557788', '#334455', '#99bbcc'],  // Leith Pierre — teal slate
-  'custom_1790897425575_lily':     ['#7722cc', '#1a0033', '#f0c030'],  // Lily Lovebraids — violet, black overalls, gold star
+  'custom_1790894243876_kissy':    ['#993366', '#771133', '#0d1122'],  // Kissy Missy — deep rose/pink
+  'custom_1790895433252_bunzo':    ['#880000', '#6b5000', '#0d0a00'],  // Bunzo — deep red/amber
+  'custom_1790895433253_pj':       ['#2a6a2a', '#004400', '#081408'],  // PJ Pug-a-Pillar — deep green
+  'custom_1790895433254_boxy':     ['#993399', '#550055', '#150015'],  // Boxy Boo — deep purple-pink
+  'cm_miss_delight':               ['#bb2222', '#664400', '#1a3a99'],  // Miss Delight — crimson/amber/blue
+  'custom_1790895433256_bubba':    ['#2266bb', '#002288', '#0a1a33'],  // Bubba Bubbaphant — blue
+  'custom_1790895671421_yarnaby':  ['#aa2222', '#661111', '#180808'],  // Yarnaby — deep red
+  'custom_1790895671422_craftycorn':['#884dbf','#6622aa', '#1a0033'],  // CraftyCorn — deep purple
+  'custom_1790895671423_pickypiggy':['#aa4466','#cc3366', '#180011'],  // PickyPiggy — deep rose
+  'custom_1790895671424_kickin':   ['#6b5a00', '#5a3800', '#0d0b00'],  // KickinChicken — deep amber
+  'custom_1790895671425_bobby':    ['#aa2222', '#660000', '#180808'],  // BobbyBearhug — deep red
+  'custom_1790895671426_hoppy':    ['#2a7a2a', '#156015', '#081208'],  // HoppyHopscotch — deep green
+  'custom_1790895746935_elliot':   ['#334477', '#1a2244', '#0a1530'],  // Elliot Ludwig — navy
+  'custom_1790895746936_stella':   ['#6a4a1a', '#4a2a0a', '#1a1200'],  // Stella — warm brown
+  'custom_1790895746937_leith':    ['#557788', '#334455', '#0a1520'],  // Leith Pierre — teal slate
+  'custom_1790897425575_lily':     ['#7722cc', '#1a0033', '#3a2800'],  // Lily Lovebraids — violet/deep gold
 };
 
 function hslToHex(h, s, l) {
