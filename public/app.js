@@ -1354,7 +1354,7 @@ function toggleUdPolicies(e) {
   if (sub) sub.style.display = sub.style.display === 'none' ? 'block' : 'none';
 }
 
-const WELCOME_VERSION = 'v4'; // bumped so everyone sees the new welcome once
+const WELCOME_VERSION = 'v5'; // bumped so everyone sees the new welcome once
 
 function toggleSidebar() {
   const sidebar = document.getElementById('sidebar');
@@ -1648,8 +1648,9 @@ function homeTopbar() {
         <svg class="home-search-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
         <input class="home-search-input" id="homeSearchInput" type="text" placeholder="Search" oninput="liveSearch(this.value)">
       </div>
-      <button class="home-announce-btn" onclick="openAnnouncement()" title="What's new">
+      <button class="home-announce-btn" onclick="openWhatsNew()" title="What's new" style="position:relative">
         <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M18 11v2h4v-2h-4zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.6-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.61zM20.4 5.6c-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4.4.53.8 1.07 1.2 1.6.96-.72 2.21-1.66 3.2-2.4zM4 9c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h1v4h2v-4h1l5 3V6L8 9H4zm11.5 3c0-1.33-.58-2.53-1.5-3.35v6.69c.92-.81 1.5-2.01 1.5-3.34z"/></svg>
+        <span class="nav-new-dot" id="whatsNewDot" hidden style="position:absolute;top:2px;right:2px;margin:0"></span>
       </button>
     </div>
   </div>`;
@@ -4692,19 +4693,24 @@ async function adminGiveSelf() {
   if (!isOwner()) return;
   const tokenCredit = Math.max(0, parseInt(document.getElementById('giveSelfTokens')?.value) || 0);
   const coins = Math.max(0, parseInt(document.getElementById('giveSelfCoins')?.value) || 0);
+  const cmTokens = Math.max(0, parseInt(document.getElementById('giveSelfCMTokens')?.value) || 0);
   const status = document.getElementById('giveSelfStatus');
   const btn = document.getElementById('giveSelfBtn');
-  if (!tokenCredit && !coins) { if (status) status.textContent = 'Enter a token credit or coin amount.'; return; }
+  if (!tokenCredit && !coins && !cmTokens) { if (status) status.textContent = 'Enter an amount in at least one field.'; return; }
   if (btn) { btn.textContent = 'Applying…'; btn.disabled = true; }
   if (status) status.textContent = '';
   try {
     const d = await fetch('/api/admin/give-self', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tokenCredit, coins })
+      body: JSON.stringify({ tokenCredit, coins, cmTokens })
     }).then(r => r.json());
     if (d.ok) {
-      if (status) status.textContent = `✓ Token credit set to ${(d.tokenCredit || 0).toLocaleString()}${coins ? ` · +${coins.toLocaleString()} coins` : ''}`;
+      const parts = [];
+      if (tokenCredit) parts.push(`token credit → ${(d.tokenCredit || 0).toLocaleString()}`);
+      if (coins) parts.push(`+${coins.toLocaleString()} coins`);
+      if (cmTokens) parts.push(`+${cmTokens.toLocaleString()} CM tokens`);
+      if (status) status.textContent = `✓ ${parts.join(' · ')}`;
       await refreshUsageManual();
     } else {
       if (status) status.textContent = d.error || 'Failed.';
@@ -5090,6 +5096,139 @@ async function openWhatsNew() {
 
 function closeWhatsNew() {
   document.getElementById('whatsNewModal').style.display = 'none';
+}
+
+// ── Competition Modal (Leaderboard + Missions) ─────────────────────────────
+let _compTab = 'leaderboard';
+let _lbTab = 'coins';
+let _lbCache = {};
+let _missionsCache = null;
+
+async function openCompetitionModal() {
+  _lbCache = {};
+  _missionsCache = null;
+  document.getElementById('competitionModal').style.display = 'flex';
+  // Reset tab UI to match current state
+  document.getElementById('compTabLeaderboard').classList.toggle('comp-tab-active', _compTab === 'leaderboard');
+  document.getElementById('compTabMissions').classList.toggle('comp-tab-active', _compTab === 'missions');
+  document.getElementById('compLeaderboardPane').style.display = _compTab === 'leaderboard' ? '' : 'none';
+  document.getElementById('compMissionsPane').style.display = _compTab === 'missions' ? '' : 'none';
+  document.getElementById('lbTabCoins').classList.toggle('comp-subtab-active', _lbTab === 'coins');
+  document.getElementById('lbTabTokens').classList.toggle('comp-subtab-active', _lbTab === 'tokens');
+  await loadCompTab(_compTab);
+}
+function closeCompetitionModal() {
+  document.getElementById('competitionModal').style.display = 'none';
+}
+async function switchCompTab(tab) {
+  _compTab = tab;
+  document.getElementById('compTabLeaderboard').classList.toggle('comp-tab-active', tab === 'leaderboard');
+  document.getElementById('compTabMissions').classList.toggle('comp-tab-active', tab === 'missions');
+  document.getElementById('compLeaderboardPane').style.display = tab === 'leaderboard' ? '' : 'none';
+  document.getElementById('compMissionsPane').style.display = tab === 'missions' ? '' : 'none';
+  await loadCompTab(tab);
+}
+async function loadCompTab(tab) {
+  if (tab === 'leaderboard') await loadLeaderboard(_lbTab);
+  else await loadMissions();
+}
+async function switchLbTab(tab) {
+  _lbTab = tab;
+  document.getElementById('lbTabCoins').classList.toggle('comp-subtab-active', tab === 'coins');
+  document.getElementById('lbTabTokens').classList.toggle('comp-subtab-active', tab === 'tokens');
+  await loadLeaderboard(tab);
+}
+async function loadLeaderboard(type) {
+  if (_lbCache[type]) { renderLeaderboard(_lbCache[type], type); return; }
+  document.getElementById('lbBody').innerHTML = '<div class="whats-new-loading">Loading…</div>';
+  try {
+    const d = await fetch(`/api/leaderboard?type=${type}`).then(r => r.json());
+    if (d.error) throw new Error(d.error);
+    _lbCache[type] = d;
+    renderLeaderboard(d, type);
+  } catch (e) {
+    document.getElementById('lbBody').innerHTML = '<div class="whats-new-loading">Failed to load.</div>';
+  }
+}
+function renderLeaderboard(d, type) {
+  const medals = ['🥇','🥈','🥉'];
+  const isTok = type === 'tokens';
+  const fmt = n => Number(n).toLocaleString();
+  const label = isTok ? 'tokens' : 'coins';
+  let html = '';
+  if (isTok) {
+    html += `<div style="font-size:12px;color:var(--text3);padding:8px 0 4px">🎟️ Monthly token tournament — top holder at month-end wins <strong style="color:var(--accent-l)">${(d.tournamentPrize||500).toLocaleString()} coins</strong>. Tokens reset each month.</div>`;
+  }
+  if (!d.board.length) {
+    html += '<div style="color:var(--text3);font-size:13px;padding:8px 0">No entries yet — be the first!</div>';
+  } else {
+    html += d.board.map((r, i) => `
+      <div class="lb-row">
+        <span class="lb-pos">${medals[i] || '#' + r.position}</span>
+        <span class="lb-badge">${isTok ? '🎟️' : (r.rank?.emoji || '')}</span>
+        <span class="lb-name">${escHtml(r.name)}</span>
+        <span class="lb-score">${fmt(r.score)} ${label}</span>
+      </div>`).join('');
+  }
+  if (d.me) {
+    html += `<div class="lb-me-row"><span style="font-size:14px">${isTok ? '🎟️' : (d.me.rank?.emoji || '')}</span><span style="flex:1;color:var(--text1);font-weight:600">You</span><span class="lb-score">${fmt(d.me.score)} ${label}</span></div>`;
+  }
+  if (!isTok && d.ranks) {
+    html += `<div class="lb-rank-legend">${d.ranks.map(r => `<span class="lb-rank-chip" style="color:${r.color}">${r.emoji} ${r.name} <span style="font-weight:400;color:var(--text3)">${r.min.toLocaleString()}+</span></span>`).join('')}</div>`;
+  }
+  document.getElementById('lbBody').innerHTML = html;
+}
+async function loadMissions() {
+  if (_missionsCache) { renderMissions(_missionsCache); return; }
+  document.getElementById('missionsBody').innerHTML = '<div class="whats-new-loading">Loading…</div>';
+  try {
+    const d = await fetch('/api/missions').then(r => r.json());
+    if (d.error) throw new Error(d.error);
+    _missionsCache = d;
+    renderMissions(d);
+  } catch (e) {
+    document.getElementById('missionsBody').innerHTML = '<div class="whats-new-loading">Failed to load.</div>';
+  }
+}
+function renderMissions(d) {
+  const section = (title, missions) => {
+    let html = `<div class="mission-section-title">${title}</div>`;
+    html += missions.map(m => {
+      const pct = Math.min(100, Math.round((m.progress / m.target) * 100));
+      const claimable = m.done && !m.claimed;
+      const claimed = m.claimed;
+      return `<div class="mission-card${m.done ? ' done' : ''}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <span class="mission-label">${m.label}</span>
+          <span class="mission-reward">+${m.reward} 🪙</span>
+        </div>
+        <div class="mission-bar-wrap"><div class="mission-bar" style="width:${pct}%"></div></div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span class="mission-progress-text">${m.progress} / ${m.target}</span>
+          ${claimed ? '<span style="font-size:11px;color:var(--accent-l)">✓ Claimed</span>'
+            : `<button class="mission-claim-btn" ${claimable ? '' : 'disabled'} onclick="claimMission('${m.id}')">${claimable ? 'Claim' : 'Incomplete'}</button>`}
+        </div>
+      </div>`;
+    }).join('');
+    return html;
+  };
+  document.getElementById('missionsBody').innerHTML =
+    section('Daily Missions', d.daily) + section('Weekly Missions', d.weekly);
+}
+async function claimMission(id) {
+  try {
+    const d = await fetch('/api/missions/claim', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id })
+    }).then(r => r.json());
+    if (d.ok) {
+      _missionsCache = null; // force reload
+      showWarning(`+${d.reward} coins claimed! 🪙`, 3000);
+      await loadMissions();
+      await refreshUsageManual();
+    } else {
+      showWarning(d.error || 'Claim failed', 3000);
+    }
+  } catch (_) { showWarning('Request failed', 3000); }
 }
 
 function renderWhatsNew(announcements, body) {

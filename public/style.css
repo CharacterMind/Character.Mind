@@ -1616,6 +1616,48 @@ html, body {
 }
 .whats-new-modal::-webkit-scrollbar { width: 5px; }
 .whats-new-modal::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+.comp-tab {
+  flex: 1; background: none; border: none; cursor: pointer; padding: 10px 0;
+  font-size: 13px; font-weight: 600; color: var(--text3); border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s;
+}
+.comp-tab:hover { color: var(--text1); }
+.comp-tab-active { color: var(--accent-l) !important; border-bottom-color: var(--accent-l) !important; }
+.comp-subtab {
+  flex: 1; background: none; border: none; cursor: pointer; padding: 8px 0;
+  font-size: 12px; font-weight: 500; color: var(--text3); border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s;
+}
+.comp-subtab:hover { color: var(--text1); }
+.comp-subtab-active { color: var(--text1) !important; border-bottom-color: var(--accent-l) !important; }
+.lb-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 0;
+  border-bottom: 1px solid var(--border2); font-size: 13px;
+}
+.lb-row:last-child { border-bottom: none; }
+.lb-pos { width: 22px; text-align: center; font-weight: 700; color: var(--text3); font-size: 12px; }
+.lb-name { flex: 1; color: var(--text1); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-score { font-weight: 700; color: var(--accent-l); }
+.lb-badge { font-size: 14px; }
+.lb-me-row { background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 8px; padding: 10px 12px; margin-top: 12px; display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.lb-rank-legend { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border2); }
+.lb-rank-chip { font-size: 11px; padding: 3px 8px; border-radius: 99px; font-weight: 600; background: var(--border2); }
+.mission-card {
+  border: 1px solid var(--border2); border-radius: 10px; padding: 10px 12px;
+  margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px;
+}
+.mission-card.done { border-color: var(--accent); }
+.mission-label { font-size: 13px; font-weight: 600; color: var(--text1); }
+.mission-reward { font-size: 11px; color: var(--accent-l); }
+.mission-bar-wrap { height: 5px; background: var(--border2); border-radius: 99px; overflow: hidden; }
+.mission-bar { height: 100%; background: var(--accent); border-radius: 99px; transition: width .3s; }
+.mission-progress-text { font-size: 11px; color: var(--text3); }
+.mission-claim-btn {
+  align-self: flex-end; background: var(--accent); color: #fff; border: none; border-radius: 6px;
+  padding: 5px 14px; font-size: 12px; font-weight: 700; cursor: pointer; transition: opacity .15s;
+}
+.mission-claim-btn:disabled { opacity: .45; cursor: default; }
+.mission-section-title { font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text3); margin: 12px 0 6px; }
 .whats-new-head {
   position: sticky; top: 0; z-index: 2; background: #0f0f11;
   display: flex; justify-content: space-between; align-items: center;

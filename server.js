@@ -234,14 +234,14 @@ if (db) {
   db.query(`ALTER TABLE characters ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT FALSE`)
     .then(() => db.query(`UPDATE characters SET is_hidden = TRUE WHERE id IN ('custom_1790897425575_lily', 'custom_1790776698867', 'custom_1790895746938_gracie') AND NOT is_hidden`))
     .then(r => { if (r && r.rowCount > 0) { console.log(`[MIGRATION] Hid ${r.rowCount} character(s)`); invalidateCharList(); } })
-    .then(() => db.query(`UPDATE characters SET is_hidden = FALSE WHERE id = 'custom_1790895433255_delight' AND is_hidden`))
+    .then(() => db.query(`UPDATE characters SET is_hidden = FALSE WHERE name = 'Miss Delight' AND is_hidden`))
     .catch(err => console.error('is_hidden migration error:', err));
 
   // Sync Miss Delight's DB record to the current template on every startup
   {
     const tpl = matchCharacterTemplate('miss delight');
     if (tpl) db.query(
-      `UPDATE characters SET system_prompt=$1, tagline=$2, greeting=$3, greeting_mode=$4, color=$5, tags=$6 WHERE id='custom_1790895433255_delight'`,
+      `UPDATE characters SET system_prompt=$1, tagline=$2, greeting=$3, greeting_mode=$4, color=$5, tags=$6 WHERE name='Miss Delight'`,
       [tpl.systemPrompt, tpl.tagline, tpl.greeting, tpl.greetingMode, tpl.color, JSON.stringify(tpl.tags)]
     ).then(r => { if (r.rowCount > 0) console.log('[MIGRATION] Synced Miss Delight DB record from template'); })
       .catch(err => console.error('Miss Delight sync error:', err));
@@ -250,7 +250,7 @@ if (db) {
   // Fetch Miss Delight's image on startup if missing
   (async () => {
     try {
-      const check = await db.query(`SELECT 1 FROM characters WHERE id='custom_1790895433255_delight' AND (image IS NULL OR length(image)=0) LIMIT 1`);
+      const check = await db.query(`SELECT 1 FROM characters WHERE name='Miss Delight' AND (image IS NULL OR length(image)=0) LIMIT 1`);
       if (!check.rows.length) return;
       const r = await fetch('https://poppyplaytime.wiki.gg/images/thumb/Missd2.png/300px-Missd2.png', {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CharacterMind/1.0)' },
@@ -259,7 +259,7 @@ if (db) {
       if (!r.ok) return;
       const buf = Buffer.from(await r.arrayBuffer());
       const dataUri = `data:image/png;base64,${buf.toString('base64')}`;
-      await db.query(`UPDATE characters SET image=$1 WHERE id='custom_1790895433255_delight'`, [dataUri]);
+      await db.query(`UPDATE characters SET image=$1 WHERE name='Miss Delight'`, [dataUri]);
       invalidateCharList();
       console.log('[STARTUP] Fetched Miss Delight image');
     } catch (e) { console.error('[STARTUP] Miss Delight image error:', e.message); }
@@ -307,6 +307,10 @@ if (db) {
     .catch(err => console.error('Add coin_tier_expires column error:', err));
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS coins_monthly_reset BIGINT NOT NULL DEFAULT 0`)
     .catch(err => console.error('Add coins_monthly_reset column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS coins_earned_all_time BIGINT NOT NULL DEFAULT 0`)
+    .catch(err => console.error('Add coins_earned_all_time column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS missions_data TEXT`)
+    .catch(err => console.error('Add missions_data column error:', err));
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS checkin_opted_in BOOLEAN NOT NULL DEFAULT FALSE`)
     .catch(err => console.error('Add checkin_opted_in column error:', err));
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_checkin_sent_at TIMESTAMPTZ`)
@@ -598,7 +602,7 @@ if (GOOGLE_AUTH_ENABLED) {
         const isNew = result.rows[0]?.is_new_user;
         if (isNew) {
           if (user.email) sendWelcomeEmail(user.name, user.email);
-          db.query(`UPDATE users SET cm_coins = cm_coins + 100 WHERE google_id = $1`, [user.googleId])
+          db.query(`UPDATE users SET cm_coins = cm_coins + 100, coins_earned_all_time = COALESCE(coins_earned_all_time,0) + 100 WHERE google_id = $1`, [user.googleId])
             .catch(err => console.error('Welcome coins error:', err.message));
         }
       }).catch(err => console.error('User upsert error:', err.message));
@@ -607,7 +611,7 @@ if (GOOGLE_AUTH_ENABLED) {
     // Cache this account's own subscription tier in userLimits so limit checks don't need a DB hit.
     // Every account gets only what its own subscription pays for, except the Character.Mind account (planFor).
     if (db) {
-      db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, cm_tokens, coins_earned_today, coins_day_reset, coins_monthly_reset FROM users WHERE google_id = $1', [user.googleId])
+      db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, cm_tokens, coins_earned_today, coins_day_reset, coins_monthly_reset, coins_earned_all_time FROM users WHERE google_id = $1', [user.googleId])
         .then(r => {
           const row = r.rows[0] || {};
           const lim = getLimits(user.googleId);
@@ -619,10 +623,12 @@ if (GOOGLE_AUTH_ENABLED) {
           lim.coinsEarnedToday = row.coins_earned_today || 0;
           lim.coinsDayReset = Number(row.coins_day_reset) || 0;
           lim.coinsMonthlyReset = Number(row.coins_monthly_reset) || 0;
+          lim.coinsEarnedAllTime = Number(row.coins_earned_all_time) || 0;
           lim.subscriptionTier = effectiveTier(lim);
           lim.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email); // owner account: no token/coin costs
           lim.tierLoaded = true;
           checkMonthlyCoins(user.googleId, lim).catch(() => {});
+          maybeTrackLogin(user.googleId);
         }).catch(() => {});
     }
     done(null, user);
@@ -721,7 +727,7 @@ async function ensureTierLoaded(user) {
   if (u.tierLoaded) return;
   if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId); // admin tools; the plan comes from planFor()
   if (!db) return;
-  const r = await db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, cm_tokens, coins_earned_today, coins_day_reset, coins_monthly_reset FROM users WHERE google_id = $1', [user.googleId]);
+  const r = await db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, cm_tokens, coins_earned_today, coins_day_reset, coins_monthly_reset, coins_earned_all_time FROM users WHERE google_id = $1', [user.googleId]);
   const row = r.rows[0] || {};
   u.paypalTier = planFor(user.email, row.subscription_tier);
   u.coinTier = row.coin_tier || null;
@@ -731,6 +737,7 @@ async function ensureTierLoaded(user) {
   u.coinsEarnedToday = row.coins_earned_today || 0;
   u.coinsDayReset = Number(row.coins_day_reset) || 0;
   u.coinsMonthlyReset = Number(row.coins_monthly_reset) || 0;
+  u.coinsEarnedAllTime = Number(row.coins_earned_all_time) || 0;
   u.subscriptionTier = effectiveTier(u);
   u.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email);
   u.tierLoaded = true;
@@ -772,6 +779,7 @@ async function requireAuth(req, res, next) {
   // checkMonthlyCoins is cheap (in-memory guard) and must run even when tierLoaded is already true,
   // otherwise users active across a month boundary never receive their monthly grant until server restart.
   checkMonthlyCoins(req.user.googleId, getLimits(req.user.googleId)).catch(() => {});
+  maybeTrackLogin(req.user.googleId);
   next();
 }
 
@@ -982,6 +990,97 @@ const COIN_DAILY_CAP    = 100;
 const COIN_MONTHLY_COST = { advanced: 2000, x20: 8000, x50: 20000, x100: 50000, x200: 150000 };
 const TIER_RANK         = { free: 0, advanced: 1, x20: 2, x50: 3, x100: 4, x200: 5 };
 
+// ── Prestige rank system ────────────────────────────────────────────────────
+const RANKS = [
+  { name: 'Newcomer', min: 0,     color: '#9ca3af', emoji: '🌱' },
+  { name: 'Regular',  min: 200,   color: '#60a5fa', emoji: '⭐' },
+  { name: 'VIP',      min: 1000,  color: '#a78bfa', emoji: '💎' },
+  { name: 'Elite',    min: 5000,  color: '#f59e0b', emoji: '🔥' },
+  { name: 'Legend',   min: 20000, color: '#ef4444', emoji: '👑' },
+];
+function getRank(allTimeCoins) {
+  for (let i = RANKS.length - 1; i >= 0; i--) {
+    if ((allTimeCoins || 0) >= RANKS[i].min) return RANKS[i];
+  }
+  return RANKS[0];
+}
+
+// ── Mission definitions ─────────────────────────────────────────────────────
+const DAILY_MISSIONS = [
+  { id: 'login',    label: 'Log in today',                     target: 1, reward: 5,  type: 'login'    },
+  { id: 'messages', label: 'Send 5 messages',                  target: 5, reward: 10, type: 'messages' },
+  { id: 'chars',    label: 'Chat with 2 different characters', target: 2, reward: 15, type: 'chars'    },
+];
+const WEEKLY_MISSIONS = [
+  { id: 'days',       label: 'Log in 5 days this week',  target: 5, reward: 50, type: 'days'       },
+  { id: 'gamble_win', label: 'Win 3 gambles this week',  target: 3, reward: 30, type: 'gamble_win' },
+];
+
+function getISOWeek(date) {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return `${d.getUTCFullYear()}${String(Math.ceil((((d - yearStart) / 86400000) + 1) / 7)).padStart(2, '0')}`;
+}
+
+function parseMissionsData(raw) {
+  const now = new Date();
+  const todayStr = `${now.getUTCFullYear()}${String(now.getUTCMonth()+1).padStart(2,'0')}${String(now.getUTCDate()).padStart(2,'0')}`;
+  const weekStr = getISOWeek(now);
+  let data = { day: '', week: '', dc: {}, wc: {}, claimed: [] };
+  try { if (raw) data = JSON.parse(raw); } catch (_) {}
+  if (!Array.isArray(data.claimed)) data.claimed = [];
+  if (data.day !== todayStr) {
+    data.day = todayStr;
+    data.dc = {};
+    data.claimed = data.claimed.filter(id => !DAILY_MISSIONS.find(m => m.id === id));
+  }
+  if (data.week !== weekStr) {
+    data.week = weekStr;
+    data.wc = {};
+    data.claimed = data.claimed.filter(id => !WEEKLY_MISSIONS.find(m => m.id === id));
+  }
+  return data;
+}
+
+async function trackMissionProgress(uid, type, extra) {
+  if (!db) return;
+  try {
+    const r = await db.query('SELECT missions_data FROM users WHERE google_id=$1', [uid]);
+    if (!r.rows.length) return;
+    const data = parseMissionsData(r.rows[0].missions_data);
+    if (type === 'login') {
+      if (!data.dc.login) data.dc.login = 0;
+      data.dc.login = Math.min(1, data.dc.login + 1); // once per day
+      if (!data.wc.dayOf || data.wc.dayOf !== data.day) {
+        data.wc.dayOf = data.day;
+        data.wc.days = (data.wc.days || 0) + 1;
+      }
+    } else if (type === 'message') {
+      data.dc.messages = (data.dc.messages || 0) + 1;
+    } else if (type === 'char') {
+      if (!Array.isArray(data.dc.chars)) data.dc.chars = [];
+      if (extra && !data.dc.chars.includes(extra)) data.dc.chars.push(extra);
+    } else if (type === 'gamble_win') {
+      data.wc.gamble_win = (data.wc.gamble_win || 0) + 1;
+    }
+    await db.query('UPDATE users SET missions_data=$1 WHERE google_id=$2', [JSON.stringify(data), uid]);
+  } catch (_) {}
+}
+
+// In-memory guard: track login once per day per user (avoids a DB write on every request)
+const loginTrackedToday = new Set();
+let loginTrackDay = '';
+function maybeTrackLogin(uid) {
+  const now = new Date();
+  const d = `${now.getUTCFullYear()}${now.getUTCMonth()}${now.getUTCDate()}`;
+  if (loginTrackDay !== d) { loginTrackDay = d; loginTrackedToday.clear(); }
+  if (loginTrackedToday.has(uid)) return;
+  loginTrackedToday.add(uid);
+  trackMissionProgress(uid, 'login').catch(() => {});
+}
+
 function getCallLimitForUser(userId) {
   const tier = userLimits[userId]?.subscriptionTier || 'free';
   return TIER_CALL_LIMITS[tier] ?? TIER_CALL_LIMITS.free;
@@ -1083,7 +1182,10 @@ function buildUsagePayload(u, userId) {
     coinDailyLimit: COIN_DAILY_CAP,
     coinTier: u.coinTier || null,
     coinTierExpires: u.coinTierExpires || 0,
-    coinsMonthlyReset: u.coinsMonthlyReset || 0
+    coinsMonthlyReset: u.coinsMonthlyReset || 0,
+    coinsEarnedAllTime: u.coinsEarnedAllTime || 0,
+    rank: getRank(u.coinsEarnedAllTime || 0),
+    ranks: RANKS,
   };
 }
 
@@ -3509,11 +3611,11 @@ app.post('/api/admin/reset-session', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-// Owner-only: grant yourself any token credit (extends your effective session + weekly limits) and/or coins
+// Owner-only: grant yourself any token credit (extends your effective session + weekly limits), coins, and/or CM tokens
 app.post('/api/admin/give-self', requireAuth, async (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
   const uid = req.user.googleId;
-  const { tokenCredit, coins } = req.body || {};
+  const { tokenCredit, coins, cmTokens } = req.body || {};
   const u = getLimits(uid);
   if (tokenCredit != null) {
     u.tokenCredit = Math.max(0, Math.min(100_000_000, Number(tokenCredit) || 0));
@@ -3524,7 +3626,12 @@ app.post('/api/admin/give-self', requireAuth, async (req, res) => {
     if (db) await db.query('UPDATE users SET cm_coins = COALESCE(cm_coins, 0) + $1 WHERE google_id = $2', [amount, uid]).catch(() => {});
     u.cmCoins = (u.cmCoins || 0) + amount;
   }
-  res.json({ ok: true, tokenCredit: u.tokenCredit, cmCoins: u.cmCoins });
+  if (cmTokens != null) {
+    const amount = Math.max(0, Math.min(10_000_000, Number(cmTokens) || 0));
+    if (db) await db.query('UPDATE users SET cm_tokens = COALESCE(cm_tokens, 0) + $1 WHERE google_id = $2', [amount, uid]).catch(() => {});
+    u.cmTokens = (u.cmTokens || 0) + amount;
+  }
+  res.json({ ok: true, tokenCredit: u.tokenCredit, cmCoins: u.cmCoins, cmTokens: u.cmTokens });
 });
 
 // One-time: stamp all characters created by the calling owner as CharacterMind
@@ -3592,7 +3699,7 @@ app.get('/api/characters', charReadLimiter, async (req, res) => {
     const authed = !!req.user;
     const isOwnerUser = !!(userId && ownerGoogleIds.has(userId));
     if (SOFT_LAUNCH) rows = rows.filter(r => /lily|poppy/i.test(r.name));
-    if (!isOwnerUser) rows = rows.filter(r => !r.is_hidden);
+    rows = rows.filter(r => !r.is_hidden);
     res.json(rows.map(r => {
       const official = !!(r.device_id && ownerGoogleIds.has(r.device_id));
       const mine = !!(userId && r.device_id === userId);
@@ -3863,7 +3970,7 @@ app.post('/api/admin/populate-images', requireAuth, async (req, res) => {
     { id: 'custom_1790895433252_bunzo',   url: 'https://poppyplaytime.wiki.gg/images/thumb/Bunzo_Bunny.png/300px-Bunzo_Bunny.png' },
     { id: 'custom_1790895433253_pj',      url: 'https://poppyplaytime.wiki.gg/images/thumb/PJ_Pug-a-Pillar.png/300px-PJ_Pug-a-Pillar.png' },
     { id: 'custom_1790895433254_boxy',    url: 'https://poppyplaytime.wiki.gg/images/thumb/Boxy_Boo_HDwikisize.png/300px-Boxy_Boo_HDwikisize.png' },
-    { id: 'custom_1790895433255_delight', url: 'https://poppyplaytime.wiki.gg/images/thumb/Missd2.png/300px-Missd2.png' },
+    { id: 'cm_miss_delight', url: 'https://poppyplaytime.wiki.gg/images/thumb/Missd2.png/300px-Missd2.png' },
     { id: 'custom_1790895433256_bubba',   url: 'https://poppyplaytime.wiki.gg/images/thumb/SmilingCritters-BlueElephant.png/300px-SmilingCritters-BlueElephant.png' },
     { id: 'custom_1790895671421_yarnaby', url: 'https://poppyplaytime.wiki.gg/images/thumb/Yarnaby.webp/300px-Yarnaby.webp' },
     { id: 'custom_1790895671422_craftycorn', url: 'https://poppyplaytime.wiki.gg/images/thumb/SmilingCritters-WhiteUnicorn.png/299px-SmilingCritters-WhiteUnicorn.png' },
@@ -4445,6 +4552,8 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   if (message && message.length > 20000) return res.status(400).json({ error: 'Message too long (max 20000 characters)' });
   const userId = req.user.googleId;
   if (db) db.query('UPDATE users SET last_seen = NOW() WHERE google_id = $1', [userId]).catch(() => {});
+  trackMissionProgress(userId, 'message').catch(() => {});
+  if (charId) trackMissionProgress(userId, 'char', charId).catch(() => {});
 
   if (!callMode) {
     const limit = checkLimits(userId);
@@ -5639,9 +5748,10 @@ app.post('/api/coins/award', requireAuth, async (req, res) => {
     console.log(`[coins/award] uid=${uid} tier=${tier} award=${toAward} balance=${(u.cmCoins||0)+toAward}`);
     u.cmCoins = (u.cmCoins || 0) + toAward;
     u.coinsEarnedToday = (u.coinsEarnedToday || 0) + toAward;
+    u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + toAward;
     await db.query(
-      'UPDATE users SET cm_coins=$1, coins_earned_today=$2, coins_day_reset=$3 WHERE google_id=$4',
-      [u.cmCoins, u.coinsEarnedToday, dayStart, uid]
+      'UPDATE users SET cm_coins=$1, coins_earned_today=$2, coins_day_reset=$3, coins_earned_all_time=COALESCE(coins_earned_all_time,0)+$5 WHERE google_id=$4',
+      [u.cmCoins, u.coinsEarnedToday, dayStart, uid, toAward]
     );
     res.json({ awarded: toAward, balance: u.cmCoins, earnedToday: u.coinsEarnedToday, dailyCap: COIN_DAILY_CAP, capped: false });
   } catch (e) { console.error('[coins/award]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
@@ -5674,9 +5784,12 @@ app.post('/api/coins/redeem', requireAuth, async (req, res) => {
   } catch (e) { console.error('[coins/redeem]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
 });
 
-// ── Monthly grant (coins + tokens) ─────────────────────────────────────────
+// ── Monthly grant (coins + tokens) + Tournament ────────────────────────────
 const MONTHLY_COIN_GRANT  = { free: 20,  advanced: 30,   x20: 600,  x50: 1800,  x100: 3600,  x200: 9000  };
 const MONTHLY_TOKEN_GRANT = { free: 75,  advanced: 100,  x20: 2000, x50: 6000,  x100: 12000, x200: 30000 };
+const TOURNAMENT_PRIZE = 500; // coins awarded to monthly token tournament winner
+
+let tournamentLastMonth = 0; // ensures the winner query + prize runs only once per month
 
 async function checkMonthlyCoins(uid, u) {
   if (!db) return;
@@ -5686,11 +5799,34 @@ async function checkMonthlyCoins(uid, u) {
     const tier = u.subscriptionTier || 'free';
     const coinGrant  = MONTHLY_COIN_GRANT[tier]  ?? MONTHLY_COIN_GRANT.free;
     const tokenGrant = MONTHLY_TOKEN_GRANT[tier] ?? MONTHLY_TOKEN_GRANT.free;
+
+    // Tournament: find last month's winner and award prize (runs once per month, globally)
+    if (tournamentLastMonth < monthStart) {
+      tournamentLastMonth = monthStart;
+      db.query('SELECT google_id, name, cm_tokens FROM users WHERE cm_tokens > 0 ORDER BY cm_tokens DESC LIMIT 1')
+        .then(async r => {
+          if (!r.rows.length) return;
+          const winner = r.rows[0];
+          await db.query(
+            'UPDATE users SET cm_coins = cm_coins + $1, coins_earned_all_time = COALESCE(coins_earned_all_time,0) + $1 WHERE google_id = $2',
+            [TOURNAMENT_PRIZE, winner.google_id]
+          );
+          const wl = getLimits(winner.google_id);
+          wl.cmCoins = (wl.cmCoins || 0) + TOURNAMENT_PRIZE;
+          wl.coinsEarnedAllTime = (wl.coinsEarnedAllTime || 0) + TOURNAMENT_PRIZE;
+          console.log(`[TOURNAMENT] Winner: ${winner.name} (${winner.cm_tokens} tokens) → +${TOURNAMENT_PRIZE} coins`);
+        })
+        .catch(err => console.error('[TOURNAMENT] Error:', err.message));
+    }
+
     u.cmCoins  = (u.cmCoins  || 0) + coinGrant;
-    u.cmTokens = (u.cmTokens || 0) + tokenGrant;
+    u.cmTokens = tokenGrant; // reset to fresh grant each month (tournament fresh start)
     u.coinsMonthlyReset = monthStart;
-    await db.query('UPDATE users SET cm_coins=$1, cm_tokens=$2, coins_monthly_reset=$3 WHERE google_id=$4',
-      [u.cmCoins, u.cmTokens, monthStart, uid]).catch(() => {});
+    u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + coinGrant;
+    await db.query(
+      'UPDATE users SET cm_coins=$1, cm_tokens=$2, coins_monthly_reset=$3, coins_earned_all_time=COALESCE(coins_earned_all_time,0)+$4 WHERE google_id=$5',
+      [u.cmCoins, u.cmTokens, monthStart, coinGrant, uid]
+    ).catch(() => {});
   }
 }
 
@@ -5741,6 +5877,7 @@ app.post('/api/coins/gamble', requireAuth, async (req, res) => {
     const winnings = Math.floor(bet * multiplier);
     u.cmTokens = (u.cmTokens || 0) - bet + winnings;
     if (db) await db.query('UPDATE users SET cm_tokens=$1 WHERE google_id=$2', [u.cmTokens, uid]);
+    if (multiplier > 0) trackMissionProgress(uid, 'gamble_win').catch(() => {});
     res.json({ reels, multiplier, win: winnings - bet, newBalance: u.cmTokens, coinBalance: u.cmCoins || 0 });
   } catch (e) { console.error('[coins/gamble]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
 });
@@ -5781,6 +5918,86 @@ app.post('/api/tokens/sell', requireAuth, async (req, res) => {
     await db.query('UPDATE users SET cm_coins=$1, cm_tokens=$2 WHERE google_id=$3', [u.cmCoins, u.cmTokens, uid]);
     res.json({ ok: true, coinsEarned, tokensSpent, coinBalance: u.cmCoins, tokenBalance: u.cmTokens });
   } catch (e) { console.error('[tokens/sell]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
+});
+
+// ── Leaderboard ─────────────────────────────────────────────────────────────
+app.get('/api/leaderboard', requireAuth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'No database' });
+  const type = req.query.type === 'tokens' ? 'tokens' : 'coins';
+  try {
+    const scoreCol = type === 'tokens' ? 'cm_tokens' : 'coins_earned_all_time';
+    const { rows } = await db.query(
+      `SELECT name, ${scoreCol} AS score FROM users WHERE ${scoreCol} > 0 ORDER BY ${scoreCol} DESC LIMIT 10`
+    );
+    const myR = await db.query('SELECT name, coins_earned_all_time, cm_tokens FROM users WHERE google_id=$1', [req.user.googleId]);
+    const me = myR.rows[0] || {};
+    const myScore = type === 'tokens' ? (me.cm_tokens || 0) : (me.coins_earned_all_time || 0);
+    res.json({
+      type,
+      board: rows.map((r, i) => ({
+        position: i + 1,
+        name: r.name || 'Anonymous',
+        score: Number(r.score) || 0,
+        rank: getRank(Number(r.score) || 0),
+      })),
+      me: { name: me.name, score: myScore, rank: getRank(me.coins_earned_all_time || 0) },
+      ranks: RANKS,
+      tournamentPrize: TOURNAMENT_PRIZE,
+    });
+  } catch (e) { console.error('[leaderboard]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
+});
+
+// ── Missions ────────────────────────────────────────────────────────────────
+app.get('/api/missions', requireAuth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'No database' });
+  try {
+    const { rows } = await db.query('SELECT missions_data FROM users WHERE google_id=$1', [req.user.googleId]);
+    const data = parseMissionsData(rows[0]?.missions_data);
+    const daily = DAILY_MISSIONS.map(m => {
+      let progress = 0;
+      if (m.type === 'login')    progress = data.dc.login    || 0;
+      if (m.type === 'messages') progress = data.dc.messages || 0;
+      if (m.type === 'chars')    progress = Array.isArray(data.dc.chars) ? data.dc.chars.length : 0;
+      return { ...m, progress, done: progress >= m.target, claimed: data.claimed.includes(m.id) };
+    });
+    const weekly = WEEKLY_MISSIONS.map(m => {
+      let progress = 0;
+      if (m.type === 'days')       progress = data.wc.days       || 0;
+      if (m.type === 'gamble_win') progress = data.wc.gamble_win || 0;
+      return { ...m, progress, done: progress >= m.target, claimed: data.claimed.includes(m.id) };
+    });
+    res.json({ daily, weekly });
+  } catch (e) { console.error('[missions]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
+});
+
+app.post('/api/missions/claim', requireAuth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'No database' });
+  const { id } = req.body || {};
+  const mission = [...DAILY_MISSIONS, ...WEEKLY_MISSIONS].find(m => m.id === id);
+  if (!mission) return res.status(400).json({ error: 'Unknown mission' });
+  try {
+    const uid = req.user.googleId;
+    const { rows } = await db.query('SELECT missions_data, cm_coins FROM users WHERE google_id=$1', [uid]);
+    if (!rows.length) return res.status(404).json({ error: 'User not found' });
+    const data = parseMissionsData(rows[0].missions_data);
+    if (data.claimed.includes(id)) return res.status(400).json({ error: 'Already claimed' });
+    let progress = 0;
+    if (mission.type === 'login')      progress = data.dc.login    || 0;
+    if (mission.type === 'messages')   progress = data.dc.messages || 0;
+    if (mission.type === 'chars')      progress = Array.isArray(data.dc.chars) ? data.dc.chars.length : 0;
+    if (mission.type === 'days')       progress = data.wc.days       || 0;
+    if (mission.type === 'gamble_win') progress = data.wc.gamble_win || 0;
+    if (progress < mission.target) return res.status(400).json({ error: 'Mission not complete yet', progress, target: mission.target });
+    data.claimed.push(id);
+    const r = await db.query(
+      'UPDATE users SET missions_data=$1, cm_coins=cm_coins+$2, coins_earned_all_time=COALESCE(coins_earned_all_time,0)+$2 WHERE google_id=$3 RETURNING cm_coins, coins_earned_all_time',
+      [JSON.stringify(data), mission.reward, uid]
+    );
+    const u = getLimits(uid);
+    u.cmCoins = (u.cmCoins || 0) + mission.reward;
+    u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + mission.reward;
+    res.json({ ok: true, reward: mission.reward, newBalance: r.rows[0]?.cm_coins || u.cmCoins });
+  } catch (e) { console.error('[missions/claim]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
 });
 
 // Server-side game tokens — maps gameId -> { uid, wordLen, issued } so /api/coins/award can't be called without a real game session
