@@ -6019,7 +6019,7 @@ app.post('/api/cron/check-ins', async (req, res) => {
   try {
     // Find opted-in users who are due for a check-in
     const { rows: users } = await db.query(`
-      SELECT u.google_id, u.name, u.email, u.checkin_frequency_days,
+      SELECT u.google_id, u.name, u.email, u.checkin_frequency_days, u.checkin_phone,
              cc.char_id AS top_char_id
       FROM users u
       LEFT JOIN LATERAL (
@@ -6056,17 +6056,30 @@ app.post('/api/cron/check-ins', async (req, res) => {
           await db.query('UPDATE users SET last_checkin_sent_at = NOW() WHERE google_id = $1', [u.google_id]);
           sent++;
 
-          // Also fire a push notification if they have one
+          // Push notification — "call" style if they gave a phone number, else standard
           const pushRes = await db.query('SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = $1 LIMIT 1', [u.google_id]);
           if (pushRes.rows.length) {
             const sub = pushRes.rows[0];
+            const isCall = !!u.checkin_phone; // gave a phone number → wants call experience
+            const charUrl = u.top_char_id
+              ? `/?char=${encodeURIComponent(u.top_char_id)}${isCall ? '&call=1' : ''}`
+              : '/';
+            const payload = isCall ? {
+              type: 'call',
+              title: `📞 ${charName || 'Character.Mind'} is calling…`,
+              body: 'Tap Answer to connect',
+              icon: '/logo.png',
+              badge: '/logo.png',
+              url: charUrl,
+            } : {
+              title: charName ? `${charName} is thinking of you` : 'A message for you',
+              body: `${charName || 'Character.Mind'} sent you a check-in. Open to read it.`,
+              icon: '/logo.png',
+              url: charUrl,
+            };
             webpush.sendNotification(
               { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-              JSON.stringify({
-                title: charName ? `${charName} is thinking of you` : 'A message for you',
-                body: `${charName || 'Character.Mind'} sent you a check-in. Open to read it.`,
-                url: '/',
-              })
+              JSON.stringify(payload)
             ).catch(() => {});
           }
         } else {

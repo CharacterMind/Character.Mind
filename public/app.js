@@ -1012,6 +1012,19 @@ window.addEventListener('DOMContentLoaded', async () => {
     initSidebarState();
     initRpMode();
     updateModelBarLabel();
+
+    // Handle ?char=<id>&call=1 from push notification "Answer" tap
+    const urlParams = new URLSearchParams(window.location.search);
+    const charParam = urlParams.get('char');
+    const callParam  = urlParams.get('call');
+    if (charParam) {
+      history.replaceState({}, '', '/');
+      await openChat(charParam);
+      if (callParam === '1') {
+        // Small delay so the chat UI is fully rendered before the call screen opens
+        setTimeout(() => startCallMode(), 600);
+      }
+    }
   } else {
     document.getElementById('authLanding').style.display = 'flex';
     document.getElementById('app').style.display = 'none';
