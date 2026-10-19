@@ -577,7 +577,11 @@ if (GOOGLE_AUTH_ENABLED) {
         [user.googleId, user.email, user.name, user.picture]
       ).then(result => {
         const isNew = result.rows[0]?.is_new_user;
-        if (isNew && user.email) sendWelcomeEmail(user.name, user.email);
+        if (isNew) {
+          if (user.email) sendWelcomeEmail(user.name, user.email);
+          db.query(`UPDATE users SET cm_coins = cm_coins + 100 WHERE google_id = $1`, [user.googleId])
+            .catch(err => console.error('Welcome coins error:', err.message));
+        }
       }).catch(err => console.error('User upsert error:', err.message));
     }
     if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId);
