@@ -232,8 +232,9 @@ if (db) {
     .catch(err => console.error('DB init error:', err));
 
   db.query(`ALTER TABLE characters ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT FALSE`)
-    .then(() => db.query(`UPDATE characters SET is_hidden = TRUE WHERE id IN ('custom_1790897425575_lily', 'custom_1790776698867', 'custom_1790895746938_gracie', 'custom_1790774765927') AND NOT is_hidden`))
+    .then(() => db.query(`UPDATE characters SET is_hidden = TRUE WHERE id IN ('custom_1790897425575_lily', 'custom_1790776698867', 'custom_1790895746938_gracie', 'custom_1790774765927', 'custom_1791126206092_doey') AND NOT is_hidden`))
     .then(r => { if (r && r.rowCount > 0) { console.log(`[MIGRATION] Hid ${r.rowCount} character(s)`); invalidateCharList(); } })
+    .then(() => db.query(`UPDATE characters SET is_hidden = TRUE WHERE name = 'Doey the Doughman' AND NOT is_hidden`))
     .then(() => db.query(`UPDATE characters SET is_hidden = FALSE WHERE name = 'Miss Delight' AND is_hidden`))
     .catch(err => console.error('is_hidden migration error:', err));
 
@@ -4909,7 +4910,7 @@ async function sendResendEmail(to, subject, html, text) {
     const r = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: 'Character Mind <onboarding@resend.dev>', to: [to], subject, html, text })
+      body: JSON.stringify({ from: process.env.RESEND_FROM_EMAIL || 'Character Mind <onboarding@resend.dev>', to: [to], subject, html, text })
     });
     if (!r.ok) throw new Error(await r.text());
     return true;
@@ -5081,32 +5082,76 @@ async function sendWelcomeEmail(userName, email) {
 
 // ── Policy notification email ─────────────────────────────────────────────────
 
-function buildUpdateEmailHtml(userName, subject, message) {
+function buildUpdateEmailHtml(userName, subject, sections, message) {
   const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const name = esc(userName || 'there');
   const siteUrl = process.env.SITE_URL || 'https://charactermind.onrender.com';
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:40px 16px">
+
+  const SECTION_META = {
+    features:     { emoji: '✨', label: 'New Features',  color: '#a78bfa' },
+    fixes:        { emoji: '🐛', label: 'Bug Fixes',     color: '#f87171' },
+    improvements: { emoji: '📈', label: 'Improvements',  color: '#34d399' },
+    notes:        { emoji: '📝', label: 'Notes',         color: '#fbbf24' },
+  };
+
+  const sectionHtml = (Array.isArray(sections) ? sections : [])
+    .filter(s => s && Array.isArray(s.items) && s.items.length)
+    .map(s => {
+      const meta = SECTION_META[s.type] || { emoji: '•', label: String(s.type || ''), color: '#a78bfa' };
+      const itemRows = s.items.map(item =>
+        `<tr><td style="padding:5px 0;font-size:14px;color:#cccccc;line-height:1.55"><span style="color:${meta.color};margin-right:8px;font-size:12px">&#9654;</span>${esc(item)}</td></tr>`
+      ).join('');
+      return `<div style="margin:0 0 22px">
+  <p style="margin:0 0 10px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${meta.color}">${meta.emoji}&nbsp; ${meta.label}</p>
+  <table cellpadding="0" cellspacing="0" width="100%" style="background:#0d0d0d;border-left:3px solid ${meta.color};border-radius:0 6px 6px 0;padding:12px 16px"><tbody>${itemRows}</tbody></table>
+</div>`;
+    }).join('');
+
+  const introHtml = message
+    ? `<p style="margin:0 0 24px;font-size:15px;color:#aaaaaa;line-height:1.7">${esc(message).replace(/\n/g, '<br>')}</p>`
+    : '';
+
+  const hasSections = sectionHtml.length > 0;
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#080808;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#080808;padding:48px 16px">
   <tr><td align="center">
-    <table width="100%" style="max-width:560px;background:#111111;border-radius:12px;border:1px solid #222222;padding:40px">
+    <table width="100%" style="max-width:580px">
       <tr><td>
-        <p style="margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#7c5cbf">Character.Mind</p>
-        <h1 style="margin:0 0 24px;font-size:22px;font-weight:700;color:#f0f0f0;letter-spacing:-.02em">${esc(subject)}</h1>
-        <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">Hi ${name},</p>
-        <div style="background:#0a0a0a;border:1px solid #222222;border-radius:8px;padding:20px;margin:0 0 28px">
-          <p style="margin:0;font-size:15px;color:#f0f0f0;line-height:1.7;white-space:pre-wrap">${esc(message)}</p>
-        </div>
-        <a href="${siteUrl}" style="display:inline-block;padding:11px 24px;background:#7c5cbf;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;margin-bottom:28px">Open Character.Mind</a>
-        <hr style="border:none;border-top:1px solid #222222;margin:0 0 20px">
-        <p style="margin:0 0 4px;font-size:12px;color:#555555;line-height:1.5">Questions? Reply to this email or reach us at <a href="mailto:support.charactermind@gmail.com" style="color:#7c5cbf;text-decoration:none">support.charactermind@gmail.com</a></p>
-        <p style="margin:12px 0 0;font-size:12px;color:#444444">— Character.Mind</p>
+        <!-- header bar -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#111111;border-radius:12px 12px 0 0;border:1px solid #2a2a2a;border-bottom:none;padding:28px 36px 24px">
+          <tr><td>
+            <p style="margin:0 0 6px;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#7c5cbf">Character.Mind</p>
+            <h1 style="margin:0;font-size:24px;font-weight:700;color:#f4f4f5;letter-spacing:-.025em;line-height:1.2">${esc(subject)}</h1>
+          </td></tr>
+        </table>
+        <!-- body card -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#111111;border:1px solid #2a2a2a;border-top:none;border-radius:0 0 12px 12px;padding:28px 36px 32px">
+          <tr><td>
+            <p style="margin:0 0 ${hasSections ? '24px' : '8px'};font-size:15px;color:#999999;line-height:1.6">Hi ${name},</p>
+            ${introHtml}
+            ${sectionHtml}
+            ${!hasSections && !message ? `<p style="margin:0 0 24px;font-size:14px;color:#888888;line-height:1.6">No changes listed.</p>` : ''}
+            <table cellpadding="0" cellspacing="0" style="margin-top:${hasSections ? '8px' : '4px'}">
+              <tr><td><a href="${siteUrl}" style="display:inline-block;padding:12px 28px;background:#7c5cbf;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;letter-spacing:.01em">Open Character.Mind &#8594;</a></td></tr>
+            </table>
+          </td></tr>
+        </table>
+        <!-- footer -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="padding:20px 0 0">
+          <tr><td align="center">
+            <p style="margin:0 0 4px;font-size:12px;color:#444444">Questions? <a href="mailto:support.charactermind@gmail.com" style="color:#7c5cbf;text-decoration:none">support.charactermind@gmail.com</a></p>
+            <p style="margin:0;font-size:11px;color:#333333">You received this because you opted in to Character.Mind updates.</p>
+          </td></tr>
+        </table>
       </td></tr>
     </table>
   </td></tr>
 </table>
 </body></html>`;
 }
-function buildPolicyEmailHtml(userName, message) { return buildUpdateEmailHtml(userName, 'Policy Update', message); }
+function buildPolicyEmailHtml(userName, message) { return buildUpdateEmailHtml(userName, 'Policy Update', [], message); }
 
 app.post('/api/admin/notify-policy-update', requireAuth, async (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
@@ -5115,9 +5160,15 @@ app.post('/api/admin/notify-policy-update', requireAuth, async (req, res) => {
 
   if (!db) return res.status(503).json({ error: 'No database configured' });
 
-  const { subject, message } = req.body;
+  const { subject, message, sections } = req.body;
   if (!subject || typeof subject !== 'string' || subject.length > 200) return res.status(400).json({ error: 'subject required (max 200 chars)' });
-  if (!message || typeof message !== 'string' || message.length > 3000) return res.status(400).json({ error: 'message required (max 3000 chars)' });
+  const VALID_TYPES = new Set(['features', 'fixes', 'improvements', 'notes']);
+  const cleanSections = Array.isArray(sections) ? sections.filter(s => s && VALID_TYPES.has(s.type) && Array.isArray(s.items)).map(s => ({
+    type: s.type,
+    items: s.items.filter(i => typeof i === 'string' && i.trim()).map(i => i.trim()).slice(0, 50),
+  })).filter(s => s.items.length) : [];
+  const cleanMessage = (typeof message === 'string') ? message.slice(0, 2000) : '';
+  if (!cleanMessage && !cleanSections.length) return res.status(400).json({ error: 'Provide a message or at least one section with items' });
 
   let users;
   try {
@@ -5134,7 +5185,7 @@ app.post('/api/admin/notify-policy-update', requireAuth, async (req, res) => {
   for (let i = 0; i < users.length; i += BATCH) {
     const batch = users.slice(i, i + BATCH);
     const results = await Promise.allSettled(batch.map(user =>
-      sendResendEmail(user.email, subject, buildUpdateEmailHtml(user.name, subject, message))
+      sendResendEmail(user.email, subject, buildUpdateEmailHtml(user.name, subject, cleanSections, cleanMessage))
     ));
     for (const r of results) {
       if (r.status === 'fulfilled') sent++;

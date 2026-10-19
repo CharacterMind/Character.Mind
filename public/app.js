@@ -4729,20 +4729,28 @@ document.addEventListener('keydown', e => {
 async function adminNotifyUsers() {
   if (!isOwner()) return;
   const subject = document.getElementById('notifySubject')?.value?.trim();
-  const message = document.getElementById('notifyMsg')?.value?.trim();
-  if (!subject || !message) { showWarning('Subject and message required'); return; }
+  const message = document.getElementById('notifyIntro')?.value?.trim() || '';
+  if (!subject) { showWarning('Subject is required'); return; }
+  const parseLines = id => (document.getElementById(id)?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
+  const sections = [
+    { type: 'features',     items: parseLines('notifyFeatures') },
+    { type: 'fixes',        items: parseLines('notifyFixes') },
+    { type: 'improvements', items: parseLines('notifyImprovements') },
+  ].filter(s => s.items.length);
+  if (!message && !sections.length) { showWarning('Add an intro message or at least one section with items'); return; }
   const btn = document.getElementById('notifyBtn');
   if (btn) { btn.textContent = 'Sending…'; btn.disabled = true; }
   try {
     const d = await fetch('/api/admin/notify-policy-update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subject, message })
+      body: JSON.stringify({ subject, message, sections })
     }).then(r => r.json());
     if (d.ok) {
       showWarning(`Sent to ${d.sent} user(s) ✓`, 5000);
-      document.getElementById('notifySubject').value = '';
-      document.getElementById('notifyMsg').value = '';
+      ['notifySubject','notifyIntro','notifyFeatures','notifyFixes','notifyImprovements'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+      });
     } else {
       showWarning(d.error || 'Send failed.');
     }
