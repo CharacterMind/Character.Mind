@@ -3435,7 +3435,7 @@ function clearPendingImage() {
   const strip = document.getElementById('imgPreviewStrip');
   const thumb = document.getElementById('imgPreviewThumb');
   if (strip) strip.style.display = 'none';
-  if (thumb) thumb.src = '';
+  if (thumb) thumb.src = 'data:,';
 }
 
 function getNextDailyResetAt() {
