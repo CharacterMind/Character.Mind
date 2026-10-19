@@ -4928,7 +4928,7 @@ function updateUsageModal(u) {
   if (sBar) { sBar.style.width = sPct + '%'; sBar.className = 'usage-fill-modal ' + usageFillClass(sPct); }
 
   const sPctEl = document.getElementById('usageSessionPct');
-  if (sPctEl) sPctEl.textContent = sPct + '%';
+  if (sPctEl) sPctEl.textContent = sPct + '% used';
 
   const sSubEl = document.getElementById('usageSessionSub');
   if (sSubEl) {
@@ -4945,7 +4945,7 @@ function updateUsageModal(u) {
   if (wBar) { wBar.style.width = wPct + '%'; wBar.className = 'usage-fill-modal ' + usageFillClass(wPct); }
 
   const wPctEl = document.getElementById('usageWeeklyPct');
-  if (wPctEl) wPctEl.textContent = u.weeklyLimit ? wPct + '%' : '∞';
+  if (wPctEl) wPctEl.textContent = u.weeklyLimit ? wPct + '% used' : '∞';
 
   const wSubEl = document.getElementById('usageWeeklySub');
   if (wSubEl) wSubEl.textContent = u.weeklyLimit ? (u.weeklyResetsAt ? formatResetTime(u.weeklyResetsAt) : 'Resets weekly') : 'No weekly limit on the free tier';
@@ -4960,7 +4960,7 @@ function updateUsageModal(u) {
       if (pctEl) pctEl.textContent = '∞';
       if (bar) { bar.style.width = '0%'; bar.className = 'usage-fill-modal green'; }
     } else {
-      if (pctEl) pctEl.textContent = pct + '%';
+      if (pctEl) pctEl.textContent = pct + '% used';
       if (bar) { bar.style.width = pct + '%'; bar.className = 'usage-fill-modal ' + usageFillClass(pct); }
     }
     if (subEl && subText !== undefined) subEl.textContent = subText;

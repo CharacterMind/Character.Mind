@@ -1677,8 +1677,9 @@ html, body {
 }
 .usage-modal-title { font-size: 13px; font-weight: 600; color: var(--text3); letter-spacing: .06em; text-transform: uppercase; }
 .usage-headline {
-  font-size: 22px; font-weight: 700; line-height: 1.35;
-  padding: 0 24px 20px; color: var(--text);
+  font-size: 30px; font-weight: 800; line-height: 1.25;
+  padding: 0 24px 24px; color: var(--text1);
+  letter-spacing: -.01em;
 }
 .usage-modal-rule { height: 1px; background: var(--border); margin: 0 24px; }
 .usage-section { padding: 20px 24px; }
@@ -1687,12 +1688,11 @@ html, body {
   margin-bottom: 12px;
 }
 .usage-sec-label-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
-.usage-sec-label { font-size: 16px; font-weight: 700; color: var(--text); }
-.usage-sec-pct   { font-size: 13px; font-weight: 600; color: var(--text2); font-variant-numeric: tabular-nums; }
-.usage-sec-sub   { font-size: 12px; color: var(--text3); margin-top: 2px; }
+.usage-sec-label { font-size: 17px; font-weight: 700; color: var(--text1); }
 .usage-sec-pct   { font-size: 13.5px; color: var(--text3); font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.usage-sec-sub   { font-size: 12px; color: var(--text3); margin-top: 4px; }
 .usage-track-modal {
-  height: 5px; background: var(--border2); border-radius: 99px; overflow: hidden;
+  height: 6px; background: var(--border2); border-radius: 99px; overflow: hidden;
 }
 .usage-fill-modal {
   height: 100%; border-radius: 99px; width: 0%;
