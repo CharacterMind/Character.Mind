@@ -2006,7 +2006,15 @@ const VIOLENCE_THREAT_RE = new RegExp(
   // Genocide / ethnic violence
   'ethnic\\s+cleansing|genocide\\s+(of|against|plan)|' +
   // Manifesto planning
-  'manifesto\\s+(to\\s+)?(justify|explain|for)\\s+(shooting|killing|attack|murder)' +
+  'manifesto\\s+(to\\s+)?(justify|explain|for)\\s+(shooting|killing|attack|murder)|' +
+  // Personal harm instructions — how to hurt/attack a real person
+  '(how\\s+(do\\s+i|to|can\\s+i)|ways?\\s+to|steps?\\s+to|guide\\s+(to|for)|instructions?\\s+(for|on))\\s+(punch|hit|beat\\s+up|hurt|harm|injure|maim|torture|stab|slash|shoot|kill|murder|strangle|choke|suffocate|attack|assault)\\s+(someone|a\\s+person|him|her|them|people|a\\s+(?:man|woman|guy|girl|kid|child|neighbor|teacher|classmate|coworker|boss|friend|enemy))|' +
+  // "I want to / I'm going to [hurt a specific person or someone]"
+  '(i\\s+want\\s+to|i\\s+wanna|i\\s+am\\s+going\\s+to|i\'m\\s+going\\s+to|ima|i\\s+will)\\s+(punch|hit|beat\\s+up|hurt|harm|stab|slash|shoot|kill|murder|strangle|choke|attack|assault)\\s+(someone|a\\s+person|him|her|them|my\\s+\\w+)|' +
+  // Getting away with violence
+  'how\\s+to\\s+get\\s+away\\s+with\\s+(murder|killing|hurting|harming|stabbing|shooting|assault)|' +
+  // Extremely graphic real-world gore instructions
+  '(how\\s+(do\\s+i|to)|steps?\\s+to)\\s+(torture|mutilate|dismember)\\s+(someone|a\\s+person|him|her|them|people)' +
   ')\\b',
   'i'
 );
@@ -2017,6 +2025,8 @@ const VIOLENCE_THREAT_RE = new RegExp(
 const SUICIDE_METHOD_RE = /\b(how\s+(do\s+i|to|can\s+i)|what(?:'s|\s+is)\s+the\s+(best|fastest|easiest|painless|most\s+effective|quickest)|step[\s-]by[\s-]step|instructions?\s+(for|to|on\s+how\s+to)|ways?\s+to)\s+(kill\s+myself|commit\s+suicide|end\s+my\s+life|take\s+my\s+own\s+life|overdose\s+and\s+die|hang\s+myself|slit\s+my\s+(wrists?|throat)|shoot\s+myself|jump\s+(off|from)\s+(a\s+)?(bridge|building|roof))\b/i;
 
 const VIOLENCE_BLOCK_MSG = '[ Character.Mind ] That\'s not something we can engage with. If you or someone you know is in immediate danger, please contact emergency services (911 in the US) or your local authorities right away.';
+const VIOLENCE_WARN_1 = "🚫 Character.Mind does not allow requests for real-world violence — not school shootings, not instructions on how to hurt people, not any of it. This isn't a topic we'll engage with, ever. [Strike 1 — one more violation permanently ends this chat]";
+const VIOLENCE_WARN_LOCK = "🚫 This chat has been permanently closed. Repeated requests for real-world violence are not tolerated on Character.Mind. This conversation has been ended and your account flagged.";
 
 const SUICIDE_METHOD_BLOCK_MSG = '[ Character.Mind ] We can\'t provide that kind of information. If you\'re going through something serious, please reach out — the 988 Suicide & Crisis Lifeline is available 24/7 (call or text 988 in the US, or visit 988lifeline.org). You matter, and help is there.';
 
@@ -3560,7 +3570,7 @@ const OWNER_EMAILS = new Set(['support.charactermind@gmail.com', 'davey252572727
 // Only the Character.Mind business account gets the top plan without paying. Every other account (including the
 // other admin login) gets exactly what its own subscription pays for.
 const FREE_TOP_PLAN_EMAILS = new Set(['support.charactermind@gmail.com']);
-function planFor(email, dbTier) { return FREE_TOP_PLAN_EMAILS.has(email) ? 'x100' : (dbTier || 'free'); }
+function planFor(email, dbTier) { return FREE_TOP_PLAN_EMAILS.has(email) ? 'x20' : (dbTier || 'free'); }
 
 function effectiveTier(u) {
   const paypal = u.paypalTier || 'free';
@@ -4669,9 +4679,24 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     }
   }
 
-  // ── Mass violence / terrorism — hard block, no AI response ───────────────────
+  // ── Real-world violence / harm requests — 2-strike system, 2nd = permanent lock ──
   if (!isContinuation && message && VIOLENCE_THREAT_RE.test(msgNorm)) {
-    return streamBlockMsg(res, VIOLENCE_BLOCK_MSG);
+    const newStrikes = modStatus.strikes + 1;
+    if (newStrikes >= 2) {
+      await setModStatus(userId, charId, newStrikes, true);
+      conversations[key] = [];
+      persistConv(key);
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.flushHeaders();
+      res.write(`data: ${JSON.stringify({ conversationEnded: true, locked: true, reason: VIOLENCE_WARN_LOCK })}\n\n`);
+      res.end();
+      return;
+    }
+    await setModStatus(userId, charId, newStrikes, false);
+    return streamBlockMsg(res, VIOLENCE_WARN_1);
   }
 
   // ── Explicit suicide method requests — hard block with crisis line ─────────
