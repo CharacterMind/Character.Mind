@@ -3425,9 +3425,8 @@ app.delete('/api/conversations/:charId/history', requireAuth, async (req, res) =
   }
 });
 
-// When true: only Lily is visible in the character list and all pricing/upgrade UI is hidden.
-// Set SOFT_LAUNCH=false in Render env vars to open up the full site.
-const SOFT_LAUNCH = process.env.SOFT_LAUNCH !== 'false';
+// When true: only Lily/Poppy visible in character list. Set SOFT_LAUNCH=true in env vars to re-enable.
+const SOFT_LAUNCH = process.env.SOFT_LAUNCH === 'true';
 const OWNER_EMAILS = new Set(['support.charactermind@gmail.com', 'davey252572727@gmail.com']); // admin tools
 // Only the Character.Mind business account gets the top plan without paying. Every other account (including the
 // other admin login) gets exactly what its own subscription pays for.
