@@ -1352,18 +1352,25 @@ const USER_COIN_RATE_CALL_CHARS  = 200;  // 1 coin per N chars — only charged 
 const USER_COIN_RATE_IMAGE_B64   = 8000; // 1 coin per N base64 chars of image (~6 KB actual)
 const USER_COIN_MIN_IMAGE        = 2;    // minimum per image attachment
 let serviceCoinsBal = null; // null = loading; Infinity = dev/no-DB (unlimited)
+let ownerCachedGid = null; // owner's google_id, resolved at startup so deductions work before first login
 
 async function initServiceCoins() {
   if (!db) { serviceCoinsBal = Infinity; return; }
   try {
-    const r = await db.query("SELECT value FROM app_config WHERE key='service_coins'");
-    if (r.rows.length) {
-      serviceCoinsBal = parseInt(r.rows[0].value) || 0;
-    } else {
-      serviceCoinsBal = 5000;
-      db.query("INSERT INTO app_config(key,value) VALUES('service_coins','5000') ON CONFLICT DO NOTHING").catch(() => {});
+    const ownerEmail = [...OWNER_EMAILS][0];
+    if (ownerEmail) {
+      const r = await db.query('SELECT google_id, cm_coins FROM users WHERE email = $1', [ownerEmail]);
+      if (r.rows.length) {
+        ownerCachedGid = r.rows[0].google_id;
+        serviceCoinsBal = Math.max(0, parseInt(r.rows[0].cm_coins) || 0);
+        console.log('[service-coins] Owner balance:', serviceCoinsBal);
+        return;
+      }
     }
-    console.log('[service-coins] Balance:', serviceCoinsBal);
+    // Owner not registered yet — read legacy app_config value as fallback
+    const rc = await db.query("SELECT value FROM app_config WHERE key='service_coins'");
+    serviceCoinsBal = rc.rows.length ? (parseInt(rc.rows[0].value) || 0) : 0;
+    console.log('[service-coins] Balance (no owner row yet):', serviceCoinsBal);
   } catch (e) { serviceCoinsBal = Infinity; console.error('[service-coins] init error:', e.message); }
 }
 
@@ -1374,20 +1381,29 @@ function isServiceOnline() {
 function deductServiceCoins(amount) {
   if (serviceCoinsBal === null || serviceCoinsBal === Infinity || !db) return;
   serviceCoinsBal = Math.max(0, serviceCoinsBal - amount);
+  const gid = ownerCachedGid || [...ownerGoogleIds][0];
+  if (!gid) return;
   db.query(
-    "INSERT INTO app_config(key,value,updated_at) VALUES('service_coins',$1,NOW()) ON CONFLICT(key) DO UPDATE SET value=$1,updated_at=NOW()",
-    [String(serviceCoinsBal)]
+    'UPDATE users SET cm_coins = GREATEST(0, cm_coins - $1) WHERE google_id = $2',
+    [amount, gid]
   ).catch(e => console.error('[service-coins] save error:', e.message));
+  // Keep in-memory limits in sync so nav coin display stays accurate
+  const lim = userLimits[gid];
+  if (lim) lim.cmCoins = Math.max(0, (lim.cmCoins || 0) - amount);
 }
 
 async function addServiceCoinsBalance(amount) {
   if (!db) return;
   if (serviceCoinsBal === null) await initServiceCoins();
+  const gid = ownerCachedGid || [...ownerGoogleIds][0];
+  if (!gid) return;
   if (serviceCoinsBal !== Infinity) serviceCoinsBal = (serviceCoinsBal || 0) + amount;
   await db.query(
-    "INSERT INTO app_config(key,value,updated_at) VALUES('service_coins',$1,NOW()) ON CONFLICT(key) DO UPDATE SET value=$1,updated_at=NOW()",
-    [String(serviceCoinsBal)]
+    'UPDATE users SET cm_coins = cm_coins + $1 WHERE google_id = $2',
+    [amount, gid]
   );
+  const lim = userLimits[gid];
+  if (lim) lim.cmCoins = (lim.cmCoins || 0) + amount;
 }
 
 // ── Mission Reward Multiplier ─────────────────────────────────────────────────
@@ -4133,9 +4149,21 @@ app.post('/api/admin/wipe-my-data', requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
-// Service coin balance — owner reads and tops up
-app.get('/api/admin/service-coins', requireAuth, (req, res) => {
+// Service coin balance — owner reads and tops up (now backed by owner's cmCoins)
+app.get('/api/admin/service-coins', requireAuth, async (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  const gid = ownerCachedGid || req.user.googleId;
+  if (db && gid) {
+    try {
+      if (!ownerCachedGid) ownerCachedGid = gid;
+      const r = await db.query('SELECT cm_coins FROM users WHERE google_id = $1', [gid]);
+      if (r.rows.length) {
+        const bal = Math.max(0, parseInt(r.rows[0].cm_coins) || 0);
+        serviceCoinsBal = bal; // keep in-memory cache in sync
+        return res.json({ coins: bal });
+      }
+    } catch (_) {}
+  }
   res.json({ coins: serviceCoinsBal === Infinity ? null : (serviceCoinsBal || 0) });
 });
 
