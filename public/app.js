@@ -996,6 +996,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     showCharVoice(currentChar.name, currentChar.color, av);
   });
   document.addEventListener('mouseleave', (e) => {
+    if (!e.target || typeof e.target.closest !== 'function') return;
     const av = e.target.closest('.msg-avatar');
     if (!av || av.contains(e.relatedTarget)) return;
     hideCharVoice();
