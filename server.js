@@ -6621,71 +6621,12 @@ app.get('/api/game/hangman/word', requireAuthGame, (req, res) => {
 });
 
 // ── Announcements ──────────────────────────────────────────────────────────
-const ANNOUNCEMENTS = [
-  {
-    id: 'v272-grind-fixes',
-    version: 'v272',
-    date: 'Oct 2026',
-    title: 'Daily Grind, Missions & Fixes',
-    subtitle: 'Coins every day, missions that animate, and a bunch of stuff that was broken.',
-    added: [
-      'Daily check-in — open the app each day to earn coins automatically (+10 base, streak bonuses at 3, 7, 14 and 30 days)',
-      'Mission swipe animation — claimed missions slide out and new ones slide in',
-      'Admin-configurable mission reward multiplier (0.1×–10×)',
-      'Session Credits toggle — turn token credit on/off from the Usage panel',
-    ],
-    fixed: [
-      'Call screen orbs now render behind the character image instead of on top of it',
-      'Miss Delight (and all characters) can now see images — vision capability override added to system prompt',
-      'Image capability fix now also applies when regenerating a response',
-      'Call limit modal timer no longer shows "--:--:--" — always shows correct countdown to next reset',
-      'Staying signed in across deploys — server restarts no longer sign everyone out',
-    ],
-  },
-  {
-    id: 'v255-miss-delight',
-    version: 'v255',
-    date: 'Oct 2026',
-    title: 'Miss Delight has entered the Classroom',
-    subtitle: 'She survived. She still thinks that makes her the good one.',
-    character: { name: 'Miss Delight', sub: 'Playcare — Anatomy Teacher', emoji: '📏' },
-    added: [
-      'Miss Delight — now available to chat with, voice calls included',
-      'Voice calls now work across all characters — powered by Edge TTS with browser fallback',
-      'Update emails now have structured sections: New Features, Bug Fixes, and Improvements',
-    ],
-    fixed: [
-      'Miss Delight\'s call screen now shows her correct crimson and amber colors',
-      'First violence warning no longer incorrectly triggers an immediate account ban',
-      'Ban status screen could get stuck loading — now resolves correctly every time',
-    ],
-  },
-  {
-    id: 'v254-doey',
-    version: 'v254',
-    date: 'Oct 2026',
-    title: 'DOEY has joined the Chat',
-    subtitle: 'The Doughman is here — and he brought a patch.',
-    character: { name: 'DOEY the Doughman', sub: 'Playtime Co. — Kitchen Division', emoji: '🫓' },
-    added: [
-      'DOEY the Doughman — now available to chat with',
-      'Hangman wins now award 5–20 coins based on word length, with a visible "+X coins!" popup',
-      'Hangman and Tic-Tac-Toe now survive page reloads — your game picks up right where you left off',
-      'Hangman words now range from 3 to 11+ letters with varying difficulty',
-      'Usage panel now warns you if you\'re on pace to hit your session limit early',
-      'Custom character creation — build and chat with your own characters',
-    ],
-    fixed: [
-      'Hangman no longer shows wrong guesses as letters below the word',
-      'Coin display now updates correctly after a win even when the usage panel hasn\'t loaded yet',
-    ],
-    changed: [
-      '5-minute cooldown between games removed — play back-to-back',
-      'Free accounts now get ~7 messages per session (up from ~4)',
-      'Paid tiers now use exact token multipliers — X20 is a true 20× free, no rounding',
-    ],
-  },
-];
+let ANNOUNCEMENTS = [];
+try {
+  ANNOUNCEMENTS = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, 'changelog.json'), 'utf8'));
+} catch (e) {
+  console.error('[changelog] Failed to load changelog.json:', e.message);
+}
 
 app.get('/api/announcements', async (req, res) => {
   try {
