@@ -4810,7 +4810,6 @@ async function adminSendCoinsToEmail() {
   if (!isOwner()) return;
   const email  = (document.getElementById('sendToEmail')?.value || '').trim();
   const amount = parseInt(document.getElementById('sendToEmailAmount')?.value) || 0;
-  const tokens = parseInt(document.getElementById('sendToEmailTokens')?.value) || 0;
   const info = document.getElementById('sendToEmailResult');
   if (!email) { if (info) info.textContent = 'Enter an email address.'; return; }
   if (!amount || amount < 1) { if (info) info.textContent = 'Enter a valid coin amount.'; return; }
@@ -4821,12 +4820,11 @@ async function adminSendCoinsToEmail() {
     const d = await fetch('/api/admin/send-coins-to-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, amount, tokens })
+      body: JSON.stringify({ email, amount, tokens: 0 })
     }).then(r => r.json());
     if (d.ok) {
-      const tokenPart = d.tokens > 0 ? ` + ${d.tokens} tokens` : '';
-      showWarning(`🎁 Sent ${d.coins} coins (incl. ${d.bonus} bonus)${tokenPart} to ${d.name || d.email} — email sent ✓`, 7000);
-      if (info) info.textContent = `✓ ${d.coins} coins (${d.bonus} bonus)${tokenPart} → ${d.name || d.email}`;
+      showWarning(`🎁 Sent ${d.coins} coins (incl. ${d.bonus} bonus) to ${d.name || d.email} — email sent ✓`, 7000);
+      if (info) info.textContent = `✓ ${d.coins} coins (${d.bonus} bonus) → ${d.name || d.email}`;
     } else {
       if (info) info.textContent = d.error || 'Failed.';
     }
@@ -4834,27 +4832,48 @@ async function adminSendCoinsToEmail() {
   if (btn) { btn.textContent = 'Send Gift 🎁'; btn.disabled = false; }
 }
 
+async function adminClearUserBalance() {
+  if (!isOwner()) return;
+  const email = (document.getElementById('sendToEmail')?.value || '').trim();
+  const info = document.getElementById('sendToEmailResult');
+  if (!email) { if (info) info.textContent = 'Enter an email address.'; return; }
+  const btn = document.getElementById('clearBalanceBtn');
+  if (btn) { btn.textContent = 'Clearing…'; btn.disabled = true; }
+  if (info) info.textContent = '';
+  try {
+    const d = await fetch('/api/admin/clear-user-balance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    }).then(r => r.json());
+    if (d.ok) {
+      if (info) info.textContent = `✓ Balance cleared for ${d.name || email}`;
+    } else {
+      if (info) info.textContent = d.error || 'Failed.';
+    }
+  } catch (_) { if (info) info.textContent = 'Request failed.'; }
+  if (btn) { btn.textContent = 'Clear Balance 🗑'; btn.disabled = false; }
+}
+
 async function adminGiveSelf() {
   if (!isOwner()) return;
   const tokenCredit = Math.max(0, parseInt(document.getElementById('giveSelfTokens')?.value) || 0);
   const coins = Math.max(0, parseInt(document.getElementById('giveSelfCoins')?.value) || 0);
-  const cmTokens = Math.max(0, parseInt(document.getElementById('giveSelfCMTokens')?.value) || 0);
   const status = document.getElementById('giveSelfStatus');
   const btn = document.getElementById('giveSelfBtn');
-  if (!tokenCredit && !coins && !cmTokens) { if (status) status.textContent = 'Enter an amount in at least one field.'; return; }
+  if (!tokenCredit && !coins) { if (status) status.textContent = 'Enter an amount in at least one field.'; return; }
   if (btn) { btn.textContent = 'Applying…'; btn.disabled = true; }
   if (status) status.textContent = '';
   try {
     const d = await fetch('/api/admin/give-self', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tokenCredit, coins, cmTokens })
+      body: JSON.stringify({ tokenCredit, coins, cmTokens: coins })
     }).then(r => r.json());
     if (d.ok) {
       const parts = [];
       if (tokenCredit) parts.push(`token credit → ${(d.tokenCredit || 0).toLocaleString()}`);
       if (coins) parts.push(`+${coins.toLocaleString()} coins`);
-      if (cmTokens) parts.push(`+${cmTokens.toLocaleString()} CM tokens`);
       if (status) status.textContent = `✓ ${parts.join(' · ')}`;
       await refreshUsageManual();
     } else {

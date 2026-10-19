@@ -153,18 +153,6 @@
     </div>
     <div style="margin-top:12px;text-align:center" id="resetLimitsWrap" hidden>
       <button class="reset-limits-btn" onclick="adminResetLimits()" id="resetLimitsBtn">Reset limits</button>
-      <div id="notifyWrap" style="margin-top:16px;border-top:1px solid var(--border2);padding-top:16px;text-align:left">
-        <p style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);margin-bottom:10px">Send patch notes / update email</p>
-        <input id="notifySubject" type="text" placeholder="Subject — e.g. 'Patch 1.4 — Miss Delight & more'" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:8px 10px;margin-bottom:8px;outline:none" />
-        <textarea id="notifyIntro" placeholder="Optional intro message…" rows="2" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:8px 10px;margin-bottom:8px;outline:none;resize:vertical;font-family:inherit"></textarea>
-        <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px"><span style="font-size:12px;color:#a78bfa;font-weight:600">✨ New Features</span><span style="font-size:11px;color:var(--text3)">(one per line)</span></div>
-        <textarea id="notifyFeatures" placeholder="Voice calls now live&#10;Miss Delight added" rows="3" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid #a78bfa44;border-radius:6px;color:var(--text1);font-size:13px;padding:8px 10px;margin-bottom:8px;outline:none;resize:vertical;font-family:inherit"></textarea>
-        <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px"><span style="font-size:12px;color:#f87171;font-weight:600">🐛 Bug Fixes</span><span style="font-size:11px;color:var(--text3)">(one per line)</span></div>
-        <textarea id="notifyFixes" placeholder="Fixed call disconnect glitch&#10;Fixed message ordering" rows="3" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid #f8717144;border-radius:6px;color:var(--text1);font-size:13px;padding:8px 10px;margin-bottom:8px;outline:none;resize:vertical;font-family:inherit"></textarea>
-        <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px"><span style="font-size:12px;color:#34d399;font-weight:600">📈 Improvements</span><span style="font-size:11px;color:var(--text3)">(one per line)</span></div>
-        <textarea id="notifyImprovements" placeholder="Faster message loading&#10;Better moderation system" rows="3" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid #34d39944;border-radius:6px;color:var(--text1);font-size:13px;padding:8px 10px;margin-bottom:8px;outline:none;resize:vertical;font-family:inherit"></textarea>
-        <button class="reset-limits-btn" onclick="adminNotifyUsers()" id="notifyBtn" style="width:100%;text-align:center">Send to all users</button>
-      </div>
       <div id="giveawayWrap" style="margin-top:16px;border-top:1px solid var(--border2);padding-top:16px;text-align:left">
         <p style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);margin-bottom:10px">🎁 Coin Giveaway</p>
         <div style="display:flex;gap:8px;margin-bottom:8px">
@@ -178,40 +166,39 @@
           </div>
         </div>
         <div style="margin-bottom:8px">
-          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Message to users <span style="font-weight:400">(optional — shown in the email)</span></label>
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Message <span style="font-weight:400">(optional — shown in email)</span></label>
           <textarea id="giveawayMessage" rows="2" maxlength="300" placeholder="Thank you for being part of the Character.Mind community! Here are some bonus coins on us 🪙" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:8px 10px;outline:none;resize:vertical;font-family:inherit"></textarea>
         </div>
         <div id="giveawayPreview" style="font-size:12px;color:var(--text3);margin-bottom:8px;min-height:16px"></div>
         <div style="display:flex;gap:8px">
           <button class="reset-limits-btn" onclick="adminGiveawayPreview()" id="giveawayPreviewBtn" style="flex:1;text-align:center">Preview</button>
-          <button class="reset-limits-btn" onclick="adminGiveawaySend()" id="giveawaySendBtn" style="flex:1;text-align:center;background:linear-gradient(135deg,#005f58,#00a89a)">Send Coins 🎁</button>
+          <button class="reset-limits-btn" onclick="adminGiveawaySend()" id="giveawaySendBtn" style="flex:1;text-align:center;background:linear-gradient(135deg,#005f58,#00a89a)">Send 🎁</button>
         </div>
       </div>
       <div id="sendToEmailWrap" style="margin-top:16px;border-top:1px solid var(--border2);padding-top:16px;text-align:left">
-        <p style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);margin-bottom:10px">🎁 Send Coins &amp; Tokens to User</p>
+        <p style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);margin-bottom:10px">🎁 Send Coins to User</p>
         <div style="display:flex;gap:8px;margin-bottom:8px">
           <div style="flex:2">
-            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Email address</label>
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Email</label>
             <input id="sendToEmail" type="email" placeholder="user@example.com" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:6px 10px;outline:none;font-family:inherit"/>
           </div>
           <div style="flex:1">
             <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Coins</label>
             <input id="sendToEmailAmount" type="number" value="100" min="1" max="100000" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:6px 10px;outline:none;font-family:inherit"/>
           </div>
-          <div style="flex:1">
-            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Tokens</label>
-            <input id="sendToEmailTokens" type="number" value="0" min="0" max="100000" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:6px 10px;outline:none;font-family:inherit"/>
-          </div>
         </div>
-        <p style="font-size:11px;color:var(--text3);margin:0 0 8px">+10% coin bonus added automatically. A thank-you email is sent.</p>
+        <p style="font-size:11px;color:var(--text3);margin:0 0 8px">+10% bonus added automatically. A thank-you email is sent.</p>
         <div id="sendToEmailResult" style="font-size:12px;color:var(--text3);margin-bottom:8px;min-height:16px"></div>
-        <button class="reset-limits-btn" onclick="adminSendCoinsToEmail()" id="sendToEmailBtn" style="width:100%;text-align:center;background:linear-gradient(135deg,#1e40af,#3b82f6)">Send Gift 🎁</button>
+        <div style="display:flex;gap:8px">
+          <button class="reset-limits-btn" onclick="adminSendCoinsToEmail()" id="sendToEmailBtn" style="flex:1;text-align:center;background:linear-gradient(135deg,#1e40af,#3b82f6)">Send Gift 🎁</button>
+          <button class="reset-limits-btn" onclick="adminClearUserBalance()" id="clearBalanceBtn" style="flex:1;text-align:center;background:linear-gradient(135deg,#7f1d1d,#ef4444)">Clear Balance 🗑</button>
+        </div>
       </div>
       <div id="postAnnouncementWrap" style="margin-top:16px;border-top:1px solid var(--border2);padding-top:16px;text-align:left">
         <p style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);margin-bottom:10px">📢 Post Announcement</p>
         <div style="display:flex;gap:8px;margin-bottom:8px">
           <div style="flex:1">
-            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Version tag (optional)</label>
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Version (optional)</label>
             <input id="annVersion" type="text" placeholder="v256" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:6px 10px;outline:none;font-family:inherit"/>
           </div>
           <div style="flex:2">
@@ -238,15 +225,11 @@
             <input id="giveSelfTokens" type="number" value="500000" min="0" max="100000000" placeholder="e.g. 500000" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:6px 10px;outline:none;font-family:inherit"/>
           </div>
           <div style="flex:1">
-            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Coins to add</label>
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Coins</label>
             <input id="giveSelfCoins" type="number" value="0" min="0" max="10000000" placeholder="e.g. 1000" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:6px 10px;outline:none;font-family:inherit"/>
           </div>
-          <div style="flex:1">
-            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">CM Tokens to add</label>
-            <input id="giveSelfCMTokens" type="number" value="0" min="0" max="10000000" placeholder="e.g. 500" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:6px 10px;outline:none;font-family:inherit"/>
-          </div>
         </div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Token credit extends your chat limit. CM Tokens are the monthly pool (used for games/gambling).</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Token credit extends your chat limit. Coins are your spendable balance.</div>
         <div id="giveSelfStatus" style="font-size:12px;color:var(--accent-l);margin-bottom:8px;min-height:16px"></div>
         <button class="reset-limits-btn" onclick="adminGiveSelf()" id="giveSelfBtn" style="width:100%;text-align:center;background:linear-gradient(135deg,#065f46,#10b981)">Apply ⚡</button>
       </div>

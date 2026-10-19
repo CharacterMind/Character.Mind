@@ -3707,6 +3707,22 @@ app.post('/api/admin/give-self', requireAuth, async (req, res) => {
   res.json({ ok: true, tokenCredit: u.tokenCredit, cmCoins: u.cmCoins, cmTokens: u.cmTokens });
 });
 
+app.post('/api/admin/clear-user-balance', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  if (!db) return res.status(503).json({ error: 'No database' });
+  const { email } = req.body || {};
+  if (!email?.trim()) return res.status(400).json({ error: 'Email required' });
+  const { rows } = await db.query('SELECT google_id, name FROM users WHERE email = $1', [email.trim().toLowerCase()]);
+  if (!rows.length) return res.status(404).json({ error: 'User not found' });
+  const uid = rows[0].google_id;
+  await db.query('UPDATE users SET cm_coins = 0, cm_tokens = 0 WHERE google_id = $1', [uid]);
+  const lim = getLimits(uid);
+  lim.cmCoins = 0;
+  lim.cmTokens = 0;
+  console.log(`[admin] clear-user-balance: ${rows[0].name} (${uid})`);
+  res.json({ ok: true, name: rows[0].name });
+});
+
 // One-time: stamp all characters created by the calling owner as CharacterMind
 app.post('/api/admin/stamp-official', requireAuth, async (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
