@@ -7002,11 +7002,13 @@ async function speakAndHangUp(text, resetsAt) {
 
 async function callModeElevenTTS(text) {
   const gen = callGen;
-  const clean = text.replace(/\*[^*]*\*/g, '').replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim().slice(0, 300);
+  const clean = text.replace(/\*[^*]*\*/g, '').replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim();
+  if (!clean) { if (callModeActive && gen === callGen) listenForSpeech(); return; }
+
   const browserFallback = () => {
     if (!callModeActive || gen !== callGen) return;
-    if (clean && window.speechSynthesis) {
-      const u = new SpeechSynthesisUtterance(clean);
+    if (window.speechSynthesis) {
+      const u = new SpeechSynthesisUtterance(clean.slice(0, 500));
       if (selectedVoice) u.voice = selectedVoice;
       const done = () => { if (callModeActive && callGen === gen) listenForSpeech(); };
       u.onend = done; u.onerror = done;
@@ -7016,19 +7018,47 @@ async function callModeElevenTTS(text) {
 
   if (ttsProvider === 'browser') { browserFallback(); return; }
 
-  try {
+  // Split into sentences so we can start playing the first sentence immediately
+  // while pre-fetching the next one — reduces the "falling behind" latency.
+  const sentences = clean.match(/[^.!?]+[.!?]+(?:\s|$)|[^.!?]+$/g)
+    ?.map(s => s.trim()).filter(s => s.length > 0) || [clean];
+
+  const fetchBlob = async (s) => {
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: clean, charId: currentChar?.id, provider: ttsProvider, geminiVoice: geminiVoiceName })
+      body: JSON.stringify({ text: s, charId: currentChar?.id, provider: ttsProvider, geminiVoice: geminiVoiceName })
     });
-    if (!r.ok) {
-      if (r.status === 501) elevenTTSOk = false;
-      throw new Error('tts ' + r.status);
+    if (!r.ok) { if (r.status === 501) elevenTTSOk = false; throw new Error('tts ' + r.status); }
+    return r.blob();
+  };
+
+  // Play a blob without triggering listenForSpeech (used for all-but-last sentences)
+  const playBlobOnly = (blob) => new Promise(resolve => {
+    if (!callModeActive) { resolve(); return; }
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    callAudio = audio;
+    const done = () => { URL.revokeObjectURL(url); if (callAudio === audio) callAudio = null; resolve(); };
+    audio.onended = done; audio.onerror = done;
+    audio.play().catch(done);
+  });
+
+  try {
+    let nextFetch = fetchBlob(sentences[0]);
+    for (let i = 0; i < sentences.length; i++) {
+      if (gen !== callGen) return;
+      // Pre-fetch next sentence in parallel while waiting for current blob
+      const prefetch = (i + 1 < sentences.length) ? fetchBlob(sentences[i + 1]) : null;
+      const blob = await nextFetch;
+      if (gen !== callGen) return;
+      if (i < sentences.length - 1) {
+        await playBlobOnly(blob);
+      } else {
+        await playCallBlob(blob); // last sentence — playCallBlob calls listenForSpeech when done
+      }
+      nextFetch = prefetch;
     }
-    const blob = await r.blob();
-    if (gen !== callGen) return;
-    await playCallBlob(blob);
   } catch (_) { browserFallback(); }
 }
 
@@ -7502,31 +7532,52 @@ function listenForSpeech() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return;
   if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
+
+  let transcript = '';
+  let silenceTimer = null;
+  let dispatched = false;
+  const SILENCE_MS = 1800; // wait 1.8s of quiet before sending
+
+  const dispatch = () => {
+    if (dispatched) return;
+    dispatched = true;
+    if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
+    if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
+    const text = transcript.trim();
+    if (text) { resetCallInactivityTimer(); sendCallMessage(text); }
+    else if (callModeActive && !callMuted) setTimeout(() => listenForSpeech(), 300);
+  };
+
   callRecognition = new SR();
-  callRecognition.continuous = false;
+  callRecognition.continuous = true;   // don't cut off on short pauses
   callRecognition.interimResults = false;
   callRecognition.lang = 'en-US';
-  let handled = false;
+
   callRecognition.onresult = (e) => {
-    handled = true;
-    const transcript = e.results[0][0].transcript.trim();
-    if (transcript) { resetCallInactivityTimer(); sendCallMessage(transcript); }
-  };
-  callRecognition.onerror = (e) => {
-    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-      handled = true;
-      showCallMicError();
-      setCallState('listening');
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) {
+        transcript += (transcript ? ' ' : '') + e.results[i][0].transcript.trim();
+      }
+    }
+    if (transcript) {
+      if (silenceTimer) clearTimeout(silenceTimer);
+      silenceTimer = setTimeout(dispatch, SILENCE_MS);
     }
   };
-  callRecognition.onend = () => {
-    if (handled || !callModeActive || callMuted) return;
-    const state = document.getElementById('callOverlay')?.dataset.state;
-    if (state === 'listening') setTimeout(() => listenForSpeech(), 250);
+
+  callRecognition.onerror = (e) => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      dispatched = true;
+      showCallMicError();
+      setCallState('listening');
+      return;
+    }
+    if (!transcript && !dispatched) { dispatched = true; setTimeout(() => listenForSpeech(), 300); }
   };
-  try { callRecognition.start(); } catch(_) {
-    setTimeout(() => listenForSpeech(), 1000);
-  }
+
+  callRecognition.onend = () => { if (!dispatched) dispatch(); };
+
+  try { callRecognition.start(); } catch(_) { setTimeout(() => listenForSpeech(), 1000); }
 }
 
 function sendCallMessage(text) {
