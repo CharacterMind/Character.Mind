@@ -232,8 +232,9 @@ if (db) {
     .catch(err => console.error('DB init error:', err));
 
   db.query(`ALTER TABLE characters ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT FALSE`)
-    .then(() => db.query(`UPDATE characters SET is_hidden = TRUE WHERE id IN ('custom_1790897425575_lily', 'custom_1790776698867') AND NOT is_hidden`))
-    .then(r => { if (r && r.rowCount > 0) console.log(`[MIGRATION] Hid ${r.rowCount} character(s) (Lily, Poppy)`); })
+    .then(() => db.query(`UPDATE characters SET is_hidden = TRUE WHERE id IN ('custom_1790897425575_lily', 'custom_1790776698867', 'custom_1790895746938_gracie') AND NOT is_hidden`))
+    .then(r => { if (r && r.rowCount > 0) { console.log(`[MIGRATION] Hid ${r.rowCount} character(s)`); invalidateCharList(); } })
+    .then(() => db.query(`UPDATE characters SET is_hidden = FALSE WHERE id = 'custom_1790895433255_delight' AND is_hidden`))
     .catch(err => console.error('is_hidden migration error:', err));
 
   // Sync Miss Delight's DB record to the current template on every startup
@@ -245,6 +246,24 @@ if (db) {
     ).then(r => { if (r.rowCount > 0) console.log('[MIGRATION] Synced Miss Delight DB record from template'); })
       .catch(err => console.error('Miss Delight sync error:', err));
   }
+
+  // Fetch Miss Delight's image on startup if missing
+  (async () => {
+    try {
+      const check = await db.query(`SELECT 1 FROM characters WHERE id='custom_1790895433255_delight' AND (image IS NULL OR length(image)=0) LIMIT 1`);
+      if (!check.rows.length) return;
+      const r = await fetch('https://poppyplaytime.wiki.gg/images/thumb/Missd2.png/300px-Missd2.png', {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CharacterMind/1.0)' },
+        signal: AbortSignal.timeout(15000)
+      });
+      if (!r.ok) return;
+      const buf = Buffer.from(await r.arrayBuffer());
+      const dataUri = `data:image/png;base64,${buf.toString('base64')}`;
+      await db.query(`UPDATE characters SET image=$1 WHERE id='custom_1790895433255_delight'`, [dataUri]);
+      invalidateCharList();
+      console.log('[STARTUP] Fetched Miss Delight image');
+    } catch (e) { console.error('[STARTUP] Miss Delight image error:', e.message); }
+  })();
 
   db.query(`
     CREATE TABLE IF NOT EXISTS users (
