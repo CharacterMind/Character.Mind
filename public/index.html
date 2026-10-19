@@ -22,7 +22,7 @@
 <link rel="icon" type="image/svg+xml" href="/logo-icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=293">
+<link rel="stylesheet" href="style.css?v=294">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -323,10 +323,8 @@
     <div class="sidebar-top">
       <div class="sidebar-header-row">
         <div class="logo" onclick="showHome()">
-          <span class="logo-bracket">[</span>
           <img class="logo-icon logo-img" src="/logo-icon.svg" alt="c.m">
           <span class="logo-text">character.mind</span>
-          <span class="logo-bracket">]</span>
         </div>
         <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" onclick="toggleSidebar()" title="Collapse sidebar">
           <svg viewBox="0 0 24 24" fill="currentColor" width="17" height="17"><path d="M18.41 16.59L13.82 12l4.59-4.59L17 6l-6 6 6 6zM6 6h2v12H6z"/></svg>
@@ -630,25 +628,10 @@
             <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
           </button>
         </div>
-        <!-- Call overlay (full-screen photo style) -->
+        <!-- Call overlay (Character.AI-style clean dark design) -->
         <div id="callOverlay" class="call-overlay" style="display:none">
-          <!-- CharacterMind branding -->
-          <div class="call-brand-logo">
-            <span class="call-brand-bracket">[</span>
-            <img src="/logo-icon.svg" alt="c.m" width="22" height="22" style="border-radius:5px;vertical-align:middle">
-            <span class="call-brand-text">character.mind</span>
-            <span class="call-brand-bracket">]</span>
-          </div>
-          <!-- Dark background + orbs — character image is a sibling, NOT inside, so screen-blend doesn't wash it out -->
-          <div class="call-bg" id="callBg">
-            <div class="call-orb call-orb-1"></div>
-            <div class="call-orb call-orb-2"></div>
-            <div class="call-orb call-orb-3"></div>
-            <div class="call-orb call-orb-4"></div>
-          </div>
+          <!-- Avatar circle — sibling of orbs so blend modes don't wash it out -->
           <div class="call-char-img" id="callCharImg"></div>
-          <!-- Bottom gradient scrim for readability -->
-          <div class="call-bg-scrim"></div>
           <!-- Voice On badge -->
           <div id="callVoiceOnBadge" class="call-voice-on-badge" style="display:none">Voice On</div>
           <!-- Top: mic error banner -->
@@ -656,9 +639,10 @@
             <strong>We can't hear you</strong>
             <p>If this problem persists, press here and toggle your microphone permissions off and back on.</p>
           </div>
-          <!-- Character name + status -->
+          <!-- Character name + brand + status -->
           <div class="call-status-area">
             <div class="call-char-name" id="callCharName"></div>
+            <div class="call-cm-brand">(character.mind)</div>
             <div class="call-status" id="callStatus">Calling...</div>
           </div>
           <!-- Bottom controls -->
@@ -673,7 +657,7 @@
               <button class="call-end-btn" onclick="endCallMode()">
                 <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" transform="rotate(135 12 12)"/></svg>
               </button>
-              <span class="call-btn-label">End</span>
+              <span class="call-btn-label">Hang up</span>
             </div>
           </div>
         </div>
@@ -1788,7 +1772,7 @@
   </div>
 </div>
 
-<script src="app.js?v=293"></script>
+<script src="app.js?v=294"></script>
 
 <!-- Session 90% warning toast -->
 <div id="sessionWarningToast">

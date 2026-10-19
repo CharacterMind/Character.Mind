@@ -1,5 +1,19 @@
 [
   {
+    "id": "v294-call-redesign",
+    "version": "v294",
+    "date": "Oct 2026",
+    "title": "Call Screen Redesign & Logo Cleanup",
+    "subtitle": "Clean dark call screen with big (character.mind) brand text, sidebar logo back to normal.",
+    "changed": [
+      "Call screen now uses a clean dark navy gradient instead of animated orbs",
+      "Character avatar shown as a circle at the top of the call screen",
+      "Large bold (character.mind) brand text shown center-screen during calls",
+      "Hang up button now labeled 'Hang up' instead of 'End'",
+      "Sidebar logo is back to plain character.mind without brackets"
+    ]
+  },
+  {
     "id": "v293-admin-readability",
     "version": "v293",
     "date": "Oct 2026",

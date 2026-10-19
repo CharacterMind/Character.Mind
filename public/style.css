@@ -1014,25 +1014,16 @@ html, body {
 .tts-btn.playing svg { animation: tts-pulse 1.2s ease infinite; }
 @keyframes tts-pulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
 
-/* ── Call overlay (full-screen photo style) ──────────────────────────────────── */
+/* ── Call overlay (Character.AI-style clean dark design) ─────────────────────── */
 .call-overlay {
   position: fixed; inset: 0; z-index: 900;
   overflow: hidden;
   display: flex; flex-direction: column; align-items: stretch;
+  background: linear-gradient(170deg, #0d1b2e 0%, #122038 55%, #172b4a 100%);
 }
-.call-brand-logo {
-  position: absolute; top: 14px; left: 0; right: 0; z-index: 20;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  opacity: 0.75;
-}
-.call-brand-text {
-  font-size: 12px; font-weight: 700; letter-spacing: 0.02em;
-  color: #fff;
-}
-.call-brand-bracket {
-  font-size: 13px; font-weight: 800; color: #fff; opacity: 0.7; line-height: 1;
-}
+.call-brand-logo { display: none; }
 .call-bg {
+  display: none; /* orbs hidden — clean gradient background only */
   position: absolute; inset: 0; z-index: 0;
   overflow: hidden;
   background: #06060f;
@@ -1073,23 +1064,18 @@ html, body {
   50%  { transform: translate(-65%,-55%) scale(0.75) rotate(180deg); opacity: 0.65; }
   75%  { transform: translate(-25%, 75%) scale(1.45) rotate(270deg); opacity: 0.95; }
 }
-/* Character avatar — circular portrait centered on screen (all sizes) */
+/* Character avatar — circular portrait, top of screen */
 .call-char-img {
   position: absolute;
   inset: auto;
-  width: 140px; height: 140px;
+  width: 150px; height: 150px;
   border-radius: 50%;
-  top: 22vh; left: 50%;
+  top: 8vh; left: 50%;
   transform: translateX(-50%);
   background-size: cover; background-position: center;
-  border: 3px solid rgba(255,255,255,0.25);
-  box-shadow: 0 0 60px rgba(0,0,0,0.5), 0 0 0 6px rgba(255,255,255,0.08), 0 0 50px 8px rgba(124,58,237,0.3);
+  border: 3px solid rgba(255,255,255,0.22);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.55);
   z-index: 5;
-  animation: callAvatarPulse 2.5s ease-in-out infinite;
-}
-@keyframes callAvatarPulse {
-  0%,100% { box-shadow: 0 0 60px rgba(0,0,0,0.5), 0 0 0 6px rgba(255,255,255,0.08), 0 0 50px 8px rgba(124,58,237,0.3); }
-  50%      { box-shadow: 0 0 80px rgba(0,0,0,0.35), 0 0 0 10px rgba(255,255,255,0.18), 0 0 80px 20px rgba(167,139,250,0.45); }
 }
 .call-bg-scrim { display: none; }
 .call-mic-error {
@@ -1106,17 +1092,23 @@ html, body {
 .call-mic-error p { font-size: 13px; color: rgba(255,255,255,.68); line-height: 1.45; margin: 0; }
 .call-status-area {
   position: absolute; z-index: 2;
-  top: calc(22vh + 158px); left: 0; right: 0;
-  text-align: center; padding: 0 24px;
+  top: calc(8vh + 168px); left: 0; right: 0;
+  text-align: center; padding: 0 20px;
   pointer-events: none;
 }
 .call-char-name {
-  font-size: 15px; font-weight: 600; color: rgba(255,255,255,.75);
-  letter-spacing: .02em; margin-bottom: 6px;
+  font-size: 18px; font-weight: 500; color: rgba(255,255,255,.9);
+  letter-spacing: .01em; margin-bottom: 8px;
+}
+/* Big brand text — the centerpiece, styled like the screenshot */
+.call-cm-brand {
+  font-size: 58px; font-weight: 800; color: #fff;
+  letter-spacing: -0.02em; line-height: 1.05;
+  margin-bottom: 14px;
 }
 .call-status {
-  font-size: 16px; font-weight: 500; color: rgba(255,255,255,.88);
-  letter-spacing: .01em; min-height: 24px;
+  font-size: 15px; font-weight: 500; color: rgba(255,255,255,.72);
+  letter-spacing: .01em; min-height: 22px;
   display: inline-block;
 }
 .call-status.interruptable {
@@ -1150,15 +1142,11 @@ html, body {
 /* Calling state: hide mute so End button centers */
 .call-overlay[data-state="calling"] #callMuteBtnWrap { display: none; }
 
-/* Desktop: larger avatar */
+/* Desktop: larger avatar and brand text */
 @media (min-width: 768px) {
-  .call-orb { filter: blur(45px); opacity: 1; }
-  .call-orb-1 { top: -25%; left: -25%; }
-  .call-orb-2 { bottom: -25%; right: -25%; }
-  .call-orb-3 { top: 5%; left: 5%; width: 80%; padding-top: 80%; }
-  .call-orb-4 { top: 15%; right: -30%; width: 90%; padding-top: 90%; filter: blur(65px); }
-  .call-char-img { width: 200px; height: 200px; top: 14vh; }
-  .call-status-area { top: calc(14vh + 220px); }
+  .call-char-img { width: 200px; height: 200px; top: 10vh; }
+  .call-status-area { top: calc(10vh + 220px); }
+  .call-cm-brand { font-size: 78px; }
 }
 
 /* ── Call limit modal ─────────────────────────────────────────────────────────── */
