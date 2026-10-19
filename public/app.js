@@ -368,6 +368,9 @@ function setPricingPeriod(period) {
 
 const ACTIVE_PLANS = ['advanced', 'x20'];
 
+// Update this URL to your Ko-fi / Buy Me a Coffee / PayPal.me donation link
+const DONATION_URL = 'https://ko-fi.com/charactermind';
+
 function renderPricingCards() {
   const container = document.getElementById('pricingCards');
   if (!container) return;
@@ -5150,6 +5153,11 @@ async function openUsageModal() {
   document.getElementById('usageModal').style.display = 'flex';
   const wrap = document.getElementById('resetLimitsWrap');
   if (wrap) wrap.hidden = !isOwner();
+  // Wire donation URL from constant; hide the row for the owner (they know it exists)
+  const donateBtn = document.getElementById('usageDonateBtn');
+  if (donateBtn) donateBtn.href = DONATION_URL;
+  const donateRow = document.getElementById('usageDonateRow');
+  if (donateRow) donateRow.hidden = isOwner();
   // Load fresh data then update
   try {
     const res = await fetch('/api/usage');
