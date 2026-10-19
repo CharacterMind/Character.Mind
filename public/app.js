@@ -7115,9 +7115,8 @@ function callModeTTS(bubble) {
   setCallState('responding');
   window.speechSynthesis?.cancel();
   stopCallAudio();
-  // No browser-voice fallback: if the HD voice is unavailable the reply stays as text and the call keeps listening.
   if (elevenTTSOk) { callModeElevenTTS(text); return; }
-  listenForSpeech();
+  callModeBrowserTTS(text);
 }
 
 let elevenTTSOk = true;
@@ -7222,8 +7221,19 @@ async function callModeElevenTTS(text) {
       nextFetch = prefetch;
     }
   } catch (_) {
-    if (callModeActive && gen === callGen) listenForSpeech();
+    if (callModeActive && gen === callGen) callModeBrowserTTS(text);
   }
+}
+
+function callModeBrowserTTS(text) {
+  const clean = text.replace(/\*[^*]*\*/g, '').replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim();
+  if (!clean || !window.speechSynthesis) { if (callModeActive) setTimeout(() => listenForSpeech(), 300); return; }
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(clean.slice(0, 300));
+  if (selectedVoice) u.voice = selectedVoice;
+  u.onend = () => { if (callModeActive) listenForSpeech(); };
+  u.onerror = () => { if (callModeActive) setTimeout(() => listenForSpeech(), 300); };
+  window.speechSynthesis.speak(u);
 }
 
 // ── Call mode ─────────────────────────────────────────────────────────────────
