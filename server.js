@@ -6576,6 +6576,26 @@ app.get('/api/game/hangman/word', requireAuthGame, (req, res) => {
 // ── Announcements ──────────────────────────────────────────────────────────
 const ANNOUNCEMENTS = [
   {
+    id: 'v272-grind-fixes',
+    version: 'v272',
+    date: 'Oct 2026',
+    title: 'Daily Grind, Missions & Fixes',
+    subtitle: 'Coins every day, missions that animate, and a bunch of stuff that was broken.',
+    added: [
+      'Daily check-in — open the app each day to earn coins automatically (+10 base, streak bonuses at 3, 7, 14 and 30 days)',
+      'Mission swipe animation — claimed missions slide out and new ones slide in',
+      'Admin-configurable mission reward multiplier (0.1×–10×)',
+      'Session Credits toggle — turn token credit on/off from the Usage panel',
+    ],
+    fixed: [
+      'Call screen orbs now render behind the character image instead of on top of it',
+      'Miss Delight (and all characters) can now see images — vision capability override added to system prompt',
+      'Image capability fix now also applies when regenerating a response',
+      'Call limit modal timer no longer shows "--:--:--" — always shows correct countdown to next reset',
+      'Staying signed in across deploys — server restarts no longer sign everyone out',
+    ],
+  },
+  {
     id: 'v255-miss-delight',
     version: 'v255',
     date: 'Oct 2026',
