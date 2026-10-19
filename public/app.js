@@ -3290,6 +3290,7 @@ async function generateGreeting() {
       if (res.status === 429) {
         if (err.type === 'session') startCooldown(err.cooldownUntil, 'session', true);
         else if (err.type === 'weekly') startCooldown(err.resetsAt, 'weekly', true);
+        else { const b = document.getElementById('sendBtn'); if (b) b.disabled = false; }
         return;
       }
       document.getElementById('sendBtn').disabled = false;
@@ -5354,11 +5355,11 @@ function renderLeaderboard(d, type) {
       <div class="lb-row">
         <span class="lb-pos">${medals[i] || '#' + r.position}</span>
         <span class="lb-badge">${isTok ? '🎟️' : (r.rank?.emoji || '')}</span>
-        <span class="lb-name">${escHtml(r.name)}</span>
+        <span class="lb-name">${r.isMe ? 'You' : escHtml(r.name)}</span>
         <span class="lb-score">${fmt(r.score)} ${label}</span>
       </div>`).join('');
   }
-  if (d.me) {
+  if (d.me && !d.inBoard) {
     html += `<div class="lb-me-row"><span style="font-size:14px">${isTok ? '🎟️' : (d.me.rank?.emoji || '')}</span><span style="flex:1;color:var(--text1);font-weight:600">You</span><span class="lb-score">${fmt(d.me.score)} ${label}</span></div>`;
   }
   if (!isTok && d.ranks) {
@@ -7515,7 +7516,7 @@ function interruptCall() {
   callGen++;
   stopActiveTTS();
   window.speechSynthesis.cancel();
-  if (callAudio) { const a = callAudio; stopCallAudio(); a.onended && a.onended(); return; }
+  if (callAudio) { const a = callAudio; stopCallAudio(); a.onended && a.onended(); if (callModeActive) setTimeout(() => listenForSpeech(), 100); return; }
   if (callModeActive) listenForSpeech();
 }
 

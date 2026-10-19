@@ -17,6 +17,7 @@ const WebSocket = require('ws');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+const SITE_URL = process.env.SITE_URL || 'https://charactermind.onrender.com';
 
 // Railway (and most PaaS) sit behind a load-balancer proxy.
 // Without this, req.protocol is always 'http', secure cookies are never set,
@@ -6192,18 +6193,21 @@ app.get('/api/leaderboard', requireAuth, async (req, res) => {
   try {
     const scoreCol = type === 'tokens' ? 'cm_tokens' : 'coins_earned_all_time';
     const { rows } = await db.query(
-      `SELECT name, ${scoreCol} AS score FROM users WHERE ${scoreCol} > 0 ORDER BY ${scoreCol} DESC LIMIT 10`
+      `SELECT name, ${scoreCol} AS score, google_id FROM users WHERE ${scoreCol} > 0 ORDER BY ${scoreCol} DESC LIMIT 10`
     );
     const myR = await db.query('SELECT name, coins_earned_all_time, cm_tokens FROM users WHERE google_id=$1', [req.user.googleId]);
     const me = myR.rows[0] || {};
     const myScore = type === 'tokens' ? (me.cm_tokens || 0) : (me.coins_earned_all_time || 0);
+    const inBoard = rows.some(r => r.google_id === req.user.googleId);
     res.json({
       type,
+      inBoard,
       board: rows.map((r, i) => ({
         position: i + 1,
         name: r.name || 'Anonymous',
         score: Number(r.score) || 0,
         rank: getRank(Number(r.score) || 0),
+        isMe: r.google_id === req.user.googleId,
       })),
       me: { name: me.name, score: myScore, rank: getRank(me.coins_earned_all_time || 0) },
       ranks: RANKS,
