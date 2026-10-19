@@ -642,7 +642,7 @@ if (GOOGLE_AUTH_ENABLED) {
           lim.coinsMonthlyReset = Number(row.coins_monthly_reset) || 0;
           lim.coinsEarnedAllTime = Number(row.coins_earned_all_time) || 0;
           lim.subscriptionTier = effectiveTier(lim);
-          lim.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email); // owner account: no token/coin costs
+          lim.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email) || TEST_ACCOUNTS.has(user.email);
           lim.tierLoaded = true;
           checkMonthlyCoins(user.googleId, lim).catch(() => {});
           maybeTrackLogin(user.googleId);
@@ -765,7 +765,7 @@ async function ensureTierLoaded(user) {
   u.violenceStrikes = row.violence_strikes || 0;
   u.banUntil = row.ban_until ? new Date(row.ban_until).getTime() : null;
   u.subscriptionTier = effectiveTier(u);
-  u.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email);
+  u.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email) || TEST_ACCOUNTS.has(user.email);
   u.tierLoaded = true;
   await checkMonthlyCoins(user.googleId, u);
 }
@@ -3909,6 +3909,9 @@ const OWNER_EMAILS = new Set(['support.charactermind@gmail.com']); // admin tool
 // Only the Character.Mind business account gets the top plan without paying. Every other account (including the
 // other admin login) gets exactly what its own subscription pays for.
 const FREE_TOP_PLAN_EMAILS = new Set(['support.charactermind@gmail.com']);
+// TEST_ACCOUNTS env var: comma-separated emails that get neverLimit=true (no usage/service-coin drain) for testing.
+// No admin or plan privileges — just unlimited usage so testing doesn't burn the service coin budget.
+const TEST_ACCOUNTS = new Set((process.env.TEST_ACCOUNTS || '').split(',').map(e => e.trim()).filter(Boolean));
 function planFor(email, dbTier) { return FREE_TOP_PLAN_EMAILS.has(email) ? 'x20' : (dbTier || 'free'); }
 
 function effectiveTier(u) {
