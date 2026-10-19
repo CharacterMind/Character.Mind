@@ -4461,6 +4461,32 @@ async function adminGiveawaySend() {
   if (btn) { btn.textContent = 'Send Coins 🎁'; btn.disabled = false; }
 }
 
+async function adminSendCoinsToEmail() {
+  if (!isOwner()) return;
+  const email = (document.getElementById('sendToEmail')?.value || '').trim();
+  const amount = parseInt(document.getElementById('sendToEmailAmount')?.value) || 0;
+  const info = document.getElementById('sendToEmailResult');
+  if (!email) { if (info) info.textContent = 'Enter an email address.'; return; }
+  if (!amount || amount < 1) { if (info) info.textContent = 'Enter a valid amount.'; return; }
+  const btn = document.getElementById('sendToEmailBtn');
+  if (btn) { btn.textContent = 'Sending…'; btn.disabled = true; }
+  if (info) info.textContent = '';
+  try {
+    const d = await fetch('/api/admin/send-coins-to-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, amount })
+    }).then(r => r.json());
+    if (d.ok) {
+      showWarning(`💌 Sent ${d.coins} coins to ${d.name || d.email} ✓`, 6000);
+      if (info) info.textContent = `✓ ${d.coins} coins → ${d.name || d.email}`;
+    } else {
+      if (info) info.textContent = d.error || 'Failed.';
+    }
+  } catch (_) { if (info) info.textContent = 'Request failed.'; }
+  if (btn) { btn.textContent = 'Send 💌'; btn.disabled = false; }
+}
+
 // ── Usage Modal ───────────────────────────────────────────────────────────────
 let usageModalTimer = null;
 let lastKnownUsage = null;

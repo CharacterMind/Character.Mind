@@ -4896,6 +4896,25 @@ app.post('/api/admin/donate-coins', requireAuth, async (req, res) => {
   res.json({ ok: true, preview: false, users: n, distributed: updated, pool: poolAmt, perUser, total: poolAmt });
 });
 
+// ── Admin send coins to specific user ──────────────────────────────────────────
+app.post('/api/admin/send-coins-to-email', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  if (!db) return res.status(503).json({ error: 'No database' });
+  const { email, amount } = req.body;
+  if (!email || typeof email !== 'string') return res.status(400).json({ error: 'Email required' });
+  const coins = Math.max(1, Math.min(100000, parseInt(amount) || 0));
+  if (!coins) return res.status(400).json({ error: 'Invalid amount' });
+  const { rows } = await db.query(
+    `SELECT google_id, name, cm_coins FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+    [email.trim()]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'No user found with that email' });
+  const user = rows[0];
+  await db.query('UPDATE users SET cm_coins = cm_coins + $1 WHERE google_id = $2', [coins, user.google_id]);
+  console.log(`[admin] send-coins-to-email: ${coins} → ${email} (${user.google_id})`);
+  res.json({ ok: true, email: email.trim(), name: user.name, coins, newBalance: user.cm_coins + coins });
+});
+
 // ── PayPal ─────────────────────────────────────────────────────────────────────
 const COIN_USD_VALUE = 0.01; // 1 C.M. Coin = $0.01 USD
 const PLAN_MONTHLY_USD = { advanced: 9.99, x20: 39.99, x50: 79.99, x100: 159.99, x200: 399.99 };
