@@ -22,7 +22,7 @@
 <link rel="icon" type="image/webp" href="/logo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=262">
+<link rel="stylesheet" href="style.css?v=263">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -299,6 +299,21 @@
         </div>
         <div id="serviceCoinsStatus" style="font-size:12px;color:var(--accent-l);margin-bottom:8px;min-height:16px"></div>
         <button class="reset-limits-btn" onclick="adminAddServiceCoins()" id="serviceCoinsAddBtn" style="width:100%;text-align:center;background:linear-gradient(135deg,#854d0e,#ca8a04)">Add Coins 🪙</button>
+      </div>
+
+      <!-- Mission Reward Multiplier -->
+      <div id="missionMultWrap" style="margin-top:16px;border-top:1px solid var(--border2);padding-top:16px;text-align:left">
+        <p style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);margin-bottom:6px">🎯 Mission Reward Multiplier</p>
+        <p style="font-size:11px;color:var(--text3);margin:0 0 10px">Multiply all mission coin rewards. 1x = default, 2x = double coins, etc.</p>
+        <div id="missionMultDisplay" style="font-size:13px;font-weight:600;color:var(--accent-l);margin-bottom:10px">Current: loading…</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <div style="flex:1">
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Multiplier (0.1–10)</label>
+            <input id="missionMultInput" type="number" value="1" min="0.1" max="10" step="0.1" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text1);font-size:13px;padding:6px 10px;outline:none;font-family:inherit"/>
+          </div>
+        </div>
+        <div id="missionMultStatus" style="font-size:12px;color:var(--accent-l);margin-bottom:8px;min-height:16px"></div>
+        <button class="reset-limits-btn" onclick="adminSetMissionMult()" id="missionMultBtn" style="width:100%;text-align:center;background:linear-gradient(135deg,#3730a3,#7c3aed)">Set Multiplier 🎯</button>
       </div>
     </div>
   </div>
@@ -1767,7 +1782,7 @@
   </div>
 </div>
 
-<script src="app.js?v=262"></script>
+<script src="app.js?v=263"></script>
 
 <!-- Session 90% warning toast -->
 <div id="sessionWarningToast">

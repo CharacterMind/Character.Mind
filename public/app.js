@@ -4782,6 +4782,37 @@ async function toggleSessionCredits() {
   } catch (_) {}
 }
 
+async function adminLoadMissionMult() {
+  if (!isOwner()) return;
+  try {
+    const d = await fetch('/api/admin/mission-mult').then(r => r.json());
+    const el = document.getElementById('missionMultDisplay');
+    if (el) el.textContent = `Current: ${d.mult}x`;
+    const inp = document.getElementById('missionMultInput');
+    if (inp) inp.value = d.mult;
+  } catch (_) {}
+}
+
+async function adminSetMissionMult() {
+  if (!isOwner()) return;
+  const inp = document.getElementById('missionMultInput');
+  const statusEl = document.getElementById('missionMultStatus');
+  const btn = document.getElementById('missionMultBtn');
+  const mult = parseFloat(inp?.value);
+  if (!isFinite(mult) || mult < 0.1 || mult > 10) { if (statusEl) statusEl.textContent = 'Enter 0.1–10'; return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    const d = await fetch('/api/admin/mission-mult', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mult }),
+    }).then(r => r.json());
+    if (d.ok) {
+      if (statusEl) statusEl.textContent = `Set to ${d.mult}x ✓`;
+      await adminLoadMissionMult();
+    } else { if (statusEl) statusEl.textContent = d.error || 'Failed.'; }
+  } catch (_) { if (statusEl) statusEl.textContent = 'Network error.'; }
+  if (btn) { btn.disabled = false; btn.textContent = 'Set Multiplier'; }
+}
+
 async function adminResetLimits() {
   if (!isOwner()) return;
   const btn = document.getElementById('resetLimitsBtn');
@@ -5429,7 +5460,7 @@ async function switchCompTab(tab) {
 }
 async function loadCompTab(tab) {
   if (tab === 'leaderboard') await loadLeaderboard(_lbTab);
-  else await loadMissions();
+  else { await loadMissions(); if (isOwner()) adminLoadMissionMult(); }
 }
 async function switchLbTab(tab) {
   _lbTab = tab;
@@ -5490,13 +5521,15 @@ async function loadMissions() {
   }
 }
 function renderMissions(d) {
-  const missionCard = (m) => {
+  const mult = d.rewardMult || 1;
+  const multBadge = mult > 1 ? ` <span style="font-size:10px;background:#f59e0b;color:#000;border-radius:4px;padding:1px 5px;font-weight:700">${mult}x</span>` : '';
+  const missionCard = (m, isNew) => {
     const pct = Math.min(100, Math.round((m.progress / m.target) * 100));
     const claimable = m.done && !m.claimed;
-    return `<div class="mission-card${m.claimed ? ' done' : ''}">
+    return `<div class="mission-card${m.claimed ? ' done' : ''}${isNew ? ' mission-card-enter' : ''}" data-mission-id="${m.id}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <span class="mission-label">${m.label}</span>
-        <span class="mission-reward">+${m.reward} 🪙</span>
+        <span class="mission-reward">+${m.reward} 🪙${mult > 1 ? ` <span style="font-size:9px;background:#f59e0b;color:#000;border-radius:3px;padding:1px 4px;font-weight:700">${mult}x</span>` : ''}</span>
       </div>
       <div class="mission-bar-wrap"><div class="mission-bar" style="width:${pct}%"></div></div>
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -5507,43 +5540,54 @@ function renderMissions(d) {
     </div>`;
   };
 
-  const section = (title, missions, completed, total) => {
+  const section = (title, missions, completed, total, prevIds) => {
     const counter = `<span style="font-size:11px;font-weight:500;color:var(--accent-l);margin-left:8px">${completed}/${total} complete</span>`;
-    let html = `<div class="mission-section-title">${title}${counter}</div>`;
+    let html = `<div class="mission-section-title">${title}${counter}${multBadge}</div>`;
     const unclaimed = missions.filter(m => !m.claimed);
     const claimed   = missions.filter(m => m.claimed);
     if (unclaimed.length === 0 && claimed.length === 0) {
       html += `<div style="text-align:center;padding:20px 0;font-size:13px;color:var(--text3)">No missions yet.</div>`;
     } else if (unclaimed.length === 0 && completed >= total) {
-      // all pool missions done
       const period = title.includes('Weekly') ? 'next week' : 'tomorrow';
-      html += claimed.map(missionCard).join('');
+      html += claimed.map(m => missionCard(m, prevIds && !prevIds.has(m.id))).join('');
       html += `<div style="text-align:center;padding:16px 0;font-size:13px;color:var(--accent-l)">🎉 All missions complete! Check back ${period}.</div>`;
     } else {
-      html += claimed.map(missionCard).join('');
-      html += unclaimed.map(missionCard).join('');
+      html += claimed.map(m => missionCard(m, prevIds && !prevIds.has(m.id))).join('');
+      html += unclaimed.map(m => missionCard(m, prevIds && !prevIds.has(m.id))).join('');
     }
     return html;
   };
 
+  const prevIds = new Set([...document.querySelectorAll('[data-mission-id]')].map(el => el.dataset.missionId));
+  const hasPrev = prevIds.size > 0;
   document.getElementById('missionsBody').innerHTML =
-    section('Daily Missions',  d.daily,  d.dailyCompleted  || 0, d.dailyTotal  || 0) +
-    section('Weekly Missions', d.weekly, d.weeklyCompleted || 0, d.weeklyTotal || 0);
+    section('Daily Missions',  d.daily,  d.dailyCompleted  || 0, d.dailyTotal  || 0, hasPrev ? prevIds : null) +
+    section('Weekly Missions', d.weekly, d.weeklyCompleted || 0, d.weeklyTotal || 0, hasPrev ? prevIds : null);
 }
+
 async function claimMission(id) {
+  const card = document.querySelector(`[data-mission-id="${id}"]`);
+  if (card) {
+    card.classList.add('mission-card-exit');
+    await new Promise(r => setTimeout(r, 360));
+  }
   try {
     const d = await fetch('/api/missions/claim', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id })
     }).then(r => r.json());
     if (d.ok) {
-      _missionsCache = null; // force reload
       showWarning(`+${d.reward} coins claimed! 🪙`, 3000);
+      _missionsCache = null;
       await loadMissions();
       await refreshUsageManual();
     } else {
+      if (card) card.classList.remove('mission-card-exit');
       showWarning(d.error || 'Claim failed', 3000);
     }
-  } catch (_) { showWarning('Request failed', 3000); }
+  } catch (_) {
+    if (card) card.classList.remove('mission-card-exit');
+    showWarning('Request failed', 3000);
+  }
 }
 
 function renderWhatsNew(announcements, body) {

@@ -1623,6 +1623,7 @@ html, body {
 .mission-card {
   border: 1px solid var(--border2); border-radius: 10px; padding: 10px 12px;
   margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px;
+  overflow: hidden;
 }
 .mission-card.done { border-color: var(--accent); }
 .mission-label { font-size: 13px; font-weight: 600; color: var(--text1); }
@@ -1636,6 +1637,17 @@ html, body {
 }
 .mission-claim-btn:disabled { opacity: .45; cursor: default; }
 .mission-section-title { font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text3); margin: 12px 0 6px; }
+@keyframes missionSwipeOut {
+  0%   { transform: translateX(0);     opacity: 1; max-height: 120px; }
+  60%  { transform: translateX(-115%); opacity: 0; max-height: 120px; }
+  100% { transform: translateX(-115%); opacity: 0; max-height: 0; margin-bottom: 0; padding: 0; }
+}
+@keyframes missionSwipeIn {
+  from { transform: translateX(115%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+.mission-card-exit  { animation: missionSwipeOut .38s cubic-bezier(0.4,0,1,1) forwards; pointer-events: none; }
+.mission-card-enter { animation: missionSwipeIn  .38s cubic-bezier(0,0,0.2,1) forwards; }
 .whats-new-head {
   position: sticky; top: 0; z-index: 2; background: #0f0f11;
   display: flex; justify-content: space-between; align-items: center;

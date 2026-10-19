@@ -428,6 +428,7 @@ if (db) {
     )
   `).catch(err => console.error('app_config table init error:', err));
   initServiceCoins().catch(e => console.error('[service-coins] startup error:', e.message));
+  initMissionMult().catch(e => console.error('[mission-mult] startup error:', e.message));
 
   db.query(`
     CREATE TABLE IF NOT EXISTS processed_coin_orders (
@@ -1300,6 +1301,22 @@ async function addServiceCoinsBalance(amount) {
     "INSERT INTO app_config(key,value,updated_at) VALUES('service_coins',$1,NOW()) ON CONFLICT(key) DO UPDATE SET value=$1,updated_at=NOW()",
     [String(serviceCoinsBal)]
   );
+}
+
+// ── Mission Reward Multiplier ─────────────────────────────────────────────────
+let missionRewardMult = 1; // owner-configurable reward multiplier (e.g. 2 = double coins)
+
+async function initMissionMult() {
+  if (!db) return;
+  try {
+    const r = await db.query("SELECT value FROM app_config WHERE key='mission_reward_mult'");
+    if (r.rows.length) missionRewardMult = parseFloat(r.rows[0].value) || 1;
+    console.log('[mission-mult] Multiplier:', missionRewardMult);
+  } catch (e) { console.error('[mission-mult] init error:', e.message); }
+}
+
+function applyMissionMult(reward) {
+  return Math.round(reward * missionRewardMult);
 }
 
 function addTokens(sid, tokens) {
@@ -3949,6 +3966,23 @@ app.post('/api/admin/service-coins/add', requireAuth, async (req, res) => {
   res.json({ ok: true, coins: serviceCoinsBal });
 });
 
+app.get('/api/admin/mission-mult', requireAuth, (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  res.json({ mult: missionRewardMult });
+});
+
+app.post('/api/admin/mission-mult', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  const mult = parseFloat(req.body.mult);
+  if (!isFinite(mult) || mult < 0.1 || mult > 10) return res.status(400).json({ error: 'Multiplier must be 0.1–10' });
+  missionRewardMult = Math.round(mult * 10) / 10;
+  if (db) db.query(
+    "INSERT INTO app_config(key,value,updated_at) VALUES('mission_reward_mult',$1,NOW()) ON CONFLICT(key) DO UPDATE SET value=$1,updated_at=NOW()",
+    [String(missionRewardMult)]
+  ).catch(e => console.error('[mission-mult] save error:', e.message));
+  res.json({ ok: true, mult: missionRewardMult });
+});
+
 // Which build is running. The page checks this now and then and offers a reload when the site has been updated,
 // so nobody keeps chatting on a stale copy of the app.
 const BUILD_ID = (process.env.RENDER_GIT_COMMIT || String(Date.now())).slice(0, 12);
@@ -6383,14 +6417,16 @@ app.get('/api/missions', requireAuth, async (req, res) => {
   try {
     const { rows } = await db.query('SELECT missions_data FROM users WHERE google_id=$1', [req.user.googleId]);
     const data = parseMissionsData(rows[0]?.missions_data);
-    const daily  = buildMissionList(DAILY_MISSION_POOL,  data, DAILY_SHOW);
-    const weekly = buildMissionList(WEEKLY_MISSION_POOL, data, WEEKLY_SHOW);
+    const applyMult = ms => ms.map(m => ({ ...m, reward: applyMissionMult(m.reward) }));
+    const daily  = applyMult(buildMissionList(DAILY_MISSION_POOL,  data, DAILY_SHOW));
+    const weekly = applyMult(buildMissionList(WEEKLY_MISSION_POOL, data, WEEKLY_SHOW));
     const dailyClaimedCount  = DAILY_MISSION_POOL.filter(m => data.claimed.includes(m.id)).length;
     const weeklyClaimedCount = WEEKLY_MISSION_POOL.filter(m => data.claimed.includes(m.id)).length;
     res.json({
       daily, weekly,
       dailyCompleted: dailyClaimedCount,  dailyTotal: DAILY_MISSION_POOL.length,
       weeklyCompleted: weeklyClaimedCount, weeklyTotal: WEEKLY_MISSION_POOL.length,
+      rewardMult: missionRewardMult,
     });
   } catch (e) { console.error('[missions]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
 });
@@ -6409,14 +6445,15 @@ app.post('/api/missions/claim', requireAuth, async (req, res) => {
     const progress = getMissionProgress(mission, data);
     if (progress < mission.target) return res.status(400).json({ error: 'Mission not complete yet', progress, target: mission.target });
     data.claimed.push(id);
+    const actualReward = applyMissionMult(mission.reward);
     const r = await db.query(
       'UPDATE users SET missions_data=$1, cm_coins=cm_coins+$2, coins_earned_all_time=COALESCE(coins_earned_all_time,0)+$2 WHERE google_id=$3 RETURNING cm_coins, coins_earned_all_time',
-      [JSON.stringify(data), mission.reward, uid]
+      [JSON.stringify(data), actualReward, uid]
     );
     const u = getLimits(uid);
-    u.cmCoins = (u.cmCoins || 0) + mission.reward;
-    u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + mission.reward;
-    res.json({ ok: true, reward: mission.reward, newBalance: r.rows[0]?.cm_coins || u.cmCoins });
+    u.cmCoins = (u.cmCoins || 0) + actualReward;
+    u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + actualReward;
+    res.json({ ok: true, reward: actualReward, newBalance: r.rows[0]?.cm_coins || u.cmCoins });
   } catch (e) { console.error('[missions/claim]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
 });
 
