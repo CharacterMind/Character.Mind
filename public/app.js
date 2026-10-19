@@ -413,8 +413,8 @@ function setPricingPeriod(period) {
   // Yearly prices are only shown when yearly PayPal plans really exist (otherwise the person would be charged the monthly price).
   if (!yearlyAvailable) period = 'monthly';
   pricingPeriod = period;
-  document.getElementById('pricingBtnMonthly').classList.toggle('pt-active', period === 'monthly');
-  document.getElementById('pricingBtnAnnual').classList.toggle('pt-active', period === 'annual');
+  document.getElementById('pricingBtnMonthly')?.classList.toggle('pt-active', period === 'monthly');
+  document.getElementById('pricingBtnAnnual')?.classList.toggle('pt-active', period === 'annual');
   renderPricingCards();
 }
 
@@ -570,43 +570,17 @@ async function openPaypalCheckout(planKey, period) {
   const price = yearly ? plan.annual : plan.monthly;
   const periodLabel = yearly ? 'yr' : 'mo';
 
-  // User's coin balance offsets the price
-  const userCoins = lastKnownUsage?.cmCoins || 0;
-  const userCoinValueUSD = userCoins * COIN_USD_VALUE;
-  const discountUSD = Math.min(price, userCoinValueUSD);
-  const finalPrice = price - discountUSD;
-
   const origPriceEl = document.getElementById('paypalCheckoutOrigPrice');
   const priceEl = document.getElementById('paypalCheckoutPrice');
-  if (discountUSD > 0) {
-    if (origPriceEl) { origPriceEl.textContent = `$${price.toFixed(2)} / ${periodLabel}`; origPriceEl.style.display = ''; }
-    if (priceEl) { priceEl.textContent = `$${finalPrice.toFixed(2)} / ${periodLabel}`; priceEl.classList.add('co-discounted'); }
-  } else {
-    if (origPriceEl) origPriceEl.style.display = 'none';
-    if (priceEl) { priceEl.textContent = `$${price.toFixed(2)} / ${periodLabel}`; priceEl.classList.remove('co-discounted'); }
-  }
+  if (origPriceEl) origPriceEl.style.display = 'none';
+  if (priceEl) { priceEl.textContent = `$${price.toFixed(2)} / ${periodLabel}`; priceEl.classList.remove('co-discounted'); }
 
   const tot = document.getElementById('co-total-display');
-  if (tot) tot.textContent = `$${finalPrice.toFixed(2)}`;
+  if (tot) tot.textContent = `$${price.toFixed(2)}`;
 
-  // Coin row: show coins spent and leftover
+  // Coin row hidden — subscriptions are billed at full price by PayPal
   const coinRow = document.getElementById('co-coin-value-row');
-  if (coinRow && userCoins > 0 && discountUSD > 0) {
-    const coinsSpent = Math.ceil(discountUSD / COIN_USD_VALUE);
-    const coinsLeft  = userCoins - coinsSpent;
-    document.getElementById('co-coin-label').textContent = `🪙 ${coinsSpent.toLocaleString()} coins applied`;
-    document.getElementById('co-coin-value').textContent = `-$${discountUSD.toFixed(2)}`;
-    const saveEl = document.getElementById('co-coin-save');
-    if (finalPrice === 0) {
-      saveEl.textContent = `Fully covered · ${coinsLeft.toLocaleString()} coin${coinsLeft !== 1 ? 's' : ''} remaining in your wallet`;
-    } else {
-      saveEl.textContent = `${coinsLeft.toLocaleString()} coin${coinsLeft !== 1 ? 's' : ''} remaining · $${finalPrice.toFixed(2)} still due`;
-    }
-    saveEl.style.display = '';
-    coinRow.style.display = '';
-  } else if (coinRow) {
-    coinRow.style.display = 'none';
-  }
+  if (coinRow) coinRow.style.display = 'none';
   document.getElementById('paypal-checkout-status').textContent = '';
   document.getElementById('paypal-checkout-status').style.color = '';
   document.getElementById('paypalCheckoutModal').style.display = 'flex';
@@ -1021,11 +995,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (!av || !currentChar) return;
     showCharVoice(currentChar.name, currentChar.color, av);
   });
-  document.addEventListener('mouseout', (e) => {
+  document.addEventListener('mouseleave', (e) => {
     const av = e.target.closest('.msg-avatar');
-    if (!av) return;
+    if (!av || av.contains(e.relatedTarget)) return;
     hideCharVoice();
-  });
+  }, true);
 
   loadColorblindMode();
   initSidebarContextMenu();
@@ -3270,7 +3244,7 @@ async function generateGreeting() {
   const myEpoch = chatEpoch;   // taken BEFORE any waiting, so a chat switch during the request is noticed
   showTyping(true);
   isStreaming = true;
-  document.getElementById('sendBtn').disabled = true;
+  document.getElementById('sendBtn')?.setAttribute('disabled', '');
 
   let msgEl = null, bubble = null, gotFirst = false;
   const watch = makeStreamWatch();
@@ -4195,6 +4169,7 @@ function usageFillClass(pct) {
 function updateUsageBars(usage) {
   // a refresh in the middle of a reply already contains that reply's cost: remember it, but draw nothing until the reply is finished
   if (isStreaming) { lastKnownUsage = usage; return; }
+  if (usage.callWindowResetsAt) lastKnownCallResetsAt = usage.callWindowResetsAt;
   renderUsageBanners(usage);
   updateUsageModal(usage);
   updateSettingsUsage(usage);
@@ -4608,24 +4583,26 @@ async function toggleAutoSpin() {
   if (spinBtn) spinBtn.disabled = true;
 
   const resultEl = document.getElementById('slotResult');
-  for (let i = 0; i < count; i++) {
-    if (slotAutoStop) break;
-    const tokenBal = lastKnownUsage?.cmTokens ?? 0;
-    const bet = parseInt(document.getElementById('slotBetSlider')?.value || '10');
-    if (tokenBal < bet) {
-      if (resultEl) { resultEl.textContent = 'Out of tokens!'; resultEl.className = 'slot-result lose'; }
-      break;
+  try {
+    for (let i = 0; i < count; i++) {
+      if (slotAutoStop) break;
+      const tokenBal = lastKnownUsage?.cmTokens ?? 0;
+      const bet = parseInt(document.getElementById('slotBetSlider')?.value || '10');
+      if (tokenBal < bet) {
+        if (resultEl) { resultEl.textContent = 'Out of tokens!'; resultEl.className = 'slot-result lose'; }
+        break;
+      }
+      if (resultEl) { resultEl.textContent = `Auto spin ${i + 1}/${count}…`; resultEl.className = 'slot-result'; }
+      const ok = await spinSlots();
+      if (!ok) break;
+      if (i < count - 1 && !slotAutoStop) await new Promise(r => setTimeout(r, 400));
     }
-    if (resultEl) { resultEl.textContent = `Auto spin ${i + 1}/${count}…`; resultEl.className = 'slot-result'; }
-    const ok = await spinSlots();
-    if (!ok) break;
-    if (i < count - 1 && !slotAutoStop) await new Promise(r => setTimeout(r, 400));
+  } finally {
+    slotAutoRunning = false;
+    slotAutoStop = false;
+    if (autoBtn) { autoBtn.textContent = 'AUTO'; autoBtn.classList.remove('stopping'); }
+    if (spinBtn) spinBtn.disabled = false;
   }
-
-  slotAutoRunning = false;
-  slotAutoStop = false;
-  if (autoBtn) { autoBtn.textContent = 'AUTO'; autoBtn.classList.remove('stopping'); }
-  if (spinBtn) spinBtn.disabled = false;
 
 }
 
@@ -6205,6 +6182,8 @@ function startTypewriter(bubble, msgEl) {
   twBubble = bubble; twMsgEl = msgEl; twRevealed = ''; twQueue = '';
   twStreamDone = false;
   if (twInterval) clearInterval(twInterval);
+  // During calls the text is spoken immediately — render it as fast as possible
+  if (callModeActive) { twSpd = TW_SPEED.max; const perMsC = TW_SPEED.max.chars / TW_SPEED.max.ms; let creditC = 0, lastTickC = Date.now(); twInterval = setInterval(() => { const nowC = Date.now(); creditC += (nowC - lastTickC) * perMsC; lastTickC = nowC; creditC = Math.max(creditC, Math.ceil(twQueue.length / 4)); if (!twQueue.length) { creditC = 0; if (twOnDrain) { const cb = twOnDrain; twOnDrain = null; cb(); } return; } const nC = Math.min(twQueue.length, Math.floor(creditC)); if (nC < 1) return; creditC -= nC; const chunkC = twQueue.slice(0, nC); twQueue = twQueue.slice(nC); twRevealed += chunkC; if (twBubble && nowC - twLastRender >= 33) { setBubbleRaw(twBubble, twRevealed, twRevealed.length > 900); twLastRender = nowC; scrollToBottom(); } updateStreamTokens(twMsgEl, twRevealed.length); }, TW_SPEED.max.ms); return; }
   // Opis (opus) model uses faster streaming — bump speed one level up
   const effortKey = selectedModelTier === 'opus'
     ? (selectedEffort === 'max' || selectedEffort === 'extra' ? 'max' : selectedEffort === 'high' ? 'extra' : selectedEffort === 'medium' ? 'high' : 'medium')
@@ -6430,7 +6409,7 @@ function loadCharVoice() {
     const ev = localStorage.getItem(getEdgeVoiceKey());
     if (ev && EDGE_TTS_VOICES.some(v => v.id === ev)) edgeVoiceName = ev;
     const saved = localStorage.getItem(getCharVoiceKey());
-    if (saved) { const vs = window.speechSynthesis.getVoices(); selectedVoice = vs.find(v => v.voiceURI === saved) || null; }
+    if (saved && window.speechSynthesis) { const vs = window.speechSynthesis.getVoices(); selectedVoice = vs.find(v => v.voiceURI === saved) || null; }
   } catch(_) {}
 }
 
@@ -6486,6 +6465,7 @@ function renderVoiceList() {
   }
 
   // Browser voices
+  if (!window.speechSynthesis) { list.innerHTML = '<div class="voice-empty">Browser voices not supported.</div>'; return; }
   const voices = window.speechSynthesis.getVoices();
   if (!voices.length) {
     setTimeout(() => { if (document.getElementById('voiceList')) renderVoiceList(); }, 400);
@@ -6508,7 +6488,7 @@ function selectVoice(voiceURI, btn) {
   try { voiceURI ? localStorage.setItem(key, voiceURI) : localStorage.removeItem(key); } catch(_) {}
   document.querySelectorAll('#voiceList .voice-item').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  selectedVoice = voiceURI ? (window.speechSynthesis.getVoices().find(v => v.voiceURI === voiceURI) || null) : null;
+  selectedVoice = voiceURI && window.speechSynthesis ? (window.speechSynthesis.getVoices().find(v => v.voiceURI === voiceURI) || null) : null;
 }
 
 function selectGeminiVoice(v, btn) {
@@ -6549,6 +6529,7 @@ async function previewGeminiVoice(v, e) {
 
 function previewVoiceURI(voiceURI, e) {
   e?.stopPropagation();
+  if (!window.speechSynthesis) return;
   const voice = window.speechSynthesis.getVoices().find(v => v.voiceURI === voiceURI);
   if (!voice) return;
   window.speechSynthesis.cancel();
@@ -7137,7 +7118,7 @@ function callModeTTS(bubble) {
   if (!text) { listenForSpeech(); return; }
   resetCallInactivityTimer();
   setCallState('responding');
-  window.speechSynthesis.cancel();
+  window.speechSynthesis?.cancel();
   stopCallAudio();
   // No browser-voice fallback: if the HD voice is unavailable the reply stays as text and the call keeps listening.
   if (elevenTTSOk) { callModeElevenTTS(text); return; }
@@ -7168,7 +7149,7 @@ async function playCallBlob(blob) {
 
 async function speakAndHangUp(text, resetsAt) {
   stopCallAudio();
-  window.speechSynthesis.cancel();
+  window.speechSynthesis?.cancel();
   const gen = callGen;
   const clean = text.replace(/\*[^*]*\*/g, '').replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim().slice(0, 250);
   const finish = () => {
@@ -7260,6 +7241,8 @@ const CALL_INACTIVITY_MS = 15 * 60 * 1000;
 const CALL_DAILY_MAX_SECS = 15 * 60; // 15 minutes per day
 let callDurationTimer = null;
 let callSessionStartedAt = null;
+let lastKnownCallResetsAt = 0;
+let callVobTimer = null;
 
 function getCallSecsKey() {
   return 'cm_call_secs_' + new Date().toISOString().slice(0,10);
@@ -7286,7 +7269,7 @@ function startCallDurationTimer(remainingSecs) {
       addCallSecsUsed(elapsed);
       callSessionStartedAt = null;
       if (callModeActive) {
-        const resetsAt = Date.now() + 8 * 60 * 60 * 1000;
+        const resetsAt = lastKnownCallResetsAt > Date.now() ? lastKnownCallResetsAt : Date.now() + 8 * 60 * 60 * 1000;
         const diffMs = resetsAt - Date.now();
         const h = Math.floor(diffMs / 3600000);
         const m = Math.floor((diffMs % 3600000) / 60000);
@@ -7412,7 +7395,7 @@ async function startCallMode() {
     if (nameEl) { nameEl.innerHTML = colorizeNameHtml(currentChar.name || '', currentChar.color); }
     overlay.style.display = 'flex';
     const vob = document.getElementById('callVoiceOnBadge');
-    if (vob) { vob.style.display = ''; setTimeout(() => { if (callModeActive) vob.style.display = 'none'; }, 5000); }
+    if (vob) { vob.style.display = ''; clearTimeout(callVobTimer); callVobTimer = setTimeout(() => { vob.style.display = 'none'; callVobTimer = null; }, 5000); }
     setCallState('calling');
     setTimeout(() => { if (callModeActive) listenForSpeech(); }, 150);
   }
@@ -7671,6 +7654,7 @@ function endCallMode() {
   if (overlay) overlay.style.display = 'none';
   const imgEl = document.getElementById('callCharImg');
   if (imgEl) imgEl.style.backgroundImage = '';
+  clearTimeout(callVobTimer); callVobTimer = null;
   const vob = document.getElementById('callVoiceOnBadge');
   if (vob) { vob.style.display = 'none'; vob.style.top = ''; }
 }
@@ -7713,7 +7697,7 @@ function toggleCallMute() {
 function interruptCall() {
   callGen++;
   stopActiveTTS();
-  window.speechSynthesis.cancel();
+  window.speechSynthesis?.cancel();
   if (callAudio) { const a = callAudio; stopCallAudio(); a.onended && a.onended(); if (callModeActive) setTimeout(() => listenForSpeech(), 100); return; }
   if (callModeActive) listenForSpeech();
 }
@@ -9175,6 +9159,7 @@ function buildHangmanSVG(wrong) {
 }
 
 async function launchHangman(savedState) {
+  const _hgKey = '_hg_' + Date.now() + '_' + Math.random().toString(36).slice(2);
   if (!savedState) {
     const lockoutBarEl = document.getElementById('lockoutBar');
     if (lockoutBarEl && lockoutBarEl.style.display !== 'none') {
@@ -9260,7 +9245,7 @@ async function launchHangman(savedState) {
     const keys = 'abcdefghijklmnopqrstuvwxyz'.split('').map(c => {
       const used = guessed.has(c);
       const cls = used ? (word.includes(c) ? ' correct' : ' wrong') : '';
-      return `<button class="h-key${cls}" onclick="hangmanGuess(this,'${c}')" ${used || gameOver ? 'disabled' : ''}>${c.toUpperCase()}</button>`;
+      return `<button class="h-key${cls}" onclick="window['${_hgKey}'](this,'${c}')" ${used || gameOver ? 'disabled' : ''}>${c.toUpperCase()}</button>`;
     }).join('');
 
     let statusHtml = '';
@@ -9285,7 +9270,7 @@ async function launchHangman(savedState) {
     }
   }
 
-  window.hangmanGuess = function(btn, letter) {
+  window[_hgKey] = function(btn, letter) {
     if (guessed.has(letter)) return;
     guessed.add(letter);
     if (!word.includes(letter)) wrongCount++;
@@ -9307,6 +9292,7 @@ function tttClientCheck(board) {
 }
 
 function launchTicTacToe(savedState) {
+  const _tttKey = '_ttt_' + Date.now() + '_' + Math.random().toString(36).slice(2);
   if (!savedState) {
     const lockoutBarEl = document.getElementById('lockoutBar');
     if (lockoutBarEl && lockoutBarEl.style.display !== 'none') {
@@ -9328,7 +9314,7 @@ function launchTicTacToe(savedState) {
     const cells = board.map((val, i) => {
       const inWin = winData && winData.line && winData.line.includes(i);
       return `<button class="ttt-cell${val ? ' taken' : ''}${inWin ? ' win-cell' : ''}"
-        onclick="tttMove(${i})" ${val || waiting || winData ? 'disabled' : ''}>
+        onclick="window['${_tttKey}'](${i})" ${val || waiting || winData ? 'disabled' : ''}>
         ${val ? `<span class="${val === 'X' ? 'ttt-x' : 'ttt-o'}">${val}</span>` : ''}
       </button>`;
     }).join('');
@@ -9355,7 +9341,7 @@ function launchTicTacToe(savedState) {
     }
   }
 
-  window.tttMove = async function(idx) {
+  window[_tttKey] = async function(idx) {
     if (board[idx] || waiting) return;
     board[idx] = 'X';
     waiting = true;

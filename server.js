@@ -3403,7 +3403,7 @@ app.get('/api/geo', geoLimiter, async (req, res) => {
 
 let cachedExchangeRates = null;
 let cachedExchangeRatesAt = 0;
-app.get('/api/exchange-rates', async (req, res) => {
+app.get('/api/exchange-rates', charReadLimiter, async (req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=3600');
   const now = Date.now();
   if (cachedExchangeRates && now - cachedExchangeRatesAt < 3600000) {
@@ -3446,7 +3446,7 @@ app.post('/api/call/end', requireAuth, (req, res) => {
   const { duration } = req.body; // seconds this call lasted
   const u = getLimits(userId);
   // Calls < 5 s are instant-ends (user opened and closed without speaking) — refund the slot
-  if (typeof duration !== 'number' || duration < 5) {
+  if (typeof duration !== 'number' || !Number.isFinite(duration) || duration < 5) {
     u.callsToday = Math.max(0, (u.callsToday || 1) - 1);
     saveLimitsToDB(userId);
     return res.json({ ok: true, refunded: true });
@@ -3664,22 +3664,38 @@ app.post('/api/tts', requireAuth, async (req, res) => {
     }
   }
 
-  // Gemini TTS path
+  // Gemini TTS path — apply same daily character cap as ElevenLabs
   if (provider === 'gemini') {
     const gKey = process.env.GEMINI_API_KEY;
     if (!gKey) return res.status(502).json({ error: 'tts_failed' });
+    const userId = req.user.googleId;
+    const ttsU2 = getLimits(userId);
+    const ttsWin2 = getCallWindowStart();
+    if (!ttsU2.ttsDayStart || ttsU2.ttsDayStart < ttsWin2) { ttsU2.ttsCharsToday = 0; ttsU2.ttsDayStart = ttsWin2; }
+    if ((ttsU2.ttsCharsToday || 0) + text.length > TTS_DAILY_CHARS) return res.status(429).json({ error: 'tts_limit' });
+    ttsU2.ttsCharsToday = (ttsU2.ttsCharsToday || 0) + text.length;
+    saveLimitsToDB(userId);
     try {
       const { audio, ct } = await geminiTTSSynthesize(text, geminiVoice, gKey);
       res.setHeader('Content-Type', ct);
       res.setHeader('Cache-Control', 'no-store');
       return res.send(audio);
     } catch (e) {
+      ttsU2.ttsCharsToday = Math.max(0, (ttsU2.ttsCharsToday || 0) - text.length);
       console.warn('[gemini-tts] failed', e.message);
       return res.status(502).json({ error: 'tts_failed' });
     }
   }
 
-  // Edge TTS free fallback (direct WebSocket — no external package)
+  // Edge TTS free fallback — apply daily character cap
+  const edgeUserId = req.user.googleId;
+  const edgeLim = getLimits(edgeUserId);
+  const edgeWin = getCallWindowStart();
+  if (!edgeLim.ttsDayStart || edgeLim.ttsDayStart < edgeWin) { edgeLim.ttsCharsToday = 0; edgeLim.ttsDayStart = edgeWin; }
+  if ((edgeLim.ttsCharsToday || 0) + text.length > TTS_DAILY_CHARS) return res.status(429).json({ error: 'tts_limit' });
+  edgeLim.ttsCharsToday = (edgeLim.ttsCharsToday || 0) + text.length;
+  saveLimitsToDB(edgeUserId);
+
   const ALLOWED_EDGE_VOICES = new Set(['en-US-AriaNeural','en-US-JennyNeural','en-US-NancyNeural','en-US-SaraNeural','en-US-MichelleNeural','en-US-MonicaNeural','en-US-AnaNeural','en-US-CoraNeural','en-US-ElizabethNeural','en-US-JaneNeural','en-US-GuyNeural','en-US-TonyNeural','en-US-BrianNeural','en-US-EricNeural','en-US-RogerNeural','en-US-ChristopherNeural','en-US-SteffanNeural','en-US-JasonNeural']);
   const edgeVoice = (clientEdgeVoice && ALLOWED_EDGE_VOICES.has(clientEdgeVoice)) ? clientEdgeVoice : (EDGE_VOICE_MAP[charId] || EDGE_DEFAULT_VOICE);
   try {
@@ -4492,7 +4508,7 @@ app.post('/api/conversations/:charId/edit', requireAuth, async (req, res) => {
   if (!VALID_ID.test(cid)) return res.status(400).json({ error: 'Invalid charId' });
   const from = typeof (req.body && req.body.from) === 'string' ? req.body.from : '';
   const to = typeof (req.body && req.body.to) === 'string' ? req.body.to.trim() : '';
-  if (!from || !to || to.length > 10000) return res.status(400).json({ error: 'Invalid edit' });
+  if (!from || !to || from.length > 10000 || to.length > 10000) return res.status(400).json({ error: 'Invalid edit' });
   if (redactIfUnsafe(to) !== to) return res.status(400).json({ error: 'That edit goes against our Terms of Service.' });
   if (!(await characterExists(cid))) return res.status(404).json({ error: 'Character not found' });
   const uid = req.user.googleId;
@@ -4528,6 +4544,8 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   }
   const releaseSlot = acquireChatSlot(req, res, userId);
   if (!releaseSlot) return;
+
+  try {
 
   let dbChar;
   try { dbChar = await getCharPrompt(charId); }
@@ -4617,6 +4635,10 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
     onFail: restoreAssistant,
     logLabel: 'Regenerate'
   });
+  } catch (err) {
+    releaseSlot();
+    if (!res.headersSent) res.status(503).json({ error: 'Something went wrong' });
+  }
 });
 
 app.post('/api/rewind/:charId', requireAuth, convLimiter, async (req, res) => {
@@ -4800,6 +4822,7 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
   if (!db) return res.status(503).json({ error: 'Service temporarily unavailable' });
   const releaseSlot = acquireChatSlot(req, res, userId);
   if (!releaseSlot) return;
+  try {
   const greetMod = await getModStatus(userId, charId);
   if (greetMod.locked) return res.status(403).json({ error: 'This chat has been ended.' });
 
@@ -4862,6 +4885,10 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
     onComplete: (text) => { conversations[key].push({ role: 'assistant', content: text }); persistConv(key); },
     logLabel: 'Greet'
   });
+  } catch (err) {
+    releaseSlot();
+    if (!res.headersSent) res.status(503).json({ error: 'Something went wrong' });
+  }
 });
 
 // One vision call that both checks the image against the content rules and describes it.
@@ -5544,8 +5571,11 @@ app.post('/api/admin/donate-coins', requireAuth, async (req, res) => {
   const args = [];
   if (days) { args.push(days); query += ` AND last_seen >= NOW() - ($${args.length} * INTERVAL '1 day')`; }
 
-  const { rows } = await db.query(query, args);
-  const n = rows.length;
+  let rows, n;
+  try {
+    const result = await db.query(query, args);
+    rows = result.rows; n = rows.length;
+  } catch (e) { console.error('[donate-coins]', e.message); return res.status(500).json({ error: 'DB error' }); }
   if (!n) return res.json({ ok: true, preview: true, users: 0, pool: poolAmt, perUser: 0, total: 0 });
 
   const perUser  = Math.floor(poolAmt / n);
@@ -5602,24 +5632,31 @@ app.post('/api/admin/send-coins-to-email', requireAuth, async (req, res) => {
   const tokens = Math.max(0, Math.min(100000, parseInt(rawTokens) || 0));
   if (!coins) return res.status(400).json({ error: 'Invalid amount' });
 
-  const { rows } = await db.query(
-    `SELECT google_id, name, email AS user_email, cm_coins FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
-    [email.trim()]
-  );
-  if (!rows.length) return res.status(404).json({ error: 'No user found with that email' });
-  const user = rows[0];
+  let rows2;
+  try {
+    const r2 = await db.query(
+      `SELECT google_id, name, email AS user_email, cm_coins FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+      [email.trim()]
+    );
+    rows2 = r2.rows;
+  } catch (e) { console.error('[send-coins-to-email]', e.message); return res.status(500).json({ error: 'DB error' }); }
+  if (!rows2.length) return res.status(404).json({ error: 'No user found with that email' });
+  const user = rows2[0];
 
   // 10% bonus on coins (minimum 5), framed as a Character.Mind gift
   const bonus = Math.max(5, Math.ceil(coins * 0.10));
   const totalCoins = coins + bonus;
 
-  const coinUpd = await db.query(
-    'UPDATE users SET cm_coins = cm_coins + $1, coins_earned_all_time = COALESCE(coins_earned_all_time,0) + $1 WHERE google_id = $2 RETURNING cm_coins',
-    [totalCoins, user.google_id]
-  );
-  if (tokens > 0) {
-    await db.query('UPDATE users SET cm_tokens = COALESCE(cm_tokens,0) + $1 WHERE google_id = $2', [tokens, user.google_id]);
-  }
+  let coinUpd;
+  try {
+    coinUpd = await db.query(
+      'UPDATE users SET cm_coins = cm_coins + $1, coins_earned_all_time = COALESCE(coins_earned_all_time,0) + $1 WHERE google_id = $2 RETURNING cm_coins',
+      [totalCoins, user.google_id]
+    );
+    if (tokens > 0) {
+      await db.query('UPDATE users SET cm_tokens = COALESCE(cm_tokens,0) + $1 WHERE google_id = $2', [tokens, user.google_id]);
+    }
+  } catch (e) { console.error('[send-coins-to-email]', e.message); return res.status(500).json({ error: 'DB error' }); }
   // Keep in-memory limits in sync
   const ul = getLimits(user.google_id);
   ul.cmCoins = coinUpd.rows[0]?.cm_coins ?? (ul.cmCoins || 0) + totalCoins;
@@ -5981,17 +6018,27 @@ app.post('/api/webhooks/paypal', async (req, res) => {
         const planPrice = PLAN_MONTHLY_USD[u.subscription_tier];
         if (planPrice) {
           const coinsNeeded = Math.ceil(planPrice / COIN_USD_VALUE);
-          if ((u.cm_coins || 0) >= coinsNeeded) {
-            // Deduct coins and reactivate
-            await db.query('UPDATE users SET cm_coins = cm_coins - $1 WHERE google_id = $2', [coinsNeeded, u.google_id]);
-            const tok = await getPayPalToken();
-            await fetch(`${PAYPAL_BASE}/v1/billing/subscriptions/${subId}/activate`, {
-              method: 'POST',
-              headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ reason: 'Covered by C.M. Coins balance' })
-            });
-            console.log(`[coins] covered ${planPrice} for ${u.google_id} (${coinsNeeded} coins deducted)`);
-            return res.sendStatus(200); // do NOT fall through to cancel logic
+          // Atomic check-and-deduct: WHERE cm_coins >= $1 prevents going negative
+          const deductResult = await db.query(
+            'UPDATE users SET cm_coins = cm_coins - $1 WHERE google_id = $2 AND cm_coins >= $1 RETURNING google_id',
+            [coinsNeeded, u.google_id]
+          );
+          if (deductResult.rowCount > 0) {
+            try {
+              const tok = await getPayPalToken();
+              await fetch(`${PAYPAL_BASE}/v1/billing/subscriptions/${subId}/activate`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: 'Covered by C.M. Coins balance' })
+              });
+              console.log(`[coins] covered ${planPrice} for ${u.google_id} (${coinsNeeded} coins deducted)`);
+              return res.sendStatus(200); // do NOT fall through to cancel logic
+            } catch (activateErr) {
+              // Refund coins and delete idempotency key so next webhook delivery can retry
+              await db.query('UPDATE users SET cm_coins = cm_coins + $1 WHERE google_id = $2', [coinsNeeded, u.google_id]);
+              await db.query('DELETE FROM app_config WHERE key = $1', [evtKey]).catch(() => {});
+              throw activateErr;
+            }
           }
         }
       }
@@ -6652,7 +6699,7 @@ app.get('/api/announcements', async (req, res) => {
       date: r.date,
       title: r.title,
       subtitle: r.subtitle,
-      [r.section_tag]: r.bullets,
+      [r.section_tag ?? 'added']: r.bullets,
     }));
     res.json([...dbItems, ...ANNOUNCEMENTS]);
   } catch (_) {
