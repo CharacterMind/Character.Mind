@@ -4917,12 +4917,36 @@ app.post('/api/admin/donate-coins', requireAuth, async (req, res) => {
     return res.json({ ok: true, preview: true, users: n, pool: poolAmt, perUser, total: poolAmt });
   }
 
+  const { message = '' } = req.body;
+  const customMsg = typeof message === 'string' ? message.slice(0, 300) : '';
+
   let updated = 0;
   for (let i = 0; i < n; i++) {
     const coins = perUser + (i === 0 ? leftover : 0);
     try {
       await db.query('UPDATE users SET cm_coins = cm_coins + $1 WHERE google_id = $2', [coins, rows[i].google_id]);
       updated++;
+
+      // Email notification — fire and forget
+      if (rows[i].email) {
+        const bodyText = customMsg || `Thank you for being part of the Character.Mind community. Here are ${coins} bonus coins, on us. 🪙`;
+        const htmlEmail = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:40px 16px">
+  <tr><td align="center">
+    <table width="100%" style="max-width:520px;background:#111111;border-radius:12px;border:1px solid #222222;padding:40px">
+      <tr><td>
+        <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#7c3aed">Character.Mind</p>
+        <p style="margin:0 0 28px;font-size:32px">🪙</p>
+        <p style="margin:0 0 20px;font-size:22px;font-weight:700;color:#f0f0f0">You received <span style="color:#a78bfa">${coins} coins</span>!</p>
+        <p style="margin:0 0 24px;font-size:15px;color:#cccccc;line-height:1.7">${bodyText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>
+        <a href="https://charactermind.ai" style="display:inline-block;padding:12px 28px;background:#7c3aed;color:#fff;text-decoration:none;border-radius:8px;font-size:15px;font-weight:600">Open Character.Mind →</a>
+        <p style="margin:24px 0 0;font-size:11px;color:#444">You're receiving this because you have an account on Character.Mind.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table></body></html>`;
+        sendResendEmail(rows[i].email, `🪙 You received ${coins} bonus coins!`, htmlEmail, bodyText).catch(() => {});
+      }
     } catch (e) { console.error('[donate-coins]', rows[i].google_id, e.message); }
   }
 

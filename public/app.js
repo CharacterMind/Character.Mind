@@ -4644,7 +4644,7 @@ async function adminGiveawaySend() {
     const d = await fetch('/api/admin/donate-coins', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pool, activeDays: days, preview: false })
+      body: JSON.stringify({ pool, activeDays: days, preview: false, message: document.getElementById('giveawayMessage')?.value || '' })
     }).then(r => r.json());
     if (d.ok && !d.preview) {
       showWarning(`🎁 Sent! ${d.perUser} coins × ${d.distributed} users (${d.total} total) ✓`, 8000);
