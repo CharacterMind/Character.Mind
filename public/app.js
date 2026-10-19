@@ -4607,6 +4607,44 @@ async function adminSendCoinsToEmail() {
   if (btn) { btn.textContent = 'Send 💌'; btn.disabled = false; }
 }
 
+async function adminPostAnnouncement() {
+  if (!isOwner()) return;
+  const title = (document.getElementById('annTitle')?.value || '').trim();
+  const subtitle = (document.getElementById('annSubtitle')?.value || '').trim();
+  const version = (document.getElementById('annVersion')?.value || '').trim();
+  const section_tag = document.getElementById('annTag')?.value || 'added';
+  const bulletsRaw = (document.getElementById('annBullets')?.value || '').trim();
+  const info = document.getElementById('annResult');
+  if (!title) { if (info) info.textContent = 'Title is required.'; return; }
+  const btn = document.getElementById('annPostBtn');
+  if (btn) { btn.textContent = 'Posting…'; btn.disabled = true; }
+  if (info) info.textContent = '';
+  try {
+    const d = await fetch('/api/admin/announcement', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ version, title, subtitle, bullets: bulletsRaw, section_tag })
+    }).then(r => r.json());
+    if (d.ok) {
+      showWarning('📢 Announcement posted!', 5000);
+      if (info) info.textContent = `✓ Posted (id: ${d.id})`;
+      // Clear form
+      ['annTitle','annSubtitle','annVersion','annBullets'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      // Force refresh next open
+      window._announcements = null;
+      // Show unread dot
+      const dot = document.getElementById('whatsNewDot');
+      if (dot) dot.hidden = false;
+    } else {
+      if (info) info.textContent = d.error || 'Failed.';
+    }
+  } catch (_) { if (info) info.textContent = 'Request failed.'; }
+  if (btn) { btn.textContent = 'Post 📢'; btn.disabled = false; }
+}
+
 // ── Usage Modal ───────────────────────────────────────────────────────────────
 let usageModalTimer = null;
 let lastKnownUsage = null;
@@ -4935,14 +4973,16 @@ function closeWhatsNew() {
 
 function renderWhatsNew(announcements, body) {
   if (!announcements.length) { body.innerHTML = '<div class="whats-new-loading">Nothing new yet!</div>'; return; }
+  const owner = isOwner();
   body.innerHTML = announcements.map((a, i) => `
-    <div class="whats-new-entry">
+    <div class="whats-new-entry" data-ann-id="${a.id || ''}">
       <div class="wn-ver-row">
-        <span class="wn-ver-badge">${a.version}</span>
-        <span class="wn-date">${a.date}</span>
+        ${a.version ? `<span class="wn-ver-badge">${a.version}</span>` : ''}
+        <span class="wn-date">${a.date || ''}</span>
+        ${owner && a.id && !a.id.startsWith('v') ? `<button class="wn-delete-btn" onclick="adminDeleteAnnouncement('${a.id}',this)" title="Delete">✕</button>` : ''}
       </div>
       <div class="wn-headline">${a.title}</div>
-      <div class="wn-subline">${a.subtitle}</div>
+      ${a.subtitle ? `<div class="wn-subline">${a.subtitle}</div>` : ''}
       ${a.character ? `<div class="wn-char-card">
         <div class="wn-char-tag">New Character</div>
         <div class="wn-char-name">${a.character.emoji || ''} ${a.character.name}</div>
@@ -4951,9 +4991,26 @@ function renderWhatsNew(announcements, body) {
       ${a.added?.length ? `<div class="wn-section-tag added">Added</div><ul class="wn-list">${a.added.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}
       ${a.fixed?.length ? `<div class="wn-section-tag fixed">Fixed</div><ul class="wn-list">${a.fixed.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}
       ${a.changed?.length ? `<div class="wn-section-tag changed">Changed</div><ul class="wn-list">${a.changed.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}
+      ${a.note?.length ? `<div class="wn-section-tag note">Note</div><ul class="wn-list">${a.note.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}
     </div>
     ${i < announcements.length - 1 ? '<div class="whats-new-divider"></div>' : ''}
   `).join('');
+}
+
+async function adminDeleteAnnouncement(id, btn) {
+  if (!isOwner()) return;
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    const d = await fetch(`/api/admin/announcement/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(r => r.json());
+    if (d.ok) {
+      window._announcements = null;
+      const entry = btn?.closest('.whats-new-entry');
+      const divider = entry?.nextElementSibling;
+      if (divider?.classList.contains('whats-new-divider')) divider.remove();
+      entry?.remove();
+      showWarning('Announcement deleted.', 3000);
+    }
+  } catch (_) { if (btn) { btn.disabled = false; btn.textContent = '✕'; } }
 }
 
 async function checkWhatsNewDot() {

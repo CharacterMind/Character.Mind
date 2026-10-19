@@ -375,6 +375,20 @@ if (db) {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `).catch(err => console.error('app_config table init error:', err));
+
+  db.query(`
+    CREATE TABLE IF NOT EXISTS platform_announcements (
+      id SERIAL PRIMARY KEY,
+      ann_id TEXT UNIQUE NOT NULL DEFAULT gen_random_uuid()::text,
+      version TEXT NOT NULL DEFAULT '',
+      date_label TEXT NOT NULL DEFAULT '',
+      title TEXT NOT NULL,
+      subtitle TEXT NOT NULL DEFAULT '',
+      bullets TEXT[] NOT NULL DEFAULT '{}',
+      section_tag TEXT NOT NULL DEFAULT 'added',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).catch(err => console.error('platform_announcements table init error:', err));
 } else {
   console.warn('No DATABASE_URL — characters will not be persisted');
 }
@@ -5675,8 +5689,55 @@ const ANNOUNCEMENTS = [
   },
 ];
 
-app.get('/api/announcements', (req, res) => {
-  res.json(ANNOUNCEMENTS);
+app.get('/api/announcements', async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT ann_id AS id, version, date_label AS date, title, subtitle, bullets, section_tag
+       FROM platform_announcements ORDER BY created_at DESC LIMIT 20`
+    );
+    const dbItems = rows.map(r => ({
+      id: r.id,
+      version: r.version,
+      date: r.date,
+      title: r.title,
+      subtitle: r.subtitle,
+      [r.section_tag]: r.bullets,
+    }));
+    res.json([...dbItems, ...ANNOUNCEMENTS]);
+  } catch (_) {
+    res.json(ANNOUNCEMENTS);
+  }
+});
+
+app.post('/api/admin/announcement', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  const { version, title, subtitle, bullets, section_tag } = req.body;
+  if (!title?.trim()) return res.status(400).json({ error: 'title required' });
+  const bulletsArr = Array.isArray(bullets)
+    ? bullets.map(b => String(b).trim()).filter(Boolean)
+    : String(bullets || '').split('\n').map(b => b.trim()).filter(Boolean);
+  const now = new Date();
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dateLabel = `${months[now.getMonth()]} ${now.getFullYear()}`;
+  const { rows } = await db.query(
+    `INSERT INTO platform_announcements (version, date_label, title, subtitle, bullets, section_tag)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING ann_id`,
+    [
+      (version || '').trim(),
+      dateLabel,
+      title.trim(),
+      (subtitle || '').trim(),
+      bulletsArr,
+      ['added','fixed','changed','note'].includes(section_tag) ? section_tag : 'added',
+    ]
+  );
+  res.json({ ok: true, id: rows[0].ann_id });
+});
+
+app.delete('/api/admin/announcement/:id', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  await db.query('DELETE FROM platform_announcements WHERE ann_id = $1', [req.params.id]);
+  res.json({ ok: true });
 });
 
 function tttCheckWinnerGame(board) {
