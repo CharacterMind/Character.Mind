@@ -1,5 +1,16 @@
 [
   {
+    "id": "v287-edit-fixes",
+    "version": "v287",
+    "date": "Oct 2026",
+    "title": "Edit & What's New Fixes",
+    "subtitle": "Edited messages keep their line breaks, and the What's New dot no longer reappears after you've seen it.",
+    "fixed": [
+      "Editing a user message now preserves line breaks — multiline messages no longer collapse to one line after saving an edit",
+      "What's New unread dot no longer reappears the next time you open the app after viewing What's New when the announcement list had just refreshed"
+    ]
+  },
+  {
     "id": "v286-multiline",
     "version": "v286",
     "date": "Oct 2026",

@@ -5436,15 +5436,19 @@ function startUsageModalTimer() {
 async function openWhatsNew() {
   const modal = document.getElementById('whatsNewModal');
   modal.style.display = 'flex';
-  try { localStorage.setItem('cm_wn_seen', (window._announcements || [])[0]?.id || ''); } catch (_) {}
   const dot = document.getElementById('whatsNewDot');
   if (dot) dot.hidden = true;
   const body = document.getElementById('whatsNewBody');
-  if (window._announcements) { renderWhatsNew(window._announcements, body); return; }
+  if (window._announcements) {
+    try { localStorage.setItem('cm_wn_seen', window._announcements[0]?.id || ''); } catch (_) {}
+    renderWhatsNew(window._announcements, body);
+    return;
+  }
   try {
     const r = await fetch('/api/announcements');
     const data = await r.json();
     window._announcements = data;
+    try { localStorage.setItem('cm_wn_seen', data[0]?.id || ''); } catch (_) {}
     renderWhatsNew(data, body);
   } catch (_) {
     body.innerHTML = '<div class="whats-new-loading">Failed to load.</div>';
@@ -5931,7 +5935,7 @@ function saveEdit(btn) {
   bubble.classList.remove('editing');
   ctrl.remove();
   if (!newText) { msgEl.remove(); resyncServer(); return; }
-  bubble.textContent = newText;
+  bubble.innerHTML = escHtml(newText).replace(/\n/g, '<br>');
   saveHistoryLocal();
   resyncServer();
 }
