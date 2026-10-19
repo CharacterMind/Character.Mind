@@ -2912,10 +2912,13 @@ const RATE_RETRY_TOTAL_MS = 90000;
 const RATE_RETRY_MAX_TRIES = 2;
 
 function toGeminiContents(messages) {
-  return messages.map(m => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: String(m.content || '') }]
-  }));
+  return messages.map(m => {
+    const parts = [{ text: String(m.content || '') }];
+    if (m.imageData && m.imageData.mimeType && m.imageData.data) {
+      parts.push({ inlineData: { mimeType: m.imageData.mimeType, data: m.imageData.data } });
+    }
+    return { role: m.role === 'assistant' ? 'model' : 'user', parts };
+  });
 }
 
 function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onError, modelIndex, effortCfg, modelList, ctx) {
@@ -4879,14 +4882,20 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     ? [...history, { role: 'user', content: '...' }]
     : history;
 
-  // If an image was attached, tell the character what it shows (the chat models are text-only)
+  // If an image was attached, pass it directly to Gemini (which supports vision natively)
+  // The description is also injected as a text hint so the character's reaction is guided.
   if (image && !isContinuation && imageDescription) {
     const lastIdx = messagesForGroq.length - 1;
     if (messagesForGroq[lastIdx]?.role === 'user') {
       const base = (message && message.trim()) ? message : '';
+      const imgMatch = image.match(/^data:([^;]+);base64,(.+)$/);
       messagesForGroq = [
         ...messagesForGroq.slice(0, lastIdx),
-        { role: 'user', content: (base ? base + '\n\n' : '') + '[The user sent an image. It shows: ' + imageDescription + '. Briefly step out of character for a moment — add a short parenthetical out-of-character reaction to the image, like (Oh wow, that looks...) — then continue your reply in character.]' }
+        {
+          role: 'user',
+          content: (base ? base + '\n\n' : '') + '[The user shared an image. React naturally in character — step out of character briefly with a short parenthetical like (Wow, that looks...) then continue as yourself.]',
+          ...(imgMatch ? { imageData: { mimeType: imgMatch[1], data: imgMatch[2] } } : {})
+        }
       ];
     }
   }
