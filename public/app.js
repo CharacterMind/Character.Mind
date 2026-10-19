@@ -1460,6 +1460,7 @@ function openSettings(tab) {
   if (lastKnownUsage) updateSettingsUsage(lastKnownUsage);
   renderSettingsTiers();
   loadUsage(); // refresh usage data every time settings opens
+  loadCheckinSettings();
 
   document.getElementById('settingsModal').style.display = 'flex';
   showSettingsTab(tab || 'profile');
@@ -1476,6 +1477,67 @@ function showSettingsTab(tab) {
   document.querySelectorAll('.settings-tab-content').forEach(p => p.classList.add('hidden'));
   const activePane = document.getElementById(`stab-content-${tab}`);
   if (activePane) activePane.classList.remove('hidden');
+}
+
+// ── Wellness Check-in Settings ────────────────────────────────────────────────
+
+async function loadCheckinSettings() {
+  if (!currentUser) return;
+  try {
+    const r = await fetch('/api/settings/checkin');
+    if (!r.ok) return;
+    const d = await r.json();
+    const toggle = document.getElementById('checkinOptIn');
+    const freq   = document.getElementById('checkinFreq');
+    const phone  = document.getElementById('checkinPhone');
+    const label  = document.getElementById('checkinOptInLabel');
+    const wrap   = document.getElementById('checkinOptionsWrap');
+    if (toggle) toggle.checked = !!d.opted_in;
+    if (freq)   freq.value = String(d.frequency_days || 3);
+    if (phone)  phone.value = d.phone || '';
+    if (label)  label.textContent = d.opted_in ? 'On' : 'Off';
+    if (wrap)   wrap.style.display = d.opted_in ? '' : 'none';
+    const saveBtn = document.getElementById('checkinSaveBtn');
+    if (saveBtn) saveBtn.style.display = 'none';
+    const status = document.getElementById('checkinSaveStatus');
+    if (status) status.textContent = '';
+  } catch (_) {}
+}
+
+function checkinDirty() {
+  const toggle = document.getElementById('checkinOptIn');
+  const label  = document.getElementById('checkinOptInLabel');
+  const wrap   = document.getElementById('checkinOptionsWrap');
+  const saveBtn = document.getElementById('checkinSaveBtn');
+  if (label)  label.textContent = toggle?.checked ? 'On' : 'Off';
+  if (wrap)   wrap.style.display = toggle?.checked ? '' : 'none';
+  if (saveBtn) saveBtn.style.display = 'inline-flex';
+}
+
+async function saveCheckinSettings() {
+  const toggle   = document.getElementById('checkinOptIn');
+  const freq     = document.getElementById('checkinFreq');
+  const phone    = document.getElementById('checkinPhone');
+  const saveBtn  = document.getElementById('checkinSaveBtn');
+  const status   = document.getElementById('checkinSaveStatus');
+  if (saveBtn) { saveBtn.textContent = 'Saving…'; saveBtn.disabled = true; }
+  try {
+    const r = await fetch('/api/settings/checkin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        opted_in: !!toggle?.checked,
+        frequency_days: parseInt(freq?.value) || 3,
+        phone: phone?.value || '',
+      }),
+    });
+    if (!r.ok) throw new Error('Failed');
+    if (saveBtn) { saveBtn.textContent = 'Saved ✓'; setTimeout(() => { saveBtn.style.display = 'none'; saveBtn.textContent = 'Save'; saveBtn.disabled = false; }, 1500); }
+    if (status) { status.textContent = 'Preferences saved.'; setTimeout(() => { status.textContent = ''; }, 3000); }
+  } catch (_) {
+    if (saveBtn) { saveBtn.textContent = 'Save'; saveBtn.disabled = false; }
+    if (status) status.textContent = 'Could not save. Try again.';
+  }
 }
 
 function updateSettingsUsage(u) {

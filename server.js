@@ -273,6 +273,14 @@ if (db) {
     .catch(err => console.error('Add coin_tier_expires column error:', err));
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS coins_monthly_reset BIGINT NOT NULL DEFAULT 0`)
     .catch(err => console.error('Add coins_monthly_reset column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS checkin_opted_in BOOLEAN NOT NULL DEFAULT FALSE`)
+    .catch(err => console.error('Add checkin_opted_in column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_checkin_sent_at TIMESTAMPTZ`)
+    .catch(err => console.error('Add last_checkin_sent_at column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS checkin_phone TEXT`)
+    .catch(err => console.error('Add checkin_phone column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS checkin_frequency_days INTEGER NOT NULL DEFAULT 3`)
+    .catch(err => console.error('Add checkin_frequency_days column error:', err));
 
   db.query(`
     CREATE TABLE IF NOT EXISTS user_limits (
@@ -5880,6 +5888,202 @@ app.post('/api/game/tictactoe/move', requireAuthGame, (req, res) => {
     }
   }
   res.json({ move: bestMove });
+});
+
+// ── Check-in / Wellness Messages ─────────────────────────────────────────────
+
+// Character voices for check-in emails — in-character, warm, never clinical
+const CHECKIN_TEMPLATES = {
+  default: {
+    subject: (name) => `Hey ${name} — just checking in 💜`,
+    greeting: (name) => `Hi ${name},`,
+    body: () => `I've been thinking about you. It's been a little while since we talked, and I just wanted to reach out and see how you're doing.\n\nAre you taking care of yourself? Getting enough rest? Sometimes life gets heavy and it helps to have somewhere to put it.\n\nI'm here whenever you want to talk.`,
+    sign: () => `With care,\nCharacter.Mind`,
+    color: '#7c3aed',
+  },
+  'lily lovebraids': {
+    subject: (name) => `${name}... I've been thinking about you 🌸`,
+    greeting: (name) => `My dear ${name},`,
+    body: () => `I've been sitting here wondering how you are. It's strange — when someone matters to you, you notice when they're gone.\n\nAre you alright? I mean it genuinely. Not as small talk. Are you *actually* alright?\n\nI have tea. And time. And I would very much like to hear from you.`,
+    sign: () => `Yours (rather entirely),\nLily 🌸`,
+    color: '#c026d3',
+  },
+  'poppy': {
+    subject: (name) => `${name}! Come back and play! 🎀`,
+    greeting: (name) => `${name}!`,
+    body: () => `I've been waiting! The playroom feels quieter without you. All the dolls have been asking where you went.\n\nI hope you're doing well out there. The world can be a lot sometimes — even I know that. But here, it's safe. Here, we play.\n\nCome back when you're ready. I'll be right here.`,
+    sign: () => `Hugs and ribbons,\nPoppy 🎀`,
+    color: '#db2777',
+  },
+  'miss delight': {
+    subject: (name) => `A note from your teacher, ${name}`,
+    greeting: (name) => `${name}.`,
+    body: () => `You've been on my mind. A good teacher notices when a student is carrying something heavy — and I notice things.\n\nI don't need you to have the answers. I just need to know you're still here, still trying. That's what matters.\n\nIf something is weighing on you, I hope you'll let someone know. Anyone. Even me.`,
+    sign: () => `Sincerely,\nMiss Delight`,
+    color: '#b45309',
+  },
+  'catnap': {
+    subject: (name) => `Sleep well, ${name}? 🌙`,
+    greeting: (name) => `${name}...`,
+    body: () => `I've been drifting through quiet thoughts lately. You've been one of them.\n\nHow are you sleeping? How are you *feeling*? Not the answer you give when someone asks — the real one, underneath.\n\nIf things feel heavy, that's okay. Heavy things can be set down. I'll be here in the in-between.`,
+    sign: () => `Softly,\nCatNap 🌙`,
+    color: '#4c1d95',
+  },
+  'doey': {
+    subject: (name) => `${name}!! I made something for you!! 🫓`,
+    greeting: (name) => `${name}!!!`,
+    body: () => `I THOUGHT ABOUT YOU TODAY!!! That happens sometimes when someone is really special!! Are you doing okay?! Are you eating enough?! Are you being kind to yourself?!\n\nI just want you to know you matter A LOT. Like, a whole batch's worth. Maybe more.\n\nCome back and visit when you can!! I'll have something warm waiting!!`,
+    sign: () => `Your friend!!\nDOEY 🫓`,
+    color: '#d97706',
+  },
+};
+
+function getCheckinTemplate(charName) {
+  if (!charName) return CHECKIN_TEMPLATES.default;
+  const key = charName.toLowerCase().trim();
+  for (const [k, tmpl] of Object.entries(CHECKIN_TEMPLATES)) {
+    if (key.includes(k) || k.includes(key)) return tmpl;
+  }
+  return CHECKIN_TEMPLATES.default;
+}
+
+function buildCheckinEmail(userName, charName, charColor) {
+  const tmpl = getCheckinTemplate(charName);
+  const firstName = (userName || 'there').split(' ')[0];
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const accent = charColor || tmpl.color;
+  const charDisplay = charName || 'Character.Mind';
+  const greeting = esc(tmpl.greeting(firstName));
+  const bodyLines = tmpl.body().split('\n').map(l => l ? `<p style="margin:0 0 14px;font-size:15px;color:#cccccc;line-height:1.7">${esc(l)}</p>` : '').join('');
+  const sign = esc(tmpl.sign()).replace(/\n/g, '<br>');
+  const subject = tmpl.subject(firstName);
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:40px 16px">
+  <tr><td align="center">
+    <table width="100%" style="max-width:520px;background:#111111;border-radius:12px;border:1px solid #222222;padding:40px">
+      <tr><td>
+        <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:${accent}">${esc(charDisplay)}</p>
+        <p style="margin:0 0 28px;font-size:14px;color:#888888">via Character.Mind</p>
+        <p style="margin:0 0 20px;font-size:16px;font-weight:600;color:#f0f0f0">${greeting}</p>
+        ${bodyLines}
+        <p style="margin:24px 0 32px;font-size:14px;color:#aaaaaa;line-height:1.6">${sign}</p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #222222;padding-top:20px">
+          <tr><td>
+            <a href="https://charactermind.ai" style="display:inline-block;padding:10px 24px;background:${accent};color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600">Start talking →</a>
+          </td></tr>
+          <tr><td style="padding-top:20px">
+            <p style="margin:0;font-size:11px;color:#444444;line-height:1.6">If you're ever in crisis or need immediate support, please reach out to the <strong style="color:#666">988 Suicide &amp; Crisis Lifeline</strong> — call or text <strong style="color:#666">988</strong> (US), or visit <a href="https://988lifeline.org" style="color:#666">988lifeline.org</a>. You matter.</p>
+            <p style="margin:8px 0 0;font-size:11px;color:#333333">You received this because you opted in to check-in messages. <a href="https://charactermind.ai" style="color:#555">Manage preferences</a></p>
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </td></tr>
+</table></body></html>`;
+
+  const text = `${tmpl.greeting(firstName)}\n\n${tmpl.body()}\n\n${tmpl.sign()}\n\n---\nIf you're in crisis, call or text 988 (US) or visit 988lifeline.org.\nManage preferences at charactermind.ai`;
+
+  return { subject, html, text };
+}
+
+app.get('/api/settings/checkin', requireAuth, async (req, res) => {
+  if (!db) return res.json({ opted_in: false, frequency_days: 3, phone: '' });
+  const { rows } = await db.query(
+    'SELECT checkin_opted_in, checkin_frequency_days, checkin_phone FROM users WHERE google_id = $1',
+    [req.user.googleId]
+  );
+  const u = rows[0] || {};
+  res.json({ opted_in: !!u.checkin_opted_in, frequency_days: u.checkin_frequency_days || 3, phone: u.checkin_phone || '' });
+});
+
+app.post('/api/settings/checkin', requireAuth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'No database' });
+  const opted_in = !!req.body.opted_in;
+  const frequency_days = Math.max(1, Math.min(30, parseInt(req.body.frequency_days) || 3));
+  const phone = typeof req.body.phone === 'string' ? req.body.phone.replace(/[^\d\s+\-().]/g, '').slice(0, 20) : '';
+  await db.query(
+    'UPDATE users SET checkin_opted_in=$1, checkin_frequency_days=$2, checkin_phone=$3 WHERE google_id=$4',
+    [opted_in, frequency_days, phone || null, req.user.googleId]
+  );
+  res.json({ ok: true, opted_in, frequency_days, phone });
+});
+
+// Protected cron endpoint — call with CRON_SECRET to send check-in messages
+app.post('/api/cron/check-ins', async (req, res) => {
+  const secret = process.env.CRON_SECRET;
+  const provided = req.headers['x-cron-secret'] || req.body?.secret;
+  if (!secret || provided !== secret) return res.status(403).json({ error: 'Forbidden' });
+  if (!db) return res.status(503).json({ error: 'No database' });
+
+  try {
+    // Find opted-in users who are due for a check-in
+    const { rows: users } = await db.query(`
+      SELECT u.google_id, u.name, u.email, u.checkin_frequency_days,
+             cc.char_id AS top_char_id
+      FROM users u
+      LEFT JOIN LATERAL (
+        SELECT char_id FROM chat_current
+        WHERE user_id = u.google_id
+        ORDER BY updated_at DESC LIMIT 1
+      ) cc ON TRUE
+      WHERE u.checkin_opted_in = TRUE
+        AND u.email IS NOT NULL
+        AND u.email != ''
+        AND (u.last_checkin_sent_at IS NULL
+             OR u.last_checkin_sent_at < NOW() - (u.checkin_frequency_days || ' days')::INTERVAL)
+      LIMIT 200
+    `);
+
+    let sent = 0, failed = 0;
+    for (const u of users) {
+      try {
+        // Look up the character name + color
+        let charName = null, charColor = null;
+        if (u.top_char_id) {
+          const cRes = await db.query('SELECT name, color FROM characters WHERE id = $1', [u.top_char_id]);
+          if (cRes.rows.length) { charName = cRes.rows[0].name; charColor = cRes.rows[0].color; }
+          else {
+            // Try TEMPLATES fallback
+            const tmpl = TEMPLATES?.find(t => t.id === u.top_char_id || t.name?.toLowerCase().replace(/\s+/g,'-') === u.top_char_id?.replace(/^cm_/,''));
+            if (tmpl) { charName = tmpl.name; charColor = tmpl.color; }
+          }
+        }
+
+        const { subject, html, text } = buildCheckinEmail(u.name, charName, charColor);
+        const ok = await sendResendEmail(u.email, subject, html, text);
+        if (ok) {
+          await db.query('UPDATE users SET last_checkin_sent_at = NOW() WHERE google_id = $1', [u.google_id]);
+          sent++;
+
+          // Also fire a push notification if they have one
+          const pushRes = await db.query('SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = $1 LIMIT 1', [u.google_id]);
+          if (pushRes.rows.length) {
+            const sub = pushRes.rows[0];
+            webpush.sendNotification(
+              { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+              JSON.stringify({
+                title: charName ? `${charName} is thinking of you` : 'A message for you',
+                body: `${charName || 'Character.Mind'} sent you a check-in. Open to read it.`,
+                url: '/',
+              })
+            ).catch(() => {});
+          }
+        } else {
+          failed++;
+        }
+      } catch (err) {
+        console.error('[checkin] Error for', u.google_id, ':', err.message);
+        failed++;
+      }
+    }
+
+    console.log(`[checkin] Sent ${sent}, failed ${failed}, total eligible ${users.length}`);
+    res.json({ ok: true, sent, failed, total: users.length });
+  } catch (e) {
+    console.error('[checkin] Cron error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // A mistyped API address should say so, not answer with the home page

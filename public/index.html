@@ -1106,6 +1106,10 @@
           <svg viewBox="0 0 24 24" fill="currentColor" width="17" height="17"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
           Public Profile
         </button>
+        <button class="settings-nav-item" id="stab-wellness" onclick="showSettingsTab('wellness')">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 21.593c-5.63-5.539-11-10.297-11-14.402 0-3.791 3.068-5.191 5.281-5.191 1.312 0 4.151.501 5.719 4.457 1.59-3.968 4.464-4.447 5.726-4.447 2.54 0 5.274 1.621 5.274 5.181 0 4.069-5.136 8.625-11 14.402z"/></svg>
+          Wellness
+        </button>
         <button class="settings-nav-item" id="stab-preferences" onclick="showSettingsTab('preferences')">
           <svg viewBox="0 0 24 24" fill="currentColor" width="17" height="17"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
           Preferences
@@ -1149,6 +1153,46 @@
         <p class="settings-note">Changes are saved on this device. Your Google account info is unchanged.</p>
       </div>
       <!-- Preferences Tab -->
+      <!-- Wellness Tab -->
+      <div id="stab-content-wellness" class="settings-tab-content hidden">
+        <h2 class="settings-tab-title">Wellness Check-ins</h2>
+        <p class="settings-field-sub" style="margin-bottom:20px">Every few days, the character you chat with most will send you a personal note — just to check in and see how you're doing.</p>
+
+        <div class="settings-field">
+          <label class="settings-label">Receive check-in messages</label>
+          <p class="settings-field-sub">We'll send you an email (and a push notification if enabled) from your favorite character.</p>
+          <label class="settings-toggle-row">
+            <input type="checkbox" id="checkinOptIn" onchange="checkinDirty()">
+            <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+            <span class="settings-toggle-label" id="checkinOptInLabel">Off</span>
+          </label>
+        </div>
+
+        <div id="checkinOptionsWrap" style="display:none">
+          <div class="settings-field">
+            <label class="settings-label" for="checkinFreq">How often</label>
+            <select class="settings-select" id="checkinFreq" onchange="checkinDirty()">
+              <option value="3">Every 3 days</option>
+              <option value="7">Once a week</option>
+              <option value="14">Every two weeks</option>
+            </select>
+          </div>
+
+          <div class="settings-field">
+            <label class="settings-label" for="checkinPhone">Phone number <span style="font-weight:400;color:var(--c-text-muted)">(optional — for future voice calls)</span></label>
+            <p class="settings-field-sub">We'll use this when we roll out character voice calls. Not used yet.</p>
+            <div class="settings-editable-row">
+              <input class="settings-input" id="checkinPhone" type="tel" maxlength="20" placeholder="+1 555 000 0000" autocomplete="tel" oninput="checkinDirty()">
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+          <button class="settings-save-btn" id="checkinSaveBtn" onclick="saveCheckinSettings()" style="display:none">Save</button>
+          <span id="checkinSaveStatus" style="font-size:12px;color:var(--c-text-muted)"></span>
+        </div>
+      </div>
+
       <div id="stab-content-preferences" class="settings-tab-content hidden">
         <h2 class="settings-tab-title">Preferences</h2>
         <div class="settings-field">

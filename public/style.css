@@ -3398,3 +3398,12 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
 .ttt-x { font-size: 46px; font-weight: 900; color: var(--accent); line-height: 1; }
 .ttt-o { font-size: 46px; font-weight: 900; color: var(--text2); line-height: 1; }
 .ttt-status-text { font-size: 13px; color: var(--text2); font-style: italic; }
+
+/* ── Wellness check-in toggle ───────────────────────────────────────────────── */
+.settings-toggle-row { display: flex; align-items: center; gap: 10px; cursor: pointer; width: fit-content; user-select: none; }
+.settings-toggle-row input[type=checkbox] { position: absolute; opacity: 0; width: 0; height: 0; }
+.settings-toggle-track { position: relative; display: inline-block; width: 40px; height: 22px; background: var(--bg4); border-radius: 11px; transition: background .2s; border: 1px solid var(--border2); flex-shrink: 0; }
+.settings-toggle-row input:checked + .settings-toggle-track { background: var(--accent); border-color: var(--accent); }
+.settings-toggle-thumb { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: #fff; border-radius: 50%; transition: left .2s; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+.settings-toggle-row input:checked + .settings-toggle-track .settings-toggle-thumb { left: 20px; }
+.settings-toggle-label { font-size: 13px; color: var(--text2); min-width: 22px; }
