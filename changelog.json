@@ -1,5 +1,17 @@
 [
   {
+    "id": "v299-checkout-discount",
+    "version": "v299",
+    "date": "Oct 2026",
+    "title": "Checkout: Coin Discount & Annual Savings",
+    "subtitle": "Your coin balance now shows as a real dollar discount in the checkout summary.",
+    "changed": [
+      "Checkout now shows your coin balance as a dollar discount — original price is crossed out and your effective total reflects the coin offset",
+      "Annual plans now show the crossed-out full-year price alongside the savings percentage in green",
+      "If your coins fully cover the plan cost, the total shows $0.00 with a confirmation message"
+    ]
+  },
+  {
     "id": "v298-miss-delight-lore",
     "version": "v298",
     "date": "Oct 2026",

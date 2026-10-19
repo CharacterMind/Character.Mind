@@ -572,15 +572,38 @@ async function openPaypalCheckout(planKey, period) {
 
   const origPriceEl = document.getElementById('paypalCheckoutOrigPrice');
   const priceEl = document.getElementById('paypalCheckoutPrice');
-  if (origPriceEl) origPriceEl.style.display = 'none';
-  if (priceEl) { priceEl.textContent = `$${price.toFixed(2)} / ${periodLabel}`; priceEl.classList.remove('co-discounted'); }
 
-  const tot = document.getElementById('co-total-display');
-  if (tot) tot.textContent = `$${price.toFixed(2)}`;
+  // Annual: show original (monthly×12) struck through + green discounted price
+  if (yearly && plan.monthly > 0) {
+    const fullYear = plan.monthly * 12;
+    const savePct = Math.round((1 - plan.annual / fullYear) * 100);
+    if (origPriceEl) { origPriceEl.textContent = `$${fullYear.toFixed(2)} / yr`; origPriceEl.style.display = ''; }
+    if (priceEl) { priceEl.textContent = `$${price.toFixed(2)} / yr  ·  Save ${savePct}%`; priceEl.classList.add('co-discounted'); }
+  } else {
+    if (origPriceEl) origPriceEl.style.display = 'none';
+    if (priceEl) { priceEl.textContent = `$${price.toFixed(2)} / ${periodLabel}`; priceEl.classList.remove('co-discounted'); }
+  }
 
-  // Coin row hidden — subscriptions are billed at full price by PayPal
+  // Coin discount row — show user's coin balance as a dollar offset
+  const userCoins = lastKnownUsage?.cmCoins || 0;
+  const coinValueUSD = userCoins * COIN_USD_VALUE;
   const coinRow = document.getElementById('co-coin-value-row');
-  if (coinRow) coinRow.style.display = 'none';
+  const coinLabelEl = document.getElementById('co-coin-label');
+  const coinValueEl = document.getElementById('co-coin-value');
+  const coinSaveEl = document.getElementById('co-coin-save');
+  const tot = document.getElementById('co-total-display');
+  if (userCoins > 0 && price > 0) {
+    const discount = Math.min(coinValueUSD, price);
+    const effective = +(price - discount).toFixed(2);
+    if (coinLabelEl) coinLabelEl.textContent = `🪙 ${userCoins.toLocaleString()} coins`;
+    if (coinValueEl) coinValueEl.textContent = `-$${discount.toFixed(2)}`;
+    if (coinSaveEl) coinSaveEl.textContent = effective === 0 ? '✓ Fully covered by your coins!' : `Effective price: $${effective.toFixed(2)} / ${periodLabel}`;
+    if (coinRow) coinRow.style.display = '';
+    if (tot) tot.textContent = `$${effective.toFixed(2)}`;
+  } else {
+    if (coinRow) coinRow.style.display = 'none';
+    if (tot) tot.textContent = `$${price.toFixed(2)}`;
+  }
   document.getElementById('paypal-checkout-status').textContent = '';
   document.getElementById('paypal-checkout-status').style.color = '';
   document.getElementById('paypalCheckoutModal').style.display = 'flex';
