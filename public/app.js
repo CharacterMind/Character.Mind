@@ -7487,7 +7487,7 @@ function getCharCallColors(char) {
     }
     h = h * 60; if (h < 0) h += 360;
   }
-  const c1 = hex;
+  const c1 = hslToHex(h, Math.min(s*100+5,90), Math.max(Math.min(l*100, 32), 12));
   const c2 = hslToHex((h+130)%360, Math.min(s*100+10,100), Math.max(l*100-10,15));
   const c3 = hslToHex((h+250)%360, Math.min(s*100+5,100), Math.max(l*100+5,20));
   return [c1, c2, c3];

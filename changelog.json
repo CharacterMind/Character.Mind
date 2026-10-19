@@ -1,5 +1,20 @@
 [
   {
+    "id": "v290-call-fixes",
+    "version": "v290",
+    "date": "Oct 2026",
+    "title": "Call Screen & Logo Fixes",
+    "subtitle": "Character no longer washes out during calls, logo centered with brackets.",
+    "fixed": [
+      "Character image no longer washes out during voice calls — avatar is now rendered outside the orb blend layer so the screen-blend effect can't bleed into it",
+      "Custom characters' call screen orbs now cap brightness so they can't overpower the character image",
+      "CharacterMind branding on the call screen is now centered with bracket style"
+    ],
+    "changed": [
+      "Sidebar logo shows full [character.mind] with brackets, centered"
+    ]
+  },
+  {
     "id": "v289-cooldown-logo",
     "version": "v289",
     "date": "Oct 2026",

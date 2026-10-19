@@ -22,7 +22,7 @@
 <link rel="icon" type="image/svg+xml" href="/logo-icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=289">
+<link rel="stylesheet" href="style.css?v=290">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -325,7 +325,7 @@
         <div class="logo" onclick="showHome()">
           <span class="logo-bracket">[</span>
           <img class="logo-icon logo-img" src="/logo-icon.svg" alt="c.m">
-          <span class="logo-text">c.m</span>
+          <span class="logo-text">character.mind</span>
           <span class="logo-bracket">]</span>
         </div>
         <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" onclick="toggleSidebar()" title="Collapse sidebar">
@@ -634,17 +634,19 @@
         <div id="callOverlay" class="call-overlay" style="display:none">
           <!-- CharacterMind branding -->
           <div class="call-brand-logo">
+            <span class="call-brand-bracket">[</span>
             <img src="/logo-icon.svg" alt="c.m" width="22" height="22" style="border-radius:5px;vertical-align:middle">
             <span class="call-brand-text">character.mind</span>
+            <span class="call-brand-bracket">]</span>
           </div>
-          <!-- Dark background + orbs behind character -->
+          <!-- Dark background + orbs — character image is a sibling, NOT inside, so screen-blend doesn't wash it out -->
           <div class="call-bg" id="callBg">
             <div class="call-orb call-orb-1"></div>
             <div class="call-orb call-orb-2"></div>
             <div class="call-orb call-orb-3"></div>
             <div class="call-orb call-orb-4"></div>
-            <div class="call-char-img" id="callCharImg"></div>
           </div>
+          <div class="call-char-img" id="callCharImg"></div>
           <!-- Bottom gradient scrim for readability -->
           <div class="call-bg-scrim"></div>
           <!-- Voice On badge -->
@@ -1786,7 +1788,7 @@
   </div>
 </div>
 
-<script src="app.js?v=289"></script>
+<script src="app.js?v=290"></script>
 
 <!-- Session 90% warning toast -->
 <div id="sessionWarningToast">
