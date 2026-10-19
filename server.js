@@ -925,7 +925,7 @@ function countSwears(text) { return (String(text || '').match(STRONG_SWEAR_RE) |
 function getSwearLimitFor(tier) { return TIER_SWEAR_LIMITS[tier] ?? TIER_SWEAR_LIMITS.free; }
 function tokenLimitsFor(u) {
   const base = TIER_TOKEN_LIMITS[u.subscriptionTier || 'free'] || TIER_TOKEN_LIMITS.free;
-  const credit = u.tokenCredit || 0;
+  const credit = (u.creditsEnabled !== false) ? (u.tokenCredit || 0) : 0;
   if (!credit) return base;
   return { session: base.session + credit, weekly: base.weekly === Infinity ? Infinity : base.weekly + credit };
 }
@@ -1165,7 +1165,7 @@ const userLimits = {};
 function getLimits(sid) {
   const now = Date.now();
   if (!userLimits[sid]) {
-    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null, memosToday: 0, memoDayStart: null, imagesDay: 0, imageDayStart: null, imageFirstUsedAt: null, ttsCharsToday: 0, ttsDayStart: null, swearsToday: 0, swearDayStart: null, subscriptionTier: 'free', tokenCredit: 0 };
+    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null, memosToday: 0, memoDayStart: null, imagesDay: 0, imageDayStart: null, imageFirstUsedAt: null, ttsCharsToday: 0, ttsDayStart: null, swearsToday: 0, swearDayStart: null, subscriptionTier: 'free', tokenCredit: 0, creditsEnabled: true };
   }
   const u = userLimits[sid];
   if (u.subscriptionTier === undefined) u.subscriptionTier = 'free';
@@ -1247,6 +1247,7 @@ function buildUsagePayload(u, userId) {
     rank: getRank(u.coinsEarnedAllTime || 0),
     ranks: RANKS,
     tokenCredit: u.tokenCredit || 0,
+    creditsEnabled: u.creditsEnabled !== false,
   };
 }
 
@@ -3411,6 +3412,15 @@ app.post('/api/usage/buy-pack', requireAuth, async (req, res) => {
     console.error('[buy-pack]', e.message);
     res.status(500).json({ error: 'Something went wrong' });
   }
+});
+
+app.post('/api/usage/credits-toggle', requireAuth, (req, res) => {
+  const { enabled } = req.body;
+  if (typeof enabled !== 'boolean') return res.status(400).json({ error: 'enabled must be boolean' });
+  const u = getLimits(req.user.googleId);
+  u.creditsEnabled = enabled;
+  saveLimitsToDB(req.user.googleId);
+  res.json({ ok: true, creditsEnabled: u.creditsEnabled, ...buildUsagePayload(u, req.user.googleId) });
 });
 
 const ELEVEN_KEY = process.env.ELEVENLABS_API_KEY || '';

@@ -4767,6 +4767,21 @@ async function adminAddServiceCoins() {
   if (btn) { btn.disabled = false; btn.textContent = 'Add Coins'; }
 }
 
+async function toggleSessionCredits() {
+  const btn = document.getElementById('creditsToggleBtn');
+  const currentlyEnabled = btn?.dataset.enabled === 'true';
+  const newEnabled = !currentlyEnabled;
+  try {
+    const r = await fetch('/api/usage/credits-toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: newEnabled }),
+    });
+    const d = await r.json();
+    if (d.ok) updateUsageModal(d);
+  } catch (_) {}
+}
+
 async function adminResetLimits() {
   if (!isOwner()) return;
   const btn = document.getElementById('resetLimitsBtn');
@@ -5198,23 +5213,38 @@ function updateUsageModal(u) {
   if (weeklySection) weeklySection.style.display = isFree ? 'none' : '';
   if (weeklyRule1)   weeklyRule1.style.display   = isFree ? 'none' : '';
 
-  // Session Boost (tokenCredit)
+  // Session Credits toggle section
   const creditSection = document.getElementById('usageCreditsSection');
   if (creditSection) {
     const credit = u.tokenCredit || 0;
-    if (credit > 0) {
-      creditSection.style.display = '';
-      const baseLimit = (u.sessionLimit || 25000) - credit;
-      const creditUsed = Math.max(0, (u.sessionTokens || 0) - baseLimit);
-      const creditPct = Math.min(100, Math.round(creditUsed / credit * 100));
-      const bar = document.getElementById('usageCreditsBar');
-      const pctEl = document.getElementById('usageCreditsPct');
-      const subEl = document.getElementById('usageCreditsSub');
-      if (bar) bar.style.width = creditPct + '%';
-      if (pctEl) pctEl.textContent = Math.round(credit / 1000) + 'K tokens remaining';
-      if (subEl) subEl.textContent = 'Session boost active · boosts expire when your session resets';
-    } else {
-      creditSection.style.display = 'none';
+    const enabled = u.creditsEnabled !== false;
+    const pctEl  = document.getElementById('usageCreditsPct');
+    const subEl  = document.getElementById('usageCreditsSub');
+    const bar    = document.getElementById('usageCreditsBar');
+    const barWrap = document.getElementById('usageCreditsBarWrap');
+    const btn    = document.getElementById('creditsToggleBtn');
+    const knob   = document.getElementById('creditsToggleKnob');
+
+    if (pctEl) pctEl.textContent = credit > 0 ? (Math.round(credit / 1000) + 'K tokens') : '0 tokens';
+    if (subEl) subEl.textContent = credit > 0
+      ? 'Earned credits extend your session limit automatically.'
+      : 'Buy a session boost pack below to earn credits.';
+
+    if (btn) {
+      btn.style.background = enabled ? '#8b5cf6' : 'var(--border2,#444)';
+      btn.dataset.enabled = enabled ? 'true' : 'false';
+    }
+    if (knob) knob.style.left = enabled ? '21px' : '3px';
+
+    if (barWrap && bar) {
+      if (credit > 0 && enabled) {
+        barWrap.style.display = '';
+        const baseLimit = (u.sessionLimit || 25000) - credit;
+        const creditUsed = Math.max(0, (u.sessionTokens || 0) - baseLimit);
+        bar.style.width = Math.min(100, Math.round(creditUsed / credit * 100)) + '%';
+      } else {
+        barWrap.style.display = 'none';
+      }
     }
   }
 
