@@ -872,7 +872,10 @@ async function loadLimitsFromDB() {
         swearsToday: d.swearsToday || 0,
         swearDayStart: d.swearDayStart || null,
         subscriptionTier: d.subscriptionTier || 'free',
-        tokenCredit: d.tokenCredit || 0
+        tokenCredit: d.tokenCredit || 0,
+        creditsEnabled: d.creditsEnabled !== false,
+        lastCheckin: d.lastCheckin || null,
+        checkinStreak: d.checkinStreak || 0,
         // tierLoaded intentionally omitted: coins/tokens/tier are authoritative in the users table
         // and must be re-fetched via ensureTierLoaded on first request after restart
       };
@@ -1142,6 +1145,53 @@ function maybeTrackLogin(uid) {
   trackMissionProgress(uid, 'login').catch(() => {});
 }
 
+// ── Daily Check-in Coin Grind ─────────────────────────────────────────────────
+// Base reward per day; streak multipliers give bonus coins on milestone days.
+const CHECKIN_BASE = 10;
+const CHECKIN_STREAK_BONUS = { 3: 5, 7: 20, 14: 40, 30: 80 }; // added to base at milestone streak
+
+function checkinTodayStr() {
+  const n = new Date();
+  return `${n.getUTCFullYear()}${String(n.getUTCMonth()+1).padStart(2,'0')}${String(n.getUTCDate()).padStart(2,'0')}`;
+}
+
+// Returns { awarded, coins, streak, bonusDay } or null if already checked in today
+async function checkDailyCheckin(uid) {
+  if (!db) return null;
+  const u = getLimits(uid);
+  const today = checkinTodayStr();
+  if (u.lastCheckin === today) return null; // already claimed today
+
+  // Compute yesterday string to detect streak continuity
+  const yDate = new Date(); yDate.setUTCDate(yDate.getUTCDate() - 1);
+  const yesterday = `${yDate.getUTCFullYear()}${String(yDate.getUTCMonth()+1).padStart(2,'0')}${String(yDate.getUTCDate()).padStart(2,'0')}`;
+
+  const prevStreak = u.checkinStreak || 0;
+  const newStreak = (u.lastCheckin === yesterday) ? prevStreak + 1 : 1;
+
+  // Find the highest applicable milestone bonus
+  const bonus = Object.entries(CHECKIN_STREAK_BONUS)
+    .filter(([day]) => newStreak % parseInt(day) === 0)
+    .reduce((acc, [, val]) => Math.max(acc, val), 0);
+  const coins = CHECKIN_BASE + bonus;
+  const bonusDay = bonus > 0;
+
+  // Award coins in DB and update streak fields
+  u.lastCheckin = today;
+  u.checkinStreak = newStreak;
+  u.cmCoins = (u.cmCoins || 0) + coins;
+  u.coinsEarnedToday = (u.coinsEarnedToday || 0) + coins;
+  u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + coins;
+  saveLimitsToDB(uid);
+  try {
+    await db.query(
+      'UPDATE users SET cm_coins = cm_coins + $1, coins_earned_all_time = COALESCE(coins_earned_all_time,0) + $1 WHERE google_id = $2',
+      [coins, uid]
+    );
+  } catch (e) { console.error('[checkin] DB error:', e.message); }
+  return { awarded: true, coins, streak: newStreak, bonusDay };
+}
+
 function getCallLimitForUser(userId) {
   const tier = userLimits[userId]?.subscriptionTier || 'free';
   return TIER_CALL_LIMITS[tier] ?? TIER_CALL_LIMITS.free;
@@ -1166,7 +1216,7 @@ const userLimits = {};
 function getLimits(sid) {
   const now = Date.now();
   if (!userLimits[sid]) {
-    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null, memosToday: 0, memoDayStart: null, imagesDay: 0, imageDayStart: null, imageFirstUsedAt: null, ttsCharsToday: 0, ttsDayStart: null, swearsToday: 0, swearDayStart: null, subscriptionTier: 'free', tokenCredit: 0, creditsEnabled: true };
+    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null, memosToday: 0, memoDayStart: null, imagesDay: 0, imageDayStart: null, imageFirstUsedAt: null, ttsCharsToday: 0, ttsDayStart: null, swearsToday: 0, swearDayStart: null, subscriptionTier: 'free', tokenCredit: 0, creditsEnabled: true, lastCheckin: null, checkinStreak: 0 };
   }
   const u = userLimits[sid];
   if (u.subscriptionTier === undefined) u.subscriptionTier = 'free';
@@ -3438,6 +3488,24 @@ app.post('/api/usage/credits-toggle', requireAuth, (req, res) => {
   u.creditsEnabled = enabled;
   saveLimitsToDB(req.user.googleId);
   res.json({ ok: true, creditsEnabled: u.creditsEnabled, ...buildUsagePayload(u, req.user.googleId) });
+});
+
+app.post('/api/checkin', requireAuth, async (req, res) => {
+  const uid = req.user.googleId;
+  const result = await checkDailyCheckin(uid);
+  if (!result) return res.json({ ok: false, reason: 'already_claimed' });
+  res.json({ ok: true, ...result });
+});
+
+// Also return streak info without claiming (for display)
+app.get('/api/checkin', requireAuth, (req, res) => {
+  const u = getLimits(req.user.googleId);
+  const today = checkinTodayStr();
+  res.json({
+    claimedToday: u.lastCheckin === today,
+    streak: u.checkinStreak || 0,
+    nextReward: CHECKIN_BASE,
+  });
 });
 
 const ELEVEN_KEY = process.env.ELEVENLABS_API_KEY || '';

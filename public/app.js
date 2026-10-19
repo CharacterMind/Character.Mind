@@ -1066,6 +1066,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     renderDiscover();
     renderFeed();
     loadUsage();
+    doDailyCheckin();
     maybeShowWelcome();
     initSidebarState();
     initRpMode();
@@ -4765,6 +4766,43 @@ async function adminAddServiceCoins() {
     } else { if (statusEl) statusEl.textContent = d.error || 'Failed.'; }
   } catch (_) { if (statusEl) statusEl.textContent = 'Network error.'; }
   if (btn) { btn.disabled = false; btn.textContent = 'Add Coins'; }
+}
+
+async function doDailyCheckin() {
+  try {
+    const r = await fetch('/api/checkin', { method: 'POST' });
+    const d = await r.json();
+    if (!d.ok) return; // already claimed today
+    const streakTxt = d.streak > 1 ? ` (${d.streak}-day streak 🔥)` : '';
+    const bonusTxt  = d.bonusDay    ? ` Streak bonus!` : '';
+    showCheckinToast(d.coins, streakTxt + bonusTxt, d.streak);
+  } catch (_) {}
+}
+
+function showCheckinToast(coins, extra, streak) {
+  let el = document.getElementById('checkinToast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'checkinToast';
+    el.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(60px);z-index:9999;background:linear-gradient(135deg,#1a1a2e,#16213e);border:1px solid rgba(139,92,246,0.4);border-radius:14px;padding:14px 20px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 32px rgba(0,0,0,0.5);transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1),opacity 0.4s;opacity:0;max-width:320px';
+    document.body.appendChild(el);
+  }
+  const milestones = { 7: '🏆', 14: '🌟', 30: '👑' };
+  const icon = milestones[streak] || '🎁';
+  el.innerHTML = `
+    <div style="font-size:28px;line-height:1">${icon}</div>
+    <div>
+      <div style="font-size:13px;font-weight:700;color:#e2e8f0">Daily Check-in!</div>
+      <div style="font-size:12px;color:#a78bfa;margin-top:2px">+${coins} coins earned${extra}</div>
+    </div>`;
+  requestAnimationFrame(() => {
+    el.style.transform = 'translateX(-50%) translateY(0)';
+    el.style.opacity = '1';
+  });
+  setTimeout(() => {
+    el.style.transform = 'translateX(-50%) translateY(60px)';
+    el.style.opacity = '0';
+  }, 4000);
 }
 
 async function toggleSessionCredits() {
