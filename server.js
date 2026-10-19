@@ -5124,23 +5124,75 @@ app.post('/api/admin/donate-coins', requireAuth, async (req, res) => {
   res.json({ ok: true, preview: false, users: n, distributed: updated, pool: poolAmt, perUser, total: poolAmt });
 });
 
-// ── Admin send coins to specific user ──────────────────────────────────────────
+// ── Admin send coins (+ optional tokens) to specific user ──────────────────────
 app.post('/api/admin/send-coins-to-email', requireAuth, async (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
   if (!db) return res.status(503).json({ error: 'No database' });
-  const { email, amount } = req.body;
+  const { email, amount, tokens: rawTokens } = req.body;
   if (!email || typeof email !== 'string') return res.status(400).json({ error: 'Email required' });
-  const coins = Math.max(1, Math.min(100000, parseInt(amount) || 0));
+  const coins  = Math.max(1, Math.min(100000, parseInt(amount)    || 0));
+  const tokens = Math.max(0, Math.min(100000, parseInt(rawTokens) || 0));
   if (!coins) return res.status(400).json({ error: 'Invalid amount' });
+
   const { rows } = await db.query(
-    `SELECT google_id, name, cm_coins FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+    `SELECT google_id, name, email AS user_email, cm_coins FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
     [email.trim()]
   );
   if (!rows.length) return res.status(404).json({ error: 'No user found with that email' });
   const user = rows[0];
-  await db.query('UPDATE users SET cm_coins = cm_coins + $1 WHERE google_id = $2', [coins, user.google_id]);
-  console.log(`[admin] send-coins-to-email: ${coins} → ${email} (${user.google_id})`);
-  res.json({ ok: true, email: email.trim(), name: user.name, coins, newBalance: user.cm_coins + coins });
+
+  // 10% bonus on coins (minimum 5), framed as a Character.Mind gift
+  const bonus = Math.max(5, Math.ceil(coins * 0.10));
+  const totalCoins = coins + bonus;
+
+  await db.query(
+    'UPDATE users SET cm_coins = cm_coins + $1, coins_earned_all_time = COALESCE(coins_earned_all_time,0) + $1 WHERE google_id = $2',
+    [totalCoins, user.google_id]
+  );
+  if (tokens > 0) {
+    await db.query('UPDATE users SET cm_tokens = COALESCE(cm_tokens,0) + $1 WHERE google_id = $2', [tokens, user.google_id]);
+  }
+  // Keep in-memory limits in sync
+  const ul = getLimits(user.google_id);
+  ul.cmCoins = (ul.cmCoins || 0) + totalCoins;
+  ul.coinsEarnedAllTime = (ul.coinsEarnedAllTime || 0) + totalCoins;
+  if (tokens > 0) ul.cmTokens = (ul.cmTokens || 0) + tokens;
+
+  console.log(`[admin] send-coins-to-email: ${totalCoins} coins (${bonus} bonus)${tokens ? ` + ${tokens} tokens` : ''} → ${email} (${user.google_id})`);
+
+  // ── Thank-you email ──────────────────────────────────────────────────────────
+  if (user.user_email) {
+    const firstName = (user.name || 'there').split(/\s+/)[0];
+    const tokenLine = tokens > 0
+      ? `<p style="margin:0 0 14px;font-size:15px;color:#cccccc;line-height:1.6">You also received <span style="color:#f59e0b;font-weight:600">${tokens} tournament tokens</span> 🎟️ — use them in the monthly token tournament to compete for the top spot on the leaderboard.</p>`
+      : '';
+    const tokenText = tokens > 0 ? `\n\nYou also received ${tokens} tournament tokens — use them to compete in the monthly token tournament.` : '';
+    const bodyText = `We appreciate your support at Character.Mind! We've added ${totalCoins} coins to your account — that includes a ${bonus}-coin bonus from us as a thank-you.${tokenText}\n\nThank you for being part of the community.`;
+    const htmlEmail = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:40px 16px">
+  <tr><td align="center">
+    <table width="100%" style="max-width:520px;background:#111111;border-radius:12px;border:1px solid #222222;padding:40px">
+      <tr><td>
+        <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#7c3aed">Character.Mind</p>
+        <p style="margin:0 0 20px;font-size:28px">🎁</p>
+        <p style="margin:0 0 6px;font-size:22px;font-weight:700;color:#f0f0f0">Hey ${firstName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}, you've got a gift!</p>
+        <p style="margin:0 0 20px;font-size:13px;color:#666">We appreciate your support ♥</p>
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:20px;margin-bottom:20px;text-align:center">
+          <p style="margin:0 0 4px;font-size:34px;font-weight:800;color:#a78bfa">${totalCoins} coins</p>
+          <p style="margin:0;font-size:12px;color:#555">Includes a <span style="color:#a78bfa">${bonus}-coin bonus</span> from the Character.Mind team</p>
+        </div>
+        ${tokenLine}
+        <p style="margin:0 0 24px;font-size:15px;color:#cccccc;line-height:1.7">Thank you for being part of the Character.Mind community. Your support helps keep the characters alive — and we mean that literally. 🎭</p>
+        <a href="https://charactermind.onrender.com" style="display:inline-block;padding:12px 28px;background:#7c3aed;color:#fff;text-decoration:none;border-radius:8px;font-size:15px;font-weight:600">Use your coins →</a>
+        <p style="margin:24px 0 0;font-size:11px;color:#444">You're receiving this because you have an account on Character.Mind.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table></body></html>`;
+    sendResendEmail(user.user_email, `🎁 You've received a gift from Character.Mind!`, htmlEmail, bodyText).catch(() => {});
+  }
+
+  res.json({ ok: true, email: email.trim(), name: user.name, coins: totalCoins, bonus, tokens, newBalance: user.cm_coins + totalCoins });
 });
 
 // ── PayPal ─────────────────────────────────────────────────────────────────────

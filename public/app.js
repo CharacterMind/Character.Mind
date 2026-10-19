@@ -4665,11 +4665,12 @@ async function adminGiveawaySend() {
 
 async function adminSendCoinsToEmail() {
   if (!isOwner()) return;
-  const email = (document.getElementById('sendToEmail')?.value || '').trim();
+  const email  = (document.getElementById('sendToEmail')?.value || '').trim();
   const amount = parseInt(document.getElementById('sendToEmailAmount')?.value) || 0;
+  const tokens = parseInt(document.getElementById('sendToEmailTokens')?.value) || 0;
   const info = document.getElementById('sendToEmailResult');
   if (!email) { if (info) info.textContent = 'Enter an email address.'; return; }
-  if (!amount || amount < 1) { if (info) info.textContent = 'Enter a valid amount.'; return; }
+  if (!amount || amount < 1) { if (info) info.textContent = 'Enter a valid coin amount.'; return; }
   const btn = document.getElementById('sendToEmailBtn');
   if (btn) { btn.textContent = 'Sending…'; btn.disabled = true; }
   if (info) info.textContent = '';
@@ -4677,16 +4678,17 @@ async function adminSendCoinsToEmail() {
     const d = await fetch('/api/admin/send-coins-to-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, amount })
+      body: JSON.stringify({ email, amount, tokens })
     }).then(r => r.json());
     if (d.ok) {
-      showWarning(`💌 Sent ${d.coins} coins to ${d.name || d.email} ✓`, 6000);
-      if (info) info.textContent = `✓ ${d.coins} coins → ${d.name || d.email}`;
+      const tokenPart = d.tokens > 0 ? ` + ${d.tokens} tokens` : '';
+      showWarning(`🎁 Sent ${d.coins} coins (incl. ${d.bonus} bonus)${tokenPart} to ${d.name || d.email} — email sent ✓`, 7000);
+      if (info) info.textContent = `✓ ${d.coins} coins (${d.bonus} bonus)${tokenPart} → ${d.name || d.email}`;
     } else {
       if (info) info.textContent = d.error || 'Failed.';
     }
   } catch (_) { if (info) info.textContent = 'Request failed.'; }
-  if (btn) { btn.textContent = 'Send 💌'; btn.disabled = false; }
+  if (btn) { btn.textContent = 'Send Gift 🎁'; btn.disabled = false; }
 }
 
 async function adminGiveSelf() {
