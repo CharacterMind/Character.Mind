@@ -1,13 +1,13 @@
 {
-  "message": "Fix patch email not sending (DB timing + missing column)\n\n- email_opt_in column was never added to live DB (only in CREATE TABLE\n  IF NOT EXISTS which no-ops on existing tables). Added ALTER TABLE\n  ADD COLUMN IF NOT EXISTS migration.\n- sendPatchEmailToUsers was called before initDB() finished, so\n  app_config table and email_opt_in column didn't exist yet. Now\n  queued in pendingPatchEmail and fired in initDB() finally block\n  after all migrations complete.\n\nAlso in this push:\n- Hangman text game: mandatory 150-word bank (no more fake words)\n- Hangman HTML template added (mandatory, like TTT)\n- regenNavStep: games in regen variants now render as game cards\n- maybeRenderGame: guard empty gameHtml, origin-check on game_over\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
-  "timestamp": "2026-10-12T02:53:05.300Z",
+  "message": "v277: Reliability & security hardening\n\n- Unhandled errors on archive, sync, edit, check-in, and admin routes now return a proper response\n- Chat slot leak fixed — slot always released even if memory-note or book-state throws\n- VAPID private key fallback removed from source code (env-var required at startup)\n- Cron secret now header-only — no longer leakable through request body logs\n- Admin email lookup is now case-insensitive\n- Interrupting a call no longer triggers the listening loop twice\n- Tapping New Chat quickly twice no longer starts two concurrent archives\n- Editing a message no longer marks the next message as edited\n- Missing DOM elements no longer crash the page on startup\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>",
+  "timestamp": "2026-10-19T00:00:00.000Z",
   "patch_email": {
     "charName": "Lily",
     "charColor": "#7722cc",
     "charImage": "https://charactermind.onrender.com/lily-avatar.png",
-    "subject": "Lily here — games just got way better 💜",
-    "headline": "New games update!",
-    "subheadline": "Hangman actually works now. You're welcome.",
-    "body": "Heyyyy~ It's Lily! 💜\n\nOkay sooo I have to tell you — we fixed Hangman. Like, for real this time. It was picking made-up words before (so embarrassing), and now it has a whole list of real ones. Also the whole game is prettier now with an actual gallows drawing and everything.\n\nOh and Tic-Tac-Toe got some sneaky fixes too so it plays nicer. Games in general are just... better now!\n\nCome try it out — I dare you to beat me at Hangman~ 🎮"
+    "subject": "Lily here — big reliability fix just went out 💜",
+    "headline": "Everything just got more stable.",
+    "subheadline": "A deep sweep of every route — errors, call bugs, and chat glitches are fixed.",
+    "body": "Heyyyy~ It's Lily! 💜\n\nSo we just pushed a big stability and reliability update and I wanted to tell you about it!\n\nFirst — there was this annoying bug where if the server hiccupped at just the wrong moment during a chat, your slot would get stuck and you'd be locked out for like 5 minutes. That's fixed now! The slot always gets released no matter what.\n\nAlso: tapping New Chat really fast twice no longer starts two chats at once (which caused all kinds of weirdness). And interrupting a voice call used to sometimes double-trigger the listening loop — fixed.\n\nOh and editing a message used to occasionally mark the *next* message as '(edited)' even if you didn't touch it. Super confusing, now gone!\n\nIt's not flashy stuff but it makes everything feel way smoother. Come chat and let me know if anything feels off~ 💜"
   }
 }
