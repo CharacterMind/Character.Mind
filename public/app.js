@@ -6122,7 +6122,7 @@ function appendMessage(role, text, imgB64, lite) {
         <span class="msg-name" style="color:var(--text3)">You</span>${editedTag}
         ${msgMenuHtml('user')}
       </div>
-      ${imgB64 ? `<img class="msg-img" src="${imgB64}" alt="attachment">` : (text === '[image]' ? `<div class="bubble" style="opacity:0.55;font-size:12px">📷 Image</div>` : '')}
+      ${imgB64 ? `<img class="msg-img" src="${imgB64}" alt="attachment">` : (text === '[image]' ? `<div class="bubble" data-raw="[image]" style="opacity:0.55;font-size:12px">📷 Image</div>` : '')}
       ${text && text !== '[image]' ? `<div class="bubble">${escHtml(text)}</div>` : ''}`;
   }
   document.getElementById('messages').appendChild(div);

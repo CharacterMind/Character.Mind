@@ -1,12 +1,13 @@
 [
   {
-    "id": "v283-fixes",
-    "version": "v283",
+    "id": "v284-fixes",
+    "version": "v284",
     "date": "Oct 2026",
-    "title": "Image Preview Fix",
-    "subtitle": "Attaching an image no longer causes the page to load twice.",
+    "title": "Image History Fix",
+    "subtitle": "Images in chat history now stay as images after the first save.",
     "fixed": [
-      "Attaching an image no longer causes the browser to silently re-request the page — image preview thumbnail now uses a safe empty placeholder"
+      "Image messages in history no longer turn into plain '📷 Image' text after the first session — they now correctly save and reload as image placeholders",
+      "Attaching an image no longer causes the browser to silently re-request the page — preview thumbnail uses a safe empty placeholder"
     ]
   },
   {
