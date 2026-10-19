@@ -857,7 +857,8 @@ async function loadLimitsFromDB() {
         const imgActive2 = !!(d.imagesDay > 0 && d.imageFirstUsedAt && (Date.now() - d.imageFirstUsedAt) < 24 * 60 * 60 * 1000);
         const dailyActive = (d.callDayStart >= cw && (d.callsToday > 0 || d.memosToday > 0)) ||
                             imgActive2 ||
-                            (d.ttsDayStart   >= cw && d.ttsCharsToday > 0);
+                            (d.ttsDayStart   >= cw && d.ttsCharsToday > 0) ||
+                            (d.lastCheckin === checkinTodayStr());
         if (!dailyActive) continue;
       }
       userLimits[row.user_id] = {
@@ -1169,7 +1170,24 @@ async function checkDailyCheckin(uid) {
   if (!db) return null;
   const u = getLimits(uid);
   const today = checkinTodayStr();
-  if (u.lastCheckin === today) return null; // already claimed today
+  if (u.lastCheckin === today) return null; // already claimed today — fast path
+
+  // Belt-and-suspenders: if in-memory shows no check-in yet, verify against DB
+  // (protects against server restart clearing in-memory state before loadLimitsFromDB ran)
+  try {
+    const r = await db.query("SELECT data->>'lastCheckin' AS last_checkin, data->>'checkinStreak' AS streak FROM user_limits WHERE user_id = $1", [uid]);
+    if (r.rows.length) {
+      const dbCheckin = r.rows[0].last_checkin;
+      if (dbCheckin === today) {
+        u.lastCheckin = today; // restore in-memory so future fast-path works
+        if (r.rows[0].streak) u.checkinStreak = parseInt(r.rows[0].streak) || 0;
+        return null; // already awarded today per DB
+      }
+      // Restore DB streak state into memory so streak math is correct
+      if (dbCheckin) u.lastCheckin = dbCheckin;
+      if (r.rows[0].streak) u.checkinStreak = parseInt(r.rows[0].streak) || 0;
+    }
+  } catch (e) { /* non-fatal — proceed with in-memory state */ }
 
   // Compute yesterday string to detect streak continuity
   const yDate = new Date(); yDate.setUTCDate(yDate.getUTCDate() - 1);
