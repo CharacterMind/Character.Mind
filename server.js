@@ -3624,12 +3624,15 @@ const GEMINI_TTS_VOICES = new Set([
   'Zubenelgenubi','Vindemiatrix','Sadachbia','Sadaltager','Sulafat'
 ]);
 
-async function geminiTTSSynthesize(text, voiceName, apiKey) {
+async function geminiTTSSynthesize(text, voiceName, apiKey, timeoutMs = 12000) {
   const voice = GEMINI_TTS_VOICES.has(voiceName) ? voiceName : 'Aoede';
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   const r = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent`,
     {
       method: 'POST',
+      signal: controller.signal,
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text }] }],
@@ -3640,6 +3643,7 @@ async function geminiTTSSynthesize(text, voiceName, apiKey) {
       })
     }
   );
+  clearTimeout(timer);
   if (!r.ok) {
     const body = await r.text().catch(() => '');
     throw new Error('gemini-tts:' + r.status + ' ' + body.slice(0, 200));
@@ -3719,26 +3723,29 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   const clientEdgeVoice = req.body?.edgeVoice && typeof req.body.edgeVoice === 'string' ? req.body.edgeVoice : null;
   if (!text) return res.status(400).json({ error: 'no_text' });
 
-  // Gemini TTS path — apply same daily character cap
+  // Gemini TTS path — 6 s timeout; falls through to Edge on any failure
   if (provider === 'gemini') {
     const gKey = process.env.GEMINI_API_KEY;
-    if (!gKey) return res.status(502).json({ error: 'tts_failed' });
-    const userId = req.user.googleId;
-    const ttsU2 = getLimits(userId);
-    const ttsWin2 = getCallWindowStart();
-    if (!ttsU2.ttsDayStart || ttsU2.ttsDayStart < ttsWin2) { ttsU2.ttsCharsToday = 0; ttsU2.ttsDayStart = ttsWin2; }
-    if ((ttsU2.ttsCharsToday || 0) + text.length > TTS_DAILY_CHARS) return res.status(429).json({ error: 'tts_limit' });
-    ttsU2.ttsCharsToday = (ttsU2.ttsCharsToday || 0) + text.length;
-    saveLimitsToDB(userId);
-    try {
-      const { audio, ct } = await geminiTTSSynthesize(text, geminiVoice, gKey);
-      res.setHeader('Content-Type', ct);
-      res.setHeader('Cache-Control', 'no-store');
-      return res.send(audio);
-    } catch (e) {
-      ttsU2.ttsCharsToday = Math.max(0, (ttsU2.ttsCharsToday || 0) - text.length);
-      console.warn('[gemini-tts] failed', e.message);
-      return res.status(502).json({ error: 'tts_failed' });
+    if (gKey) {
+      const userId = req.user.googleId;
+      const ttsU2 = getLimits(userId);
+      const ttsWin2 = getCallWindowStart();
+      if (!ttsU2.ttsDayStart || ttsU2.ttsDayStart < ttsWin2) { ttsU2.ttsCharsToday = 0; ttsU2.ttsDayStart = ttsWin2; }
+      if ((ttsU2.ttsCharsToday || 0) + text.length <= TTS_DAILY_CHARS) {
+        ttsU2.ttsCharsToday = (ttsU2.ttsCharsToday || 0) + text.length;
+        saveLimitsToDB(userId);
+        try {
+          const { audio, ct } = await geminiTTSSynthesize(text, geminiVoice, gKey, 6000);
+          res.setHeader('Content-Type', ct);
+          res.setHeader('Cache-Control', 'no-store');
+          res.setHeader('X-TTS-Provider', 'gemini');
+          return res.send(audio);
+        } catch (e) {
+          ttsU2.ttsCharsToday = Math.max(0, (ttsU2.ttsCharsToday || 0) - text.length);
+          console.warn('[gemini-tts] failed, falling back to Edge:', e.message);
+          // fall through to Edge TTS
+        }
+      }
     }
   }
 
@@ -3758,6 +3765,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
     if (!audio || audio.length === 0) throw new Error('empty audio');
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-TTS-Provider', 'edge');
     res.send(audio);
   } catch (e) {
     const is429 = e.message?.includes('429');

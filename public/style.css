@@ -1008,11 +1008,14 @@ html, body {
   display: inline-flex; align-items: center; justify-content: center;
   transition: color .15s, background .15s; opacity: 0; flex-shrink: 0;
 }
-.msg:hover .tts-btn, .tts-btn.playing { opacity: 1; }
+.msg:hover .tts-btn, .tts-btn.playing, .tts-btn.loading { opacity: 1; }
 .tts-btn:hover { color: var(--accent); background: var(--bg3); }
 .tts-btn.playing { color: var(--accent); }
 .tts-btn.playing svg { animation: tts-pulse 1.2s ease infinite; }
+.tts-btn.loading { color: var(--accent); }
+.tts-btn.loading svg { animation: tts-spin 1s linear infinite; }
 @keyframes tts-pulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+@keyframes tts-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 /* ── Call overlay (Character.AI-style clean dark design) ─────────────────────── */
 .call-overlay {

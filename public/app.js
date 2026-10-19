@@ -7395,7 +7395,7 @@ function ttsCleanText(raw) {
 function stopActiveTTS() {
   if (activeTTSAudio) { activeTTSAudio.pause(); activeTTSAudio = null; }
   if (activeTTSUtterance) { window.speechSynthesis.cancel(); activeTTSUtterance = null; }
-  if (activeTTSBtn) { activeTTSBtn.classList.remove('playing'); activeTTSBtn = null; }
+  if (activeTTSBtn) { activeTTSBtn.classList.remove('playing', 'loading'); activeTTSBtn = null; }
 }
 
 async function toggleTTS(btn) {
@@ -7408,10 +7408,11 @@ async function toggleTTS(btn) {
   stopActiveTTS();
   if (wasSame) return;
 
-  btn.classList.add('playing');
+  btn.classList.add('loading');
   activeTTSBtn = btn;
 
   if (ttsProvider === 'browser') {
+    btn.classList.remove('loading'); btn.classList.add('playing');
     if (window.speechSynthesis) {
       const u = new SpeechSynthesisUtterance(text.slice(0, 300));
       if (selectedVoice) u.voice = selectedVoice;
@@ -7431,6 +7432,7 @@ async function toggleTTS(btn) {
     });
     if (r.ok) {
       serverOk = true;
+      btn.classList.remove('loading'); btn.classList.add('playing');
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
@@ -7440,8 +7442,10 @@ async function toggleTTS(btn) {
       await audio.play().catch(() => { URL.revokeObjectURL(url); stopActiveTTS(); });
     }
   } catch (_) {}
+  btn.classList.remove('loading');
 
   if (!serverOk && activeTTSBtn === btn) {
+    btn.classList.add('playing');
     if (window.speechSynthesis) {
       const u = new SpeechSynthesisUtterance(text.slice(0, 300));
       if (selectedVoice) u.voice = selectedVoice;

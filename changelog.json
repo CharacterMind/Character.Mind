@@ -1,5 +1,17 @@
 [
   {
+    "id": "v307-tts-fix",
+    "version": "v307",
+    "date": "Oct 2026",
+    "title": "Voice Loading Indicator + TTS Reliability",
+    "subtitle": "TTS button now shows a spinner while loading, and falls back to Edge TTS if Gemini is slow.",
+    "fixed": [
+      "Voice button now shows a spinning animation while audio is loading — no more confusing silence",
+      "If Gemini voice takes longer than 6 seconds, automatically falls back to Edge TTS for instant response",
+      "Fixed TTS button getting stuck in loading state if audio failed to load"
+    ]
+  },
+  {
     "id": "v306-stripe-card",
     "version": "v306",
     "date": "Oct 2026",
