@@ -1,5 +1,18 @@
 [
   {
+    "id": "v306-stripe-card",
+    "version": "v306",
+    "date": "Oct 2026",
+    "title": "Pay with Credit Card",
+    "subtitle": "Visa, Mastercard, Amex — now accepted directly at checkout alongside PayPal.",
+    "added": [
+      "Credit card checkout — type your card number, expiry date, and CVV directly in the checkout modal",
+      "Payments are processed by Stripe — the same secure payment system used by Amazon, Google, and Shopify",
+      "PayPal and Credit Card tabs let you choose which method to use at checkout",
+      "3D Secure (bank verification popup) handled automatically when your bank requires it"
+    ]
+  },
+  {
     "id": "v305-gemini-tts-fix",
     "version": "v305",
     "date": "Oct 2026",

@@ -329,6 +329,11 @@ if (db) {
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS violence_strikes INT NOT NULL DEFAULT 0`)
     .catch(err => console.error('Add violence_strikes column error:', err));
 
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT`)
+    .catch(err => console.error('Add stripe_customer_id column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT`)
+    .catch(err => console.error('Add stripe_subscription_id column error:', err));
+
   db.query(`
     CREATE TABLE IF NOT EXISTS user_limits (
       user_id TEXT PRIMARY KEY,
@@ -470,7 +475,7 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.paypal.com https://www.paypalobjects.com; style-src 'self' 'unsafe-inline' https://www.paypalobjects.com https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' blob: data:; connect-src 'self' https://accounts.google.com https://www.paypal.com https://www.sandbox.paypal.com https://api-m.sandbox.paypal.com https://api-m.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com https://www.sandbox.paypal.com; frame-ancestors https://itch.io https://*.itch.io https://*.itch.zone https://*.hwcdn.net; base-uri 'self'; form-action 'self'");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.paypal.com https://www.paypalobjects.com https://js.stripe.com; style-src 'self' 'unsafe-inline' https://www.paypalobjects.com https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' blob: data:; connect-src 'self' https://accounts.google.com https://www.paypal.com https://www.sandbox.paypal.com https://api-m.sandbox.paypal.com https://api-m.paypal.com https://www.paypalobjects.com https://api.stripe.com; frame-src https://www.paypal.com https://www.sandbox.paypal.com https://js.stripe.com https://hooks.stripe.com; frame-ancestors https://itch.io https://*.itch.io https://*.itch.zone https://*.hwcdn.net; base-uri 'self'; form-action 'self'");
   if (process.env.NODE_ENV === 'production' && req.protocol !== 'https') {
     // Only redirect to a plain hostname (a forged Host header can't smuggle in anything else)
     const host = /^[A-Za-z0-9.-]+(:[0-9]+)?$/.test(req.headers.host || '') ? req.headers.host : null;
@@ -484,6 +489,8 @@ app.use((req, res, next) => {
 
 // Rate-limit OAuth entry point to prevent abuse
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
+let stripe = null;
+try { if (process.env.STRIPE_SECRET_KEY) stripe = require('stripe')(process.env.STRIPE_SECRET_KEY); } catch (_) {}
 // Behind Cloudflare the real visitor address arrives in CF-Connecting-IP (Cloudflare sets it itself). Without it, req.ip can be a
 // Cloudflare address shared by thousands of visitors, which would make per-address limits block real people.
 // Only trust that header when the site really sits behind Cloudflare (set TRUST_CLOUDFLARE=1 then). Without Cloudflare in front, anyone could
@@ -5915,6 +5922,24 @@ app.post('/api/paypal/capture-coin-order', requireAuth, async (req, res) => {
 const COIN_USD_VALUE = 0.01; // 1 C.M. Coin = $0.01 USD
 const PLAN_MONTHLY_USD = { advanced: 9.99, x20: 39.99, x50: 79.99, x100: 159.99, x200: 399.99 };
 
+// Stripe price IDs — set these env vars on Render after creating products/prices in your Stripe dashboard
+const STRIPE_PRICES = {
+  advanced_monthly: process.env.STRIPE_PRICE_ADVANCED_MONTHLY || null,
+  advanced_annual:  process.env.STRIPE_PRICE_ADVANCED_ANNUAL  || null,
+  x20_monthly:      process.env.STRIPE_PRICE_X20_MONTHLY      || null,
+  x20_annual:       process.env.STRIPE_PRICE_X20_ANNUAL       || null,
+  x50_monthly:      process.env.STRIPE_PRICE_X50_MONTHLY      || null,
+  x50_annual:       process.env.STRIPE_PRICE_X50_ANNUAL       || null,
+  x100_monthly:     process.env.STRIPE_PRICE_X100_MONTHLY     || null,
+  x100_annual:      process.env.STRIPE_PRICE_X100_ANNUAL      || null,
+  x200_monthly:     process.env.STRIPE_PRICE_X200_MONTHLY     || null,
+  x200_annual:      process.env.STRIPE_PRICE_X200_ANNUAL      || null,
+};
+function getPlanKeyFromStripePrice(priceId) {
+  for (const [k, v] of Object.entries(STRIPE_PRICES)) if (v && v === priceId) return k.split('_')[0];
+  return null;
+}
+
 const PAYPAL_BASE = process.env.PAYPAL_ENV === 'sandbox'
   ? 'https://api-m.sandbox.paypal.com'
   : 'https://api-m.paypal.com';
@@ -6188,6 +6213,129 @@ app.post('/api/webhooks/paypal', async (req, res) => {
       saveLimitsToDB(row.google_id);
     }
   }
+  res.sendStatus(200);
+});
+
+// ── Stripe ─────────────────────────────────────────────────────────────────────
+
+app.get('/api/stripe/config', requireAuth, (req, res) => {
+  if (!stripe || !process.env.STRIPE_PUBLISHABLE_KEY) return res.json({ available: false });
+  const prices = {};
+  for (const [k, v] of Object.entries(STRIPE_PRICES)) prices[k] = !!v;
+  res.json({ available: true, publishableKey: process.env.STRIPE_PUBLISHABLE_KEY, prices });
+});
+
+app.post('/api/stripe/subscribe', requireAuth, async (req, res) => {
+  if (!stripe) return res.status(503).json({ error: 'Stripe is not configured on this server.' });
+  const { planKey, period, paymentMethodId } = req.body;
+  const validPlans = ['advanced','x20','x50','x100','x200'];
+  if (!validPlans.includes(planKey)) return res.status(400).json({ error: 'Invalid plan.' });
+  if (!['monthly','annual'].includes(period)) return res.status(400).json({ error: 'Invalid period.' });
+  if (typeof paymentMethodId !== 'string' || !paymentMethodId.startsWith('pm_')) return res.status(400).json({ error: 'Invalid payment method.' });
+
+  const priceId = STRIPE_PRICES[`${planKey}_${period}`];
+  if (!priceId) return res.status(400).json({ error: 'This plan/period is not yet available via card. Please use PayPal.' });
+
+  const userId = req.user.googleId;
+  const userEmail = req.user.email;
+
+  try {
+    // Find or create Stripe customer
+    const row = await db.query('SELECT stripe_customer_id, stripe_subscription_id FROM users WHERE google_id=$1', [userId]);
+    let customerId = row.rows[0]?.stripe_customer_id;
+    const oldSubId = row.rows[0]?.stripe_subscription_id;
+
+    if (!customerId) {
+      const customer = await stripe.customers.create({ email: userEmail, metadata: { googleId: userId } });
+      customerId = customer.id;
+      await db.query('UPDATE users SET stripe_customer_id=$1 WHERE google_id=$2', [customerId, userId]);
+    }
+
+    // Attach payment method and set as default
+    await stripe.paymentMethods.attach(paymentMethodId, { customer: customerId });
+    await stripe.customers.update(customerId, { invoice_settings: { default_payment_method: paymentMethodId } });
+
+    // Cancel any previous Stripe subscription
+    if (oldSubId) { try { await stripe.subscriptions.cancel(oldSubId); } catch (_) {} }
+
+    // Create subscription
+    const sub = await stripe.subscriptions.create({
+      customer: customerId,
+      items: [{ price: priceId }],
+      payment_settings: { payment_method_types: ['card'], save_default_payment_method: 'on_subscription' },
+      expand: ['latest_invoice.payment_intent'],
+    });
+
+    await db.query('UPDATE users SET stripe_subscription_id=$1 WHERE google_id=$2', [sub.id, userId]);
+
+    const pi = sub.latest_invoice?.payment_intent;
+
+    if (sub.status === 'active' || sub.status === 'trialing') {
+      await db.query('UPDATE users SET subscription_tier=$1 WHERE google_id=$2', [planKey, userId]);
+      const lim = getLimits(userId);
+      lim.subscriptionTier = planKey; lim.tier = planKey; lim.tierLoaded = true;
+      lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null; lim.warned = {};
+      saveLimitsToDB(userId);
+      return res.json({ success: true });
+    }
+
+    if (pi?.status === 'requires_action') {
+      return res.json({ requiresAction: true, clientSecret: pi.client_secret });
+    }
+
+    return res.status(402).json({ error: 'Payment did not complete. Please check your card details.' });
+
+  } catch (e) {
+    console.error('[stripe-subscribe]', e.message);
+    const friendly = e.type === 'StripeCardError' ? e.message : 'Payment failed. Please try a different card.';
+    return res.status(402).json({ error: friendly });
+  }
+});
+
+// Stripe webhook — verifies signature when STRIPE_WEBHOOK_SECRET is set
+app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  if (!stripe) return res.sendStatus(503);
+  const sig = req.headers['stripe-signature'];
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  let event;
+  try {
+    event = secret ? stripe.webhooks.constructEvent(req.body, sig, secret) : JSON.parse(req.body.toString());
+  } catch (e) {
+    console.error('[stripe-webhook] bad signature', e.message);
+    return res.sendStatus(400);
+  }
+
+  const sub = event.data?.object;
+  if (!sub || !db) return res.sendStatus(200);
+
+  if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.created') {
+    if (sub.status === 'active' || sub.status === 'trialing') {
+      const planKey = getPlanKeyFromStripePrice(sub.items?.data?.[0]?.price?.id);
+      if (planKey) {
+        const row = await db.query('SELECT google_id FROM users WHERE stripe_customer_id=$1', [sub.customer]).catch(() => null);
+        if (row?.rows?.[0]) {
+          const gId = row.rows[0].google_id;
+          await db.query('UPDATE users SET subscription_tier=$1, stripe_subscription_id=$2 WHERE google_id=$3', [planKey, sub.id, gId]).catch(() => {});
+          const lim = getLimits(gId);
+          lim.subscriptionTier = planKey; lim.tier = planKey; lim.tierLoaded = true;
+          saveLimitsToDB(gId);
+        }
+      }
+    }
+  }
+
+  if (event.type === 'customer.subscription.deleted') {
+    const row = await db.query('SELECT google_id FROM users WHERE stripe_customer_id=$1', [sub.customer]).catch(() => null);
+    if (row?.rows?.[0]) {
+      const gId = row.rows[0].google_id;
+      await db.query("UPDATE users SET subscription_tier='free', stripe_subscription_id=NULL WHERE google_id=$1", [gId]).catch(() => {});
+      const lim = getLimits(gId);
+      lim.subscriptionTier = 'free'; lim.tier = 'free'; lim.tierLoaded = true;
+      lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null; lim.warned = {};
+      saveLimitsToDB(gId);
+    }
+  }
+
   res.sendStatus(200);
 });
 

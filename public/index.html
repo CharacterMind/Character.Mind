@@ -1520,14 +1520,52 @@
         <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
 
-      <!-- Express checkout (PayPal smart buttons: shows Apple Pay / Google Pay if available) -->
-      <div class="co-express-wrap">
-        <div class="co-express-label">Express Checkout</div>
-        <div id="paypal-button-container" class="co-express-btns"></div>
+      <!-- Payment method tabs -->
+      <div class="co-pay-tabs" id="co-pay-tabs">
+        <button class="co-pay-tab active" id="co-tab-paypal" onclick="switchPayTab('paypal')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.312 2.68 1.067 4.398-.754 5.274-4.23 6.504-8.394 6.504H9.817a.79.79 0 0 0-.78.667L7.076 21.337z"/></svg>
+          PayPal
+        </button>
+        <button class="co-pay-tab" id="co-tab-card" onclick="switchPayTab('card')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
+          Credit Card
+        </button>
+      </div>
+
+      <!-- PayPal panel -->
+      <div id="payment-panel-paypal">
+        <div class="co-express-wrap">
+          <div class="co-express-label">Express Checkout</div>
+          <div id="paypal-button-container" class="co-express-btns"></div>
+        </div>
+      </div>
+
+      <!-- Credit card panel -->
+      <div id="payment-panel-card" style="display:none">
+        <div class="card-field-group">
+          <label class="card-field-label">Card number</label>
+          <div id="stripe-card-number" class="card-field-input"></div>
+        </div>
+        <div class="card-field-row">
+          <div class="card-field-group">
+            <label class="card-field-label">Expiry date</label>
+            <div id="stripe-card-expiry" class="card-field-input"></div>
+          </div>
+          <div class="card-field-group">
+            <label class="card-field-label">CVV</label>
+            <div id="stripe-card-cvc" class="card-field-input"></div>
+          </div>
+        </div>
+        <div id="stripe-card-error" class="stripe-error-msg" style="display:none"></div>
+        <button class="card-submit-btn" id="stripe-pay-btn" onclick="submitStripePayment()" style="display:flex;align-items:center;justify-content:center;gap:8px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
+          <span id="stripe-pay-label">Pay now</span>
+        </button>
+        <div id="stripe-unavailable" class="card-not-eligible" style="display:none">Card payments aren't set up yet for this plan. Please use PayPal.</div>
       </div>
 
       <div id="paypal-checkout-status" class="paypal-checkout-status"></div>
-      <p class="paypal-checkout-footer">Secured by PayPal &middot; Cancel anytime &middot; No hidden fees</p>
+      <p class="paypal-checkout-footer" id="co-footer-text">Secured by PayPal &middot; Cancel anytime &middot; No hidden fees</p>
     </div>
 
     <!-- ── Right: order summary ── -->
@@ -1597,6 +1635,22 @@
   z-index: 100;
 }
 .co-close:hover { background: var(--bg4); color: var(--text1); }
+
+/* Payment tabs */
+.co-pay-tabs { display: flex; gap: 8px; }
+.co-pay-tab {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 10px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+  border: 1.5px solid var(--border2); background: var(--bg3); color: var(--text2);
+  transition: border-color .15s, color .15s, background .15s;
+}
+.co-pay-tab:hover { border-color: var(--accent); color: var(--text1); }
+.co-pay-tab.active { border-color: var(--accent); background: rgba(139,92,246,.12); color: var(--text1); }
+
+.stripe-error-msg {
+  font-size: 13px; color: #f87171; background: rgba(248,113,113,.1);
+  border: 1px solid rgba(248,113,113,.3); border-radius: 6px; padding: 8px 12px;
+}
 
 /* Express checkout */
 .co-express-wrap { display: flex; flex-direction: column; gap: 10px; }
@@ -1764,7 +1818,8 @@
   </div>
 </div>
 
-<script src="app.js?v=305"></script>
+<script src="https://js.stripe.com/v3/"></script>
+<script src="app.js?v=306"></script>
 
 <!-- Session 90% warning toast -->
 <div id="sessionWarningToast">

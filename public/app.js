@@ -706,6 +706,156 @@ async function verifyAndActivateSubscription(subscriptionId, planKey) {
 function closePaypalCheckout() {
   document.getElementById('paypalCheckoutModal').style.display = 'none';
   currentCheckoutPlan = null;
+  destroyStripeElements();
+}
+
+// ── Stripe card payment ────────────────────────────────────────────────────────
+let stripeInstance = null;
+let stripeElements = null;
+let stripeCardNumber = null;
+let stripeCardExpiry = null;
+let stripeCardCvc = null;
+let stripeConfigLoaded = null;
+let activePayTab = 'paypal';
+
+async function loadStripeConfig() {
+  if (!stripeConfigLoaded) {
+    stripeConfigLoaded = fetch('/api/stripe/config').then(r => r.json()).catch(() => ({ available: false }));
+  }
+  return stripeConfigLoaded;
+}
+
+function switchPayTab(tab) {
+  activePayTab = tab;
+  document.getElementById('co-tab-paypal').classList.toggle('active', tab === 'paypal');
+  document.getElementById('co-tab-card').classList.toggle('active', tab === 'card');
+  document.getElementById('payment-panel-paypal').style.display = tab === 'paypal' ? '' : 'none';
+  document.getElementById('payment-panel-card').style.display = tab === 'card' ? '' : 'none';
+  const footer = document.getElementById('co-footer-text');
+  if (footer) footer.textContent = tab === 'card' ? 'Secured by Stripe · Cancel anytime · No hidden fees' : 'Secured by PayPal · Cancel anytime · No hidden fees';
+  if (tab === 'card') mountStripeElements();
+}
+
+async function mountStripeElements() {
+  const cfg = await loadStripeConfig();
+  const unavailableEl = document.getElementById('stripe-unavailable');
+  const payBtn = document.getElementById('stripe-pay-btn');
+  if (!cfg.available || !cfg.publishableKey) {
+    if (unavailableEl) unavailableEl.style.display = '';
+    if (payBtn) payBtn.style.display = 'none';
+    return;
+  }
+
+  // Check if price is set up for this plan
+  const period = currentCheckoutPeriod === 'annual' ? 'annual' : 'monthly';
+  const priceKey = `${currentCheckoutPlan}_${period}`;
+  if (!cfg.prices?.[priceKey]) {
+    if (unavailableEl) unavailableEl.style.display = '';
+    if (payBtn) payBtn.style.display = 'none';
+    return;
+  }
+  if (unavailableEl) unavailableEl.style.display = 'none';
+  if (payBtn) payBtn.style.display = '';
+
+  if (!stripeInstance) stripeInstance = Stripe(cfg.publishableKey);
+  if (stripeCardNumber) return; // already mounted
+
+  const appearance = {
+    variables: {
+      colorPrimary: '#8b5cf6',
+      colorBackground: 'var(--bg3, #1e1b2e)',
+      colorText: 'var(--text1, #e8e3ff)',
+      colorDanger: '#f87171',
+      fontFamily: 'system-ui, sans-serif',
+      borderRadius: '8px',
+    }
+  };
+  stripeElements = stripeInstance.elements({ appearance });
+
+  const style = {
+    base: { color: '#e8e3ff', fontFamily: 'system-ui, sans-serif', fontSize: '14px', '::placeholder': { color: '#6b6590' } },
+    invalid: { color: '#f87171' }
+  };
+  stripeCardNumber = stripeElements.create('cardNumber', { style });
+  stripeCardExpiry = stripeElements.create('cardExpiry', { style });
+  stripeCardCvc    = stripeElements.create('cardCvc',    { style });
+
+  stripeCardNumber.mount('#stripe-card-number');
+  stripeCardExpiry.mount('#stripe-card-expiry');
+  stripeCardCvc.mount('#stripe-card-cvc');
+
+  const errorEl = document.getElementById('stripe-card-error');
+  [stripeCardNumber, stripeCardExpiry, stripeCardCvc].forEach(el => {
+    el.on('change', (ev) => {
+      if (errorEl) { if (ev.error) { errorEl.textContent = ev.error.message; errorEl.style.display = ''; } else errorEl.style.display = 'none'; }
+    });
+  });
+}
+
+function destroyStripeElements() {
+  if (stripeCardNumber) { try { stripeCardNumber.destroy(); } catch (_) {} stripeCardNumber = null; }
+  if (stripeCardExpiry) { try { stripeCardExpiry.destroy(); } catch (_) {} stripeCardExpiry = null; }
+  if (stripeCardCvc)    { try { stripeCardCvc.destroy(); }    catch (_) {} stripeCardCvc = null; }
+  stripeElements = null;
+  // Reset tab back to PayPal for next open
+  activePayTab = 'paypal';
+  const tabPaypal = document.getElementById('co-tab-paypal');
+  const tabCard   = document.getElementById('co-tab-card');
+  const panelPaypal = document.getElementById('payment-panel-paypal');
+  const panelCard   = document.getElementById('payment-panel-card');
+  if (tabPaypal) tabPaypal.classList.add('active');
+  if (tabCard)   tabCard.classList.remove('active');
+  if (panelPaypal) panelPaypal.style.display = '';
+  if (panelCard)   panelCard.style.display = 'none';
+  const footer = document.getElementById('co-footer-text');
+  if (footer) footer.textContent = 'Secured by PayPal · Cancel anytime · No hidden fees';
+}
+
+async function submitStripePayment() {
+  if (!stripeInstance || !stripeCardNumber) return;
+  const btn = document.getElementById('stripe-pay-btn');
+  const label = document.getElementById('stripe-pay-label');
+  const errorEl = document.getElementById('stripe-card-error');
+  const statusEl = document.getElementById('paypal-checkout-status');
+  if (btn) btn.disabled = true;
+  if (label) label.textContent = 'Processing…';
+  if (errorEl) errorEl.style.display = 'none';
+  if (statusEl) { statusEl.textContent = ''; statusEl.style.color = ''; }
+
+  try {
+    const { paymentMethod, error } = await stripeInstance.createPaymentMethod({
+      type: 'card',
+      card: stripeCardNumber,
+    });
+    if (error) throw new Error(error.message);
+
+    const period = currentCheckoutPeriod === 'annual' ? 'annual' : 'monthly';
+    const r = await fetch('/api/stripe/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ planKey: currentCheckoutPlan, period, paymentMethodId: paymentMethod.id })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Payment failed.');
+
+    if (data.requiresAction) {
+      // 3D Secure confirmation required
+      const { error: confirmError } = await stripeInstance.confirmCardPayment(data.clientSecret);
+      if (confirmError) throw new Error(confirmError.message);
+    }
+
+    // Success
+    if (statusEl) { statusEl.textContent = ''; }
+    closePaypalCheckout();
+    await loadUsage();
+    showNotification('Subscription activated! Welcome to ' + currentCheckoutPlan.toUpperCase() + ' plan.', 'success');
+
+  } catch (e) {
+    if (errorEl) { errorEl.textContent = e.message; errorEl.style.display = ''; }
+    if (statusEl) { statusEl.textContent = e.message; statusEl.style.color = '#f87171'; }
+    if (btn) btn.disabled = false;
+    if (label) label.textContent = 'Try again';
+  }
 }
 
 // ── Coin Shop ─────────────────────────────────────────────────────────────────
