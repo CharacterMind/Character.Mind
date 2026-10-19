@@ -6123,7 +6123,7 @@ function appendMessage(role, text, imgB64, lite) {
         ${msgMenuHtml('user')}
       </div>
       ${imgB64 ? `<img class="msg-img" src="${imgB64}" alt="attachment">` : (text === '[image]' ? `<div class="bubble" data-raw="[image]" style="opacity:0.55;font-size:12px">📷 Image</div>` : '')}
-      ${text && text !== '[image]' ? `<div class="bubble">${escHtml(text)}</div>` : ''}`;
+      ${text && text !== '[image]' ? `<div class="bubble">${escHtml(text).replace(/\n/g, '<br>')}</div>` : ''}`;
   }
   document.getElementById('messages').appendChild(div);
   if (role === 'ai') addSwipeGesture(div);

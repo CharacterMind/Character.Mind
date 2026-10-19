@@ -1,5 +1,15 @@
 [
   {
+    "id": "v286-multiline",
+    "version": "v286",
+    "date": "Oct 2026",
+    "title": "Multiline Message Fix",
+    "subtitle": "Shift+Enter now sends messages with proper line breaks.",
+    "fixed": [
+      "Messages typed with Shift+Enter (multiple lines) now display with correct line breaks instead of running together on one line"
+    ]
+  },
+  {
     "id": "v284-fixes",
     "version": "v284",
     "date": "Oct 2026",
