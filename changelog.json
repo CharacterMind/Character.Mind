@@ -1,5 +1,21 @@
 [
   {
+    "id": "v295-voice-fixes",
+    "version": "v295",
+    "date": "Oct 2026",
+    "title": "Voice Calls Fixed",
+    "subtitle": "Seven bugs that caused complete call silence or broken mic recovery are gone.",
+    "fixed": [
+      "Voice calls no longer go completely silent when the server TTS is unavailable — browser speech now takes over automatically",
+      "Starting a new call always resets the TTS state — no more getting stuck on silent mode from a previous call",
+      "Calls with browser TTS set in preferences now actually use browser speech instead of staying silent",
+      "TTS rate-limit (429) now correctly falls back to browser speech instead of silently hanging",
+      "Any server TTS failure during a call now falls back to browser speech for the current sentence",
+      "Mic permission error (not-allowed) now retries listening after 6 seconds instead of leaving the call stuck",
+      "Hanging up a call now correctly refreshes your usage and coin balance"
+    ]
+  },
+  {
     "id": "v294-call-redesign",
     "version": "v294",
     "date": "Oct 2026",

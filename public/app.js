@@ -7138,7 +7138,7 @@ function callModeTTS(bubble) {
   window.speechSynthesis?.cancel();
   stopCallAudio();
   if (elevenTTSOk) { callModeElevenTTS(text); return; }
-  if (callModeActive) setTimeout(() => listenForSpeech(), 300);
+  callModeBrowserTTS(text); // Bug 1 fix: fall back to browser TTS when server TTS is unavailable
 }
 
 let elevenTTSOk = true;
@@ -7197,9 +7197,8 @@ async function callModeElevenTTS(text) {
   const clean = text.replace(/\*[^*]*\*/g, '').replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim();
   if (!clean) { if (callModeActive && gen === callGen) listenForSpeech(); return; }
 
-  // In call mode we NEVER fall back to browser speech synthesis — it sounds robotic.
-  // If the HD voice is unavailable, just keep listening (response already appears as text).
-  if (ttsProvider === 'browser') { if (callModeActive && gen === callGen) listenForSpeech(); return; }
+  // Bug 3 fix: if user's chat TTS is set to browser, use callModeBrowserTTS instead of silently dropping
+  if (ttsProvider === 'browser') { if (callModeActive && gen === callGen) callModeBrowserTTS(clean); return; }
 
   // Split into sentences so we can start playing the first sentence immediately
   // while pre-fetching the next one — reduces the "falling behind" latency.
@@ -7212,7 +7211,7 @@ async function callModeElevenTTS(text) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: s, charId: currentChar?.id, provider: ttsProvider, geminiVoice: geminiVoiceName })
     });
-    if (!r.ok) { if (r.status === 501) elevenTTSOk = false; throw new Error('tts ' + r.status); }
+    if (!r.ok) { if (r.status === 501 || r.status === 429) elevenTTSOk = false; throw new Error('tts ' + r.status); }
     return r.blob();
   };
 
@@ -7243,7 +7242,7 @@ async function callModeElevenTTS(text) {
       nextFetch = prefetch;
     }
   } catch (_) {
-    if (callModeActive && gen === callGen) setTimeout(() => listenForSpeech(), 300);
+    if (callModeActive && gen === callGen) callModeBrowserTTS(clean); // Bug 8 fix: fall back to browser TTS on any server TTS failure
   }
 }
 
@@ -7322,7 +7321,7 @@ function stopCallDurationTimer() {
     if (elapsed > 0 && currentUser) {
       fetch('/api/call/end', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration: elapsed }) })
         .then(r => r.ok ? r.json() : null)
-        .then(data => { if (data && data.sessionLimit) updateUsageBars(data); })
+        .then(data => { if (data?.ok) setTimeout(() => loadUsage(), 300); }) // Bug 7 fix: sessionLimit was never in this response
         .catch(() => {});
     }
   }
@@ -7394,6 +7393,7 @@ async function startCallMode() {
   if (startGen !== callGen) { callStarting = false; return; } // call was cancelled while starting
   callStarting = false;
   callModeActive = true;
+  elevenTTSOk = true; // Bug 2 fix: reset so every new call retries server TTS from scratch
   callMuted = false;
   callFirstConnect = true;
   startCallDurationTimer(getCallSecsRemaining());
@@ -7774,6 +7774,7 @@ function listenForSpeech() {
       dispatched = true;
       showCallMicError();
       setCallState('listening');
+      setTimeout(() => { if (callModeActive && !callMuted) listenForSpeech(); }, 6000); // Bug 4 fix: retry after giving user time to grant mic
       return;
     }
     if (!transcript && !dispatched) { dispatched = true; setTimeout(() => listenForSpeech(), 300); }

@@ -3050,13 +3050,14 @@ function startReplyStream(o) {
         send({ text: fullResponse });
         held = '';
       }
-      const extra = onComplete(fullResponse) || {};
+      let extra = {};
+      try { extra = onComplete(fullResponse) || {}; } catch (oc) { console.error(logLabel + ' onComplete error:', oc && oc.message); } // Bug 6 fix: don't let onComplete throw suppress done event
       const usage = Object.assign({}, buildUsagePayload(getLimits(userId), userId));
       const doneExtra = extra.swearBudgetHit ? { swearBudgetHit: true } : {};
       send({ done: true, usage, responseTokens: cost, warnings: reservation.warnings, sig: signReply(userId, charId, fullResponse), ...doneExtra });
       close();
     } catch (e) {
-      // onComplete may have already persisted the message — don't reset finished or refund tokens
+      // post-complete error: done event may not have been sent, but onComplete may have already persisted the message
       console.error(logLabel + ' post-complete error:', e && e.message);
       try { close(); } catch (_) {}
     }
