@@ -319,6 +319,10 @@ if (db) {
     .catch(err => console.error('Add checkin_phone column error:', err));
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS checkin_frequency_days INTEGER NOT NULL DEFAULT 3`)
     .catch(err => console.error('Add checkin_frequency_days column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_until TIMESTAMPTZ`)
+    .catch(err => console.error('Add ban_until column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS violence_strikes INT NOT NULL DEFAULT 0`)
+    .catch(err => console.error('Add violence_strikes column error:', err));
 
   db.query(`
     CREATE TABLE IF NOT EXISTS user_limits (
@@ -673,6 +677,13 @@ app.post('/auth/logout', (req, res) => {
   });
 });
 
+// Ban status — intentionally skips the ban block in requireAuth (see skipBanCheck)
+app.get('/api/me/ban-status', requireAuth, (req, res) => {
+  const ban = getUserBanStatus(req.user.googleId);
+  if (!ban) return res.json({ banned: false });
+  res.json(ban);
+});
+
 app.get('/api/user/hidden-recents', requireAuth, async (req, res) => {
   if (!db) return res.json({ hidden: [] });
   try {
@@ -727,7 +738,7 @@ async function ensureTierLoaded(user) {
   if (u.tierLoaded) return;
   if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId); // admin tools; the plan comes from planFor()
   if (!db) return;
-  const r = await db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, cm_tokens, coins_earned_today, coins_day_reset, coins_monthly_reset, coins_earned_all_time FROM users WHERE google_id = $1', [user.googleId]);
+  const r = await db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, cm_tokens, coins_earned_today, coins_day_reset, coins_monthly_reset, coins_earned_all_time, ban_until, violence_strikes FROM users WHERE google_id = $1', [user.googleId]);
   const row = r.rows[0] || {};
   u.paypalTier = planFor(user.email, row.subscription_tier);
   u.coinTier = row.coin_tier || null;
@@ -738,6 +749,8 @@ async function ensureTierLoaded(user) {
   u.coinsDayReset = Number(row.coins_day_reset) || 0;
   u.coinsMonthlyReset = Number(row.coins_monthly_reset) || 0;
   u.coinsEarnedAllTime = Number(row.coins_earned_all_time) || 0;
+  u.violenceStrikes = row.violence_strikes || 0;
+  u.banUntil = row.ban_until ? new Date(row.ban_until).getTime() : null;
   u.subscriptionTier = effectiveTier(u);
   u.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email);
   u.tierLoaded = true;
@@ -780,6 +793,12 @@ async function requireAuth(req, res, next) {
   // otherwise users active across a month boundary never receive their monthly grant until server restart.
   checkMonthlyCoins(req.user.googleId, getLimits(req.user.googleId)).catch(() => {});
   maybeTrackLogin(req.user.googleId);
+  // Ban check — always allow /api/me/ban-status and auth routes so the frontend can show the ban screen
+  const skipBanCheck = req.path === '/ban-status' || req.path.startsWith('/auth') || req.path === '/logout';
+  if (!skipBanCheck) {
+    const ban = getUserBanStatus(req.user.googleId);
+    if (ban && ban.banned) return res.status(403).json({ error: 'account_banned', until: ban.until, strikes: ban.strikes });
+  }
   next();
 }
 
@@ -2025,8 +2044,43 @@ const VIOLENCE_THREAT_RE = new RegExp(
 const SUICIDE_METHOD_RE = /\b(how\s+(do\s+i|to|can\s+i)|what(?:'s|\s+is)\s+the\s+(best|fastest|easiest|painless|most\s+effective|quickest)|step[\s-]by[\s-]step|instructions?\s+(for|to|on\s+how\s+to)|ways?\s+to)\s+(kill\s+myself|commit\s+suicide|end\s+my\s+life|take\s+my\s+own\s+life|overdose\s+and\s+die|hang\s+myself|slit\s+my\s+(wrists?|throat)|shoot\s+myself|jump\s+(off|from)\s+(a\s+)?(bridge|building|roof))\b/i;
 
 const VIOLENCE_BLOCK_MSG = '[ Character.Mind ] That\'s not something we can engage with. If you or someone you know is in immediate danger, please contact emergency services (911 in the US) or your local authorities right away.';
-const VIOLENCE_WARN_1 = "🚫 Character.Mind does not allow requests for real-world violence — not school shootings, not instructions on how to hurt people, not any of it. This isn't a topic we'll engage with, ever. [Strike 1 — one more violation permanently ends this chat]";
-const VIOLENCE_WARN_LOCK = "🚫 This chat has been permanently closed. Repeated requests for real-world violence are not tolerated on Character.Mind. This conversation has been ended and your account flagged.";
+const VIOLENCE_WARN_1 = "🚫 Character.Mind does not allow requests for real-world violence — not school shootings, not instructions on how to hurt people, not any of it. This isn't a topic we'll engage with, ever. [Strike 1 — one more violation will result in a temporary account ban]";
+const VIOLENCE_WARN_LOCK = "🚫 Your account has been temporarily suspended for repeated real-world violence requests. Check the app for your ban expiry countdown.";
+
+// Ban durations per strike count (escalating, never permanent)
+const VIOLENCE_BAN_MS = [
+  24 * 60 * 60 * 1000,         // 1st: 24 hours
+  3  * 24 * 60 * 60 * 1000,    // 2nd: 3 days
+  7  * 24 * 60 * 60 * 1000,    // 3rd: 7 days
+  30 * 24 * 60 * 60 * 1000,    // 4th: 30 days
+  90 * 24 * 60 * 60 * 1000,    // 5th+: 90 days
+];
+
+async function applyViolenceBan(userId) {
+  if (!db) return null;
+  try {
+    const r = await db.query('SELECT violence_strikes FROM users WHERE google_id=$1', [userId]);
+    const currentStrikes = r.rows[0]?.violence_strikes || 0;
+    const newStrikes = currentStrikes + 1;
+    const durationMs = VIOLENCE_BAN_MS[Math.min(newStrikes - 1, VIOLENCE_BAN_MS.length - 1)];
+    const banUntil = new Date(Date.now() + durationMs);
+    await db.query('UPDATE users SET violence_strikes=$1, ban_until=$2 WHERE google_id=$3', [newStrikes, banUntil, userId]);
+    const lim = getLimits(userId);
+    lim.violenceStrikes = newStrikes;
+    lim.banUntil = banUntil.getTime();
+    return { banUntil: banUntil.getTime(), strikes: newStrikes, durationMs };
+  } catch (e) { console.error('applyViolenceBan error:', e); return null; }
+}
+
+function getUserBanStatus(userId) {
+  const lim = getLimits(userId);
+  if (!lim.tierLoaded) return null; // not loaded yet
+  if (lim.banUntil && Date.now() < lim.banUntil) {
+    return { banned: true, until: lim.banUntil, strikes: lim.violenceStrikes || 0 };
+  }
+  if (lim.banUntil && Date.now() >= lim.banUntil) lim.banUntil = null; // expired
+  return { banned: false };
+}
 
 const SUICIDE_METHOD_BLOCK_MSG = '[ Character.Mind ] We can\'t provide that kind of information. If you\'re going through something serious, please reach out — the 988 Suicide & Crisis Lifeline is available 24/7 (call or text 988 in the US, or visit 988lifeline.org). You matter, and help is there.';
 
@@ -4679,24 +4733,25 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     }
   }
 
-  // ── Real-world violence / harm requests — 2-strike system, 2nd = permanent lock ──
+  // ── Real-world violence / harm requests — account-level temp ban (escalating) ──
   if (!isContinuation && message && VIOLENCE_THREAT_RE.test(msgNorm)) {
-    const newStrikes = modStatus.strikes + 1;
-    if (newStrikes >= 2) {
-      await setModStatus(userId, charId, newStrikes, true);
-      conversations[key] = [];
-      persistConv(key);
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-      res.flushHeaders();
-      res.write(`data: ${JSON.stringify({ conversationEnded: true, locked: true, reason: VIOLENCE_WARN_LOCK })}\n\n`);
-      res.end();
-      return;
+    const lim = getLimits(userId);
+    const priorStrikes = lim.violenceStrikes || 0;
+    if (priorStrikes === 0) {
+      // First offense: warn harshly, no ban yet
+      await applyViolenceBan(userId); // increments strike to 1 but sets a 24h ban
+      return streamBlockMsg(res, VIOLENCE_WARN_1);
     }
-    await setModStatus(userId, charId, newStrikes, false);
-    return streamBlockMsg(res, VIOLENCE_WARN_1);
+    // Second+ offense: apply escalating ban and tell them
+    const ban = await applyViolenceBan(userId);
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    res.write(`data: ${JSON.stringify({ accountBanned: true, until: ban?.banUntil, strikes: ban?.strikes, reason: VIOLENCE_WARN_LOCK })}\n\n`);
+    res.end();
+    return;
   }
 
   // ── Explicit suicide method requests — hard block with crisis line ─────────

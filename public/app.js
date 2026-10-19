@@ -2,6 +2,57 @@
 let knownTemplateAliases = [];
 let templatesLoaded = false;
 let currentUser = null;
+let _banCountdownInterval = null;
+
+// ── Account ban screen ────────────────────────────────────────────────────────
+async function checkAndShowBan() {
+  try {
+    const r = await fetch('/api/me/ban-status');
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d && d.banned) showBanScreen(d.until, d.strikes);
+  } catch (_) {}
+}
+
+function showBanScreen(until, strikes) {
+  const screen = document.getElementById('banScreen');
+  if (!screen) return;
+  screen.style.display = 'flex';
+  // Strike context message
+  const strikeEl = document.getElementById('banStrikeInfo');
+  if (strikeEl) {
+    const nextDurations = ['24 hours', '3 days', '7 days', '30 days', '90 days'];
+    const nextDuration = nextDurations[Math.min(strikes, nextDurations.length - 1)] || '90 days';
+    strikeEl.textContent = `Offense ${strikes} of recorded history — next violation: ${nextDuration} suspension.`;
+  }
+  // Ban expiry date
+  const dateEl = document.getElementById('banDate');
+  if (dateEl) dateEl.textContent = 'Expires: ' + new Date(until).toLocaleString();
+  // Countdown
+  if (_banCountdownInterval) clearInterval(_banCountdownInterval);
+  function tick() {
+    const remaining = until - Date.now();
+    if (remaining <= 0) {
+      clearInterval(_banCountdownInterval);
+      screen.style.display = 'none';
+      document.getElementById('banCountdown').textContent = '00:00:00';
+      return;
+    }
+    const h = Math.floor(remaining / 3600000);
+    const m = Math.floor((remaining % 3600000) / 60000);
+    const s = Math.floor((remaining % 60000) / 1000);
+    const days = Math.floor(h / 24);
+    const hrs = h % 24;
+    const el = document.getElementById('banCountdown');
+    if (el) el.textContent = days > 0 ? `${days}d ${String(hrs).padStart(2,'0')}h ${String(m).padStart(2,'0')}m` : `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+  tick();
+  _banCountdownInterval = setInterval(tick, 1000);
+}
+
+function handleAccountBanned(data) {
+  if (data && data.until) showBanScreen(data.until, data.strikes || 1);
+}
 let characters = [];
 let currentChar = null;
 let currentChatLocked = false;
@@ -1003,6 +1054,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('appLoading').style.display = 'none';
 
   if (currentUser) {
+    // Check for active account ban before showing the app
+    await checkAndShowBan();
+
     document.getElementById('authLanding').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
     renderUserBadge();
@@ -1063,6 +1117,7 @@ async function loadCharacters() {
   try {
     const res = await fetch('/api/characters');
     if (res.status === 401) { characters = []; renderSidebarChats(); return; }
+    if (res.status === 403) { const j = await res.json().catch(() => null); if (j && j.error === 'account_banned') { showBanScreen(j.until, j.strikes); return; } }
     if (res.status === 503) { const j = await res.json().catch(() => null); if (j && j.maintenance) { location.replace('/maintenance.html'); return; } }
     // only a real list replaces the characters: an error answer (an object, or plain text) must not blank the home page
     const list = res.ok ? await res.json() : null;
@@ -3592,6 +3647,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
         if (!line.startsWith('data: ')) continue;
         let data; try { data = JSON.parse(line.slice(6)); } catch (_) { continue; }
         if (data.error) throw new Error(data.error);
+        if (data.accountBanned) { showTyping(false); handleAccountBanned(data); break; }
         if (data.nsfw) { showTyping(false); appendNsfwCard(data.variant); }
         if (data.conversationEnded) {
           convEnded = true;

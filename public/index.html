@@ -29,6 +29,23 @@
 </head>
 <body>
 
+<!-- Ban screen — shown when account is temporarily suspended -->
+<div id="banScreen" style="display:none;position:fixed;inset:0;z-index:9999;background:#0a0a0f;display:none;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;font-family:system-ui,sans-serif">
+  <div style="max-width:480px;width:100%">
+    <div style="font-size:48px;margin-bottom:16px">🚫</div>
+    <h1 style="color:#ef4444;font-size:22px;font-weight:700;margin:0 0 8px">Temporarily Suspended</h1>
+    <p style="color:#f1f5f9;font-size:15px;margin:0 0 6px">You have been temporarily banned from <strong>Character.Mind</strong> for violating our Terms of Service — specifically, requests involving real-world violence or threats.</p>
+    <p style="color:#94a3b8;font-size:13px;margin:0 0 28px">This is a serious violation. Repeated offenses result in progressively longer suspensions.</p>
+    <div style="background:#1e1e2e;border:1px solid #3f3f5a;border-radius:14px;padding:24px 20px;margin-bottom:24px">
+      <div style="color:#94a3b8;font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Access restored in</div>
+      <div id="banCountdown" style="color:#f8fafc;font-size:38px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.02em">--:--:--</div>
+      <div id="banDate" style="color:#64748b;font-size:12px;margin-top:6px"></div>
+    </div>
+    <div id="banStrikeInfo" style="color:#f97316;font-size:13px;margin-bottom:20px"></div>
+    <p style="color:#475569;font-size:12px;margin:0">If you believe this is a mistake, contact <a href="mailto:support.charactermind@gmail.com" style="color:#7c3aed">support.charactermind@gmail.com</a></p>
+  </div>
+</div>
+
 <!-- Loading screen — shown until auth check resolves -->
 <div id="appLoading" class="app-loading">
   <div class="app-loading-logo">
