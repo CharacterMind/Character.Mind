@@ -7606,7 +7606,11 @@ function showCallLimitModal(resetsAt) {
   const msgEl = document.getElementById('callLimitCharMsg');
   if (msgEl) msgEl.textContent = CALL_LIMIT_MESSAGES[Math.floor(Math.random() * CALL_LIMIT_MESSAGES.length)];
   const cdEl = document.getElementById('callLimitCountdown');
-  if (!cdEl || !resetsAt) return;
+  if (!cdEl) return;
+  if (!resetsAt) {
+    const WINDOW_MS = 8 * 60 * 60 * 1000;
+    resetsAt = Math.ceil((Date.now() + 1) / WINDOW_MS) * WINDOW_MS;
+  }
   function tick() {
     const diff = resetsAt - Date.now();
     if (diff <= 0) { cdEl.textContent = 'now'; return; }

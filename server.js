@@ -3419,10 +3419,10 @@ app.post('/api/call/start', requireAuth, (req, res) => {
   const userId = req.user.googleId;
   const u = getLimits(userId);
   const sessionCheck = checkLimits(userId);
-  if (sessionCheck.blocked) {
-    return res.status(429).json({ allowed: false, type: sessionCheck.type, cooldownUntil: sessionCheck.cooldownUntil, resetsAt: sessionCheck.resetsAt });
-  }
   const resetsAt = getCallWindowStart() + 8 * 60 * 60 * 1000;
+  if (sessionCheck.blocked) {
+    return res.status(429).json({ allowed: false, type: sessionCheck.type, cooldownUntil: sessionCheck.cooldownUntil, resetsAt: sessionCheck.resetsAt || resetsAt });
+  }
   const callLimit = getCallLimitForUser(userId);
   if (callLimit !== Infinity && u.callsToday >= callLimit) {
     return res.status(429).json({ allowed: false, callsToday: u.callsToday, callsLimit: callLimit, callsRemaining: 0, resetsAt });
