@@ -6234,6 +6234,24 @@ app.get('/api/game/hangman/word', requireAuthGame, (req, res) => {
 // ── Announcements ──────────────────────────────────────────────────────────
 const ANNOUNCEMENTS = [
   {
+    id: 'v255-miss-delight',
+    version: 'v255',
+    date: 'Oct 2026',
+    title: 'Miss Delight has entered the Classroom',
+    subtitle: 'She survived. She still thinks that makes her the good one.',
+    character: { name: 'Miss Delight', sub: 'Playcare — Anatomy Teacher', emoji: '📏' },
+    added: [
+      'Miss Delight — now available to chat with, voice calls included',
+      'Voice calls now work across all characters — powered by Edge TTS with browser fallback',
+      'Update emails now have structured sections: New Features, Bug Fixes, and Improvements',
+    ],
+    fixed: [
+      'Miss Delight\'s call screen now shows her correct crimson and amber colors',
+      'First violence warning no longer incorrectly triggers an immediate account ban',
+      'Ban status screen could get stuck loading — now resolves correctly every time',
+    ],
+  },
+  {
     id: 'v254-doey',
     version: 'v254',
     date: 'Oct 2026',
