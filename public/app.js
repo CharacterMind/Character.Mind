@@ -5014,16 +5014,15 @@ function formatResetTime(timestamp) {
   if (remaining <= 0) return 'Resetting now…';
   const DAY = 24 * 60 * 60 * 1000;
   if (remaining < DAY) {
-    // Floor to whole minutes (no seconds): 2h 0m 3s shows "2 hrs", then "1 hr 59 min" as it counts down
-    const totalMins = Math.floor(remaining / 60000);
-    const h = Math.floor(totalMins / 60);
-    const m = totalMins % 60;
+    const totalSecs = Math.floor(remaining / 1000);
+    const h = Math.floor(totalSecs / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
     const hStr = h === 1 ? 'hr' : 'hrs';
-    const mStr = 'min';
-    if (h > 0 && m > 0) return `Resets in ${h} ${hStr} ${m} ${mStr}`;
-    if (h > 0) return `Resets in ${h} ${hStr}`;
-    if (m > 0) return `Resets in ${m} ${mStr}`;
-    return 'Resetting now…';
+    if (h > 0 && m > 0) return `Resets in ${h} ${hStr} ${m}m ${s}s`;
+    if (h > 0) return `Resets in ${h} ${hStr} 0m ${s}s`;
+    if (m > 0) return `Resets in ${m}m ${s}s`;
+    return `Resets in ${s}s`;
   }
   const d = new Date(timestamp);
   const day = d.toLocaleDateString(undefined, { weekday: 'long' });
@@ -5279,11 +5278,11 @@ function updateUsageModal(u) {
     const secsLeft = Math.ceil(remaining / 1000);
     const m = Math.floor(secsLeft / 60);
     const s = secsLeft % 60;
-    if (gamePctEl) gamePctEl.textContent = '0%';
+    if (gamePctEl) gamePctEl.textContent = '0% used';
     if (gameBar) { gameBar.style.width = remainPct + '%'; gameBar.className = 'usage-fill-modal ' + usageFillClass(remainPct); }
     if (gameSubEl) gameSubEl.textContent = `Cooldown: ${m}:${String(s).padStart(2, '0')} left · 5-minute cooldown between sessions`;
   } else {
-    if (gamePctEl) gamePctEl.textContent = '0%';
+    if (gamePctEl) gamePctEl.textContent = '0% used';
     if (gameBar) { gameBar.style.width = '0%'; gameBar.className = 'usage-fill-modal green'; }
     if (gameSubEl) gameSubEl.textContent = '5-minute cooldown between game sessions';
   }

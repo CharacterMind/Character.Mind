@@ -1020,53 +1020,42 @@ html, body {
   overflow: hidden;
   background: #06060f;
 }
-/* ── Audio visualizer bars ───────────────────────────────────────────────── */
-.call-visualizer {
-  position: absolute; z-index: 2;
-  left: 0; right: 0;
-  bottom: 155px;
-  display: flex; align-items: flex-end; justify-content: center; gap: 5px;
-  height: 72px;
-  pointer-events: none;
+/* ── Call screen orb animations ──────────────────────────────────────────── */
+.call-orb {
+  position: absolute; border-radius: 50%;
+  width: 150%; padding-top: 150%;
+  filter: blur(55px); opacity: 0.95;
+  will-change: transform, opacity;
+  pointer-events: none; mix-blend-mode: screen;
 }
-.call-bar {
-  width: 4px; height: 72px;
-  border-radius: 3px;
-  background: var(--co1, #7c3aed);
-  transform-origin: bottom center;
-  transform: scaleY(0.12);
-  animation: callBarPulse 1.4s ease-in-out infinite;
+.call-orb-1 { background: var(--co1, #7c3aed); top: -50%; left: -50%; animation: callOrb1 5s ease-in-out infinite; }
+.call-orb-2 { background: var(--co2, #3a8ced); bottom: -50%; right: -50%; animation: callOrb2 4s ease-in-out infinite; }
+.call-orb-3 { background: var(--co3, #ed3a7c); top: 5%; left: 0%; width: 100%; padding-top: 100%; animation: callOrb3 7s ease-in-out infinite; }
+.call-orb-4 { background: var(--co1, #7c3aed); top: 20%; right: -40%; width: 110%; padding-top: 110%; filter: blur(80px); opacity: 0.6; animation: callOrb4 6s ease-in-out infinite 1.2s; }
+@keyframes callOrb1 {
+  0%,100% { transform: translate(0,0) scale(1); opacity: 0.85; }
+  20%  { transform: translate(75%,-55%) scale(1.4); opacity: 1; }
+  40%  { transform: translate(25%, 75%) scale(0.75); opacity: 0.8; }
+  60%  { transform: translate(-55%, 20%) scale(1.3); opacity: 0.95; }
+  80%  { transform: translate(20%,-35%) scale(0.85); opacity: 0.85; }
 }
-/* Alternate bar colors */
-.call-bar:nth-child(even)   { background: var(--co2, #6d28d9); }
-.call-bar:nth-child(4n+1)   { background: var(--co1, #7c3aed); }
-.call-bar:nth-child(4n+3)   { background: var(--co3, #a855f7); }
-/* Symmetric wave delays — peaks from edges into center */
-.call-bar:nth-child(1)  { animation-delay: 0.00s; }
-.call-bar:nth-child(2)  { animation-delay: 0.10s; }
-.call-bar:nth-child(3)  { animation-delay: 0.20s; }
-.call-bar:nth-child(4)  { animation-delay: 0.30s; }
-.call-bar:nth-child(5)  { animation-delay: 0.40s; }
-.call-bar:nth-child(6)  { animation-delay: 0.50s; }
-.call-bar:nth-child(7)  { animation-delay: 0.60s; }
-.call-bar:nth-child(8)  { animation-delay: 0.70s; }
-.call-bar:nth-child(9)  { animation-delay: 0.70s; }
-.call-bar:nth-child(10) { animation-delay: 0.60s; }
-.call-bar:nth-child(11) { animation-delay: 0.50s; }
-.call-bar:nth-child(12) { animation-delay: 0.40s; }
-.call-bar:nth-child(13) { animation-delay: 0.30s; }
-.call-bar:nth-child(14) { animation-delay: 0.20s; }
-.call-bar:nth-child(15) { animation-delay: 0.10s; }
-.call-bar:nth-child(16) { animation-delay: 0.00s; }
-@keyframes callBarPulse {
-  0%, 100% { transform: scaleY(0.12); }
-  50%      { transform: scaleY(1); }
+@keyframes callOrb2 {
+  0%,100% { transform: translate(0,0) scale(1); opacity: 0.8; }
+  25%  { transform: translate(-70%, 50%) scale(0.7); opacity: 1; }
+  50%  { transform: translate(40%,-70%) scale(1.45); opacity: 0.85; }
+  75%  { transform: translate(60%, 30%) scale(0.8); opacity: 0.95; }
 }
-/* State speeds — only override duration/opacity, not delay */
-#callOverlay[data-state="calling"]    .call-bar { animation-duration: 2.0s; opacity: 0.4; }
-#callOverlay[data-state="listening"]  .call-bar { animation-duration: 0.55s; opacity: 1; }
-#callOverlay[data-state="thinking"]   .call-bar { animation-duration: 1.2s;  opacity: 0.6; }
-#callOverlay[data-state="responding"] .call-bar { animation-duration: 0.80s; opacity: 0.85; }
+@keyframes callOrb3 {
+  0%,100% { transform: translate(0,0) scale(1) rotate(0deg); opacity: 0.7; }
+  33%  { transform: translate(-45%, 50%) scale(1.35) rotate(180deg); opacity: 1; }
+  66%  { transform: translate(50%,-45%) scale(0.7) rotate(360deg); opacity: 0.8; }
+}
+@keyframes callOrb4 {
+  0%,100% { transform: translate(0,0) scale(1) rotate(0deg); opacity: 0.55; }
+  25%  { transform: translate(55%, 65%) scale(1.25) rotate(90deg); opacity: 0.9; }
+  50%  { transform: translate(-65%,-55%) scale(0.75) rotate(180deg); opacity: 0.65; }
+  75%  { transform: translate(-25%, 75%) scale(1.45) rotate(270deg); opacity: 0.95; }
+}
 /* Character avatar — circular portrait centered on screen (all sizes) */
 .call-char-img {
   position: absolute;
@@ -1146,10 +1135,13 @@ html, body {
 
 /* Desktop: larger avatar */
 @media (min-width: 768px) {
+  .call-orb { filter: blur(45px); opacity: 1; }
+  .call-orb-1 { top: -25%; left: -25%; }
+  .call-orb-2 { bottom: -25%; right: -25%; }
+  .call-orb-3 { top: 5%; left: 5%; width: 80%; padding-top: 80%; }
+  .call-orb-4 { top: 15%; right: -30%; width: 90%; padding-top: 90%; filter: blur(65px); }
   .call-char-img { width: 200px; height: 200px; top: 14vh; }
   .call-status-area { top: calc(14vh + 220px); }
-  .call-visualizer { height: 90px; bottom: 175px; gap: 6px; }
-  .call-bar { width: 5px; height: 90px; }
 }
 
 /* ── Call limit modal ─────────────────────────────────────────────────────────── */
