@@ -1,5 +1,15 @@
 [
   {
+    "id": "v293-admin-readability",
+    "version": "v293",
+    "date": "Oct 2026",
+    "title": "Control Panel Readability",
+    "subtitle": "Owner control panel text is now bolder and easier to read.",
+    "changed": [
+      "Control panel section headers, labels, inputs, and status text are now larger, bolder, and brighter — no more squinting at 11px dimmed labels"
+    ]
+  },
+  {
     "id": "v292-coin-tuning",
     "version": "v292",
     "date": "Oct 2026",

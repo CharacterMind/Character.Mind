@@ -1822,6 +1822,51 @@ html, body {
 .reset-limits-btn:hover { color: var(--text1); border-color: var(--text3); }
 .reset-limits-btn:disabled { opacity: 0.5; cursor: default; }
 
+/* ── Owner Control Panel — bold, readable text ───────────────────────────── */
+#resetLimitsWrap p {
+  font-size: 13px !important;
+  color: var(--text2) !important;
+  line-height: 1.55 !important;
+}
+/* Section header rows (uppercase labels) */
+#resetLimitsWrap p[style*="uppercase"] {
+  font-size: 11.5px !important;
+  font-weight: 800 !important;
+  color: var(--text1) !important;
+  letter-spacing: .07em !important;
+}
+#resetLimitsWrap label {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: var(--text2) !important;
+}
+/* Balance / status readouts */
+#resetLimitsWrap [id$="Display"],
+#resetLimitsWrap [id$="Status"],
+#resetLimitsWrap [id$="Result"],
+#resetLimitsWrap [id$="Preview"] {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+}
+/* Hint / sub-description text */
+#resetLimitsWrap div[style*="font-size:11px"],
+#resetLimitsWrap span[style*="font-size:11px"] {
+  font-size: 12.5px !important;
+  color: var(--text2) !important;
+}
+/* Inputs look more legible */
+#resetLimitsWrap input,
+#resetLimitsWrap textarea,
+#resetLimitsWrap select {
+  font-size: 14px !important;
+  color: var(--text1) !important;
+}
+/* Section dividers get a little more breathing room */
+#resetLimitsWrap > div[style*="border-top"] {
+  padding-top: 18px !important;
+  margin-top: 18px !important;
+}
+
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
 .btn-primary {
   background: linear-gradient(135deg, var(--accent), var(--accent-d));
