@@ -3495,6 +3495,7 @@ function updateImageAttachState(usage) {
 
 // ── Send Message ──────────────────────────────────────────────────────────────
 async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort) {
+  nextMsgIsEdited = false;
   if (!currentChar) return;
   const myEpoch = chatEpoch;   // taken BEFORE any waiting, so a chat switch during the request is noticed
   // If we're locked out (limit reached), re-show the modal with a new message every attempt
@@ -7692,7 +7693,7 @@ function interruptCall() {
   callGen++;
   stopActiveTTS();
   window.speechSynthesis?.cancel();
-  if (callAudio) { const a = callAudio; stopCallAudio(); a.onended && a.onended(); if (callModeActive) setTimeout(() => listenForSpeech(), 100); return; }
+  if (callAudio) { stopCallAudio(); if (callModeActive) setTimeout(() => listenForSpeech(), 100); return; }
   if (callModeActive) listenForSpeech();
 }
 
@@ -8299,13 +8300,13 @@ function bubbleToRaw(bubble) {
 }
 
 function showTyping(v) {
-  document.getElementById('typingIndicator').classList.toggle('hidden', !v);
+  document.getElementById('typingIndicator')?.classList.toggle('hidden', !v);
   if (v) scrollToBottom();
 }
 
 function scrollToBottom() {
   const body = document.getElementById('chatBody');
-  body.scrollTop = body.scrollHeight;
+  if (body) body.scrollTop = body.scrollHeight;
 }
 
 function autoResize(el) {
@@ -8313,46 +8314,53 @@ function autoResize(el) {
   el.style.height = Math.min(el.scrollHeight, 120) + 'px';
 }
 
+let newChatInProgress = false;
 async function newChat() {
   if (!currentChar) return;
-  bookClose();
-  abandonStream();
-  releaseChatInput();
-  const newChatCharId = currentChar.id; // capture before any async wait
-  // Archive the chat on the server first. If saving fails (the server then keeps the live chat), do NOT clear it.
-  // Retry once after 15 s — covers Render free-tier cold-start which can take up to 30 s.
-  let arch = await fetch(`/api/conversations/${newChatCharId}/archive`, { method: 'POST' }).catch(() => null);
-  if (!arch || !arch.ok) {
-    const firstStatus = arch ? arch.status : 0;
-    showWarning("Saving your chat — please wait a moment…", 22000);
-    await new Promise(r => setTimeout(r, 20000));
-    arch = await fetch(`/api/conversations/${newChatCharId}/archive`, { method: 'POST' }).catch(() => null);
-    if (!arch || !arch.ok) {
-      const status = arch ? arch.status : firstStatus;
-      showWarning(`Couldn't save your current chat (error ${status || 'network'}), so it was left as it is. Please try again in a moment.`);
-      return;
-    }
-  }
-  // Guard against user switching to a different character during the 20s wait
-  if (currentChar?.id !== newChatCharId) return;
-  savePastChatLocal(newChatCharId, loadHistoryLocal(newChatCharId));
-  // If this chat was permanently banned, unlock it so the new conversation can proceed
-  if (currentChatLocked) {
-    await fetch(`/api/chat/unlock/${newChatCharId}`, { method: 'POST' }).catch(() => {});
-    currentChatLocked = false;
-  }
-  // Await the DELETE so the server clears history before we try to greet
-  await fetch(`/api/conversations/${newChatCharId}`, { method: 'DELETE' }).catch(() => {});
-  // Clear stale local history so reload starts fresh
+  if (newChatInProgress) return;
+  newChatInProgress = true;
   try {
-    const all = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}');
-    delete all[newChatCharId];
-    localStorage.setItem(userKey('cm_history'), JSON.stringify(all));
-  } catch(_) {}
-  document.getElementById('messages').innerHTML = '';
-  document.getElementById('chatWelcome').innerHTML = '';
-  warnedThresholds.clear();
-  generateGreeting();
+    bookClose();
+    abandonStream();
+    releaseChatInput();
+    const newChatCharId = currentChar.id; // capture before any async wait
+    // Archive the chat on the server first. If saving fails (the server then keeps the live chat), do NOT clear it.
+    // Retry once after 15 s — covers Render free-tier cold-start which can take up to 30 s.
+    let arch = await fetch(`/api/conversations/${newChatCharId}/archive`, { method: 'POST' }).catch(() => null);
+    if (!arch || !arch.ok) {
+      const firstStatus = arch ? arch.status : 0;
+      showWarning("Saving your chat — please wait a moment…", 22000);
+      await new Promise(r => setTimeout(r, 20000));
+      arch = await fetch(`/api/conversations/${newChatCharId}/archive`, { method: 'POST' }).catch(() => null);
+      if (!arch || !arch.ok) {
+        const status = arch ? arch.status : firstStatus;
+        showWarning(`Couldn't save your current chat (error ${status || 'network'}), so it was left as it is. Please try again in a moment.`);
+        return;
+      }
+    }
+    // Guard against user switching to a different character during the 20s wait
+    if (currentChar?.id !== newChatCharId) return;
+    savePastChatLocal(newChatCharId, loadHistoryLocal(newChatCharId));
+    // If this chat was permanently banned, unlock it so the new conversation can proceed
+    if (currentChatLocked) {
+      await fetch(`/api/chat/unlock/${newChatCharId}`, { method: 'POST' }).catch(() => {});
+      currentChatLocked = false;
+    }
+    // Await the DELETE so the server clears history before we try to greet
+    await fetch(`/api/conversations/${newChatCharId}`, { method: 'DELETE' }).catch(() => {});
+    // Clear stale local history so reload starts fresh
+    try {
+      const all = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}');
+      delete all[newChatCharId];
+      localStorage.setItem(userKey('cm_history'), JSON.stringify(all));
+    } catch(_) {}
+    document.getElementById('messages').innerHTML = '';
+    document.getElementById('chatWelcome').innerHTML = '';
+    warnedThresholds.clear();
+    generateGreeting();
+  } finally {
+    newChatInProgress = false;
+  }
 }
 
 let _infoPanelOpenedAt = 0;

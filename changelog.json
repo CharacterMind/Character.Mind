@@ -1,5 +1,22 @@
 [
   {
+    "id": "v277-hardening",
+    "version": "v277",
+    "date": "Oct 2026",
+    "title": "Reliability & Security Hardening",
+    "subtitle": "A deep sweep of every route — unhandled errors are now caught, call interrupts no longer double-trigger, and the new-chat button can't be tapped twice.",
+    "fixed": [
+      "Server errors on archive, sync, edit, check-in, and admin routes now return a proper response instead of leaving the connection hanging",
+      "Interrupting a call no longer triggers the listening loop twice",
+      "Tapping 'New Chat' quickly twice no longer starts two concurrent archives",
+      "Editing a message no longer marks the next unrelated message as '(edited)'",
+      "Missing DOM elements no longer crash the page on startup",
+      "VAPID private key fallback removed — server now fails fast if the env var is missing",
+      "Cron secret can no longer be leaked through request body logs",
+      "Admin email lookup is now properly case-insensitive"
+    ]
+  },
+  {
     "id": "v274-bug-fixes",
     "version": "v274",
     "date": "Oct 2026",

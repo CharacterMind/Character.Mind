@@ -26,7 +26,8 @@ app.set('trust proxy', 1);
 
 // ── Web Push / VAPID ──────────────────────────────────────────────────────────
 const VAPID_PUBLIC  = process.env.VAPID_PUBLIC_KEY  || 'BDcJpwPtlElqlzyIr_8NQkgLUtXxDbZfWsEs1ml-iWXfEHETPZ8eGBEG9ucsrMzUXbbaFFKY7riDyLT1m2BCJl8';
-const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || 'tQzAQswLk7OQnZfTw2p-ZQkSR5cXpdqRhEdBDgtbsj0';
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY;
+if (!VAPID_PRIVATE) throw new Error('VAPID_PRIVATE_KEY env var is required');
 webpush.setVapidDetails('mailto:support@charactermind.ai', VAPID_PUBLIC, VAPID_PRIVATE);
 
 // Character-specific push reminder message pools
@@ -615,7 +616,7 @@ if (GOOGLE_AUTH_ENABLED) {
       ).then(result => {
         const isNew = result.rows[0]?.is_new_user;
         if (isNew) {
-          if (user.email) sendWelcomeEmail(user.name, user.email);
+          if (user.email) sendWelcomeEmail(user.name, user.email).catch(err => console.error('[welcome-email]', err.message));
           db.query(`UPDATE users SET cm_coins = cm_coins + 100, coins_earned_all_time = COALESCE(coins_earned_all_time,0) + 100 WHERE google_id = $1`, [user.googleId])
             .catch(err => console.error('Welcome coins error:', err.message));
         }
@@ -3499,10 +3500,15 @@ app.post('/api/usage/credits-toggle', requireAuth, (req, res) => {
 });
 
 app.post('/api/checkin', requireAuth, async (req, res) => {
-  const uid = req.user.googleId;
-  const result = await checkDailyCheckin(uid);
-  if (!result) return res.json({ ok: false, reason: 'already_claimed' });
-  res.json({ ok: true, ...result });
+  try {
+    const uid = req.user.googleId;
+    const result = await checkDailyCheckin(uid);
+    if (!result) return res.json({ ok: false, reason: 'already_claimed' });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('[checkin]', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Something went wrong' });
+  }
 });
 
 // Also return streak info without claiming (for display)
@@ -3790,41 +3796,51 @@ async function archiveConversation(uid, charId, msgs) {
 }
 
 app.post('/api/chat/reset-mod/:charId', requireAuth, async (req, res) => {
-  const { charId } = req.params;
-  if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
-  if (!(await characterExists(charId))) return res.status(404).json({ error: 'Character not found' });
-  const uid = req.user.googleId;
-  const modStatus = await getModStatus(uid, charId);
-  if (modStatus.locked) return res.status(403).json({ error: 'This chat has been permanently closed and cannot be reset.' });
-  const key = `${uid}:${charId}`;
-  // Archive current conversation before resetting if it has messages
-  if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
-  const msgs = conversations[key] || [];
-  if (msgs.length > 0 && db) await archiveConversation(uid, charId, msgs);
-  await setModStatus(uid, charId, 0, false);
-  conversations[key] = [];
-  persistConv(key);
-  res.json({ ok: true });
+  try {
+    const { charId } = req.params;
+    if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
+    if (!(await characterExists(charId))) return res.status(404).json({ error: 'Character not found' });
+    const uid = req.user.googleId;
+    const modStatus = await getModStatus(uid, charId);
+    if (modStatus.locked) return res.status(403).json({ error: 'This chat has been permanently closed and cannot be reset.' });
+    const key = `${uid}:${charId}`;
+    // Archive current conversation before resetting if it has messages
+    if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
+    const msgs = conversations[key] || [];
+    if (msgs.length > 0 && db) await archiveConversation(uid, charId, msgs);
+    await setModStatus(uid, charId, 0, false);
+    conversations[key] = [];
+    persistConv(key);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[reset-mod]', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Something went wrong' });
+  }
 });
 
 // Archive current convo and start fresh (without mod reset)
 app.post('/api/conversations/:charId/archive', requireAuth, async (req, res) => {
-  const { charId } = req.params;
-  if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
-  if (!(await characterExists(charId))) return res.status(404).json({ error: 'Character not found' });
-  const uid = req.user.googleId;
-  const key = `${uid}:${charId}`;
-  if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
-  const msgs = conversations[key] || [];
-  if (msgs.length === 0) return res.json({ ok: true, archived: false });
-  if (db) {
-    // Keep at most 200 archives per user-character pair; if saving fails, keep the live chat instead of wiping it
-    const saved = await archiveConversation(uid, charId, msgs);
-    if (!saved) return res.status(500).json({ error: 'Could not save your chat. Please try again.' });
+  try {
+    const { charId } = req.params;
+    if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
+    if (!(await characterExists(charId))) return res.status(404).json({ error: 'Character not found' });
+    const uid = req.user.googleId;
+    const key = `${uid}:${charId}`;
+    if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
+    const msgs = conversations[key] || [];
+    if (msgs.length === 0) return res.json({ ok: true, archived: false });
+    if (db) {
+      // Keep at most 200 archives per user-character pair; if saving fails, keep the live chat instead of wiping it
+      const saved = await archiveConversation(uid, charId, msgs);
+      if (!saved) return res.status(500).json({ error: 'Could not save your chat. Please try again.' });
+    }
+    conversations[key] = [];
+    persistConv(key);
+    res.json({ ok: true, archived: true });
+  } catch (err) {
+    console.error('[archive]', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Something went wrong' });
   }
-  conversations[key] = [];
-  persistConv(key);
-  res.json({ ok: true, archived: true });
 });
 
 // List archived conversations for a character
@@ -3973,16 +3989,21 @@ app.post('/api/admin/clear-user-balance', requireAuth, async (req, res) => {
   if (!db) return res.status(503).json({ error: 'No database' });
   const { email } = req.body || {};
   if (!email?.trim()) return res.status(400).json({ error: 'Email required' });
-  const { rows } = await db.query('SELECT google_id, name FROM users WHERE email = $1', [email.trim().toLowerCase()]);
-  if (!rows.length) return res.status(404).json({ error: 'User not found' });
-  const uid = rows[0].google_id;
-  await db.query('UPDATE users SET cm_coins = 0, cm_tokens = 0, coins_earned_all_time = 0 WHERE google_id = $1', [uid]);
-  const lim = getLimits(uid);
-  lim.cmCoins = 0;
-  lim.cmTokens = 0;
-  lim.coinsEarnedAllTime = 0;
-  console.log(`[admin] clear-user-balance: ${rows[0].name} (${uid})`);
-  res.json({ ok: true, name: rows[0].name });
+  try {
+    const { rows } = await db.query('SELECT google_id, name FROM users WHERE LOWER(email) = LOWER($1)', [email.trim()]);
+    if (!rows.length) return res.status(404).json({ error: 'User not found' });
+    const uid = rows[0].google_id;
+    await db.query('UPDATE users SET cm_coins = 0, cm_tokens = 0, coins_earned_all_time = 0 WHERE google_id = $1', [uid]);
+    const lim = getLimits(uid);
+    lim.cmCoins = 0;
+    lim.cmTokens = 0;
+    lim.coinsEarnedAllTime = 0;
+    console.log(`[admin] clear-user-balance: ${rows[0].name} (${uid})`);
+    res.json({ ok: true, name: rows[0].name });
+  } catch (err) {
+    console.error('[clear-user-balance]', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Something went wrong' });
+  }
 });
 
 app.post('/api/admin/revoke-subscription', requireAuth, async (req, res) => {
@@ -3990,24 +4011,29 @@ app.post('/api/admin/revoke-subscription', requireAuth, async (req, res) => {
   if (!db) return res.status(503).json({ error: 'No database' });
   const { email } = req.body || {};
   if (!email?.trim()) return res.status(400).json({ error: 'Email required' });
-  const { rows } = await db.query(
-    'SELECT google_id, name, paypal_subscription_id, subscription_tier FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
-    [email.trim()]
-  );
-  if (!rows.length) return res.status(404).json({ error: 'User not found' });
-  const { google_id: uid, name, paypal_subscription_id: subId, subscription_tier: oldTier } = rows[0];
-  if (oldTier === 'free' || !oldTier) return res.status(400).json({ error: 'User has no active subscription' });
-  await db.query(
-    'UPDATE users SET subscription_tier = $1, paypal_subscription_id = NULL WHERE google_id = $2',
-    ['free', uid]
-  );
-  const lim = getLimits(uid);
-  lim.subscriptionTier = 'free';
-  lim.tierLoaded = true;
-  if (subId) cancelPayPalSubscription(subId, 'Revoked by admin').catch(() => {});
-  const subNote = subId ? ', PayPal sub ' + subId + ' cancelled' : '';
-  console.log('[admin] revoke-subscription: ' + name + ' (' + uid + ') was ' + oldTier + ' -> free' + subNote);
-  res.json({ ok: true, name, previousTier: oldTier });
+  try {
+    const { rows } = await db.query(
+      'SELECT google_id, name, paypal_subscription_id, subscription_tier FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+      [email.trim()]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'User not found' });
+    const { google_id: uid, name, paypal_subscription_id: subId, subscription_tier: oldTier } = rows[0];
+    if (oldTier === 'free' || !oldTier) return res.status(400).json({ error: 'User has no active subscription' });
+    await db.query(
+      'UPDATE users SET subscription_tier = $1, paypal_subscription_id = NULL WHERE google_id = $2',
+      ['free', uid]
+    );
+    const lim = getLimits(uid);
+    lim.subscriptionTier = 'free';
+    lim.tierLoaded = true;
+    if (subId) cancelPayPalSubscription(subId, 'Revoked by admin').catch(() => {});
+    const subNote = subId ? ', PayPal sub ' + subId + ' cancelled' : '';
+    console.log('[admin] revoke-subscription: ' + name + ' (' + uid + ') was ' + oldTier + ' -> free' + subNote);
+    res.json({ ok: true, name, previousTier: oldTier });
+  } catch (err) {
+    console.error('[revoke-subscription]', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Something went wrong' });
+  }
 });
 
 // One-time: stamp all characters created by the calling owner as CharacterMind
@@ -4460,43 +4486,48 @@ app.delete('/api/conversations/:charId', requireAuth, async (req, res) => {
 });
 
 app.post('/api/conversations/:charId/sync', requireAuth, async (req, res) => {
-  if (!VALID_ID.test(req.params.charId)) return res.status(400).json({ error: 'Invalid charId' });
-  if (!(await characterExists(req.params.charId))) return res.status(404).json({ error: 'Character not found' });
-  const { history } = req.body;
-  if (!Array.isArray(history)) return res.status(400).json({ error: 'Invalid history' });
-  if (history.length > CONV_MAX_MESSAGES) return res.status(400).json({ error: 'Too many messages' });
-  const key = `${req.user.googleId}:${req.params.charId}`;
-  if (!conversations[key] && userConversationCount(req.user.googleId) >= MAX_CONVERSATIONS_PER_USER) {
-    return res.status(429).json({ error: 'Too many active conversations' });
-  }
-  convLastUsed[key] = Date.now();
-  if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
-  const uid = req.user.googleId, cid = req.params.charId;
-  // Assistant lines are accepted only if they are signed by this server, already in this chat, or the character's greeting
-  const knownAssistant = new Set((conversations[key] || []).filter(m => m.role === 'assistant' && m.content).map(m => m.content));
-  let greetingText = '';
-  try { const dc = await getCharPrompt(cid); greetingText = (dc && dc.greeting) || ''; }
-  catch (_) { return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' }); }
-  const accepted = [];
-  for (const m of history) {
-    if (m && m.card === 'nsfw') {
-      accepted.push({ role: 'assistant', content: '', card: 'nsfw', variant: (Number.isInteger(m.variant) && m.variant >= 0 && m.variant < NSFW_CARD_VARIANTS) ? m.variant : 0 });
-      continue;
+  try {
+    if (!VALID_ID.test(req.params.charId)) return res.status(400).json({ error: 'Invalid charId' });
+    if (!(await characterExists(req.params.charId))) return res.status(404).json({ error: 'Character not found' });
+    const { history } = req.body;
+    if (!Array.isArray(history)) return res.status(400).json({ error: 'Invalid history' });
+    if (history.length > CONV_MAX_MESSAGES) return res.status(400).json({ error: 'Too many messages' });
+    const key = `${req.user.googleId}:${req.params.charId}`;
+    if (!conversations[key] && userConversationCount(req.user.googleId) >= MAX_CONVERSATIONS_PER_USER) {
+      return res.status(429).json({ error: 'Too many active conversations' });
     }
-    const role = (m && m.role === 'user') ? 'user' : 'assistant';
-    const rawContent = String((m && m.content) || '');
-    let content = rawContent.slice(0, 10000);
-    if (!content) continue;
-    if (role === 'user') content = redactIfUnsafe(content);
-    else {
-      const verified = (typeof m.sig === 'string' && m.sig === signReply(uid, cid, rawContent)) || knownAssistant.has(rawContent) || (greetingText && rawContent === greetingText);
-      if (!verified) continue;
+    convLastUsed[key] = Date.now();
+    if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
+    const uid = req.user.googleId, cid = req.params.charId;
+    // Assistant lines are accepted only if they are signed by this server, already in this chat, or the character's greeting
+    const knownAssistant = new Set((conversations[key] || []).filter(m => m.role === 'assistant' && m.content).map(m => m.content));
+    let greetingText = '';
+    try { const dc = await getCharPrompt(cid); greetingText = (dc && dc.greeting) || ''; }
+    catch (_) { return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' }); }
+    const accepted = [];
+    for (const m of history) {
+      if (m && m.card === 'nsfw') {
+        accepted.push({ role: 'assistant', content: '', card: 'nsfw', variant: (Number.isInteger(m.variant) && m.variant >= 0 && m.variant < NSFW_CARD_VARIANTS) ? m.variant : 0 });
+        continue;
+      }
+      const role = (m && m.role === 'user') ? 'user' : 'assistant';
+      const rawContent = String((m && m.content) || '');
+      let content = rawContent.slice(0, 10000);
+      if (!content) continue;
+      if (role === 'user') content = redactIfUnsafe(content);
+      else {
+        const verified = (typeof m.sig === 'string' && m.sig === signReply(uid, cid, rawContent)) || knownAssistant.has(rawContent) || (greetingText && rawContent === greetingText);
+        if (!verified) continue;
+      }
+      accepted.push({ role, content });
     }
-    accepted.push({ role, content });
+    conversations[key] = accepted.slice(-CONV_MAX_MESSAGES);
+    persistConv(key);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[sync]', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Something went wrong' });
   }
-  conversations[key] = accepted.slice(-CONV_MAX_MESSAGES);
-  persistConv(key);
-  res.json({ ok: true });
 });
 
 // Editing one of the AI's own replies. The server only trusts assistant lines it has signed (so nobody can write the AI's side of the
@@ -4504,24 +4535,29 @@ app.post('/api/conversations/:charId/sync', requireAuth, async (req, res) => {
 // comes through here: the old text must be in this chat, the new text must pass the same safety check as a person's own message, and
 // the new text is signed so it is trusted from then on.
 app.post('/api/conversations/:charId/edit', requireAuth, async (req, res) => {
-  const cid = req.params.charId;
-  if (!VALID_ID.test(cid)) return res.status(400).json({ error: 'Invalid charId' });
-  const from = typeof (req.body && req.body.from) === 'string' ? req.body.from : '';
-  const to = typeof (req.body && req.body.to) === 'string' ? req.body.to.trim() : '';
-  if (!from || !to || from.length > 10000 || to.length > 10000) return res.status(400).json({ error: 'Invalid edit' });
-  if (redactIfUnsafe(to) !== to) return res.status(400).json({ error: 'That edit goes against our Terms of Service.' });
-  if (!(await characterExists(cid))) return res.status(404).json({ error: 'Character not found' });
-  const uid = req.user.googleId;
-  const key = uid + ':' + cid;
-  if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
-  const hist = conversations[key] || [];
-  let at = -1;
-  for (let k = hist.length - 1; k >= 0; k--) { if (hist[k].role === 'assistant' && !hist[k].card && hist[k].content === from) { at = k; break; } }
-  if (at < 0) return res.status(404).json({ error: 'Reply not found' });
-  hist[at].content = to;
-  convLastUsed[key] = Date.now();
-  persistConv(key);
-  res.json({ ok: true, sig: signReply(uid, cid, to) });
+  try {
+    const cid = req.params.charId;
+    if (!VALID_ID.test(cid)) return res.status(400).json({ error: 'Invalid charId' });
+    const from = typeof (req.body && req.body.from) === 'string' ? req.body.from : '';
+    const to = typeof (req.body && req.body.to) === 'string' ? req.body.to.trim() : '';
+    if (!from || !to || from.length > 10000 || to.length > 10000) return res.status(400).json({ error: 'Invalid edit' });
+    if (redactIfUnsafe(to) !== to) return res.status(400).json({ error: 'That edit goes against our Terms of Service.' });
+    if (!(await characterExists(cid))) return res.status(404).json({ error: 'Character not found' });
+    const uid = req.user.googleId;
+    const key = uid + ':' + cid;
+    if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
+    const hist = conversations[key] || [];
+    let at = -1;
+    for (let k = hist.length - 1; k >= 0; k--) { if (hist[k].role === 'assistant' && !hist[k].card && hist[k].content === from) { at = k; break; } }
+    if (at < 0) return res.status(404).json({ error: 'Reply not found' });
+    hist[at].content = to;
+    convLastUsed[key] = Date.now();
+    persistConv(key);
+    res.json({ ok: true, sig: signReply(uid, cid, to) });
+  } catch (err) {
+    console.error('[edit]', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Something went wrong' });
+  }
 });
 
 app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
@@ -5144,8 +5180,10 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       bookPlanState = { premise: String(message || '').slice(0, 1500), total: bookReq.total, outline: '' };
       bookNote = '\n\n' + bookPlanNote(bookReq.total);
     } else {
-      const st = await getBookState(key);
-      if (!st || !st.outline) return res.status(409).json({ error: 'Plan the book first, then write the chapters.' });
+      let st;
+      try { st = await getBookState(key); }
+      catch (e) { releaseSlot(); return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' }); }
+      if (!st || !st.outline) { releaseSlot(); return res.status(409).json({ error: 'Plan the book first, then write the chapters.' }); }
       bookNote = '\n\n' + bookChapterNote(st, bookReq.n, st.total || bookReq.total);
     }
   }
@@ -5157,7 +5195,9 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   }
 
   // Chat APIs require the last turn to be a user turn — inject a hidden continuation trigger if needed
-  const memNote = await buildMemoryNote(modelTier, aiHistory(conversations[key]), key, (dbChar && dbChar.name) || charId);
+  let memNote = '';
+  try { memNote = await buildMemoryNote(modelTier, aiHistory(conversations[key]), key, (dbChar && dbChar.name) || charId); }
+  catch (e) { /* memory note is optional — proceed without it */ }
   // the memory note takes some of the room, so the oldest recent messages make way for it (the request size stays the same)
   const history = fitHistory(aiHistory(conversations[key]).slice(-12), historyBudgetFor(modelTier));
   const lastRole = history[history.length - 1]?.role;
@@ -6650,33 +6690,45 @@ app.get('/api/announcements', async (req, res) => {
 
 app.post('/api/admin/announcement', requireAuth, async (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  if (!db) return res.status(503).json({ error: 'No database' });
   const { version, title, subtitle, bullets, section_tag } = req.body;
   if (!title?.trim()) return res.status(400).json({ error: 'title required' });
-  const bulletsArr = Array.isArray(bullets)
-    ? bullets.map(b => String(b).trim()).filter(Boolean)
-    : String(bullets || '').split('\n').map(b => b.trim()).filter(Boolean);
-  const now = new Date();
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const dateLabel = `${months[now.getMonth()]} ${now.getFullYear()}`;
-  const { rows } = await db.query(
-    `INSERT INTO platform_announcements (version, date_label, title, subtitle, bullets, section_tag)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING ann_id`,
-    [
-      (version || '').trim(),
-      dateLabel,
-      title.trim(),
-      (subtitle || '').trim(),
-      bulletsArr,
-      ['added','fixed','changed','note'].includes(section_tag) ? section_tag : 'added',
-    ]
-  );
-  res.json({ ok: true, id: rows[0].ann_id });
+  try {
+    const bulletsArr = Array.isArray(bullets)
+      ? bullets.map(b => String(b).trim()).filter(Boolean)
+      : String(bullets || '').split('\n').map(b => b.trim()).filter(Boolean);
+    const now = new Date();
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const dateLabel = `${months[now.getMonth()]} ${now.getFullYear()}`;
+    const { rows } = await db.query(
+      `INSERT INTO platform_announcements (version, date_label, title, subtitle, bullets, section_tag)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING ann_id`,
+      [
+        (version || '').trim(),
+        dateLabel,
+        title.trim(),
+        (subtitle || '').trim(),
+        bulletsArr,
+        ['added','fixed','changed','note'].includes(section_tag) ? section_tag : 'added',
+      ]
+    );
+    res.json({ ok: true, id: rows[0].ann_id });
+  } catch (err) {
+    console.error('[admin/announcement POST]', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Something went wrong' });
+  }
 });
 
 app.delete('/api/admin/announcement/:id', requireAuth, async (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
-  await db.query('DELETE FROM platform_announcements WHERE ann_id = $1', [req.params.id]);
-  res.json({ ok: true });
+  if (!db) return res.status(503).json({ error: 'No database' });
+  try {
+    await db.query('DELETE FROM platform_announcements WHERE ann_id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[admin/announcement DELETE]', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Something went wrong' });
+  }
 });
 
 function tttCheckWinnerGame(board) {
@@ -6857,30 +6909,40 @@ function buildCheckinEmail(userName, charName, charColor) {
 
 app.get('/api/settings/checkin', requireAuth, async (req, res) => {
   if (!db) return res.json({ opted_in: false, frequency_days: 3, phone: '' });
-  const { rows } = await db.query(
-    'SELECT checkin_opted_in, checkin_frequency_days, checkin_phone FROM users WHERE google_id = $1',
-    [req.user.googleId]
-  );
-  const u = rows[0] || {};
-  res.json({ opted_in: !!u.checkin_opted_in, frequency_days: u.checkin_frequency_days || 3, phone: u.checkin_phone || '' });
+  try {
+    const { rows } = await db.query(
+      'SELECT checkin_opted_in, checkin_frequency_days, checkin_phone FROM users WHERE google_id = $1',
+      [req.user.googleId]
+    );
+    const u = rows[0] || {};
+    res.json({ opted_in: !!u.checkin_opted_in, frequency_days: u.checkin_frequency_days || 3, phone: u.checkin_phone || '' });
+  } catch (err) {
+    console.error('[settings/checkin GET]', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Something went wrong' });
+  }
 });
 
 app.post('/api/settings/checkin', requireAuth, async (req, res) => {
   if (!db) return res.status(503).json({ error: 'No database' });
-  const opted_in = !!req.body.opted_in;
-  const frequency_days = Math.max(1, Math.min(30, parseInt(req.body.frequency_days) || 3));
-  const phone = typeof req.body.phone === 'string' ? req.body.phone.replace(/[^\d\s+\-().]/g, '').slice(0, 20) : '';
-  await db.query(
-    'UPDATE users SET checkin_opted_in=$1, checkin_frequency_days=$2, checkin_phone=$3 WHERE google_id=$4',
-    [opted_in, frequency_days, phone || null, req.user.googleId]
-  );
-  res.json({ ok: true, opted_in, frequency_days, phone });
+  try {
+    const opted_in = !!req.body.opted_in;
+    const frequency_days = Math.max(1, Math.min(30, parseInt(req.body.frequency_days) || 3));
+    const phone = typeof req.body.phone === 'string' ? req.body.phone.replace(/[^\d\s+\-().]/g, '').slice(0, 20) : '';
+    await db.query(
+      'UPDATE users SET checkin_opted_in=$1, checkin_frequency_days=$2, checkin_phone=$3 WHERE google_id=$4',
+      [opted_in, frequency_days, phone || null, req.user.googleId]
+    );
+    res.json({ ok: true, opted_in, frequency_days, phone });
+  } catch (err) {
+    console.error('[settings/checkin POST]', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Something went wrong' });
+  }
 });
 
 // Protected cron endpoint — call with CRON_SECRET to send check-in messages
 app.post('/api/cron/check-ins', async (req, res) => {
   const secret = process.env.CRON_SECRET;
-  const provided = req.headers['x-cron-secret'] || req.body?.secret;
+  const provided = req.headers['x-cron-secret'];
   if (!secret || provided !== secret) return res.status(403).json({ error: 'Forbidden' });
   if (!db) return res.status(503).json({ error: 'No database' });
 
