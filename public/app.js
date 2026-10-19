@@ -4977,21 +4977,21 @@ function renderWhatsNew(announcements, body) {
   body.innerHTML = announcements.map((a, i) => `
     <div class="whats-new-entry" data-ann-id="${a.id || ''}">
       <div class="wn-ver-row">
-        ${a.version ? `<span class="wn-ver-badge">${a.version}</span>` : ''}
-        <span class="wn-date">${a.date || ''}</span>
-        ${owner && a.id && !a.id.startsWith('v') ? `<button class="wn-delete-btn" onclick="adminDeleteAnnouncement('${a.id}',this)" title="Delete">✕</button>` : ''}
+        ${a.version ? `<span class="wn-ver-badge">${escHtml(a.version)}</span>` : ''}
+        <span class="wn-date">${escHtml(a.date || '')}</span>
+        ${owner && a.id && !a.id.startsWith('v') ? `<button class="wn-delete-btn" onclick="adminDeleteAnnouncement('${escHtml(a.id)}',this)" title="Delete">✕</button>` : ''}
       </div>
-      <div class="wn-headline">${a.title}</div>
-      ${a.subtitle ? `<div class="wn-subline">${a.subtitle}</div>` : ''}
+      <div class="wn-headline">${escHtml(a.title)}</div>
+      ${a.subtitle ? `<div class="wn-subline">${escHtml(a.subtitle)}</div>` : ''}
       ${a.character ? `<div class="wn-char-card">
         <div class="wn-char-tag">New Character</div>
-        <div class="wn-char-name">${a.character.emoji || ''} ${a.character.name}</div>
-        <div class="wn-char-sub">${a.character.sub}</div>
+        <div class="wn-char-name">${escHtml(a.character.emoji || '')} ${escHtml(a.character.name)}</div>
+        <div class="wn-char-sub">${escHtml(a.character.sub)}</div>
       </div>` : ''}
-      ${a.added?.length ? `<div class="wn-section-tag added">Added</div><ul class="wn-list">${a.added.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}
-      ${a.fixed?.length ? `<div class="wn-section-tag fixed">Fixed</div><ul class="wn-list">${a.fixed.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}
-      ${a.changed?.length ? `<div class="wn-section-tag changed">Changed</div><ul class="wn-list">${a.changed.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}
-      ${a.note?.length ? `<div class="wn-section-tag note">Note</div><ul class="wn-list">${a.note.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}
+      ${a.added?.length ? `<div class="wn-section-tag added">Added</div><ul class="wn-list">${a.added.map(x => `<li>${escHtml(x)}</li>`).join('')}</ul>` : ''}
+      ${a.fixed?.length ? `<div class="wn-section-tag fixed">Fixed</div><ul class="wn-list">${a.fixed.map(x => `<li>${escHtml(x)}</li>`).join('')}</ul>` : ''}
+      ${a.changed?.length ? `<div class="wn-section-tag changed">Changed</div><ul class="wn-list">${a.changed.map(x => `<li>${escHtml(x)}</li>`).join('')}</ul>` : ''}
+      ${a.note?.length ? `<div class="wn-section-tag note">Note</div><ul class="wn-list">${a.note.map(x => `<li>${escHtml(x)}</li>`).join('')}</ul>` : ''}
     </div>
     ${i < announcements.length - 1 ? '<div class="whats-new-divider"></div>' : ''}
   `).join('');
@@ -8496,7 +8496,7 @@ async function launchHangman(savedState) {
   document.getElementById('messages').appendChild(msgEl);
   scrollToBottom();
 
-  let word;
+  let word, gameId = null;
   if (savedState) {
     word = savedState.word;
   } else {
@@ -8517,6 +8517,7 @@ async function launchHangman(savedState) {
       }
       if (!r.ok) { msgEl.innerHTML = '<div class="game-loading">Couldn\'t load game. Try again.</div>'; return; }
       word = d.word.toLowerCase();
+      gameId = d.gameId || null;
     } catch (_) {
       msgEl.innerHTML = '<div class="game-loading">Couldn\'t load game. Try again.</div>';
       return;
@@ -8528,6 +8529,7 @@ async function launchHangman(savedState) {
   const maxWrong = 6;
   let coinAwarded = false;
   if (savedState) {
+    gameId = savedState.gameId || null; // restore from saved state if available
     (savedState.guessed || []).forEach(c => guessed.add(c));
     wrongCount = savedState.wrongCount || 0;
   }
@@ -8542,7 +8544,7 @@ async function launchHangman(savedState) {
       fetch('/api/coins/award', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ wordLength: word.length })
+          body: JSON.stringify({ wordLength: word.length, gameId: gameId || undefined })
         })
         .then(r => r.json())
         .then(d => {

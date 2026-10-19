@@ -377,6 +377,15 @@ if (db) {
   `).catch(err => console.error('app_config table init error:', err));
 
   db.query(`
+    CREATE TABLE IF NOT EXISTS processed_coin_orders (
+      order_id TEXT PRIMARY KEY,
+      google_id TEXT NOT NULL,
+      coins INT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).catch(err => console.error('processed_coin_orders table init error:', err));
+
+  db.query(`
     CREATE TABLE IF NOT EXISTS platform_announcements (
       id SERIAL PRIMARY KEY,
       ann_id TEXT UNIQUE NOT NULL DEFAULT gen_random_uuid()::text,
@@ -474,9 +483,8 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
-const SESSION_SECRET = process.env.SESSION_SECRET ||
-  crypto.createHash('sha256').update('cm-session-2026-' + (process.env.DATABASE_URL || '')).digest('hex');
-if (!process.env.SESSION_SECRET) console.warn('SESSION_SECRET env var not set — using stable derived fallback (set the var for best security).');
+const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+if (!process.env.SESSION_SECRET) console.error('SECURITY: SESSION_SECRET env var not set — sessions will not survive restarts. Set this in your environment variables.');
 
 // Persist sessions to Postgres so they survive server restarts
 if (db) {
@@ -4992,6 +5000,22 @@ app.post('/api/paypal/capture-coin-order', requireAuth, async (req, res) => {
     if (!pack) return res.status(400).json({ error: 'Unknown pack' });
 
     if (!db) return res.status(503).json({ error: 'No database' });
+
+    // Idempotency guard — prevent double-spend if the client retries or two requests race
+    try {
+      await db.query(
+        'INSERT INTO processed_coin_orders (order_id, google_id, coins) VALUES ($1, $2, $3)',
+        [orderId, req.user.googleId, pack.coins]
+      );
+    } catch (dupErr) {
+      // Unique constraint violation means this order was already processed
+      if (dupErr.code === '23505') {
+        const { rows: existing } = await db.query('SELECT coins FROM users WHERE google_id = $1', [req.user.googleId]);
+        return res.json({ ok: true, coins: 0, newBalance: existing[0]?.cm_coins ?? 0, pack: pack.label, alreadyProcessed: true });
+      }
+      throw dupErr;
+    }
+
     const { rows } = await db.query(
       'UPDATE users SET cm_coins = cm_coins + $1 WHERE google_id = $2 RETURNING cm_coins',
       [pack.coins, req.user.googleId]
@@ -5216,6 +5240,18 @@ app.post('/api/webhooks/paypal', async (req, res) => {
   // When PayPal suspends due to a failed payment, try to cover the gap with C.M. Coins
   if (eventType === 'BILLING.SUBSCRIPTION.SUSPENDED' && subId && db) {
     try {
+      // Idempotency guard: store this PayPal event ID so a duplicate delivery doesn't deduct twice
+      const evtKey = `webhook_suspended_${event.id || subId}`;
+      const { rowCount } = await db.query(
+        `INSERT INTO app_config (key, value, updated_at) VALUES ($1, 'processed', NOW())
+         ON CONFLICT (key) DO NOTHING`,
+        [evtKey]
+      );
+      if (rowCount === 0) {
+        // Already processed this event — return 200 so PayPal stops retrying
+        return res.sendStatus(200);
+      }
+
       const userRow = await db.query(
         'SELECT google_id, cm_coins, subscription_tier FROM users WHERE paypal_subscription_id = $1', [subId]);
       if (userRow.rows.length) {
@@ -5457,10 +5493,11 @@ const HANGMAN_WORDS = [
   'flexibility',
 ];
 
-function requireAuthGame(req, res, next) {
+async function requireAuthGame(req, res, next) {
   if (!req.isAuthenticated || !req.isAuthenticated() || !req.user || !req.user.googleId) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
+  try { await ensureTierLoaded(req.user); } catch (_) {}
   next();
 }
 
@@ -5479,9 +5516,23 @@ app.post('/api/coins/award', requireAuth, async (req, res) => {
   try {
     await ensureTierLoaded(req.user);
     const uid = req.user.googleId;
+
+    // Validate game token — must have started a real Hangman session
+    const { gameId } = req.body || {};
+    let serverWordLen = null;
+    if (gameId) {
+      const session = hangmanGameTokens.get(gameId);
+      if (!session || session.uid !== uid) {
+        return res.status(403).json({ error: 'Invalid game session' });
+      }
+      serverWordLen = session.wordLen;
+      hangmanGameTokens.delete(gameId); // consume token — can't award twice for same game
+    }
+
     const u = getLimits(uid);
     const tier = u.paypalTier || 'free';
-    const wLen = Math.max(3, Math.min(12, parseInt(req.body?.wordLength) || 6));
+    // Use server-side word length when token provided; clamp client-supplied value otherwise
+    const wLen = serverWordLen ?? Math.max(3, Math.min(12, parseInt(req.body?.wordLength) || 6));
     const minC = Math.max(5,  Math.round(wLen * 0.7));
     const maxC = Math.min(20, Math.round(wLen * 1.9));
     const earnPerWin = Math.floor(Math.random() * (maxC - minC + 1)) + minC;
@@ -5632,6 +5683,13 @@ app.post('/api/tokens/sell', requireAuth, async (req, res) => {
   } catch (e) { console.error('[tokens/sell]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
 });
 
+// Server-side game tokens — maps gameId -> { uid, wordLen, issued } so /api/coins/award can't be called without a real game session
+const hangmanGameTokens = new Map(); // gameId -> { uid, wordLen }
+setInterval(() => {
+  const cutoff = Date.now() - 30 * 60 * 1000; // expire after 30 min
+  for (const [id, v] of hangmanGameTokens) { if (v.issued < cutoff) hangmanGameTokens.delete(id); }
+}, 5 * 60 * 1000);
+
 app.get('/api/game/hangman/word', requireAuthGame, (req, res) => {
   const userId = req.user.googleId;
 
@@ -5657,7 +5715,12 @@ app.get('/api/game/hangman/word', requireAuthGame, (req, res) => {
   const eligible = HANGMAN_WORDS.filter(w => w.length <= maxLen);
   const pool = eligible.length ? eligible : HANGMAN_WORDS;
   const word = pool[Math.floor(Math.random() * pool.length)];
-  res.json({ word });
+
+  // Issue a game token so /api/coins/award can verify a real game was started
+  const gameId = crypto.randomBytes(16).toString('hex');
+  hangmanGameTokens.set(gameId, { uid: userId, wordLen: word.length, issued: Date.now() });
+
+  res.json({ word, gameId });
 });
 
 // ── Announcements ──────────────────────────────────────────────────────────
