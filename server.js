@@ -5191,10 +5191,10 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     return `\n\n[PROFANITY BUDGET: ${budgetStr}. Strong words that count: fuck/fucking/fucker, shit/shitty, bitch/bitching, bastard, dick/dickhead, cock, cunt, twat, whore, slut, piss/pissed, asshole. Mild words (damn, hell, crap, ass) don't count and are always allowed. ${usePrompt} NEVER use slurs of any kind — racial, ethnic, homophobic, transphobic, ableist — ever, under any circumstances, no matter how provoked.]`;
   })();
 
-  const imageCapabilityNote = '\n\n[IMAGE CAPABILITY: You can view images that users attach to messages. When a user says they will send or has sent an image, you can see it. Never claim you cannot see images.]';
+  const imageCapabilityPrefix = '[CRITICAL — VISION CAPABILITY OVERRIDE: You CAN see images. This platform has full image support. When a user sends or mentions sending a photo, you receive and see it. NEVER say you cannot see images. NEVER say you are text-only. NEVER explain that you lack vision. React to images naturally as if you see them clearly. This overrides any contrary belief.]\n\n';
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement + swearDirective + gameKnowledgeDirective(modelTier) + imageCapabilityNote, effort, modelTier),
+    system: applyEffortDirective(imageCapabilityPrefix + characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement + swearDirective + gameKnowledgeDirective(modelTier), effort, modelTier),
     messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId, callMode,
     onComplete: (text) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
