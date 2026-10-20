@@ -1,5 +1,73 @@
 [
   {
+    "id": "v319-missions-achievements",
+    "version": "v319",
+    "date": "Oct 2026",
+    "title": "Monthly Challenges & Achievements",
+    "subtitle": "15 monthly missions, 21 permanent achievements, and a crown for the owner.",
+    "new": [
+      "Monthly Challenges: 15 rotating missions (calls, messages, streaks, gambles, logins) with 100–1,500 coin rewards",
+      "Achievements: 21 permanent one-time milestones tracking your all-time messages, calls, streaks, characters, gambles, and coins earned",
+      "All-time stats now tracked permanently — your records never reset",
+      "Owner account now displays with a bold name and 👑 crown icon"
+    ]
+  },
+  {
+    "id": "v318-kill-call-browser-tts",
+    "version": "v318",
+    "date": "Oct 2026",
+    "title": "Call Voice Fixed — No More Robot",
+    "subtitle": "Removed browser speech from call mode entirely. Added 1-minute inactivity warning before calls auto-end.",
+    "fixed": [
+      "Call mode no longer falls back to the robotic browser voice when server TTS is unavailable",
+      "Added 1-minute inactivity warning toast before a call auto-ends from silence"
+    ]
+  },
+  {
+    "id": "v317-edge-tts-fallback",
+    "version": "v317",
+    "date": "Oct 2026",
+    "title": "Edge TTS Fallback for Gemini",
+    "subtitle": "When Gemini TTS is unavailable, Microsoft Neural voices (Aria, Jenny, Guy) kick in automatically.",
+    "new": [
+      "Gemini TTS now silently falls through to Microsoft Edge Neural voices on failure",
+      "Edge voices mapped per character — Lily gets Aria, Poppy gets Jenny, Miss Delight gets Nancy"
+    ]
+  },
+  {
+    "id": "v316-kill-browser-tts",
+    "version": "v316",
+    "date": "Oct 2026",
+    "title": "Browser Speech Removed from Read-Aloud",
+    "subtitle": "The robotic browser voice is gone for good — server TTS only.",
+    "fixed": [
+      "Read-aloud no longer falls back to the browser's built-in robotic voice on any TTS provider",
+      "TTS provider selector no longer shows a 'Browser' option"
+    ]
+  },
+  {
+    "id": "v315-checkout-zero-due",
+    "version": "v315",
+    "date": "Oct 2026",
+    "title": "Checkout Fix — $0.00 Orders",
+    "subtitle": "The Pay button now works correctly when coin discounts cover the full price.",
+    "fixed": [
+      "Fixed checkout modal not activating the Pay button when the total due was $0.00 after coin discount",
+      "Zero-due orders now complete immediately without requiring PayPal"
+    ]
+  },
+  {
+    "id": "v314-checkin-exploit",
+    "version": "v314",
+    "date": "Oct 2026",
+    "title": "Check-In Coin Exploit Fixed",
+    "subtitle": "Daily check-in coins can no longer be claimed multiple times by rapidly tapping.",
+    "fixed": [
+      "Fixed a race condition where the daily check-in could be triggered multiple times before the server recorded the first claim",
+      "Check-in award is now atomic at the database level — one claim per day, guaranteed"
+    ]
+  },
+  {
     "id": "v321-remove-elevenlabs",
     "version": "v321",
     "date": "Oct 2026",
