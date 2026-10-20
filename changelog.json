@@ -1,5 +1,17 @@
 [
   {
+    "id": "v311-gemini-tts-model",
+    "version": "v311",
+    "date": "Oct 2026",
+    "title": "Gemini TTS Model Update",
+    "subtitle": "Upgraded to Gemini 3.8 Flash TTS — studio-grade voice quality, no more Edge fallback.",
+    "fixed": [
+      "Switched from gemini-2.5-flash-preview-tts (access restricted) to gemini-3.1-flash-tts-preview with gemini-3.8-flash-tts as upgrade path",
+      "Added dual-API support: legacy generateContent format + new Gemini Interactions API for 3.8 model",
+      "Gemini TTS no longer silently falls back to Edge when the model was inaccessible"
+    ]
+  },
+  {
     "id": "v310-tts-reliability",
     "version": "v310",
     "date": "Oct 2026",

@@ -3625,7 +3625,8 @@ const GEMINI_TTS_VOICES = new Set([
 ]);
 
 // Configurable via env var so model name updates don't need a code deploy
-const GEMINI_TTS_MODEL = process.env.GEMINI_TTS_MODEL || 'gemini-2.5-flash-preview-tts';
+// gemini-2.5-flash-preview-tts has access restrictions; use 3.1 (same API) or 3.8 (new Interactions API)
+const GEMINI_TTS_MODEL = process.env.GEMINI_TTS_MODEL || 'gemini-3.1-flash-tts-preview';
 
 // Wraps raw 16-bit PCM samples in a WAV container so browsers can play them.
 // Gemini TTS returns audio/L16 PCM by default; browsers can't decode raw PCM.
@@ -3686,6 +3687,54 @@ async function geminiTTSSynthesize(text, voiceName, apiKey, timeoutMs = 12000) {
     ct = 'audio/wav';
   }
   return { audio, ct };
+}
+
+// Gemini 3.8 Flash TTS via new Interactions API (flagship quality, WAV output)
+async function geminiTTS38Synthesize(text, voiceName, apiKey, timeoutMs = 20000) {
+  const voice = GEMINI_TTS_VOICES.has(voiceName) ? voiceName : 'Aoede';
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const r = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/interactions',
+      {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify({
+          model: 'gemini-3.8-flash-tts',
+          input: [{ type: 'user_input', content: [{ type: 'text', text }] }],
+          response_format: { type: 'audio' },
+          generation_config: { speech_config: [{ voice }] }
+        })
+      }
+    );
+    clearTimeout(timer);
+    if (!r.ok) {
+      const body = await r.text().catch(() => '');
+      throw new Error('gemini-tts-38:' + r.status + ' ' + body.slice(0, 200));
+    }
+    const j = await r.json();
+    let audioData = null, mimeType = 'audio/wav';
+    for (const step of (j.steps || [])) {
+      for (const item of (step.content || [])) {
+        if (item.data) { audioData = item.data; mimeType = item.mime_type || 'audio/wav'; break; }
+      }
+      if (audioData) break;
+    }
+    if (!audioData) throw new Error('gemini-tts-38: no audio in response');
+    let audio = Buffer.from(audioData, 'base64');
+    let ct = mimeType;
+    if (/L16|pcm/i.test(ct)) {
+      const rateMatch = ct.match(/rate=(\d+)/i);
+      audio = pcmToWav(audio, rateMatch ? parseInt(rateMatch[1], 10) : 24000);
+      ct = 'audio/wav';
+    }
+    return { audio, ct };
+  } catch (e) {
+    clearTimeout(timer);
+    throw e;
+  }
 }
 
 // Direct Edge TTS WebSocket implementation (no msedge-tts package needed)
@@ -3755,7 +3804,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   const clientEdgeVoice = req.body?.edgeVoice && typeof req.body.edgeVoice === 'string' ? req.body.edgeVoice : null;
   if (!text) return res.status(400).json({ error: 'no_text' });
 
-  // Gemini TTS path — 6 s timeout; falls through to Edge on any failure
+  // Gemini TTS path — try legacy generateContent API first, then new Interactions API
   if (provider === 'gemini') {
     const gKey = process.env.GEMINI_API_KEY;
     if (gKey) {
@@ -3766,17 +3815,29 @@ app.post('/api/tts', requireAuth, async (req, res) => {
       if ((ttsU2.ttsCharsToday || 0) + text.length <= TTS_DAILY_CHARS) {
         ttsU2.ttsCharsToday = (ttsU2.ttsCharsToday || 0) + text.length;
         saveLimitsToDB(userId);
+        let geminiAudio = null, geminiCt = null;
+        // Try legacy generateContent API (gemini-3.1-flash-tts-preview by default)
         try {
-          const { audio, ct } = await geminiTTSSynthesize(text, geminiVoice, gKey, 25000);
-          res.setHeader('Content-Type', ct);
+          const r = await geminiTTSSynthesize(text, geminiVoice, gKey, 20000);
+          geminiAudio = r.audio; geminiCt = r.ct;
+        } catch (e) {
+          console.warn('[gemini-tts] legacy model failed:', e.message);
+          // Try new Interactions API with gemini-3.8-flash-tts
+          try {
+            const r = await geminiTTS38Synthesize(text, geminiVoice, gKey, 20000);
+            geminiAudio = r.audio; geminiCt = r.ct;
+          } catch (e2) {
+            console.warn('[gemini-tts] 3.8 interactions also failed:', e2.message);
+          }
+        }
+        if (geminiAudio) {
+          res.setHeader('Content-Type', geminiCt);
           res.setHeader('Cache-Control', 'no-store');
           res.setHeader('X-TTS-Provider', 'gemini');
-          return res.send(audio);
-        } catch (e) {
-          ttsU2.ttsCharsToday = Math.max(0, (ttsU2.ttsCharsToday || 0) - text.length);
-          console.warn('[gemini-tts] failed, falling back to Edge:', e.message);
-          // fall through to Edge TTS
+          return res.send(geminiAudio);
         }
+        ttsU2.ttsCharsToday = Math.max(0, (ttsU2.ttsCharsToday || 0) - text.length);
+        // fall through to Edge TTS
       }
     }
   }
