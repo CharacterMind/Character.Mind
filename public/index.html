@@ -672,8 +672,8 @@
         <div id="callLimitModal" class="call-limit-modal" style="display:none">
           <button class="call-limit-x" onclick="hideCallLimitModal()">✕</button>
           <div class="call-limit-inner">
-            <div class="call-limit-headline">You've used all your voice calls today.</div>
-            <div class="call-limit-sub">Resets in <span id="callLimitCountdown" class="call-limit-countdown">--:--:--</span></div>
+            <div class="call-limit-headline" id="callLimitHeadline">Voice calls unavailable right now.</div>
+            <div class="call-limit-sub" id="callLimitSub"></div>
             <div id="callLimitCharMsg" class="call-limit-char-msg"></div>
             <div class="call-limit-divider"></div>
             <button class="call-limit-got-it" onclick="hideCallLimitModal()">Got it</button>
@@ -1826,7 +1826,7 @@
 </div>
 
 <script src="https://js.stripe.com/v3/"></script>
-<script src="app.js?v=325"></script>
+<script src="app.js?v=326"></script>
 
 <!-- Session 90% warning toast -->
 <div id="sessionWarningToast">

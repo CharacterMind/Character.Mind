@@ -3627,6 +3627,9 @@ app.get('/api/exchange-rates', charReadLimiter, async (req, res) => {
 
 app.post('/api/call/start', requireAuth, (req, res) => {
   const userId = req.user.googleId;
+  if (!isServiceOnline() && !getLimits(userId).neverLimit) {
+    return res.status(503).json({ allowed: false, type: 'service_offline' });
+  }
   const sessionCheck = checkLimits(userId);
   if (sessionCheck.blocked) {
     return res.status(429).json({ allowed: false, type: sessionCheck.type, cooldownUntil: sessionCheck.cooldownUntil });

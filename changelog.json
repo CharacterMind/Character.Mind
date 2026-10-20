@@ -1,5 +1,17 @@
 [
   {
+    "id": "v326-bug-fixes",
+    "version": "v326",
+    "date": "Oct 2026",
+    "title": "Bug Fixes & Polish",
+    "subtitle": "Call screen block now fires before the call starts, usage bars updated to reflect coin-based model.",
+    "fixed": [
+      "Voice calls now check service coin balance before starting — no more mid-call cutoffs when coins run out",
+      "Call unavailable modal now shows the correct reason: 'service offline' vs a cooldown",
+      "Usage panel bars for calls, memos, and images now correctly say 'No daily limit — coin-based' instead of the old daily counts"
+    ]
+  },
+  {
     "id": "v325-usage-based-costs",
     "version": "v325",
     "date": "Oct 2026",

@@ -5783,32 +5783,19 @@ function updateUsageModal(u) {
     if (subEl && subText !== undefined) subEl.textContent = subText;
   }
 
-  // Calls — limit is tier-dependent; use server-provided value
+  // Calls — coin-based, no daily count limit
   const callsToday = u.callsToday || 0;
-  const callsCap = u.callsLimit || 6;
-  const callsPct = Math.min(100, Math.round(callsToday / callsCap * 100));
-  const callsResetStr = u.callWindowResetsAt && Date.now() < u.callWindowResetsAt
-    ? ' · resets in ' + formatCountdown(u.callWindowResetsAt - Date.now()) : '';
-  setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct,
-    `Up to ${callsCap} per day · longer calls drain faster${callsResetStr}`, false);
+  setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', 0,
+    `No daily limit · costs coins per response + per minute of call time`, false);
 
-  // Memos — limit is tier-dependent
+  // Memos — coin-based, no daily count limit
   const memosToday = u.memosToday || 0;
-  const memosCap = u.memosLimit || 30;
-  const memosPct = Math.min(100, Math.round(memosToday / memosCap * 100));
-  const memosResetStr = u.callWindowResetsAt && Date.now() < u.callWindowResetsAt
-    ? ' · resets in ' + formatCountdown(u.callWindowResetsAt - Date.now()) : '';
-  setBar('usageMemosBar', 'usageMemosPct', 'usageMemosSub', memosPct,
-    `Up to ${memosCap} per day · longer conversations drain faster${memosResetStr}`, false);
+  setBar('usageMemosBar', 'usageMemosPct', 'usageMemosSub', 0,
+    `No daily limit · costs coins based on message length`, false);
 
-  // Images — limit is tier-dependent
-  const imgUsed = u.imagesDay || 0;
-  const imgCap = u.imageLimit || 3;
-  const imgPct = Math.min(100, Math.round(imgUsed / imgCap * 100));
-  const imgResetStr = u.imageResetAt && imgUsed > 0 && Date.now() < u.imageResetAt
-    ? ' · resets in ' + formatCountdown(u.imageResetAt - Date.now()) : '';
-  const imgSub = `Up to ${imgCap} per day · larger images drain faster${imgResetStr}`;
-  setBar('usageImagesBar', 'usageImagesPct', 'usageImagesSub', imgPct, imgSub, false);
+  // Images — coin-based, no daily count limit
+  setBar('usageImagesBar', 'usageImagesPct', 'usageImagesSub', 0,
+    `No daily limit · costs coins based on image file size`, false);
 
   // Daily resets subtitle
   const dailyResetsEl = document.getElementById('usageDailyResetsSub');
@@ -7846,29 +7833,17 @@ async function startCallMode() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { callStarting = false; alert('Voice calls need a browser with speech recognition — try Chrome.'); return; }
   if (!currentChar) { callStarting = false; return; }
-  // Check daily call duration limit
-  const secsRemaining = getCallSecsRemaining();
-  if (secsRemaining <= 0) {
-    callStarting = false;
-    showCallLimitModal(Date.now() + (24 * 60 * 60 * 1000));
-    const msgEl = document.getElementById('callLimitCharMsg');
-    const durationMsgs = [
-      "You already used your 5 minutes today. Come back tomorrow. Or not. But come back tomorrow.",
-      "Zero seconds of call time remaining. You spent them all. This is a consequence.",
-      "The daily voice limit is 5 minutes. Yours are gone. All of them. Today.",
-      "*taps where a watch would be* Your 5 minutes were yesterday. Today's was used too.",
-      "Five minutes per day. That's the deal. You've maxed it. Touch grass until midnight.",
-    ];
-    if (msgEl) msgEl.textContent = durationMsgs[Math.floor(Math.random() * durationMsgs.length)];
-    return;
-  }
   // Check server-side blocks (token limits, bans, service offline)
   try {
     const r = await fetch('/api/call/start', { method: 'POST' });
     if (!r.ok) {
       const data = await r.json().catch(() => ({}));
       callStarting = false;
-      if (r.status === 429 || r.status === 503) showCallLimitModal(data.cooldownUntil || Date.now() + 3600000);
+      if (r.status === 503 || data.type === 'service_offline') {
+        showCallLimitModal(null, 'service_offline');
+      } else if (r.status === 429) {
+        showCallLimitModal(data.cooldownUntil || Date.now() + 3600000);
+      }
       return;
     }
   } catch(e) { /* offline — allow call anyway */ }
@@ -8092,17 +8067,33 @@ const CALL_LIMIT_MESSAGES = [
   "Spoiler: tomorrow there are more calls. Today there are not. This is the whole situation.",
 ];
 
-function showCallLimitModal(resetsAt) {
+function showCallLimitModal(resetsAt, reason) {
   const modal = document.getElementById('callLimitModal');
   if (!modal) return;
   modal.style.display = 'flex';
+  const headEl = document.getElementById('callLimitHeadline');
+  const subEl = document.getElementById('callLimitSub');
   const msgEl = document.getElementById('callLimitCharMsg');
-  if (msgEl) msgEl.textContent = CALL_LIMIT_MESSAGES[Math.floor(Math.random() * CALL_LIMIT_MESSAGES.length)];
-  const cdEl = document.getElementById('callLimitCountdown');
-  if (!cdEl) return;
-  if (!resetsAt) {
-    const WINDOW_MS = 8 * 60 * 60 * 1000;
-    resetsAt = Math.ceil((Date.now() + 1) / WINDOW_MS) * WINDOW_MS;
+  if (reason === 'service_offline') {
+    if (headEl) headEl.textContent = 'Service is currently offline.';
+    if (subEl) subEl.textContent = 'The service will return once coins are refilled.';
+    if (msgEl) msgEl.textContent = '';
+  } else {
+    if (headEl) headEl.textContent = 'Voice calls unavailable right now.';
+    if (subEl) subEl.textContent = '';
+    if (msgEl) msgEl.textContent = CALL_LIMIT_MESSAGES[Math.floor(Math.random() * CALL_LIMIT_MESSAGES.length)];
+  }
+  let cdEl = null;
+  if (subEl && resetsAt && reason !== 'service_offline') {
+    subEl.textContent = 'Resets in ';
+    const span = document.createElement('span');
+    span.className = 'call-limit-countdown';
+    subEl.appendChild(span);
+    cdEl = span;
+  }
+  if (!cdEl) {
+    if (_callLimitTimer) { clearInterval(_callLimitTimer); _callLimitTimer = null; }
+    return;
   }
   function tick() {
     const diff = resetsAt - Date.now();
