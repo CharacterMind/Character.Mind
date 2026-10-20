@@ -3706,13 +3706,6 @@ app.get('/api/checkin', requireAuth, (req, res) => {
   });
 });
 
-const ELEVEN_KEY = process.env.ELEVENLABS_API_KEY || '';
-const ELEVEN_DEFAULT_VOICE = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM';
-let ELEVEN_VOICE_MAP = {
-  custom_1790776698867: 'EXAVITQu4vr4xnSDxMaL',      // Poppy — Sarah: soft, gentle, doll-like
-  custom_1790897425575_lily: 'cgSgspJ2msm6clMCkdW9'  // Lily — Jessica: bright, playful, expressive
-};
-try { Object.assign(ELEVEN_VOICE_MAP, JSON.parse(process.env.ELEVENLABS_VOICES || '{}')); } catch (_) {}
 const TTS_DAILY_CHARS = 50000;
 
 // Edge TTS neural voice map (free fallback — Microsoft neural voices)

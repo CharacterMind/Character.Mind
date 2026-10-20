@@ -7651,11 +7651,11 @@ function callModeTTS(bubble) {
   resetCallInactivityTimer();
   setCallState('responding');
   stopCallAudio();
-  if (elevenTTSOk) { callModeElevenTTS(text); return; }
+  if (serverTTSOk) { callModeTTS_server(text); return; }
   if (callModeActive) listenForSpeech();
 }
 
-let elevenTTSOk = true;
+let serverTTSOk = true;
 let callAudio = null;
 
 function stopCallAudio() {
@@ -7706,7 +7706,7 @@ async function speakAndHangUp(text, resetsAt) {
   } catch (_) { finish(); }
 }
 
-async function callModeElevenTTS(text) {
+async function callModeTTS_server(text) {
   const gen = callGen;
   const clean = text.replace(/\*[^*]*\*/g, '').replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim();
   if (!clean) { if (callModeActive && gen === callGen) listenForSpeech(); return; }
@@ -7724,7 +7724,7 @@ async function callModeElevenTTS(text) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: s, charId: currentChar?.id, provider: ttsProvider, geminiVoice: geminiVoiceName })
     });
-    if (!r.ok) { if (r.status === 501) elevenTTSOk = false; throw new Error('tts ' + r.status); }
+    if (!r.ok) { if (r.status === 501) serverTTSOk = false; throw new Error('tts ' + r.status); }
     return r.blob();
   };
 
@@ -7903,7 +7903,7 @@ async function startCallMode() {
   if (startGen !== callGen) { callStarting = false; return; } // call was cancelled while starting
   callStarting = false;
   callModeActive = true;
-  elevenTTSOk = true; // Bug 2 fix: reset so every new call retries server TTS from scratch
+  serverTTSOk = true; // reset so every new call retries server TTS from scratch
   callMuted = false;
   callFirstConnect = true;
   startCallDurationTimer(getCallSecsRemaining());

@@ -312,8 +312,7 @@
       <ul>
         <li><strong>Google OAuth 2.0</strong> — handles sign-in. We receive your basic profile information as described above.</li>
         <li><strong>Groq</strong> — our AI inference provider. Your conversation messages are sent to Groq's API to generate character responses. If you attach an image, it is also sent to Groq.</li>
-        <li><strong>Microsoft Edge TTS</strong> — text-to-speech provider used for voice calls. The text of a character's reply is sent to Microsoft's speech synthesis service to generate spoken audio. No account information is transmitted.</li>
-        <li><strong>ElevenLabs</strong> — secondary text-to-speech provider, used as a fallback for voice calls when configured. The text of a character's reply is sent to ElevenLabs to generate spoken audio. No account information is transmitted.</li>
+        <li><strong>Microsoft Edge TTS / StreamElements TTS</strong> — text-to-speech providers used for voice calls and read-aloud. The text of a character's reply is sent to these services to generate spoken audio. No account information is transmitted.</li>
         <li><strong>Neon (PostgreSQL)</strong> — our database host, where user data, conversations, and character definitions are stored.</li>
         <li><strong>Render</strong> — our hosting provider, where the application server runs.</li>
         <li><strong>PayPal</strong> — payment processing for paid subscriptions and C.M. Coin purchases.</li>
