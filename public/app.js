@@ -7574,13 +7574,12 @@ async function toggleTTS(btn) {
     return;
   }
 
-  // Check + deduct memo before TTS
+  // Check + deduct memo before TTS — pass text length for variable cost
   try {
-    const memoR = await fetch('/api/memo/use', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const memoR = await fetch('/api/memo/use', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ textLen: text.length }) });
     if (!memoR.ok) {
-      const memoData = await memoR.json().catch(() => ({}));
       stopActiveTTS();
-      if (memoR.status === 429) showMemoLimitBanner(memoData.resetsAt);
+      showTTSError('Not enough coins to read this message');
       return;
     }
   } catch (_) { /* network error — try TTS anyway */ }
@@ -7614,8 +7613,7 @@ async function toggleTTS(btn) {
 
   if (!serverOk && activeTTSBtn === btn) {
     stopActiveTTS();
-    if (ttsStatus === 429) showMemoLimitBanner();
-    else if (ttsStatus > 0) showTTSError('Voice unavailable — try again shortly');
+    if (ttsStatus > 0) showTTSError('Voice unavailable — try again shortly');
   }
 }
 
@@ -7783,38 +7781,13 @@ function addCallSecsUsed(secs) {
   try { localStorage.setItem(getCallSecsKey(), String(getCallSecsUsedToday() + secs)); } catch(_) {}
 }
 function getCallSecsRemaining() {
-  if (isOwner()) return CALL_DAILY_MAX_SECS; // owner always has full time available
-  return Math.max(0, CALL_DAILY_MAX_SECS - getCallSecsUsedToday());
+  return CALL_DAILY_MAX_SECS; // no daily limit — coin balance is the only gate
 }
-function startCallDurationTimer(remainingSecs) {
+function startCallDurationTimer() {
   if (callDurationTimer) clearInterval(callDurationTimer);
   callSessionStartedAt = Date.now();
-  let secsLeft = remainingSecs;
-  callDurationTimer = setInterval(() => {
-    secsLeft--;
-    if (secsLeft <= 0) {
-      clearInterval(callDurationTimer);
-      callDurationTimer = null;
-      const elapsed = Math.round((Date.now() - callSessionStartedAt) / 1000);
-      addCallSecsUsed(elapsed);
-      callSessionStartedAt = null;
-      if (callModeActive) {
-        const resetsAt = lastKnownCallResetsAt > Date.now() ? lastKnownCallResetsAt : Date.now() + 8 * 60 * 60 * 1000;
-        const diffMs = resetsAt - Date.now();
-        const h = Math.floor(diffMs / 3600000);
-        const m = Math.floor((diffMs % 3600000) / 60000);
-        const timeStr = h > 0 ? `${h} hour${h !== 1 ? 's' : ''} and ${m} minute${m !== 1 ? 's' : ''}` : `${m} minute${m !== 1 ? 's' : ''}`;
-        const farewellMsgs = [
-          `That's all the call time for now. Come back in ${timeStr}.`,
-          `We've used up our voice time. See you in ${timeStr}.`,
-          `Call time's up. I'll be here in ${timeStr}.`,
-          `Time's out for calls today. Come find me in ${timeStr}.`,
-        ];
-        const msg = farewellMsgs[Math.floor(Math.random() * farewellMsgs.length)];
-        speakAndHangUp(msg, resetsAt);
-      }
-    }
-  }, 1000);
+  // Timer just tracks elapsed time for billing — no auto-end countdown
+  callDurationTimer = setInterval(() => {}, 60000);
 }
 function stopCallDurationTimer() {
   if (callDurationTimer) { clearInterval(callDurationTimer); callDurationTimer = null; }
@@ -7889,16 +7862,15 @@ async function startCallMode() {
     if (msgEl) msgEl.textContent = durationMsgs[Math.floor(Math.random() * durationMsgs.length)];
     return;
   }
-  // Check daily call count limit
+  // Check server-side blocks (token limits, bans, service offline)
   try {
     const r = await fetch('/api/call/start', { method: 'POST' });
-    const data = await r.json();
-    if (!data.allowed) {
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
       callStarting = false;
-      showCallLimitModal(data.resetsAt);
+      if (r.status === 429 || r.status === 503) showCallLimitModal(data.cooldownUntil || Date.now() + 3600000);
       return;
     }
-    if (data.callsRemaining === 0) showCallWarningBanner();
   } catch(e) { /* offline — allow call anyway */ }
 
   if (startGen !== callGen) { callStarting = false; return; } // call was cancelled while starting
@@ -7907,7 +7879,7 @@ async function startCallMode() {
   serverTTSOk = true; // reset so every new call retries server TTS from scratch
   callMuted = false;
   callFirstConnect = true;
-  startCallDurationTimer(getCallSecsRemaining());
+  startCallDurationTimer();
   resetCallInactivityTimer();
   document.getElementById('callBtn')?.classList.add('active');
   const overlay = document.getElementById('callOverlay');

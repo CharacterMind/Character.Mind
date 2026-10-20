@@ -1,5 +1,19 @@
 [
   {
+    "id": "v325-usage-based-costs",
+    "version": "v325",
+    "date": "Oct 2026",
+    "title": "Usage-Based Costs",
+    "subtitle": "Coin costs now scale with actual usage — longer responses, bigger images, and more TTS cost proportionally more.",
+    "new": [
+      "Chat costs: scale with response length and model tier (a short reply costs less than a long one)",
+      "Call costs: scale with how much the character speaks per response, plus coins per minute of call time",
+      "Memo costs: scale with how long the message being read aloud is",
+      "Image costs: scale with image file size",
+      "Daily limits removed — your coin balance is the only gate now"
+    ]
+  },
+  {
     "id": "v324-call-orbs",
     "version": "v324",
     "date": "Oct 2026",

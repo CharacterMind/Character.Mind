@@ -1457,17 +1457,34 @@ const IMAGE_TOKEN_MAX = 15000;        // 1 large image per free session
 const CALL_TOKENS_PER_SECOND = 25;
 const CALL_TOKEN_MIN = 1500;          // minimum per call (~10 short calls per free session)
 
-// ── Service Coin Budget ────────────────────────────────────────────────────────
-// Global owner-funded coin pool. Each user action drains it. When it hits 0, AI
-// responses are blocked for non-owner users until the owner tops it up.
-const SERVICE_COIN_COSTS = { chat: 1, call: 3, memo: 1, game: 2 };
-
-// ── User-facing flat coin costs ───────────────────────────────────────────────
-// Fixed per-action regardless of response length or image size.
-const USER_COIN_COST_CHAT  = 25;  // per AI chat response
-const USER_COIN_COST_CALL  = 35;  // per AI call response (only when character speaks)
-const USER_COIN_COST_IMAGE = 50;  // per image attachment
-const USER_COIN_COST_MEMO  = 20;  // per memo use
+// ── Usage-based coin cost calculator ─────────────────────────────────────────
+// Costs scale with actual usage: response length, model tier, image size, etc.
+// side: 'service' (owner pool) or 'user' (per-user balance)
+// type: 'chat' | 'call' | 'image' | 'memo' | 'call_duration' | 'game'
+const COST_MODEL_MULT = { opes: 1, opis: 1.3, opos: 1.6, opus: 2.5, opys: 4, opys5: 7, opys6: 12 };
+function calcCost(side, type, { textLen = 0, imageSizeBytes = 0, modelTier = 'opes', durationSecs = 0 } = {}) {
+  const mult = COST_MODEL_MULT[modelTier] || 1;
+  if (side === 'service') {
+    switch (type) {
+      case 'chat':          return Math.max(2,  Math.min(100, Math.round(Math.ceil(textLen / 30) * mult)));
+      case 'call':          return Math.max(3,  Math.min(80,  Math.round(Math.ceil(textLen / 20) * mult)));
+      case 'image':         return Math.max(5,  Math.min(80,  Math.ceil(imageSizeBytes / 5000)));
+      case 'memo':          return Math.max(1,  Math.min(30,  Math.ceil(textLen / 60)));
+      case 'call_duration': return Math.max(0,  Math.ceil(durationSecs / 60));
+      case 'game':          return 2;
+      default:              return 1;
+    }
+  } else {
+    switch (type) {
+      case 'chat':          return Math.max(8,  Math.min(200, Math.round(Math.ceil(textLen / 15) * mult)));
+      case 'call':          return Math.max(10, Math.min(150, Math.round(Math.ceil(textLen / 10) * mult)));
+      case 'image':         return Math.max(20, Math.min(150, Math.ceil(imageSizeBytes / 7000)));
+      case 'memo':          return Math.max(5,  Math.min(60,  Math.ceil(textLen / 40)));
+      case 'call_duration': return Math.max(0,  Math.ceil(durationSecs / 60));
+      default:              return 5;
+    }
+  }
+}
 
 // Subscription earning multiplier — higher tiers earn MORE from missions/games/check-in
 const TIER_EARN_MULT = { free: 1, advanced: 1.5, x20: 2, x50: 3, x100: 5, x200: 8 };
@@ -3143,7 +3160,7 @@ function startReplyStream(o) {
   });
   const cost = isGreetMode ? 0 : messageCost(modelTier, effort);
   const reservation = isGreetMode ? { warnings: [] } : addTokens(userId, cost);
-  if (!isGreetMode && !getLimits(userId).neverLimit) deductServiceCoins(SERVICE_COIN_COSTS.chat);
+  // Service coin drain now happens in onComplete (variable cost based on response length)
   let fullResponse = '', held = '', released = false, finished = false;
   const send = (obj) => { try { res.write('data: ' + JSON.stringify(obj) + '\n\n'); } catch (_) {} };
   // While the AI is thinking or waiting for its turn, say "still here" every 10 seconds. Without this a long wait with no text can look
@@ -3610,20 +3627,11 @@ app.get('/api/exchange-rates', charReadLimiter, async (req, res) => {
 
 app.post('/api/call/start', requireAuth, (req, res) => {
   const userId = req.user.googleId;
-  const u = getLimits(userId);
   const sessionCheck = checkLimits(userId);
-  const resetsAt = getCallWindowStart() + 8 * 60 * 60 * 1000;
   if (sessionCheck.blocked) {
-    return res.status(429).json({ allowed: false, type: sessionCheck.type, cooldownUntil: sessionCheck.cooldownUntil, resetsAt: sessionCheck.resetsAt || resetsAt });
+    return res.status(429).json({ allowed: false, type: sessionCheck.type, cooldownUntil: sessionCheck.cooldownUntil });
   }
-  const callLimit = getCallLimitForUser(userId);
-  if (callLimit !== Infinity && u.callsToday >= callLimit) {
-    return res.status(429).json({ allowed: false, callsToday: u.callsToday, callsLimit: callLimit, callsRemaining: 0, resetsAt });
-  }
-  u.callsToday = (u.callsToday || 0) + 1;
-  saveLimitsToDB(userId);
-  const remaining = callLimit === Infinity ? 9999 : callLimit - u.callsToday;
-  res.json({ allowed: true, callsToday: u.callsToday, callsLimit: callLimit === Infinity ? 9999 : callLimit, callsRemaining: remaining, resetsAt });
+  res.json({ allowed: true });
 });
 
 app.post('/api/call/end', requireAuth, (req, res) => {
@@ -3640,7 +3648,10 @@ app.post('/api/call/end', requireAuth, (req, res) => {
   const rawCost = Math.max(CALL_TOKEN_MIN, Math.ceil(duration * CALL_TOKENS_PER_SECOND));
   const callTokenCost = tier === 'free' ? CALL_TOKEN_MIN : rawCost;
   const usage = addTokens(userId, callTokenCost);
-  if (!getLimits(userId).neverLimit) deductServiceCoins(SERVICE_COIN_COSTS.call);
+  // Deduct coins for call duration (variable — 1 coin per minute for service, same for user)
+  const durOpts = { durationSecs: duration };
+  if (!getLimits(userId).neverLimit) deductServiceCoins(calcCost('service', 'call_duration', durOpts));
+  if (!getLimits(userId).skipCoinDeduct) deductCoinsSync(userId, calcCost('user', 'call_duration', durOpts));
   trackMissionProgress(userId, 'call').catch(() => {});
   res.json({ ok: true, ...usage });
 });
@@ -3942,10 +3953,6 @@ app.post('/api/tts', requireAuth, async (req, res) => {
       const userId = req.user.googleId;
       const ttsU2 = getLimits(userId);
       const ttsWin2 = getCallWindowStart();
-      if (!ttsU2.ttsDayStart || ttsU2.ttsDayStart < ttsWin2) { ttsU2.ttsCharsToday = 0; ttsU2.ttsDayStart = ttsWin2; }
-      if ((ttsU2.ttsCharsToday || 0) + text.length > TTS_DAILY_CHARS) {
-        return res.status(429).json({ error: 'tts_limit' });
-      }
       ttsU2.ttsCharsToday = (ttsU2.ttsCharsToday || 0) + text.length;
       saveLimitsToDB(userId);
       let geminiAudio = null, geminiCt = null;
@@ -3981,8 +3988,6 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   const edgeUserId = req.user.googleId;
   const edgeLim = getLimits(edgeUserId);
   const edgeWin = getCallWindowStart();
-  if (!edgeLim.ttsDayStart || edgeLim.ttsDayStart < edgeWin) { edgeLim.ttsCharsToday = 0; edgeLim.ttsDayStart = edgeWin; }
-  if ((edgeLim.ttsCharsToday || 0) + text.length > TTS_DAILY_CHARS) return res.status(429).json({ error: 'tts_limit' });
   edgeLim.ttsCharsToday = (edgeLim.ttsCharsToday || 0) + text.length;
   saveLimitsToDB(edgeUserId);
 
@@ -4026,17 +4031,13 @@ app.post('/api/tts', requireAuth, async (req, res) => {
 app.post('/api/memo/use', requireAuth, (req, res) => {
   const userId = req.user.googleId;
   const u = getLimits(userId);
-  const resetsAt = getCallWindowStart() + 8 * 60 * 60 * 1000;
-  const memoLimit = getMemoLimitForUser(userId);
-  if (memoLimit !== Infinity && u.memosToday >= memoLimit) {
-    return res.status(429).json({ allowed: false, memosToday: u.memosToday, memosLimit: memoLimit, memosRemaining: 0, resetsAt });
-  }
+  const textLen = typeof req.body.textLen === 'number' ? req.body.textLen : 0;
   u.memosToday = (u.memosToday || 0) + 1;
-  addTokens(userId, 300); // addTokens already persists via saveLimitsToDB internally
-  if (!getLimits(userId).neverLimit) deductServiceCoins(SERVICE_COIN_COSTS.memo);
-  if (!getLimits(userId).skipCoinDeduct) deductCoinsSync(userId, USER_COIN_COST_MEMO);
-  const remaining = memoLimit === Infinity ? 9999 : memoLimit - u.memosToday;
-  res.json({ allowed: true, memosToday: u.memosToday, memosLimit: memoLimit === Infinity ? 9999 : memoLimit, memosRemaining: remaining, resetsAt });
+  addTokens(userId, 300);
+  const memoOpts = { textLen };
+  if (!getLimits(userId).neverLimit) deductServiceCoins(calcCost('service', 'memo', memoOpts));
+  if (!getLimits(userId).skipCoinDeduct) deductCoinsSync(userId, calcCost('user', 'memo', memoOpts));
+  res.json({ allowed: true, memosToday: u.memosToday });
 });
 
 app.get('/api/chat/lock-status/:charId', requireAuth, async (req, res) => {
@@ -5374,16 +5375,11 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     return;
   }
 
-  // ── Image safety: daily cap, then explicit-content check (only after limit and lock checks) ──
+  // ── Image safety: explicit-content check ──────────────────────────────────────
   let imageDescription = '';
   if (image && !isContinuation) {
     const imgU = getLimits(userId);
-    const imgLimit = getImageLimitForUser(userId);
-    if (imgLimit !== Infinity && (imgU.imagesDay || 0) >= imgLimit) {
-      return res.status(429).json({ error: `Image upload limit reached.`, type: 'image', imageResetAt: (imgU.imageFirstUsedAt || Date.now()) + 24 * 60 * 60 * 1000 });
-    }
-    if (!imgU.imageFirstUsedAt) { imgU.imageFirstUsedAt = Date.now(); imgU.imageDayStart = imgU.imageFirstUsedAt; }
-    imgU.imagesDay = (imgU.imagesDay || 0) + 1; // attempts count toward the cap, including blocked ones
+    const imgSizeBytes = typeof image === 'string' ? Math.round(image.length * 0.75) : 0; // base64 → bytes
     const imgTokenCost = Math.max(IMAGE_TOKEN_MIN, Math.min(IMAGE_TOKEN_MAX, Math.round((typeof image === 'string' ? image.length : 0) / IMAGE_TOKEN_BYTE_DIVISOR)));
     addTokens(userId, imgTokenCost);
     let explicit;
@@ -5392,7 +5388,6 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       explicit = analysis.explicit;
       imageDescription = analysis.description;
     } catch (e) {
-      imgU.imagesDay = Math.max(0, imgU.imagesDay - 1); // our failure, not the user's
       refundTokens(userId, imgTokenCost);
       console.warn('[image-safety] check failed, blocking image:', e.message);
       return res.status(503).json({ error: "We couldn't check that image right now. Please try again in a moment or send your message without it." });
@@ -5401,10 +5396,10 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       refundTokens(userId, imgTokenCost);
       return res.status(451).json({ error: 'explicit_image' });
     }
-    // Charge user coins for image — flat fixed cost per attachment
-    if (!getLimits(userId).skipCoinDeduct) {
-      deductCoinsSync(userId, USER_COIN_COST_IMAGE);
-    }
+    // Charge coins for image — variable cost based on image size
+    const imgOpts = { imageSizeBytes: imgSizeBytes };
+    if (!getLimits(userId).neverLimit) deductServiceCoins(calcCost('service', 'image', imgOpts));
+    if (!getLimits(userId).skipCoinDeduct) deductCoinsSync(userId, calcCost('user', 'image', imgOpts));
   }
 
   // ── Slur detection (three strikes per conversation) ────────────────────────
@@ -5628,9 +5623,15 @@ app.post('/api/chat', requireAuth, async (req, res) => {
           }
         }
       }
-      // Deduct user coins for the AI response — flat fixed cost per action
+      // Deduct user coins — variable cost based on response length and model
       if (!getLimits(userId).skipCoinDeduct) {
-        deductCoinsSync(userId, callMode ? USER_COIN_COST_CALL : USER_COIN_COST_CHAT);
+        const type = callMode ? 'call' : 'chat';
+        deductCoinsSync(userId, calcCost('user', type, { textLen: (text || '').length, modelTier }));
+      }
+      // Deduct service coins — variable cost based on response length and model
+      if (!getLimits(userId).neverLimit) {
+        const type = callMode ? 'call' : 'chat';
+        deductServiceCoins(calcCost('service', type, { textLen: (text || '').length, modelTier }));
       }
       return _swearBudgetJustHit ? { swearBudgetHit: true } : {};
     },
