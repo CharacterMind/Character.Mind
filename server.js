@@ -3606,7 +3606,7 @@ let ELEVEN_VOICE_MAP = {
   custom_1790897425575_lily: 'cgSgspJ2msm6clMCkdW9'  // Lily — Jessica: bright, playful, expressive
 };
 try { Object.assign(ELEVEN_VOICE_MAP, JSON.parse(process.env.ELEVENLABS_VOICES || '{}')); } catch (_) {}
-const TTS_DAILY_CHARS = 2000;
+const TTS_DAILY_CHARS = 50000;
 
 // Edge TTS neural voice map (free fallback — Microsoft neural voices)
 const EDGE_VOICE_MAP = {
@@ -3624,12 +3624,37 @@ const GEMINI_TTS_VOICES = new Set([
   'Zubenelgenubi','Vindemiatrix','Sadachbia','Sadaltager','Sulafat'
 ]);
 
+// Configurable via env var so model name updates don't need a code deploy
+const GEMINI_TTS_MODEL = process.env.GEMINI_TTS_MODEL || 'gemini-2.5-flash-preview-tts';
+
+// Wraps raw 16-bit PCM samples in a WAV container so browsers can play them.
+// Gemini TTS returns audio/L16 PCM by default; browsers can't decode raw PCM.
+function pcmToWav(pcmData, sampleRate = 24000, numChannels = 1, bitsPerSample = 16) {
+  const dataSize = pcmData.length;
+  const buf = Buffer.alloc(44 + dataSize);
+  buf.write('RIFF', 0, 'ascii');
+  buf.writeUInt32LE(36 + dataSize, 4);
+  buf.write('WAVE', 8, 'ascii');
+  buf.write('fmt ', 12, 'ascii');
+  buf.writeUInt32LE(16, 16);
+  buf.writeUInt16LE(1, 20);
+  buf.writeUInt16LE(numChannels, 22);
+  buf.writeUInt32LE(sampleRate, 24);
+  buf.writeUInt32LE(sampleRate * numChannels * (bitsPerSample / 8), 28);
+  buf.writeUInt16LE(numChannels * (bitsPerSample / 8), 32);
+  buf.writeUInt16LE(bitsPerSample, 34);
+  buf.write('data', 36, 'ascii');
+  buf.writeUInt32LE(dataSize, 40);
+  pcmData.copy(buf, 44);
+  return buf;
+}
+
 async function geminiTTSSynthesize(text, voiceName, apiKey, timeoutMs = 12000) {
   const voice = GEMINI_TTS_VOICES.has(voiceName) ? voiceName : 'Aoede';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const r = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TTS_MODEL}:generateContent`,
     {
       method: 'POST',
       signal: controller.signal,
@@ -3652,8 +3677,15 @@ async function geminiTTSSynthesize(text, voiceName, apiKey, timeoutMs = 12000) {
   const parts = j.candidates?.[0]?.content?.parts || [];
   const audioPart = parts.find(p => p.inlineData?.mimeType?.startsWith('audio'));
   if (!audioPart?.inlineData?.data) throw new Error('gemini-tts: no audio data in response');
-  const ct = audioPart.inlineData.mimeType || 'audio/wav';
-  return { audio: Buffer.from(audioPart.inlineData.data, 'base64'), ct };
+  let audio = Buffer.from(audioPart.inlineData.data, 'base64');
+  let ct = audioPart.inlineData.mimeType || 'audio/wav';
+  // Browsers cannot decode raw PCM (audio/L16, audio/pcm) — wrap in a WAV container
+  if (/L16|pcm/i.test(ct)) {
+    const rateMatch = ct.match(/rate=(\d+)/i);
+    audio = pcmToWav(audio, rateMatch ? parseInt(rateMatch[1], 10) : 24000);
+    ct = 'audio/wav';
+  }
+  return { audio, ct };
 }
 
 // Direct Edge TTS WebSocket implementation (no msedge-tts package needed)

@@ -1,5 +1,19 @@
 [
   {
+    "id": "v310-tts-reliability",
+    "version": "v310",
+    "date": "Oct 2026",
+    "title": "Voice Reliability Fix",
+    "subtitle": "Gemini TTS now plays correctly every time, and your voice choice sticks across characters.",
+    "fixed": [
+      "Gemini TTS audio now plays — the API returns raw PCM which browsers can't decode; the server now wraps it in a WAV container automatically",
+      "Your selected voice and provider now persist when switching characters — no more reverting to Aoede on every new chat",
+      "TTS daily limit raised from 2,000 to 50,000 characters so it no longer silently falls back to Edge mid-session",
+      "Gemini TTS model name is now configurable via GEMINI_TTS_MODEL env var — model updates no longer need a code deploy",
+      "Fixed TTS button getting permanently stuck in 'playing' state when switching characters quickly"
+    ]
+  },
+  {
     "id": "v309-cooldown-timer-fix",
     "version": "v309",
     "date": "Oct 2026",

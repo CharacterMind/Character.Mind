@@ -6773,8 +6773,18 @@ function getEdgeVoiceKey()   { return currentChar ? `cm_edge_voice_${currentChar
 
 function loadCharVoice() {
   selectedVoice = null; ttsProvider = 'gemini'; geminiVoiceName = 'Aoede'; edgeVoiceName = null;
+  try {
+    // Global fallback — last voice the user picked on any character
+    const gp = localStorage.getItem('cm_tts_prov_global');
+    if (['edge','gemini'].includes(gp)) ttsProvider = gp;
+    const ggv = localStorage.getItem('cm_gem_voice_global');
+    if (GEMINI_TTS_VOICES.includes(ggv)) geminiVoiceName = ggv;
+    const gev = localStorage.getItem('cm_edge_voice_global');
+    if (gev && EDGE_TTS_VOICES.some(v => v.id === gev)) edgeVoiceName = gev;
+  } catch(_) {}
   if (!currentChar) return;
   try {
+    // Per-character overrides take priority over global
     const p = localStorage.getItem(getTTSProviderKey());
     if (['edge','gemini'].includes(p)) ttsProvider = p;
     const gv = localStorage.getItem(getGeminiVoiceKey());
@@ -6806,7 +6816,10 @@ function closeVoicePanel() {
 
 function setTTSProvider(p, btn) {
   ttsProvider = p;
-  try { if (getTTSProviderKey()) localStorage.setItem(getTTSProviderKey(), p); } catch(_) {}
+  try {
+    if (getTTSProviderKey()) localStorage.setItem(getTTSProviderKey(), p);
+    localStorage.setItem('cm_tts_prov_global', p);
+  } catch(_) {}
   document.querySelectorAll('.voice-provider-tab').forEach(b => b.classList.toggle('active', b.dataset.provider === p));
   renderVoiceList();
 }
@@ -6866,14 +6879,21 @@ function selectVoice(voiceURI, btn) {
 
 function selectGeminiVoice(v, btn) {
   geminiVoiceName = v;
-  try { if (getGeminiVoiceKey()) localStorage.setItem(getGeminiVoiceKey(), v); } catch(_) {}
+  try {
+    if (getGeminiVoiceKey()) localStorage.setItem(getGeminiVoiceKey(), v);
+    localStorage.setItem('cm_gem_voice_global', v);
+  } catch(_) {}
   document.querySelectorAll('#voiceList .voice-item').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
 }
 
 function selectEdgeVoice(v, btn) {
   edgeVoiceName = v;
-  try { const k = getEdgeVoiceKey(); if (k) { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } } catch(_) {}
+  try {
+    const k = getEdgeVoiceKey();
+    if (k) { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); }
+    v ? localStorage.setItem('cm_edge_voice_global', v) : localStorage.removeItem('cm_edge_voice_global');
+  } catch(_) {}
   document.querySelectorAll('#voiceList .voice-item').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
 }
@@ -7451,19 +7471,23 @@ async function toggleTTS(btn) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined })
     });
-    if (r.ok) {
+    if (r.ok && activeTTSBtn === btn) {
       serverOk = true;
       btn.classList.remove('loading'); btn.classList.add('playing');
       const blob = await r.blob();
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      activeTTSAudio = audio;
-      audio.onended = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
-      audio.onerror = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
-      await audio.play().catch(() => { URL.revokeObjectURL(url); stopActiveTTS(); });
+      if (activeTTSBtn !== btn) { serverOk = false; } else {
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        activeTTSAudio = audio;
+        audio.onended = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
+        audio.onerror = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
+        await audio.play().catch(() => { URL.revokeObjectURL(url); stopActiveTTS(); });
+      }
     }
-  } catch (_) {}
-  btn.classList.remove('loading');
+  } catch (_) {
+    if (serverOk && activeTTSBtn === btn) stopActiveTTS();
+  }
+  if (activeTTSBtn === btn) btn.classList.remove('loading');
 
   if (!serverOk && activeTTSBtn === btn) {
     btn.classList.add('playing');
