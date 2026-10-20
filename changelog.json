@@ -5,7 +5,7 @@
     "date": "Oct 2026",
     "title": "Usage-Based Costs",
     "subtitle": "Coin costs now scale with actual usage — longer responses, bigger images, and more TTS cost proportionally more.",
-    "new": [
+    "added": [
       "Chat costs: scale with response length and model tier (a short reply costs less than a long one)",
       "Call costs: scale with how much the character speaks per response, plus coins per minute of call time",
       "Memo costs: scale with how long the message being read aloud is",
@@ -19,10 +19,49 @@
     "date": "Oct 2026",
     "title": "Character Colors on the Call Screen",
     "subtitle": "The animated color orbs are back — each character brings their own palette to life during calls.",
-    "new": [
+    "added": [
       "Call screen now shows animated glowing orbs that pulse and shift with each character's signature colors",
       "Colors are matched per character — Poppy gets blues and reds, Mommy Long Legs gets hot pink, and so on",
       "Characters without a custom palette auto-generate a 3-color scheme from their profile color"
+    ]
+  },
+  {
+    "id": "v323-google-tts-chunking",
+    "version": "v323",
+    "date": "Oct 2026",
+    "title": "Voice Cutoff Fixed",
+    "subtitle": "Long messages no longer get cut off mid-sentence during read-aloud.",
+    "fixed": [
+      "Google Translate TTS now splits long messages at word boundaries and stitches the audio — no more cutoff after 200 characters",
+      "Memos on long AI responses now play the full text"
+    ]
+  },
+  {
+    "id": "v322-google-translate-tts",
+    "version": "v322",
+    "date": "Oct 2026",
+    "title": "Google Translate TTS Fallback",
+    "subtitle": "Added Google Translate as a free third fallback when Edge TTS is rate-limited.",
+    "added": [
+      "TTS chain is now: Gemini → Edge TTS → Google Translate TTS — free with no API key required",
+      "Google Translate voices keep the app talking even when both Gemini and Edge are unavailable"
+    ]
+  },
+  {
+    "id": "v321-remove-elevenlabs",
+    "version": "v321",
+    "date": "Oct 2026",
+    "title": "ElevenLabs Removed — Free Voices",
+    "subtitle": "ElevenLabs dead code removed. TTS now uses Gemini, Edge, and Google Translate — all free.",
+    "added": [
+      "TTS chain: Gemini → Edge TTS → Google Translate — always finds a working voice",
+      "Owner call duration limit removed — coin balance is the gate instead"
+    ],
+    "fixed": [
+      "Fixed read-aloud (memos) button silently failing when Edge TTS was rate-limited",
+      "Fixed call voice going silent — now falls through automatically",
+      "Read-aloud now properly deducts coins as intended",
+      "Shows 'Voice unavailable' notice instead of silently doing nothing when TTS fails"
     ]
   },
   {
@@ -31,7 +70,7 @@
     "date": "Oct 2026",
     "title": "Monthly Challenges & Achievements",
     "subtitle": "15 monthly missions, 21 permanent achievements, and a crown for the owner.",
-    "new": [
+    "added": [
       "Monthly Challenges: 15 rotating missions (calls, messages, streaks, gambles, logins) with 100–1,500 coin rewards",
       "Achievements: 21 permanent one-time milestones tracking your all-time messages, calls, streaks, characters, gambles, and coins earned",
       "All-time stats now tracked permanently — your records never reset",
@@ -91,23 +130,6 @@
     "fixed": [
       "Fixed a race condition where the daily check-in could be triggered multiple times before the server recorded the first claim",
       "Check-in award is now atomic at the database level — one claim per day, guaranteed"
-    ]
-  },
-  {
-    "id": "v321-remove-elevenlabs",
-    "version": "v321",
-    "date": "Oct 2026",
-    "title": "ElevenLabs Removed — Free Voices Forever",
-    "subtitle": "Switched to Amazon Polly voices via StreamElements — free, unlimited, and no $2 API bill.",
-    "new": [
-      "Voice calls and read-aloud now use Amazon Polly voices (Joanna, Brian, Salli, Matthew and more) — free with no rate limits",
-      "TTS chain: Gemini → Edge TTS → Amazon Polly — always finds a working voice"
-    ],
-    "fixed": [
-      "Fixed read-aloud (memos) button silently failing when Edge TTS was rate-limited",
-      "Fixed call voice going silent — now falls through to Amazon Polly automatically",
-      "Read-aloud now properly tracks your daily limit and deducts coins as intended",
-      "Shows 'Voice unavailable' notice instead of silently doing nothing when TTS fails"
     ]
   },
   {
