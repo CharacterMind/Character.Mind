@@ -7581,10 +7581,9 @@ function callModeTTS(bubble) {
   if (!text) { listenForSpeech(); return; }
   resetCallInactivityTimer();
   setCallState('responding');
-  window.speechSynthesis?.cancel();
   stopCallAudio();
   if (elevenTTSOk) { callModeElevenTTS(text); return; }
-  callModeBrowserTTS(text); // Bug 1 fix: fall back to browser TTS when server TTS is unavailable
+  if (callModeActive) listenForSpeech();
 }
 
 let elevenTTSOk = true;
@@ -7643,8 +7642,7 @@ async function callModeElevenTTS(text) {
   const clean = text.replace(/\*[^*]*\*/g, '').replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim();
   if (!clean) { if (callModeActive && gen === callGen) listenForSpeech(); return; }
 
-  // Bug 3 fix: if user's chat TTS is set to browser, use callModeBrowserTTS instead of silently dropping
-  if (ttsProvider === 'browser') { if (callModeActive && gen === callGen) callModeBrowserTTS(clean); return; }
+  if (ttsProvider === 'browser') { if (callModeActive && gen === callGen) listenForSpeech(); return; }
 
   // Split into sentences so we can start playing the first sentence immediately
   // while pre-fetching the next one — reduces the "falling behind" latency.
@@ -7657,7 +7655,7 @@ async function callModeElevenTTS(text) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: s, charId: currentChar?.id, provider: ttsProvider, geminiVoice: geminiVoiceName })
     });
-    if (!r.ok) { if (r.status === 501 || r.status === 429) elevenTTSOk = false; throw new Error('tts ' + r.status); }
+    if (!r.ok) { if (r.status === 501) elevenTTSOk = false; throw new Error('tts ' + r.status); }
     return r.blob();
   };
 
@@ -7688,19 +7686,8 @@ async function callModeElevenTTS(text) {
       nextFetch = prefetch;
     }
   } catch (_) {
-    if (callModeActive && gen === callGen) callModeBrowserTTS(clean); // Bug 8 fix: fall back to browser TTS on any server TTS failure
+    if (callModeActive && gen === callGen) listenForSpeech();
   }
-}
-
-function callModeBrowserTTS(text) {
-  const clean = text.replace(/\*[^*]*\*/g, '').replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim();
-  if (!clean || !window.speechSynthesis) { if (callModeActive) setTimeout(() => listenForSpeech(), 300); return; }
-  window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(clean.slice(0, 300));
-  if (selectedVoice) u.voice = selectedVoice;
-  u.onend = () => { if (callModeActive) listenForSpeech(); };
-  u.onerror = () => { if (callModeActive) setTimeout(() => listenForSpeech(), 300); };
-  window.speechSynthesis.speak(u);
 }
 
 // ── Call mode ─────────────────────────────────────────────────────────────────
@@ -7708,6 +7695,7 @@ let callGen = 0; // bumped when a call ends or is interrupted so late async resu
 let callMuted = false;
 let callFirstConnect = false;
 let callInactivityTimer = null;
+let callInactivityWarnTimer = null;
 let callStarting = false; // mutex: prevents double-start race condition
 const CALL_INACTIVITY_MS = 15 * 60 * 1000;
 const CALL_DAILY_MAX_SECS = 15 * 60; // 15 minutes per day
@@ -7775,7 +7763,12 @@ function stopCallDurationTimer() {
 
 function resetCallInactivityTimer() {
   clearTimeout(callInactivityTimer);
+  clearTimeout(callInactivityWarnTimer);
   if (!callModeActive) return;
+  callInactivityWarnTimer = setTimeout(() => {
+    if (!callModeActive) return;
+    showWarning('Still there? Call ends in 1 minute due to inactivity.', 8000);
+  }, CALL_INACTIVITY_MS - 60000);
   callInactivityTimer = setTimeout(() => {
     if (!callModeActive) return;
     endCallMode();
@@ -7785,7 +7778,9 @@ function resetCallInactivityTimer() {
 
 function clearCallInactivityTimer() {
   clearTimeout(callInactivityTimer);
+  clearTimeout(callInactivityWarnTimer);
   callInactivityTimer = null;
+  callInactivityWarnTimer = null;
 }
 
 function showCallInactivityBanner() {
