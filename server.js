@@ -333,6 +333,10 @@ if (db) {
     .catch(err => console.error('Add stripe_customer_id column error:', err));
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT`)
     .catch(err => console.error('Add stripe_subscription_id column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_checkin TEXT`)
+    .catch(err => console.error('Add last_checkin column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS checkin_streak INTEGER NOT NULL DEFAULT 0`)
+    .catch(err => console.error('Add checkin_streak column error:', err));
 
   db.query(`
     CREATE TABLE IF NOT EXISTS user_limits (
@@ -635,7 +639,7 @@ if (GOOGLE_AUTH_ENABLED) {
     // Cache this account's own subscription tier in userLimits so limit checks don't need a DB hit.
     // Every account gets only what its own subscription pays for, except the Character.Mind account (planFor).
     if (db) {
-      db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, cm_tokens, coins_earned_today, coins_day_reset, coins_monthly_reset, coins_earned_all_time FROM users WHERE google_id = $1', [user.googleId])
+      db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, cm_tokens, coins_earned_today, coins_day_reset, coins_monthly_reset, coins_earned_all_time, last_checkin, checkin_streak FROM users WHERE google_id = $1', [user.googleId])
         .then(r => {
           const row = r.rows[0] || {};
           const lim = getLimits(user.googleId);
@@ -648,6 +652,8 @@ if (GOOGLE_AUTH_ENABLED) {
           lim.coinsDayReset = Number(row.coins_day_reset) || 0;
           lim.coinsMonthlyReset = Number(row.coins_monthly_reset) || 0;
           lim.coinsEarnedAllTime = Number(row.coins_earned_all_time) || 0;
+          if (row.last_checkin) lim.lastCheckin = row.last_checkin;
+          if (row.checkin_streak) lim.checkinStreak = parseInt(row.checkin_streak) || 0;
           lim.subscriptionTier = effectiveTier(lim);
           lim.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email) || TEST_ACCOUNTS.has(user.email);
           lim.skipCoinDeduct = TEST_ACCOUNTS.has(user.email) && !OWNER_EMAILS.has(user.email); // owner always drains coins even if in TEST_ACCOUNTS
@@ -759,7 +765,7 @@ async function ensureTierLoaded(user) {
   if (u.tierLoaded) return;
   if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId); // admin tools; the plan comes from planFor()
   if (!db) return;
-  const r = await db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, cm_tokens, coins_earned_today, coins_day_reset, coins_monthly_reset, coins_earned_all_time, ban_until, violence_strikes FROM users WHERE google_id = $1', [user.googleId]);
+  const r = await db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, cm_tokens, coins_earned_today, coins_day_reset, coins_monthly_reset, coins_earned_all_time, ban_until, violence_strikes, last_checkin, checkin_streak FROM users WHERE google_id = $1', [user.googleId]);
   const row = r.rows[0] || {};
   u.paypalTier = planFor(user.email, row.subscription_tier);
   u.coinTier = row.coin_tier || null;
@@ -772,6 +778,8 @@ async function ensureTierLoaded(user) {
   u.coinsEarnedAllTime = Number(row.coins_earned_all_time) || 0;
   u.violenceStrikes = row.violence_strikes || 0;
   u.banUntil = row.ban_until ? new Date(row.ban_until).getTime() : null;
+  if (row.last_checkin) u.lastCheckin = row.last_checkin;
+  if (row.checkin_streak) u.checkinStreak = parseInt(row.checkin_streak) || 0;
   u.subscriptionTier = effectiveTier(u);
   u.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email) || TEST_ACCOUNTS.has(user.email);
   u.skipCoinDeduct = TEST_ACCOUNTS.has(user.email) && !OWNER_EMAILS.has(user.email); // owner always drains coins even if in TEST_ACCOUNTS
@@ -1180,33 +1188,27 @@ async function checkDailyCheckin(uid) {
   if (!db) return null;
   const u = getLimits(uid);
   const today = checkinTodayStr();
-  if (u.lastCheckin === today) return null; // already claimed today — fast path
+  if (u.lastCheckin === today) return null; // fast path: already claimed in memory
 
-  // Belt-and-suspenders: if in-memory shows no check-in yet, verify against DB
-  // (protects against server restart clearing in-memory state before loadLimitsFromDB ran)
+  // Load authoritative last_checkin + streak from users table (survives restarts)
+  let prevCheckin = u.lastCheckin;
+  let prevStreak = u.checkinStreak || 0;
   try {
-    const r = await db.query("SELECT data->>'lastCheckin' AS last_checkin, data->>'checkinStreak' AS streak FROM user_limits WHERE user_id = $1", [uid]);
-    if (r.rows.length) {
-      const dbCheckin = r.rows[0].last_checkin;
-      if (dbCheckin === today) {
-        u.lastCheckin = today; // restore in-memory so future fast-path works
-        if (r.rows[0].streak) u.checkinStreak = parseInt(r.rows[0].streak) || 0;
-        return null; // already awarded today per DB
+    const r = await db.query('SELECT last_checkin, checkin_streak FROM users WHERE google_id = $1', [uid]);
+    if (r.rows[0]) {
+      prevCheckin = r.rows[0].last_checkin || null;
+      prevStreak = parseInt(r.rows[0].checkin_streak) || 0;
+      if (prevCheckin === today) {
+        u.lastCheckin = today; u.checkinStreak = prevStreak;
+        return null; // already claimed per DB
       }
-      // Restore DB streak state into memory so streak math is correct
-      if (dbCheckin) u.lastCheckin = dbCheckin;
-      if (r.rows[0].streak) u.checkinStreak = parseInt(r.rows[0].streak) || 0;
     }
-  } catch (e) { /* non-fatal — proceed with in-memory state */ }
+  } catch (e) { /* non-fatal — use in-memory state */ }
 
-  // Compute yesterday string to detect streak continuity
   const yDate = new Date(); yDate.setUTCDate(yDate.getUTCDate() - 1);
   const yesterday = `${yDate.getUTCFullYear()}${String(yDate.getUTCMonth()+1).padStart(2,'0')}${String(yDate.getUTCDate()).padStart(2,'0')}`;
+  const newStreak = (prevCheckin === yesterday) ? prevStreak + 1 : 1;
 
-  const prevStreak = u.checkinStreak || 0;
-  const newStreak = (u.lastCheckin === yesterday) ? prevStreak + 1 : 1;
-
-  // Find the highest applicable milestone bonus
   const bonus = Object.entries(CHECKIN_STREAK_BONUS)
     .filter(([day]) => newStreak % parseInt(day) === 0)
     .reduce((acc, [, val]) => Math.max(acc, val), 0);
@@ -1214,19 +1216,36 @@ async function checkDailyCheckin(uid) {
   const coins = Math.round((CHECKIN_BASE + bonus) * mult);
   const bonusDay = bonus > 0;
 
-  // Award coins in DB and update streak fields
+  // Atomic award: coins + last_checkin in one UPDATE — only succeeds if not already claimed today
+  // rowCount = 0 means a concurrent request or restart race beat us; bail without double-awarding
+  let awarded = false;
+  try {
+    const r = await db.query(
+      `UPDATE users
+         SET last_checkin = $1, checkin_streak = $2,
+             cm_coins = cm_coins + $3,
+             coins_earned_all_time = COALESCE(coins_earned_all_time, 0) + $3
+       WHERE google_id = $4
+         AND (last_checkin IS NULL OR last_checkin <> $1)`,
+      [today, newStreak, coins, uid]
+    );
+    awarded = r.rowCount > 0;
+  } catch (e) {
+    console.error('[checkin] DB error:', e.message);
+    return null;
+  }
+
+  if (!awarded) {
+    u.lastCheckin = today; // sync memory so fast-path prevents further attempts
+    return null;
+  }
+
   u.lastCheckin = today;
   u.checkinStreak = newStreak;
   u.cmCoins = (u.cmCoins || 0) + coins;
   u.coinsEarnedToday = (u.coinsEarnedToday || 0) + coins;
   u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + coins;
   saveLimitsToDB(uid);
-  try {
-    await db.query(
-      'UPDATE users SET cm_coins = cm_coins + $1, coins_earned_all_time = COALESCE(coins_earned_all_time,0) + $1 WHERE google_id = $2',
-      [coins, uid]
-    );
-  } catch (e) { console.error('[checkin] DB error:', e.message); }
   return { awarded: true, coins, streak: newStreak, bonusDay };
 }
 
