@@ -917,7 +917,7 @@ function saveLimitsToDB(userId) {
 }
 
 const LIMITS = {
-  SESSION_COOLDOWN_MS: Number(process.env.SESSION_COOLDOWN_MS) || (2 * 60 * 60 * 1000 + 3000),
+  SESSION_COOLDOWN_MS: 8 * 60 * 60 * 1000,
   WEEKLY_MS: 7 * 24 * 60 * 60 * 1000,
   REGEN_FREE: 10, // kept for reference — actual limits use TIER_REGEN_LIMITS below
   CALL_DAILY: 3
@@ -3735,7 +3735,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         ttsU2.ttsCharsToday = (ttsU2.ttsCharsToday || 0) + text.length;
         saveLimitsToDB(userId);
         try {
-          const { audio, ct } = await geminiTTSSynthesize(text, geminiVoice, gKey, 6000);
+          const { audio, ct } = await geminiTTSSynthesize(text, geminiVoice, gKey, 25000);
           res.setHeader('Content-Type', ct);
           res.setHeader('Cache-Control', 'no-store');
           res.setHeader('X-TTS-Provider', 'gemini');

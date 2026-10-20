@@ -4562,13 +4562,14 @@ function startCooldown(until, type, showModal) {
 
   function updateCountdown() {
     if (Date.now() >= until) { clearLockout(); loadUsage(); return; }
-    const str = formatResetTime(until);
-    if (cd) cd.textContent = str ? 'Resets ' + str : '';
+    const remaining = until - Date.now();
+    const cdStr = formatCountdown(remaining);
+    if (cd) cd.textContent = cdStr ? 'Resets in ' + cdStr : '';
     if (type === 'session') {
       const sub = document.getElementById('limitModalSub');
-      if (sub && document.getElementById('limitModal')?.style.display !== 'none') sub.textContent = str ? `Resets ${str}.` : 'Resetting soon.';
+      if (sub && document.getElementById('limitModal')?.style.display !== 'none') sub.textContent = cdStr ? `Resets in ${cdStr}.` : 'Resetting soon.';
       const sSubEl = document.getElementById('usageSessionSub');
-      if (sSubEl) sSubEl.textContent = str ? 'Resets ' + str : '';
+      if (sSubEl) sSubEl.textContent = cdStr ? 'Resets in ' + cdStr : '';
     }
   }
 
@@ -5467,6 +5468,16 @@ function formatResetTime(timestamp) {
   return dayStr + ' at ' + timeStr;
 }
 
+function formatCountdown(ms) {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
 function generateUsageHeadline(u) {
   const { sessionTokens, sessionLimit, weeklyTokens, weeklyLimit, cooldownUntil, weeklyResetsAt, weeklyStart, sessionExpiresAt } = u;
   if (!weeklyStart) return 'Ready to go — your limits are fresh and waiting.';
@@ -5536,7 +5547,8 @@ function generateUsageHeadline(u) {
 function applyUsageResets(u) {
   if (!u) return u;
   const now = Date.now();
-  if (u.sessionExpiresAt && now >= u.sessionExpiresAt) {
+  if ((u.sessionExpiresAt && now >= u.sessionExpiresAt) ||
+      (u.cooldownUntil && now >= u.cooldownUntil)) {
     u.sessionTokens = 0; u.sessionStartedAt = null; u.sessionExpiresAt = null; u.cooldownUntil = null;
   }
   if (u.weeklyResetsAt && now >= u.weeklyResetsAt) {
@@ -5665,8 +5677,11 @@ function updateUsageModal(u) {
   const sSubEl = document.getElementById('usageSessionSub');
   if (sSubEl) {
     const sResetSrc = (u.cooldownUntil && Date.now() < u.cooldownUntil) ? u.cooldownUntil : (u.sessionTokens > 0 ? u.sessionExpiresAt : null);
-    const sT = sResetSrc ? formatResetTime(sResetSrc) : null;
-    sSubEl.textContent = sT ? 'Resets ' + sT : 'Starts fresh when you send your first message';
+    if (sResetSrc && Date.now() < sResetSrc) {
+      sSubEl.textContent = 'Resets in ' + formatCountdown(sResetSrc - Date.now());
+    } else {
+      sSubEl.textContent = 'Starts fresh when you send your first message';
+    }
   }
 
   const wBar = document.getElementById('usageWeeklyBar');
@@ -5698,29 +5713,34 @@ function updateUsageModal(u) {
   const callsToday = u.callsToday || 0;
   const callsCap = u.callsLimit || 6;
   const callsPct = Math.min(100, Math.round(callsToday / callsCap * 100));
+  const callsResetStr = u.callWindowResetsAt && Date.now() < u.callWindowResetsAt
+    ? ' · resets in ' + formatCountdown(u.callWindowResetsAt - Date.now()) : '';
   setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct,
-    `Up to ${callsCap} per day · longer calls drain faster`, false);
+    `Up to ${callsCap} per day · longer calls drain faster${callsResetStr}`, false);
 
   // Memos — limit is tier-dependent
   const memosToday = u.memosToday || 0;
   const memosCap = u.memosLimit || 30;
   const memosPct = Math.min(100, Math.round(memosToday / memosCap * 100));
+  const memosResetStr = u.callWindowResetsAt && Date.now() < u.callWindowResetsAt
+    ? ' · resets in ' + formatCountdown(u.callWindowResetsAt - Date.now()) : '';
   setBar('usageMemosBar', 'usageMemosPct', 'usageMemosSub', memosPct,
-    `Up to ${memosCap} per day · longer conversations drain faster`, false);
+    `Up to ${memosCap} per day · longer conversations drain faster${memosResetStr}`, false);
 
   // Images — limit is tier-dependent
   const imgUsed = u.imagesDay || 0;
   const imgCap = u.imageLimit || 3;
   const imgPct = Math.min(100, Math.round(imgUsed / imgCap * 100));
-  const imgSub = u.imageResetAt && imgUsed > 0
-    ? `Up to ${imgCap} per day · larger images drain faster · resets ${formatResetTime(u.imageResetAt) || 'soon'}`
-    : `Up to ${imgCap} per day · larger images drain faster`;
+  const imgResetStr = u.imageResetAt && imgUsed > 0 && Date.now() < u.imageResetAt
+    ? ' · resets in ' + formatCountdown(u.imageResetAt - Date.now()) : '';
+  const imgSub = `Up to ${imgCap} per day · larger images drain faster${imgResetStr}`;
   setBar('usageImagesBar', 'usageImagesPct', 'usageImagesSub', imgPct, imgSub, false);
 
   // Daily resets subtitle
   const dailyResetsEl = document.getElementById('usageDailyResetsSub');
   if (dailyResetsEl && u.callWindowResetsAt) {
-    const dT = formatResetTime(u.callWindowResetsAt); dailyResetsEl.textContent = dT ? 'Resets ' + dT : '';
+    const remaining = u.callWindowResetsAt - Date.now();
+    dailyResetsEl.textContent = remaining > 0 ? 'Resets in ' + formatCountdown(remaining) : '';
   }
 
   // Game cooldown bar — fills green when ready, drains to orange/yellow while waiting

@@ -1,5 +1,18 @@
 [
   {
+    "id": "v309-cooldown-timer-fix",
+    "version": "v309",
+    "date": "Oct 2026",
+    "title": "Cooldown Timer & Usage Reset Fix",
+    "subtitle": "Session cooldown now shows a live countdown and resets correctly after 8 hours.",
+    "fixed": [
+      "Cooldown timer now shows a live countdown (e.g. '7h 23m 41s remaining') instead of a clock time",
+      "Session cooldown now correctly resets after 8 hours — no more 24-hour wait",
+      "Usage bars (calls, memos, images) now show time remaining until the daily reset as a live countdown",
+      "Usage stats now properly clear when the cooldown expires, even without a new message"
+    ]
+  },
+  {
     "id": "v308-image-flash-fix",
     "version": "v308",
     "date": "Oct 2026",
