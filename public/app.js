@@ -7783,6 +7783,7 @@ function addCallSecsUsed(secs) {
   try { localStorage.setItem(getCallSecsKey(), String(getCallSecsUsedToday() + secs)); } catch(_) {}
 }
 function getCallSecsRemaining() {
+  if (isOwner()) return CALL_DAILY_MAX_SECS; // owner always has full time available
   return Math.max(0, CALL_DAILY_MAX_SECS - getCallSecsUsedToday());
 }
 function startCallDurationTimer(remainingSecs) {

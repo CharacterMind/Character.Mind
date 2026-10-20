@@ -3715,27 +3715,6 @@ const EDGE_VOICE_MAP = {
   cm_miss_delight:           'en-US-NancyNeural',  // Miss Delight — sinister sing-song
 };
 const EDGE_DEFAULT_VOICE = 'en-US-AriaNeural';
-// StreamElements TTS voice map (AWS Polly voices — no API key needed)
-const SE_VOICE_MAP = {
-  'en-US-AriaNeural':        'Joanna',
-  'en-US-JennyNeural':       'Salli',
-  'en-US-NancyNeural':       'Kimberly',
-  'en-US-SaraNeural':        'Kendra',
-  'en-US-MichelleNeural':    'Ivy',
-  'en-US-MonicaNeural':      'Ruth',
-  'en-US-CoraNeural':        'Ruth',
-  'en-US-ElizabethNeural':   'Amy',
-  'en-US-JaneNeural':        'Emma',
-  'en-US-GuyNeural':         'Matthew',
-  'en-US-TonyNeural':        'Matthew',
-  'en-US-BrianNeural':       'Brian',
-  'en-US-EricNeural':        'Joey',
-  'en-US-RogerNeural':       'Justin',
-  'en-US-ChristopherNeural': 'Kevin',
-  'en-US-SteffanNeural':     'Kevin',
-  'en-US-JasonNeural':       'Justin',
-};
-const SE_DEFAULT_VOICE = 'Joanna';
 
 // All 30 prebuilt Gemini 2.5 Flash TTS voices
 const GEMINI_TTS_VOICES = new Set([
@@ -3873,22 +3852,22 @@ function edgeUUID() {
   const h = b.toString('hex');
   return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
 }
-function streamElementsTTS(text, voice) {
+function googleTranslateTTS(text) {
   return new Promise((resolve, reject) => {
-    const encoded = encodeURIComponent(text.slice(0, 250));
-    const url = `https://api.streamelements.com/kappa/v2/speech?voice=${voice}&text=${encoded}`;
+    const encoded = encodeURIComponent(text.slice(0, 200));
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encoded}&tl=en-US&client=tw-ob`;
     const req = require('https').get(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36' },
       timeout: 10000
     }, res => {
-      if (res.statusCode !== 200) { reject(new Error(`se-tts ${res.statusCode}`)); return; }
+      if (res.statusCode !== 200) { reject(new Error(`gt-tts ${res.statusCode}`)); return; }
       const chunks = [];
       res.on('data', d => chunks.push(d));
-      res.on('end', () => { const buf = Buffer.concat(chunks); buf.length ? resolve(buf) : reject(new Error('se-tts empty')); });
+      res.on('end', () => { const buf = Buffer.concat(chunks); buf.length ? resolve(buf) : reject(new Error('gt-tts empty')); });
       res.on('error', reject);
     });
     req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('se-tts timeout')); });
+    req.on('timeout', () => { req.destroy(); reject(new Error('gt-tts timeout')); });
   });
 }
 function edgeSynthesize(text, voice) {
@@ -4004,16 +3983,15 @@ app.post('/api/tts', requireAuth, async (req, res) => {
     res.send(audio);
   } catch (e) {
     console.warn('[edge-tts] failed', e.message);
-    // StreamElements TTS fallback (free, no API key, AWS Polly voices)
+    // Google Translate TTS fallback (free, no API key)
     try {
-      const seVoice = SE_VOICE_MAP[edgeVoice] || SE_DEFAULT_VOICE;
-      const seAudio = await streamElementsTTS(text, seVoice);
+      const gtAudio = await googleTranslateTTS(text);
       res.setHeader('Content-Type', 'audio/mpeg');
       res.setHeader('Cache-Control', 'no-store');
-      res.setHeader('X-TTS-Provider', 'streamelements');
-      return res.send(seAudio);
-    } catch (se) {
-      console.warn('[se-tts] failed:', se.message);
+      res.setHeader('X-TTS-Provider', 'google-translate');
+      return res.send(gtAudio);
+    } catch (gt) {
+      console.warn('[gt-tts] failed:', gt.message);
     }
     // Final Gemini fallback
     const gKey = process.env.GEMINI_API_KEY;
