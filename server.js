@@ -1079,11 +1079,55 @@ const WEEKLY_MISSION_POOL = [
   { id: 'wgamble7',   label: 'Win 7 gambles this week',          target: 7,  reward: 50, type: 'gamble_win'      },
   { id: 'wchars5',    label: 'Chat with 5 characters this week', target: 5,  reward: 45, type: 'chars_weekly'    },
 ];
-const DAILY_SHOW = 3;  // how many unclaimed daily missions to show at once
-const WEEKLY_SHOW = 2; // how many unclaimed weekly missions to show at once
+const DAILY_SHOW   = 3;
+const WEEKLY_SHOW  = 2;
+const MONTHLY_SHOW = 3;
 // Alias flat arrays for claim-validation lookups
-const DAILY_MISSIONS  = DAILY_MISSION_POOL;
-const WEEKLY_MISSIONS = WEEKLY_MISSION_POOL;
+const DAILY_MISSIONS   = DAILY_MISSION_POOL;
+const WEEKLY_MISSIONS  = WEEKLY_MISSION_POOL;
+
+const MONTHLY_CHALLENGE_POOL = [
+  { id: 'mcal10',    label: 'Make 10 calls this month',               target: 10,   reward: 100,  type: 'calls_monthly'    },
+  { id: 'mmsg100',   label: 'Send 100 messages this month',           target: 100,  reward: 150,  type: 'messages_monthly' },
+  { id: 'mchars10',  label: 'Chat with 10 different characters',      target: 10,   reward: 125,  type: 'chars_monthly'    },
+  { id: 'mgamble20', label: 'Win 20 gambles this month',              target: 20,   reward: 200,  type: 'gamble_monthly'   },
+  { id: 'mgame15',   label: 'Play 15 games this month',               target: 15,   reward: 175,  type: 'games_monthly'    },
+  { id: 'mmsg500',   label: 'Send 500 messages this month',           target: 500,  reward: 400,  type: 'messages_monthly' },
+  { id: 'mcal30',    label: 'Make 30 calls this month',               target: 30,   reward: 300,  type: 'calls_monthly'    },
+  { id: 'mdays25',   label: 'Log in 25 days this month',              target: 25,   reward: 500,  type: 'days_monthly'     },
+  { id: 'mchars20',  label: 'Chat with 20 different characters',      target: 20,   reward: 300,  type: 'chars_monthly'    },
+  { id: 'mmsg1k',    label: 'Send 1,000 messages this month',         target: 1000, reward: 800,  type: 'messages_monthly' },
+  { id: 'mgamble50', label: 'Win 50 gambles this month',              target: 50,   reward: 500,  type: 'gamble_monthly'   },
+  { id: 'mcal60',    label: 'Make 60 calls this month',               target: 60,   reward: 600,  type: 'calls_monthly'    },
+  { id: 'mstreak14', label: 'Reach a 14-day login streak',            target: 14,   reward: 350,  type: 'streak_monthly'   },
+  { id: 'mgame50',   label: 'Play 50 games this month',               target: 50,   reward: 450,  type: 'games_monthly'    },
+  { id: 'mmsg2k',    label: 'Send 2,000 messages this month',         target: 2000, reward: 1500, type: 'messages_monthly' },
+];
+const MONTHLY_MISSIONS = MONTHLY_CHALLENGE_POOL;
+
+const ACHIEVEMENT_POOL = [
+  { id: 'ach_msg1',     label: 'First Words',        desc: 'Send your first message',                reward: 25,   type: 'messages_total',     target: 1      },
+  { id: 'ach_msg10',    label: 'Getting Chatty',      desc: 'Send 10 messages total',                 reward: 50,   type: 'messages_total',     target: 10     },
+  { id: 'ach_msg100',   label: 'Conversationalist',   desc: 'Send 100 messages total',                reward: 150,  type: 'messages_total',     target: 100    },
+  { id: 'ach_msg1k',    label: 'Dedicated Chatter',   desc: 'Send 1,000 messages total',              reward: 500,  type: 'messages_total',     target: 1000   },
+  { id: 'ach_msg5k',    label: 'Devoted Soul',         desc: 'Send 5,000 messages total',              reward: 1500, type: 'messages_total',     target: 5000   },
+  { id: 'ach_call1',    label: 'First Call',           desc: 'Make your first call',                   reward: 50,   type: 'calls_total',        target: 1      },
+  { id: 'ach_call10',   label: 'Phone Friend',         desc: 'Make 10 calls total',                    reward: 150,  type: 'calls_total',        target: 10     },
+  { id: 'ach_call50',   label: 'Call Addict',          desc: 'Make 50 calls total',                    reward: 500,  type: 'calls_total',        target: 50     },
+  { id: 'ach_str3',     label: "Three's a Habit",      desc: '3-day login streak',                     reward: 50,   type: 'streak_best',        target: 3      },
+  { id: 'ach_str7',     label: 'Week Warrior',         desc: '7-day login streak',                     reward: 150,  type: 'streak_best',        target: 7      },
+  { id: 'ach_str14',    label: 'Two-Week Strong',       desc: '14-day login streak',                    reward: 300,  type: 'streak_best',        target: 14     },
+  { id: 'ach_str30',    label: 'Monthly Legend',        desc: '30-day login streak',                    reward: 1000, type: 'streak_best',        target: 30     },
+  { id: 'ach_chr5',     label: 'Explorer',              desc: 'Chat with 5 different characters',       reward: 75,   type: 'chars_total',        target: 5      },
+  { id: 'ach_chr10',    label: 'Social Butterfly',      desc: 'Chat with 10 different characters',      reward: 200,  type: 'chars_total',        target: 10     },
+  { id: 'ach_chr25',    label: 'Collector',             desc: 'Chat with 25 different characters',      reward: 600,  type: 'chars_total',        target: 25     },
+  { id: 'ach_gmb1',     label: 'High Roller',           desc: 'Win your first gamble',                  reward: 25,   type: 'gambles_total',      target: 1      },
+  { id: 'ach_gmb10',    label: 'Lucky Streak',          desc: 'Win 10 gambles total',                   reward: 100,  type: 'gambles_total',      target: 10     },
+  { id: 'ach_gmb50',    label: 'Casino Regular',        desc: 'Win 50 gambles total',                   reward: 400,  type: 'gambles_total',      target: 50     },
+  { id: 'ach_coin1k',   label: 'Coin Collector',        desc: 'Earn 1,000 coins total',                 reward: 100,  type: 'coins_earned_total', target: 1000   },
+  { id: 'ach_coin10k',  label: 'Coin Hoarder',          desc: 'Earn 10,000 coins total',                reward: 500,  type: 'coins_earned_total', target: 10000  },
+  { id: 'ach_coin100k', label: 'Coin Millionaire',      desc: 'Earn 100,000 coins total',               reward: 2000, type: 'coins_earned_total', target: 100000 },
+];
 
 function getISOWeek(date) {
   const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -1096,24 +1140,34 @@ function getISOWeek(date) {
 function parseMissionsData(raw) {
   const now = new Date();
   const todayStr = `${now.getUTCFullYear()}${String(now.getUTCMonth()+1).padStart(2,'0')}${String(now.getUTCDate()).padStart(2,'0')}`;
-  const weekStr = getISOWeek(now);
-  let data = { day: '', week: '', dc: {}, wc: {}, claimed: [] };
+  const weekStr  = getISOWeek(now);
+  const monthStr = `${now.getUTCFullYear()}${String(now.getUTCMonth()+1).padStart(2,'0')}`;
+  let data = { day: '', week: '', month: '', dc: {}, wc: {}, mc: {}, claimed: [], mClaimed: [], ach: [], at: {} };
   try { if (raw) data = JSON.parse(raw); } catch (_) {}
-  if (!Array.isArray(data.claimed)) data.claimed = [];
+  if (!Array.isArray(data.claimed))  data.claimed  = [];
+  if (!Array.isArray(data.mClaimed)) data.mClaimed = [];
+  if (!Array.isArray(data.ach))      data.ach      = [];
+  if (!data.mc || typeof data.mc !== 'object') data.mc = {};
+  if (!data.at || typeof data.at !== 'object') data.at = {};
   if (data.day !== todayStr) {
     data.day = todayStr;
-    data.dc = {};
+    data.dc  = {};
     data.claimed = data.claimed.filter(id => !DAILY_MISSION_POOL.find(m => m.id === id));
   }
   if (data.week !== weekStr) {
     data.week = weekStr;
-    data.wc = {};
+    data.wc   = {};
     data.claimed = data.claimed.filter(id => !WEEKLY_MISSION_POOL.find(m => m.id === id));
+  }
+  if (data.month !== monthStr) {
+    data.month    = monthStr;
+    data.mc       = {};
+    data.mClaimed = [];
   }
   return data;
 }
 
-function getMissionProgress(m, data) {
+function getMissionProgress(m, data, coinTotal) {
   if (m.type === 'login')            return data.dc.login    || 0;
   if (m.type === 'messages')         return data.dc.messages || 0;
   if (m.type === 'chars')            return Array.isArray(data.dc.chars) ? data.dc.chars.length : 0;
@@ -1124,37 +1178,71 @@ function getMissionProgress(m, data) {
   if (m.type === 'gamble_win')       return data.wc.gamble_win || 0;
   if (m.type === 'messages_weekly')  return data.wc.messages   || 0;
   if (m.type === 'chars_weekly')     return Array.isArray(data.wc.chars) ? data.wc.chars.length : 0;
+  // Monthly
+  if (m.type === 'messages_monthly') return (data.mc || {}).messages || 0;
+  if (m.type === 'calls_monthly')    return (data.mc || {}).calls    || 0;
+  if (m.type === 'chars_monthly')    return Array.isArray((data.mc || {}).chars) ? data.mc.chars.length : 0;
+  if (m.type === 'gamble_monthly')   return (data.mc || {}).gambles  || 0;
+  if (m.type === 'games_monthly')    return (data.mc || {}).games    || 0;
+  if (m.type === 'days_monthly')     return (data.mc || {}).days     || 0;
+  if (m.type === 'streak_monthly')   return (data.at || {}).streak_best || 0;
+  // Achievements (all-time)
+  if (m.type === 'messages_total')      return (data.at || {}).msgs    || 0;
+  if (m.type === 'calls_total')         return (data.at || {}).calls   || 0;
+  if (m.type === 'chars_total')         return Array.isArray((data.at || {}).chars) ? data.at.chars.length : 0;
+  if (m.type === 'gambles_total')       return (data.at || {}).gambles || 0;
+  if (m.type === 'streak_best')         return (data.at || {}).streak_best || 0;
+  if (m.type === 'coins_earned_total')  return coinTotal || 0;
   return 0;
 }
 
 async function trackMissionProgress(uid, type, extra) {
   if (!db) return;
   try {
-    const r = await db.query('SELECT missions_data FROM users WHERE google_id=$1', [uid]);
+    const r = await db.query('SELECT missions_data, cm_streak FROM users WHERE google_id=$1', [uid]);
     if (!r.rows.length) return;
-    const data = parseMissionsData(r.rows[0].missions_data);
+    const data   = parseMissionsData(r.rows[0].missions_data);
+    const streak = Number(r.rows[0].cm_streak) || 0;
+    if (!data.at) data.at = {};
+    if (!data.mc) data.mc = {};
     if (type === 'login') {
       if (!data.dc.login) data.dc.login = 0;
-      data.dc.login = Math.min(1, data.dc.login + 1); // once per day
+      data.dc.login = Math.min(1, data.dc.login + 1);
       if (!data.wc.dayOf || data.wc.dayOf !== data.day) {
         data.wc.dayOf = data.day;
-        data.wc.days = (data.wc.days || 0) + 1;
+        data.wc.days  = (data.wc.days || 0) + 1;
       }
+      if (!data.mc.dayOf || data.mc.dayOf !== data.day) {
+        data.mc.dayOf = data.day;
+        data.mc.days  = (data.mc.days || 0) + 1;
+      }
+      if (streak > (data.at.streak_best || 0)) data.at.streak_best = streak;
     } else if (type === 'message') {
       data.dc.messages = (data.dc.messages || 0) + 1;
       data.wc.messages = (data.wc.messages || 0) + 1;
+      data.mc.messages = (data.mc.messages || 0) + 1;
+      data.at.msgs     = (data.at.msgs     || 0) + 1;
     } else if (type === 'char') {
       if (!Array.isArray(data.dc.chars)) data.dc.chars = [];
       if (extra && !data.dc.chars.includes(extra)) data.dc.chars.push(extra);
       if (!Array.isArray(data.wc.chars)) data.wc.chars = [];
       if (extra && !data.wc.chars.includes(extra)) data.wc.chars.push(extra);
+      if (!Array.isArray(data.mc.chars)) data.mc.chars = [];
+      if (extra && !data.mc.chars.includes(extra)) data.mc.chars.push(extra);
+      if (!Array.isArray(data.at.chars)) data.at.chars = [];
+      if (extra && !data.at.chars.includes(extra)) data.at.chars.push(extra);
     } else if (type === 'gamble_win') {
-      data.wc.gamble_win = (data.wc.gamble_win || 0) + 1;
+      data.wc.gamble_win       = (data.wc.gamble_win       || 0) + 1;
       data.dc.gamble_win_daily = (data.dc.gamble_win_daily || 0) + 1;
+      data.mc.gambles          = (data.mc.gambles          || 0) + 1;
+      data.at.gambles          = (data.at.gambles          || 0) + 1;
     } else if (type === 'call') {
       data.dc.calls = (data.dc.calls || 0) + 1;
+      data.mc.calls = (data.mc.calls || 0) + 1;
+      data.at.calls = (data.at.calls || 0) + 1;
     } else if (type === 'game') {
       data.dc.games = (data.dc.games || 0) + 1;
+      data.mc.games = (data.mc.games || 0) + 1;
     }
     await db.query('UPDATE users SET missions_data=$1 WHERE google_id=$2', [JSON.stringify(data), uid]);
   } catch (_) {}
@@ -6949,7 +7037,6 @@ app.get('/api/leaderboard', requireAuth, async (req, res) => {
 function buildMissionList(pool, data, showCount) {
   const claimed = data.claimed;
   const unclaimed = pool.filter(m => !claimed.includes(m.id));
-  // Show: all claimed missions (from this pool) + next N unclaimed
   const visible = [
     ...pool.filter(m => claimed.includes(m.id)),
     ...unclaimed.slice(0, showCount),
@@ -6960,20 +7047,48 @@ function buildMissionList(pool, data, showCount) {
   });
 }
 
+function buildMonthlyList(pool, data, showCount) {
+  const claimed   = data.mClaimed;
+  const unclaimed = pool.filter(m => !claimed.includes(m.id));
+  const visible   = [
+    ...pool.filter(m => claimed.includes(m.id)),
+    ...unclaimed.slice(0, showCount),
+  ];
+  return visible.map(m => {
+    const progress = getMissionProgress(m, data);
+    return { ...m, progress, done: progress >= m.target, claimed: claimed.includes(m.id) };
+  });
+}
+
+function buildAchievementList(pool, data, coinTotal) {
+  return pool.map(m => {
+    const progress = getMissionProgress(m, data, coinTotal);
+    return { ...m, progress, done: progress >= m.target, claimed: data.ach.includes(m.id) };
+  });
+}
+
 app.get('/api/missions', requireAuth, async (req, res) => {
   if (!db) return res.status(503).json({ error: 'No database' });
   try {
-    const { rows } = await db.query('SELECT missions_data FROM users WHERE google_id=$1', [req.user.googleId]);
-    const data = parseMissionsData(rows[0]?.missions_data);
+    const { rows } = await db.query('SELECT missions_data, coins_earned_all_time FROM users WHERE google_id=$1', [req.user.googleId]);
+    const row      = rows[0] || {};
+    const data     = parseMissionsData(row.missions_data);
+    const coinTotal = Number(row.coins_earned_all_time) || 0;
     const applyMult = ms => ms.map(m => ({ ...m, reward: applyMissionMult(m.reward) }));
-    const daily  = applyMult(buildMissionList(DAILY_MISSION_POOL,  data, DAILY_SHOW));
-    const weekly = applyMult(buildMissionList(WEEKLY_MISSION_POOL, data, WEEKLY_SHOW));
-    const dailyClaimedCount  = DAILY_MISSION_POOL.filter(m => data.claimed.includes(m.id)).length;
-    const weeklyClaimedCount = WEEKLY_MISSION_POOL.filter(m => data.claimed.includes(m.id)).length;
+    const daily        = applyMult(buildMissionList(DAILY_MISSION_POOL,     data, DAILY_SHOW));
+    const weekly       = applyMult(buildMissionList(WEEKLY_MISSION_POOL,    data, WEEKLY_SHOW));
+    const monthly      = applyMult(buildMonthlyList(MONTHLY_CHALLENGE_POOL, data, MONTHLY_SHOW));
+    const achievements = buildAchievementList(ACHIEVEMENT_POOL, data, coinTotal);
+    const dailyClaimedCount   = DAILY_MISSION_POOL.filter(m => data.claimed.includes(m.id)).length;
+    const weeklyClaimedCount  = WEEKLY_MISSION_POOL.filter(m => data.claimed.includes(m.id)).length;
+    const monthlyClaimedCount = MONTHLY_CHALLENGE_POOL.filter(m => data.mClaimed.includes(m.id)).length;
+    const achClaimedCount     = ACHIEVEMENT_POOL.filter(m => data.ach.includes(m.id)).length;
     res.json({
-      daily, weekly,
-      dailyCompleted: dailyClaimedCount,  dailyTotal: DAILY_MISSION_POOL.length,
-      weeklyCompleted: weeklyClaimedCount, weeklyTotal: WEEKLY_MISSION_POOL.length,
+      daily, weekly, monthly, achievements,
+      dailyCompleted: dailyClaimedCount,     dailyTotal: DAILY_MISSION_POOL.length,
+      weeklyCompleted: weeklyClaimedCount,   weeklyTotal: WEEKLY_MISSION_POOL.length,
+      monthlyCompleted: monthlyClaimedCount, monthlyTotal: MONTHLY_CHALLENGE_POOL.length,
+      achCompleted: achClaimedCount,         achTotal: ACHIEVEMENT_POOL.length,
       rewardMult: missionRewardMult,
     });
   } catch (e) { console.error('[missions]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
@@ -6982,17 +7097,23 @@ app.get('/api/missions', requireAuth, async (req, res) => {
 app.post('/api/missions/claim', requireAuth, async (req, res) => {
   if (!db) return res.status(503).json({ error: 'No database' });
   const { id } = req.body || {};
-  const mission = [...DAILY_MISSION_POOL, ...WEEKLY_MISSION_POOL].find(m => m.id === id);
+  const isMonthly = MONTHLY_CHALLENGE_POOL.some(m => m.id === id);
+  const isAch     = ACHIEVEMENT_POOL.some(m => m.id === id);
+  const mission   = [...DAILY_MISSION_POOL, ...WEEKLY_MISSION_POOL, ...MONTHLY_CHALLENGE_POOL, ...ACHIEVEMENT_POOL].find(m => m.id === id);
   if (!mission) return res.status(400).json({ error: 'Unknown mission' });
   try {
     const uid = req.user.googleId;
-    const { rows } = await db.query('SELECT missions_data, cm_coins FROM users WHERE google_id=$1', [uid]);
+    const { rows } = await db.query('SELECT missions_data, cm_coins, coins_earned_all_time FROM users WHERE google_id=$1', [uid]);
     if (!rows.length) return res.status(404).json({ error: 'User not found' });
-    const data = parseMissionsData(rows[0].missions_data);
-    if (data.claimed.includes(id)) return res.status(400).json({ error: 'Already claimed' });
-    const progress = getMissionProgress(mission, data);
+    const data      = parseMissionsData(rows[0].missions_data);
+    const coinTotal = Number(rows[0].coins_earned_all_time) || 0;
+    const alreadyClaimed = isAch ? data.ach.includes(id) : isMonthly ? data.mClaimed.includes(id) : data.claimed.includes(id);
+    if (alreadyClaimed) return res.status(400).json({ error: 'Already claimed' });
+    const progress = getMissionProgress(mission, data, coinTotal);
     if (progress < mission.target) return res.status(400).json({ error: 'Mission not complete yet', progress, target: mission.target });
-    data.claimed.push(id);
+    if (isAch)          data.ach.push(id);
+    else if (isMonthly) data.mClaimed.push(id);
+    else                data.claimed.push(id);
     const actualReward = Math.round(applyMissionMult(mission.reward) * earnMult(uid));
     const r = await db.query(
       'UPDATE users SET missions_data=$1, cm_coins=cm_coins+$2, coins_earned_all_time=COALESCE(coins_earned_all_time,0)+$2 WHERE google_id=$3 RETURNING cm_coins, coins_earned_all_time',
@@ -7001,7 +7122,7 @@ app.post('/api/missions/claim', requireAuth, async (req, res) => {
     const u = getLimits(uid);
     u.cmCoins = (u.cmCoins || 0) + actualReward;
     u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + actualReward;
-    res.json({ ok: true, reward: actualReward, newBalance: r.rows[0]?.cm_coins || u.cmCoins });
+    res.json({ ok: true, reward: actualReward, newBalance: r.rows[0]?.cm_coins || u.cmCoins, isAch, isMonthly });
   } catch (e) { console.error('[missions/claim]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
 });
 

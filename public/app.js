@@ -1601,10 +1601,12 @@ function removePfp() {
 function renderUserBadge() {
   const badge = document.getElementById('userBadge');
   if (!badge || !currentUser) return;
+  const owner    = isOwner();
+  const nameHtml = owner ? `<strong>👑 ${escHtml(getDisplayName())}</strong>` : escHtml(getDisplayName());
   badge.innerHTML = `
     ${avatarHtml(currentUser, 32)}
     <span class="ub-text-wrap">
-      <span class="ub-name">${escHtml(getDisplayName())}</span>
+      <span class="ub-name">${nameHtml}</span>
       <span class="ub-plan">${PLAN_LABELS[lastKnownUsage?.subscriptionTier || 'free'] || 'Free'}</span>
     </span>
     <svg class="ub-chevron" viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
@@ -1614,7 +1616,10 @@ function renderUserBadge() {
   const udAvatar = document.getElementById('udAvatar');
   const udName   = document.getElementById('udName');
   if (udAvatar) udAvatar.innerHTML = avatarHtml(currentUser, 38);
-  if (udName)   udName.textContent  = getDisplayName();
+  if (udName) {
+    udName.textContent  = getDisplayName();
+    udName.style.fontWeight = owner ? '800' : '';
+  }
 }
 
 function toggleUserDropdown(e) {
@@ -5983,6 +5988,8 @@ function renderMissions(d) {
   const missionCard = (m, isNew) => {
     const pct = Math.min(100, Math.round((m.progress / m.target) * 100));
     const claimable = m.done && !m.claimed;
+    const progFmt = typeof m.progress === 'number' ? m.progress.toLocaleString() : m.progress;
+    const tgtFmt  = typeof m.target  === 'number' ? m.target.toLocaleString()  : m.target;
     return `<div class="mission-card${m.claimed ? ' done' : ''}${isNew ? ' mission-card-enter' : ''}" data-mission-id="${m.id}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <span class="mission-label">${m.label}</span>
@@ -5990,14 +5997,14 @@ function renderMissions(d) {
       </div>
       <div class="mission-bar-wrap"><div class="mission-bar" style="width:${pct}%"></div></div>
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <span class="mission-progress-text">${m.progress} / ${m.target}</span>
+        <span class="mission-progress-text">${progFmt} / ${tgtFmt}</span>
         ${m.claimed ? '<span style="font-size:11px;color:var(--accent-l)">✓ Claimed</span>'
           : `<button class="mission-claim-btn" ${claimable ? '' : 'disabled'} onclick="claimMission('${m.id}')">${claimable ? 'Claim' : 'Incomplete'}</button>`}
       </div>
     </div>`;
   };
 
-  const section = (title, missions, completed, total, prevIds) => {
+  const section = (title, missions, completed, total, prevIds, nextPeriod) => {
     const counter = `<span style="font-size:11px;font-weight:500;color:var(--accent-l);margin-left:8px">${completed}/${total} complete</span>`;
     let html = `<div class="mission-section-title">${title}${counter}${multBadge}</div>`;
     const unclaimed = missions.filter(m => !m.claimed);
@@ -6005,9 +6012,8 @@ function renderMissions(d) {
     if (unclaimed.length === 0 && claimed.length === 0) {
       html += `<div style="text-align:center;padding:20px 0;font-size:13px;color:var(--text3)">No missions yet.</div>`;
     } else if (unclaimed.length === 0 && completed >= total) {
-      const period = title.includes('Weekly') ? 'next week' : 'tomorrow';
       html += claimed.map(m => missionCard(m, prevIds && !prevIds.has(m.id))).join('');
-      html += `<div style="text-align:center;padding:16px 0;font-size:13px;color:var(--accent-l)">🎉 All missions complete! Check back ${period}.</div>`;
+      html += `<div style="text-align:center;padding:16px 0;font-size:13px;color:var(--accent-l)">🎉 All missions complete! Check back ${nextPeriod || 'tomorrow'}.</div>`;
     } else {
       html += claimed.map(m => missionCard(m, prevIds && !prevIds.has(m.id))).join('');
       html += unclaimed.map(m => missionCard(m, prevIds && !prevIds.has(m.id))).join('');
@@ -6015,11 +6021,45 @@ function renderMissions(d) {
     return html;
   };
 
+  const achCard = (a) => {
+    const pct      = Math.min(100, Math.round((a.progress / a.target) * 100));
+    const progFmt  = typeof a.progress === 'number' ? a.progress.toLocaleString() : a.progress;
+    const tgtFmt   = typeof a.target  === 'number' ? a.target.toLocaleString()  : a.target;
+    const icon     = a.claimed ? '🏆' : (a.done ? '⭐' : '🔒');
+    return `<div class="ach-card${a.claimed ? ' ach-unlocked' : ''}" data-mission-id="${a.id}">
+      <div class="ach-icon">${icon}</div>
+      <div class="ach-body">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <span class="ach-name">${a.label}</span>
+          <span class="mission-reward">+${a.reward} 🪙</span>
+        </div>
+        <div class="ach-desc">${a.desc}</div>
+        <div class="mission-bar-wrap"><div class="mission-bar" style="width:${pct}%"></div></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+          <span class="mission-progress-text">${progFmt} / ${tgtFmt}</span>
+          ${a.claimed ? '<span style="font-size:11px;color:var(--accent-l)">✓ Unlocked</span>'
+            : a.done ? `<button class="mission-claim-btn" onclick="claimMission('${a.id}')">Claim +${a.reward} 🪙</button>`
+            : `<span style="font-size:11px;color:var(--text3)">locked</span>`}
+        </div>
+      </div>
+    </div>`;
+  };
+
   const prevIds = new Set([...document.querySelectorAll('[data-mission-id]')].map(el => el.dataset.missionId));
   const hasPrev = prevIds.size > 0;
-  document.getElementById('missionsBody').innerHTML =
-    section('Daily Missions',  d.daily,  d.dailyCompleted  || 0, d.dailyTotal  || 0, hasPrev ? prevIds : null) +
-    section('Weekly Missions', d.weekly, d.weeklyCompleted || 0, d.weeklyTotal || 0, hasPrev ? prevIds : null);
+
+  let html =
+    section('Daily Missions',     d.daily,   d.dailyCompleted   || 0, d.dailyTotal   || 0, hasPrev ? prevIds : null, 'tomorrow')   +
+    section('Weekly Missions',    d.weekly,  d.weeklyCompleted  || 0, d.weeklyTotal  || 0, hasPrev ? prevIds : null, 'next week')  +
+    section('Monthly Challenges', d.monthly || [], d.monthlyCompleted || 0, d.monthlyTotal || 0, hasPrev ? prevIds : null, 'next month');
+
+  if (d.achievements && d.achievements.length) {
+    const achCounter = `<span style="font-size:11px;font-weight:500;color:var(--accent-l);margin-left:8px">${d.achCompleted || 0}/${d.achTotal || 0} unlocked</span>`;
+    html += `<div class="mission-section-title">Achievements${achCounter}</div>`;
+    html += d.achievements.map(a => achCard(a)).join('');
+  }
+
+  document.getElementById('missionsBody').innerHTML = html;
 }
 
 async function claimMission(id) {
@@ -6033,7 +6073,8 @@ async function claimMission(id) {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id })
     }).then(r => r.json());
     if (d.ok) {
-      showWarning(`+${d.reward} coins claimed! 🪙`, 3000);
+      const toastMsg = d.isAch ? `🏆 Achievement unlocked! +${d.reward} 🪙` : `+${d.reward} coins claimed! 🪙`;
+      showWarning(toastMsg, 3500);
       _missionsCache = null;
       await loadMissions();
       await refreshUsageManual();
