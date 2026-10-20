@@ -553,6 +553,7 @@ let currentCheckoutPeriod = 'monthly';
 let paypalSdkLoaded = false;
 let paypalSdkLoading = false;
 let currentCheckoutPlan = null;
+let currentCheckoutEffective = 0;
 function handleUpgradeCta(planKey) {
   if (planKey === 'free' || !planBuyable(planKey)) return;
   openPaypalCheckout(planKey, yearlyAvailable && pricingPeriod === 'annual' ? 'annual' : 'monthly');
@@ -622,8 +623,34 @@ async function openPaypalCheckout(planKey, period) {
   }
   document.getElementById('paypal-checkout-status').textContent = '';
   document.getElementById('paypal-checkout-status').style.color = '';
+  currentCheckoutEffective = effective;
+
+  // When coins fully cover the price — hide payment tabs, show coin confirmation
+  const payTabs = document.getElementById('co-pay-tabs');
+  const payPanelPaypal = document.getElementById('payment-panel-paypal');
+  const payPanelCard = document.getElementById('payment-panel-card');
+  const payBtn = document.getElementById('co-pay-btn');
+  const footer = document.getElementById('co-footer-text');
+  if (effective === 0) {
+    if (payTabs) payTabs.style.display = 'none';
+    if (payPanelPaypal) payPanelPaypal.style.display = 'none';
+    if (payPanelCard) payPanelCard.style.display = 'none';
+    if (footer) footer.textContent = 'Secured by C.M. Coins · Cancel anytime · No hidden fees';
+    if (payBtn) {
+      payBtn.textContent = 'Confirm & Use Coins';
+      payBtn.style.display = '';
+      payBtn.onclick = () => handleCoinCheckout(planKey);
+    }
+  } else {
+    if (payTabs) payTabs.style.display = '';
+    if (footer) footer.textContent = 'Secured by PayPal · Cancel anytime · No hidden fees';
+    if (payBtn) { payBtn.style.display = 'none'; payBtn.onclick = null; }
+    switchPayTab('paypal');
+  }
+
   document.getElementById('paypalCheckoutModal').style.display = 'flex';
 
+  if (effective === 0) return; // no payment SDK needed
 
   if (!paypalSdkLoaded && !paypalSdkLoading) {
     paypalSdkLoading = true;
@@ -706,7 +733,49 @@ async function verifyAndActivateSubscription(subscriptionId, planKey) {
 function closePaypalCheckout() {
   document.getElementById('paypalCheckoutModal').style.display = 'none';
   currentCheckoutPlan = null;
+  currentCheckoutEffective = 0;
+  // Reset state so next open is clean
+  const payTabs = document.getElementById('co-pay-tabs');
+  const payPanelPaypal = document.getElementById('payment-panel-paypal');
+  const payPanelCard = document.getElementById('payment-panel-card');
+  const payBtn = document.getElementById('co-pay-btn');
+  if (payTabs) payTabs.style.display = '';
+  if (payPanelPaypal) payPanelPaypal.style.display = '';
+  if (payPanelCard) payPanelCard.style.display = 'none';
+  if (payBtn) { payBtn.style.display = 'none'; payBtn.disabled = false; payBtn.textContent = 'Pay'; payBtn.onclick = null; }
   destroyStripeElements();
+}
+
+async function handleCoinCheckout(planKey) {
+  const statusEl = document.getElementById('paypal-checkout-status');
+  const payBtn = document.getElementById('co-pay-btn');
+  if (payBtn) { payBtn.disabled = true; payBtn.textContent = 'Processing…'; }
+  if (statusEl) { statusEl.textContent = ''; statusEl.style.color = ''; }
+  try {
+    const resp = await fetch('/api/coins/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ planKey })
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      if (statusEl) { statusEl.style.color = '#22c55e'; statusEl.textContent = '✓ Plan activated!'; }
+      if (lastKnownUsage) { lastKnownUsage.subscriptionTier = data.effectiveTier; lastKnownUsage.cmCoins = data.balance; }
+      setTimeout(() => {
+        closePaypalCheckout();
+        closePricingModal();
+        loadUsage();
+        showWarning(`Welcome to ${PLAN_LABELS[planKey]}! Your new limits are now active.`, 5000);
+      }, 1500);
+    } else {
+      if (statusEl) statusEl.textContent = data.error || 'Activation failed. Please try again.';
+      if (payBtn) { payBtn.disabled = false; payBtn.textContent = 'Confirm & Use Coins'; }
+    }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = 'Network error. Please contact support.';
+    if (payBtn) { payBtn.disabled = false; payBtn.textContent = 'Confirm & Use Coins'; }
+    console.error('[coin checkout]', err);
+  }
 }
 
 // ── Stripe card payment ────────────────────────────────────────────────────────

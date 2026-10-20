@@ -6746,6 +6746,35 @@ app.post('/api/coins/redeem', requireAuth, async (req, res) => {
   } catch (e) { console.error('[coins/redeem]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
 });
 
+// CM Coins — checkout (used when coins fully cover the plan price in the upgrade modal)
+app.post('/api/coins/checkout', requireAuth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'No database' });
+  try {
+    const { planKey } = req.body;
+    const planPrice = PLAN_MONTHLY_USD[planKey];
+    if (!planPrice) return res.status(400).json({ error: 'Invalid plan' });
+    await ensureTierLoaded(req.user);
+    const uid = req.user.googleId;
+    const u = getLimits(uid);
+    const coinsNeeded = Math.ceil(planPrice / COIN_USD_VALUE);
+    if ((u.cmCoins || 0) < coinsNeeded) return res.status(400).json({ error: 'Not enough coins', balance: u.cmCoins || 0, cost: coinsNeeded });
+    const now = Date.now();
+    const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+    const base = (u.coinTier === planKey && (u.coinTierExpires || 0) > now) ? u.coinTierExpires : now;
+    const newExpires = base + ONE_MONTH_MS;
+    const r = await db.query(
+      'UPDATE users SET cm_coins = cm_coins - $1, coin_tier = $2, coin_tier_expires = $3 WHERE google_id = $4 AND cm_coins >= $1 RETURNING cm_coins',
+      [coinsNeeded, planKey, newExpires, uid]
+    );
+    if (r.rowCount === 0) return res.status(400).json({ error: 'Not enough coins' });
+    u.cmCoins = r.rows[0].cm_coins;
+    u.coinTier = planKey;
+    u.coinTierExpires = newExpires;
+    u.subscriptionTier = effectiveTier(u);
+    res.json({ ok: true, balance: u.cmCoins, coinTier: planKey, coinTierExpires: newExpires, effectiveTier: u.subscriptionTier });
+  } catch (e) { console.error('[coins/checkout]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
+});
+
 // ── Monthly grant (coins + tokens) + Tournament ────────────────────────────
 const MONTHLY_COIN_GRANT  = { free: 20,  advanced: 30,   x20: 600,  x50: 1800,  x100: 3600,  x200: 9000  };
 const MONTHLY_TOKEN_GRANT = { free: 75,  advanced: 100,  x20: 2000, x50: 6000,  x100: 12000, x200: 30000 };
