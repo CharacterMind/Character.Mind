@@ -7574,13 +7574,26 @@ async function toggleTTS(btn) {
     return;
   }
 
+  // Check + deduct memo before TTS
+  try {
+    const memoR = await fetch('/api/memo/use', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    if (!memoR.ok) {
+      const memoData = await memoR.json().catch(() => ({}));
+      stopActiveTTS();
+      if (memoR.status === 429) showMemoLimitBanner(memoData.resetsAt);
+      return;
+    }
+  } catch (_) { /* network error — try TTS anyway */ }
+
   let serverOk = false;
+  let ttsStatus = 0;
   try {
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined })
     });
+    ttsStatus = r.status;
     if (r.ok && activeTTSBtn === btn) {
       serverOk = true;
       btn.classList.remove('loading'); btn.classList.add('playing');
@@ -7601,9 +7614,24 @@ async function toggleTTS(btn) {
 
   if (!serverOk && activeTTSBtn === btn) {
     stopActiveTTS();
+    if (ttsStatus === 429) showMemoLimitBanner();
+    else if (ttsStatus > 0) showTTSError('Voice unavailable — try again shortly');
   }
 }
 
+function showTTSError(msg) {
+  let el = document.getElementById('ttsErrorToast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'ttsErrorToast';
+    el.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--surface2,#2a2a2a);color:var(--text1,#fff);border:1px solid var(--border2,#444);border-radius:8px;padding:8px 16px;font-size:13px;z-index:9999;pointer-events:none;transition:opacity 0.3s;white-space:nowrap';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.opacity = '0'; }, 4500);
+}
 function showMemoLimitBanner(resetsAt) {
   const banner = document.getElementById('memoLimitBanner');
   if (!banner) return;
