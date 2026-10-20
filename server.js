@@ -3852,23 +3852,37 @@ function edgeUUID() {
   const h = b.toString('hex');
   return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
 }
-function googleTranslateTTS(text) {
+function googleTranslateTTSChunk(chunk) {
   return new Promise((resolve, reject) => {
-    const encoded = encodeURIComponent(text.slice(0, 200));
+    const encoded = encodeURIComponent(chunk);
     const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encoded}&tl=en-US&client=tw-ob`;
     const req = require('https').get(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36' },
       timeout: 10000
     }, res => {
       if (res.statusCode !== 200) { reject(new Error(`gt-tts ${res.statusCode}`)); return; }
-      const chunks = [];
-      res.on('data', d => chunks.push(d));
-      res.on('end', () => { const buf = Buffer.concat(chunks); buf.length ? resolve(buf) : reject(new Error('gt-tts empty')); });
+      const parts = [];
+      res.on('data', d => parts.push(d));
+      res.on('end', () => { const buf = Buffer.concat(parts); buf.length ? resolve(buf) : reject(new Error('gt-tts empty')); });
       res.on('error', reject);
     });
     req.on('error', reject);
     req.on('timeout', () => { req.destroy(); reject(new Error('gt-tts timeout')); });
   });
+}
+async function googleTranslateTTS(text) {
+  // Split into ≤185-char word-boundary chunks to stay under Google's limit
+  const words = text.split(' ');
+  const chunks = [];
+  let cur = '';
+  for (const w of words) {
+    const next = cur ? cur + ' ' + w : w;
+    if (next.length > 185) { if (cur) chunks.push(cur); cur = w; }
+    else cur = next;
+  }
+  if (cur) chunks.push(cur);
+  const buffers = await Promise.all(chunks.map(c => googleTranslateTTSChunk(c)));
+  return Buffer.concat(buffers);
 }
 function edgeSynthesize(text, voice) {
   return new Promise((resolve, reject) => {
