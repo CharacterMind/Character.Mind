@@ -3856,12 +3856,15 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         return res.send(geminiAudio);
       }
       ttsU2.ttsCharsToday = Math.max(0, (ttsU2.ttsCharsToday || 0) - text.length);
-      return res.status(502).json({ error: 'gemini_tts_failed' });
+      console.warn('[gemini-tts] both paths failed — falling back to Edge TTS');
+      // fall through to Edge TTS
+    } else {
+      console.warn('[gemini-tts] not configured — falling back to Edge TTS');
+      // fall through to Edge TTS
     }
-    return res.status(502).json({ error: 'gemini_not_configured' });
   }
 
-  // Edge TTS free fallback — apply daily character cap
+  // Edge TTS — free Microsoft Neural voices (also fallback when Gemini quota is exceeded)
   const edgeUserId = req.user.googleId;
   const edgeLim = getLimits(edgeUserId);
   const edgeWin = getCallWindowStart();
