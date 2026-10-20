@@ -3812,33 +3812,33 @@ app.post('/api/tts', requireAuth, async (req, res) => {
       const ttsU2 = getLimits(userId);
       const ttsWin2 = getCallWindowStart();
       if (!ttsU2.ttsDayStart || ttsU2.ttsDayStart < ttsWin2) { ttsU2.ttsCharsToday = 0; ttsU2.ttsDayStart = ttsWin2; }
-      if ((ttsU2.ttsCharsToday || 0) + text.length <= TTS_DAILY_CHARS) {
-        ttsU2.ttsCharsToday = (ttsU2.ttsCharsToday || 0) + text.length;
-        saveLimitsToDB(userId);
-        let geminiAudio = null, geminiCt = null;
-        // Try legacy generateContent API (gemini-3.1-flash-tts-preview by default)
-        try {
-          const r = await geminiTTSSynthesize(text, geminiVoice, gKey, 15000);
-          geminiAudio = r.audio; geminiCt = r.ct;
-        } catch (e) {
-          console.warn('[gemini-tts] legacy model failed:', e.message);
-          // Try new Interactions API with gemini-3.8-flash-tts
-          try {
-            const r = await geminiTTS38Synthesize(text, geminiVoice, gKey, 20000);
-            geminiAudio = r.audio; geminiCt = r.ct;
-          } catch (e2) {
-            console.warn('[gemini-tts] 3.8 interactions also failed:', e2.message);
-          }
-        }
-        if (geminiAudio) {
-          res.setHeader('Content-Type', geminiCt);
-          res.setHeader('Cache-Control', 'no-store');
-          res.setHeader('X-TTS-Provider', 'gemini');
-          return res.send(geminiAudio);
-        }
-        ttsU2.ttsCharsToday = Math.max(0, (ttsU2.ttsCharsToday || 0) - text.length);
-        return res.status(502).json({ error: 'gemini_tts_failed' });
+      if ((ttsU2.ttsCharsToday || 0) + text.length > TTS_DAILY_CHARS) {
+        return res.status(429).json({ error: 'tts_limit' });
       }
+      ttsU2.ttsCharsToday = (ttsU2.ttsCharsToday || 0) + text.length;
+      saveLimitsToDB(userId);
+      let geminiAudio = null, geminiCt = null;
+      // Try legacy generateContent API (gemini-3.1-flash-tts-preview by default)
+      try {
+        const r = await geminiTTSSynthesize(text, geminiVoice, gKey, 15000);
+        geminiAudio = r.audio; geminiCt = r.ct;
+      } catch (e) {
+        console.warn('[gemini-tts] legacy model failed:', e.message);
+        try {
+          const r = await geminiTTS38Synthesize(text, geminiVoice, gKey, 20000);
+          geminiAudio = r.audio; geminiCt = r.ct;
+        } catch (e2) {
+          console.warn('[gemini-tts] 3.8 interactions also failed:', e2.message);
+        }
+      }
+      if (geminiAudio) {
+        res.setHeader('Content-Type', geminiCt);
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('X-TTS-Provider', 'gemini');
+        return res.send(geminiAudio);
+      }
+      ttsU2.ttsCharsToday = Math.max(0, (ttsU2.ttsCharsToday || 0) - text.length);
+      return res.status(502).json({ error: 'gemini_tts_failed' });
     }
     return res.status(502).json({ error: 'gemini_not_configured' });
   }
