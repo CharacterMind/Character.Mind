@@ -1,5 +1,17 @@
 [
   {
+    "id": "v312-gemini-tts-no-fallback",
+    "version": "v312",
+    "date": "Oct 2026",
+    "title": "Gemini TTS — No More Fallback Voice",
+    "subtitle": "Gemini voice is now strictly enforced — no Edge TTS, no browser speech, ever.",
+    "fixed": [
+      "Server no longer falls back to Edge TTS when Gemini fails — returns a clean error instead",
+      "Frontend no longer falls back to browser SpeechSynthesis when Gemini TTS is unavailable",
+      "Reduced Gemini TTS timeout from 20s to 15s for faster error feedback"
+    ]
+  },
+  {
     "id": "v311-gemini-tts-model",
     "version": "v311",
     "date": "Oct 2026",

@@ -3818,7 +3818,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         let geminiAudio = null, geminiCt = null;
         // Try legacy generateContent API (gemini-3.1-flash-tts-preview by default)
         try {
-          const r = await geminiTTSSynthesize(text, geminiVoice, gKey, 20000);
+          const r = await geminiTTSSynthesize(text, geminiVoice, gKey, 15000);
           geminiAudio = r.audio; geminiCt = r.ct;
         } catch (e) {
           console.warn('[gemini-tts] legacy model failed:', e.message);
@@ -3837,9 +3837,10 @@ app.post('/api/tts', requireAuth, async (req, res) => {
           return res.send(geminiAudio);
         }
         ttsU2.ttsCharsToday = Math.max(0, (ttsU2.ttsCharsToday || 0) - text.length);
-        // fall through to Edge TTS
+        return res.status(502).json({ error: 'gemini_tts_failed' });
       }
     }
+    return res.status(502).json({ error: 'gemini_not_configured' });
   }
 
   // Edge TTS free fallback — apply daily character cap
