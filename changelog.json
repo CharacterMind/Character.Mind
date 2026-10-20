@@ -1,5 +1,22 @@
 [
   {
+    "id": "v321-remove-elevenlabs",
+    "version": "v321",
+    "date": "Oct 2026",
+    "title": "ElevenLabs Removed — Free Voices Forever",
+    "subtitle": "Switched to Amazon Polly voices via StreamElements — free, unlimited, and no $2 API bill.",
+    "new": [
+      "Voice calls and read-aloud now use Amazon Polly voices (Joanna, Brian, Salli, Matthew and more) — free with no rate limits",
+      "TTS chain: Gemini → Edge TTS → Amazon Polly — always finds a working voice"
+    ],
+    "fixed": [
+      "Fixed read-aloud (memos) button silently failing when Edge TTS was rate-limited",
+      "Fixed call voice going silent — now falls through to Amazon Polly automatically",
+      "Read-aloud now properly tracks your daily limit and deducts coins as intended",
+      "Shows 'Voice unavailable' notice instead of silently doing nothing when TTS fails"
+    ]
+  },
+  {
     "id": "v313-fix-interactions-api",
     "version": "v313",
     "date": "Oct 2026",
