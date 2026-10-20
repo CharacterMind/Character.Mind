@@ -3817,7 +3817,7 @@ app.get('/api/tts/status', requireAuth, (req, res) => res.json({ enabled: true }
 app.post('/api/tts', requireAuth, async (req, res) => {
   const text = String(req.body?.text || '').replace(/[*_`#]/g, '').trim().slice(0, 400);
   const charId = String(req.body?.charId || '');
-  const provider = String(req.body?.provider || 'edge');
+  const provider = String(req.body?.provider || 'gemini');
   const geminiVoice = String(req.body?.geminiVoice || 'Aoede');
   const clientEdgeVoice = req.body?.edgeVoice && typeof req.body.edgeVoice === 'string' ? req.body.edgeVoice : null;
   if (!text) return res.status(400).json({ error: 'no_text' });

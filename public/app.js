@@ -7559,18 +7559,7 @@ async function toggleTTS(btn) {
   if (activeTTSBtn === btn) btn.classList.remove('loading');
 
   if (!serverOk && activeTTSBtn === btn) {
-    if (ttsProvider === 'gemini') {
-      stopActiveTTS();
-    } else {
-      btn.classList.add('playing');
-      if (window.speechSynthesis) {
-        const u = new SpeechSynthesisUtterance(text.slice(0, 300));
-        if (selectedVoice) u.voice = selectedVoice;
-        activeTTSUtterance = u;
-        u.onend = () => stopActiveTTS(); u.onerror = () => stopActiveTTS();
-        window.speechSynthesis.speak(u);
-      } else { stopActiveTTS(); }
-    }
+    stopActiveTTS();
   }
 }
 
