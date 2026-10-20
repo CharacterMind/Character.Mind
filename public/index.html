@@ -630,6 +630,13 @@
         </div>
         <!-- Call overlay (Character.AI-style clean dark design) -->
         <div id="callOverlay" class="call-overlay" style="display:none">
+          <!-- Animated color orbs — colors set by character palette -->
+          <div id="callBg" class="call-bg">
+            <div class="call-orb call-orb-1"></div>
+            <div class="call-orb call-orb-2"></div>
+            <div class="call-orb call-orb-3"></div>
+            <div class="call-orb call-orb-4"></div>
+          </div>
           <!-- Avatar circle — sibling of orbs so blend modes don't wash it out -->
           <div class="call-char-img" id="callCharImg"></div>
           <!-- Voice On badge -->
@@ -1819,7 +1826,7 @@
 </div>
 
 <script src="https://js.stripe.com/v3/"></script>
-<script src="app.js?v=323"></script>
+<script src="app.js?v=324"></script>
 
 <!-- Session 90% warning toast -->
 <div id="sessionWarningToast">

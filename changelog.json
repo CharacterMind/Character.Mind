@@ -1,5 +1,17 @@
 [
   {
+    "id": "v324-call-orbs",
+    "version": "v324",
+    "date": "Oct 2026",
+    "title": "Character Colors on the Call Screen",
+    "subtitle": "The animated color orbs are back — each character brings their own palette to life during calls.",
+    "new": [
+      "Call screen now shows animated glowing orbs that pulse and shift with each character's signature colors",
+      "Colors are matched per character — Poppy gets blues and reds, Mommy Long Legs gets hot pink, and so on",
+      "Characters without a custom palette auto-generate a 3-color scheme from their profile color"
+    ]
+  },
+  {
     "id": "v319-missions-achievements",
     "version": "v319",
     "date": "Oct 2026",
