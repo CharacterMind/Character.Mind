@@ -1,5 +1,17 @@
 [
   {
+    "id": "v313-fix-interactions-api",
+    "version": "v313",
+    "date": "Oct 2026",
+    "title": "Gemini Interactions API Fix",
+    "subtitle": "Fixed the backup Gemini TTS path — both API routes now use the correct model and format.",
+    "fixed": [
+      "Fixed geminiTTS38Synthesize to use correct model (gemini-3.1-flash-tts-preview, not non-existent 3.8)",
+      "Fixed Interactions API request format: input is now a plain string with Api-Revision: 2026-05-20 header",
+      "Fixed response parsing to read output_audio.data per official Google docs"
+    ]
+  },
+  {
     "id": "v312-gemini-tts-no-fallback",
     "version": "v312",
     "date": "Oct 2026",

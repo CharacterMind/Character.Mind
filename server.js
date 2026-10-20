@@ -3689,8 +3689,9 @@ async function geminiTTSSynthesize(text, voiceName, apiKey, timeoutMs = 12000) {
   return { audio, ct };
 }
 
-// Gemini 3.8 Flash TTS via new Interactions API (flagship quality, WAV output)
-async function geminiTTS38Synthesize(text, voiceName, apiKey, timeoutMs = 20000) {
+// Gemini TTS via Interactions API (Beta) — same model, different endpoint/format
+// https://ai.google.dev/gemini-api/docs/interactions/speech-generation
+async function geminiTTS38Synthesize(text, voiceName, apiKey, timeoutMs = 15000) {
   const voice = GEMINI_TTS_VOICES.has(voiceName) ? voiceName : 'Aoede';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -3700,10 +3701,14 @@ async function geminiTTS38Synthesize(text, voiceName, apiKey, timeoutMs = 20000)
       {
         method: 'POST',
         signal: controller.signal,
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+          'Api-Revision': '2026-05-20'
+        },
         body: JSON.stringify({
-          model: 'gemini-3.8-flash-tts',
-          input: [{ type: 'user_input', content: [{ type: 'text', text }] }],
+          model: 'gemini-3.1-flash-tts-preview',
+          input: text,
           response_format: { type: 'audio' },
           generation_config: { speech_config: [{ voice }] }
         })
@@ -3712,18 +3717,12 @@ async function geminiTTS38Synthesize(text, voiceName, apiKey, timeoutMs = 20000)
     clearTimeout(timer);
     if (!r.ok) {
       const body = await r.text().catch(() => '');
-      throw new Error('gemini-tts-38:' + r.status + ' ' + body.slice(0, 200));
+      throw new Error('gemini-tts-interactions:' + r.status + ' ' + body.slice(0, 200));
     }
     const j = await r.json();
-    let audioData = null, mimeType = 'audio/wav';
-    for (const step of (j.steps || [])) {
-      for (const item of (step.content || [])) {
-        if (item.data) { audioData = item.data; mimeType = item.mime_type || 'audio/wav'; break; }
-      }
-      if (audioData) break;
-    }
-    if (!audioData) throw new Error('gemini-tts-38: no audio in response');
-    let audio = Buffer.from(audioData, 'base64');
+    if (!j.output_audio?.data) throw new Error('gemini-tts-interactions: no audio data');
+    let audio = Buffer.from(j.output_audio.data, 'base64');
+    const mimeType = j.output_audio.mime_type || 'audio/L16;rate=24000';
     let ct = mimeType;
     if (/L16|pcm/i.test(ct)) {
       const rateMatch = ct.match(/rate=(\d+)/i);
