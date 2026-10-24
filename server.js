@@ -3575,6 +3575,14 @@ app.post('/api/call/start', requireAuth, (req, res) => {
   if (sessionCheck.blocked) {
     return res.status(429).json({ allowed: false, type: sessionCheck.type, cooldownUntil: sessionCheck.cooldownUntil });
   }
+  const u = getLimits(userId);
+  const callLimit = getCallLimitForUser(userId);
+  if ((u.callsToday || 0) >= callLimit) {
+    return res.status(429).json({ allowed: false, type: 'call_daily_limit', callsToday: u.callsToday, callLimit });
+  }
+  u.callsToday = (u.callsToday || 0) + 1;
+  if (!u.callDayStart) u.callDayStart = Date.now();
+  saveLimitsToDB(userId);
   res.json({ allowed: true });
 });
 
@@ -3972,6 +3980,10 @@ app.post('/api/tts', requireAuth, async (req, res) => {
 app.post('/api/memo/use', requireAuth, (req, res) => {
   const userId = req.user.googleId;
   const u = getLimits(userId);
+  const memoLimit = getMemoLimitForUser(userId);
+  if ((u.memosToday || 0) >= memoLimit) {
+    return res.status(429).json({ allowed: false, type: 'memo_daily_limit', memosToday: u.memosToday, memoLimit });
+  }
   const textLen = typeof req.body.textLen === 'number' ? req.body.textLen : 0;
   u.memosToday = (u.memosToday || 0) + 1;
   // Memo cost scales with text length: 500 tokens (short) → 2 500 tokens (long)
@@ -4204,8 +4216,13 @@ app.post('/api/admin/set-my-tier', requireAuth, (req, res) => {
   const tier = req.body && req.body.tier;
   if (typeof tier !== 'string' || !Object.hasOwn(TIER_TOKEN_LIMITS, tier)) return res.status(400).json({ error: 'Invalid tier' });
   const u = getLimits(req.user.googleId);
-  u.subscriptionTier = tier;
-  u.tierLoaded = true;
+  u.subscriptionTier = tier; u.tierLoaded = true;
+  u.sessionTokens = 0; u.sessionStartedAt = null; u.cooldownUntil = null;
+  u.weeklyTokens = 0; u.weeklyStart = null; u.warned = {};
+  u.callsToday = 0; u.callDayStart = null;
+  u.memosToday = 0; u.memoDayStart = null;
+  u.imagesDay = 0; u.imageDayStart = null; u.imageFirstUsedAt = null;
+  u.regenCount = 0;
   res.json({ ok: true, tier });
 });
 
@@ -4286,7 +4303,7 @@ app.post('/api/admin/revoke-subscription', requireAuth, async (req, res) => {
     lim.weeklyTokens = 0; lim.weeklyStart = null; lim.warned = {};
     lim.callsToday = 0; lim.callDayStart = null;
     lim.memosToday = 0; lim.memoDayStart = null;
-    lim.imagesDay = 0; lim.imageDayStart = null;
+    lim.imagesDay = 0; lim.imageDayStart = null; lim.imageFirstUsedAt = null;
     lim.regenCount = 0;
     if (subId) cancelPayPalSubscription(subId, 'Revoked by admin').catch(() => {});
     const subNote = subId ? ', PayPal sub ' + subId + ' cancelled' : '';
@@ -5297,6 +5314,13 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   let imageDescription = '';
   if (image && !isContinuation) {
     const imgU = getLimits(userId);
+    const imgLimit = getImageLimitForUser(userId);
+    if ((imgU.imagesDay || 0) >= imgLimit) {
+      return res.status(429).json({ error: 'image_daily_limit', imagesDay: imgU.imagesDay, imageLimit: imgLimit });
+    }
+    imgU.imagesDay = (imgU.imagesDay || 0) + 1;
+    if (!imgU.imageFirstUsedAt) imgU.imageFirstUsedAt = Date.now();
+    if (!imgU.imageDayStart) imgU.imageDayStart = Date.now();
     const imgSizeBytes = typeof image === 'string' ? Math.round(image.length * 0.75) : 0; // base64 → bytes
     const imgTokenCost = imageTokenCost(imgSizeBytes); // 1–3 units (2 500–7 500 tokens)
     addTokens(userId, imgTokenCost);
@@ -6226,7 +6250,7 @@ app.post('/api/paypal/verify-subscription', requireAuth, paypalVerifyLimiter, as
     paidLimits.weeklyTokens = 0; paidLimits.weeklyStart = null; paidLimits.warned = {};
     paidLimits.callsToday = 0; paidLimits.callDayStart = null;
     paidLimits.memosToday = 0; paidLimits.memoDayStart = null;
-    paidLimits.imagesDay = 0; paidLimits.imageDayStart = null;
+    paidLimits.imagesDay = 0; paidLimits.imageDayStart = null; paidLimits.imageFirstUsedAt = null;
     paidLimits.regenCount = 0;
     saveLimitsToDB(req.user.googleId);
     sendReceiptEmail(req.user.name, req.user.email, planKey, subscriptionId, period).catch(() => {});
@@ -6304,7 +6328,7 @@ app.post('/api/webhooks/paypal', async (req, res) => {
             lim.weeklyTokens = 0; lim.weeklyStart = null; lim.warned = {};
             lim.callsToday = 0; lim.callDayStart = null;
             lim.memosToday = 0; lim.memoDayStart = null;
-            lim.imagesDay = 0; lim.imageDayStart = null;
+            lim.imagesDay = 0; lim.imageDayStart = null; lim.imageFirstUsedAt = null;
             lim.regenCount = 0;
             saveLimitsToDB(customId);
           }
@@ -6379,7 +6403,7 @@ app.post('/api/webhooks/paypal', async (req, res) => {
       lim.weeklyTokens = 0; lim.weeklyStart = null; lim.warned = {};
       lim.callsToday = 0; lim.callDayStart = null;
       lim.memosToday = 0; lim.memoDayStart = null;
-      lim.imagesDay = 0; lim.imageDayStart = null;
+      lim.imagesDay = 0; lim.imageDayStart = null; lim.imageFirstUsedAt = null;
       lim.regenCount = 0;
       saveLimitsToDB(row.google_id);
     }
@@ -6449,7 +6473,7 @@ app.post('/api/stripe/subscribe', requireAuth, async (req, res) => {
       lim.weeklyTokens = 0; lim.weeklyStart = null; lim.warned = {};
       lim.callsToday = 0; lim.callDayStart = null;
       lim.memosToday = 0; lim.memoDayStart = null;
-      lim.imagesDay = 0; lim.imageDayStart = null;
+      lim.imagesDay = 0; lim.imageDayStart = null; lim.imageFirstUsedAt = null;
       lim.regenCount = 0;
       saveLimitsToDB(userId);
       return res.json({ success: true });
@@ -6498,7 +6522,7 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
           lim.weeklyTokens = 0; lim.weeklyStart = null; lim.warned = {};
           lim.callsToday = 0; lim.callDayStart = null;
           lim.memosToday = 0; lim.memoDayStart = null;
-          lim.imagesDay = 0; lim.imageDayStart = null;
+          lim.imagesDay = 0; lim.imageDayStart = null; lim.imageFirstUsedAt = null;
           lim.regenCount = 0;
           saveLimitsToDB(gId);
         }
@@ -6517,7 +6541,7 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
       lim.weeklyTokens = 0; lim.weeklyStart = null; lim.warned = {};
       lim.callsToday = 0; lim.callDayStart = null;
       lim.memosToday = 0; lim.memoDayStart = null;
-      lim.imagesDay = 0; lim.imageDayStart = null;
+      lim.imagesDay = 0; lim.imageDayStart = null; lim.imageFirstUsedAt = null;
       lim.regenCount = 0;
       saveLimitsToDB(gId);
     }
