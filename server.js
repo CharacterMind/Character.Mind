@@ -4281,8 +4281,13 @@ app.post('/api/admin/revoke-subscription', requireAuth, async (req, res) => {
       ['free', uid]
     );
     const lim = getLimits(uid);
-    lim.subscriptionTier = 'free';
-    lim.tierLoaded = true;
+    lim.subscriptionTier = 'free'; lim.tierLoaded = true;
+    lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null;
+    lim.weeklyTokens = 0; lim.weeklyStart = null; lim.warned = {};
+    lim.callsToday = 0; lim.callDayStart = null;
+    lim.memosToday = 0; lim.memoDayStart = null;
+    lim.imagesDay = 0; lim.imageDayStart = null;
+    lim.regenCount = 0;
     if (subId) cancelPayPalSubscription(subId, 'Revoked by admin').catch(() => {});
     const subNote = subId ? ', PayPal sub ' + subId + ' cancelled' : '';
     console.log('[admin] revoke-subscription: ' + name + ' (' + uid + ') was ' + oldTier + ' -> free' + subNote);
@@ -6217,8 +6222,12 @@ app.post('/api/paypal/verify-subscription', requireAuth, paypalVerifyLimiter, as
     const paidLimits = getLimits(req.user.googleId);
     paidLimits.subscriptionTier = planKey;
     paidLimits.tierLoaded = true;
-    paidLimits.sessionTokens = 0; paidLimits.sessionStartedAt = null; paidLimits.cooldownUntil = null; // fresh session on the new plan
-    paidLimits.warned = {};   // the new plan has different limits, so usage warnings start again
+    paidLimits.sessionTokens = 0; paidLimits.sessionStartedAt = null; paidLimits.cooldownUntil = null;
+    paidLimits.weeklyTokens = 0; paidLimits.weeklyStart = null; paidLimits.warned = {};
+    paidLimits.callsToday = 0; paidLimits.callDayStart = null;
+    paidLimits.memosToday = 0; paidLimits.memoDayStart = null;
+    paidLimits.imagesDay = 0; paidLimits.imageDayStart = null;
+    paidLimits.regenCount = 0;
     saveLimitsToDB(req.user.googleId);
     sendReceiptEmail(req.user.name, req.user.email, planKey, subscriptionId, period).catch(() => {});
     sendPlanWelcomeEmail(req.user.name, req.user.email, planKey).catch(() => {});
@@ -6291,7 +6300,12 @@ app.post('/api/webhooks/paypal', async (req, res) => {
             if (prevSub && prevSub !== subId) cancelPayPalSubscription(prevSub, 'Replaced by a new plan');
             const lim = getLimits(customId);
             lim.subscriptionTier = tier; lim.tierLoaded = true;
-            lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null; lim.warned = {};
+            lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null;
+            lim.weeklyTokens = 0; lim.weeklyStart = null; lim.warned = {};
+            lim.callsToday = 0; lim.callDayStart = null;
+            lim.memosToday = 0; lim.memoDayStart = null;
+            lim.imagesDay = 0; lim.imageDayStart = null;
+            lim.regenCount = 0;
             saveLimitsToDB(customId);
           }
         }
@@ -6363,6 +6377,10 @@ app.post('/api/webhooks/paypal', async (req, res) => {
       lim.subscriptionTier = 'free'; lim.tierLoaded = true;
       lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null;
       lim.weeklyTokens = 0; lim.weeklyStart = null; lim.warned = {};
+      lim.callsToday = 0; lim.callDayStart = null;
+      lim.memosToday = 0; lim.memoDayStart = null;
+      lim.imagesDay = 0; lim.imageDayStart = null;
+      lim.regenCount = 0;
       saveLimitsToDB(row.google_id);
     }
   }
@@ -6427,7 +6445,12 @@ app.post('/api/stripe/subscribe', requireAuth, async (req, res) => {
       await db.query('UPDATE users SET subscription_tier=$1 WHERE google_id=$2', [planKey, userId]);
       const lim = getLimits(userId);
       lim.subscriptionTier = planKey; lim.tier = planKey; lim.tierLoaded = true;
-      lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null; lim.warned = {};
+      lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null;
+      lim.weeklyTokens = 0; lim.weeklyStart = null; lim.warned = {};
+      lim.callsToday = 0; lim.callDayStart = null;
+      lim.memosToday = 0; lim.memoDayStart = null;
+      lim.imagesDay = 0; lim.imageDayStart = null;
+      lim.regenCount = 0;
       saveLimitsToDB(userId);
       return res.json({ success: true });
     }
@@ -6471,6 +6494,12 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
           await db.query('UPDATE users SET subscription_tier=$1, stripe_subscription_id=$2 WHERE google_id=$3', [planKey, sub.id, gId]).catch(() => {});
           const lim = getLimits(gId);
           lim.subscriptionTier = planKey; lim.tier = planKey; lim.tierLoaded = true;
+          lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null;
+          lim.weeklyTokens = 0; lim.weeklyStart = null; lim.warned = {};
+          lim.callsToday = 0; lim.callDayStart = null;
+          lim.memosToday = 0; lim.memoDayStart = null;
+          lim.imagesDay = 0; lim.imageDayStart = null;
+          lim.regenCount = 0;
           saveLimitsToDB(gId);
         }
       }
@@ -6484,7 +6513,12 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
       await db.query("UPDATE users SET subscription_tier='free', stripe_subscription_id=NULL WHERE google_id=$1", [gId]).catch(() => {});
       const lim = getLimits(gId);
       lim.subscriptionTier = 'free'; lim.tier = 'free'; lim.tierLoaded = true;
-      lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null; lim.warned = {};
+      lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null;
+      lim.weeklyTokens = 0; lim.weeklyStart = null; lim.warned = {};
+      lim.callsToday = 0; lim.callDayStart = null;
+      lim.memosToday = 0; lim.memoDayStart = null;
+      lim.imagesDay = 0; lim.imageDayStart = null;
+      lim.regenCount = 0;
       saveLimitsToDB(gId);
     }
   }
