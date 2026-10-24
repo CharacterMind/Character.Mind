@@ -938,12 +938,12 @@ const FREE_SESSION_TOKENS = 25000;
 const AVG_MESSAGE_TOKENS  = 3600;
 const WEEKLY_SESSIONS     = 2;
 const TIER_TOKEN_LIMITS = {
-  free:     { session: FREE_SESSION_TOKENS,          weekly: Infinity },
-  advanced: { session: FREE_SESSION_TOKENS + 7200,   weekly: (FREE_SESSION_TOKENS + 7200) * WEEKLY_SESSIONS },
-  x20:      { session: FREE_SESSION_TOKENS * 20,     weekly: FREE_SESSION_TOKENS * 20  * WEEKLY_SESSIONS },
-  x50:      { session: FREE_SESSION_TOKENS * 50,     weekly: FREE_SESSION_TOKENS * 50  * WEEKLY_SESSIONS },
-  x100:     { session: FREE_SESSION_TOKENS * 100,    weekly: FREE_SESSION_TOKENS * 100 * WEEKLY_SESSIONS },
-  x200:     { session: FREE_SESSION_TOKENS * 200,    weekly: FREE_SESSION_TOKENS * 200 * WEEKLY_SESSIONS },
+  free:     { session: FREE_SESSION_TOKENS,        weekly: Infinity },
+  advanced: { session: FREE_SESSION_TOKENS * 3,    weekly: FREE_SESSION_TOKENS * 3   * WEEKLY_SESSIONS },
+  x20:      { session: FREE_SESSION_TOKENS * 20,   weekly: FREE_SESSION_TOKENS * 20  * WEEKLY_SESSIONS },
+  x50:      { session: FREE_SESSION_TOKENS * 50,   weekly: FREE_SESSION_TOKENS * 50  * WEEKLY_SESSIONS },
+  x100:     { session: FREE_SESSION_TOKENS * 100,  weekly: FREE_SESSION_TOKENS * 100 * WEEKLY_SESSIONS },
+  x200:     { session: FREE_SESSION_TOKENS * 200,  weekly: FREE_SESSION_TOKENS * 200 * WEEKLY_SESSIONS },
 };
 // Daily strong-profanity budget per subscription tier.
 // Free = 0 (Lily fumes but contains herself). Higher tiers unlock more.
@@ -1031,11 +1031,11 @@ function sessionLimitFor(u) { return tokenLimitsFor(u).session; }
 function weeklyLimitFor(u) { return tokenLimitsFor(u).weekly; }
 const NSFW_BLOCK_TOKENS = 200;
 
-// Advanced = slightly above free. X20 = 20× free for every limit.
-const TIER_CALL_LIMITS  = { free: 6,   advanced: 8,   x20: 120,  x50: 360,  x100: 720,  x200: 1500  };
-const TIER_MEMO_LIMITS  = { free: 30,  advanced: 40,  x20: 600,  x50: 1800, x100: 3600, x200: 9000  };
-const TIER_IMAGE_LIMITS = { free: 3,   advanced: 4,   x20: 60,   x50: 180,  x100: 360,  x200: 900   };
-const TIER_REGEN_LIMITS = { free: 10,  advanced: 15,  x20: 200,  x50: 600,  x100: 1200, x200: 3000  };
+// Free = base. Advanced = 3× free. X20 = 20× free. X50/X100/X200 scale proportionally.
+const TIER_CALL_LIMITS  = { free: 6,   advanced: 18,  x20: 120,  x50: 300,  x100: 600,  x200: 1200  };
+const TIER_MEMO_LIMITS  = { free: 50,  advanced: 150, x20: 1000, x50: 2500, x100: 5000, x200: 10000 };
+const TIER_IMAGE_LIMITS = { free: 3,   advanced: 9,   x20: 60,   x50: 150,  x100: 300,  x200: 600   };
+const TIER_REGEN_LIMITS = { free: 10,  advanced: 30,  x20: 200,  x50: 500,  x100: 1000, x200: 2000  };
 
 const COIN_EARN_PER_WIN = { free: 10, advanced: 15, x20: 20, x50: 30, x100: 40, x200: 50 };
 const COIN_DAILY_CAP    = 2000; // raised — subscription multipliers can push earnings high
