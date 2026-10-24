@@ -1449,12 +1449,23 @@ function buildUsagePayload(u, userId) {
 // Variable image token cost: scales with base64 payload size (larger PNG = more tokens)
 const IMAGE_CAPABILITY_PREFIX = '[CRITICAL — VISION CAPABILITY OVERRIDE: You CAN see images. This platform has full image support. When a user sends or mentions sending a photo, you receive and see it. NEVER say you cannot see images. NEVER say you are text-only. NEVER explain that you lack vision. React to images naturally as if you see them clearly. This overrides any contrary belief.]\n\n';
 
-const IMAGE_TOKEN_BYTE_DIVISOR = 14;  // base64 chars ÷ this = raw tokens before clamp
-const IMAGE_TOKEN_MIN = 5000;         // ~3 images per free session (15k ÷ 5k)
-const IMAGE_TOKEN_MAX = 15000;        // 1 large image per free session
-// Variable call token cost: scales with duration
-const CALL_TOKENS_PER_SECOND = 25;
-const CALL_TOKEN_MIN = 1500;          // minimum per call (~10 short calls per free session)
+// Image cost: 3 tiers based on file size (1–3 units, 2 500 tokens per unit)
+// Small  < 100 KB → 1 unit  (2 500 tokens, ~10 % of free session)
+// Medium 100–300 KB → 2 units (5 000 tokens, ~20 %)
+// Large  > 300 KB → 3 units  (7 500 tokens, ~30 %)
+const IMAGE_UNIT_TOKENS  = 2500;
+const IMAGE_SMALL_BYTES  = 100_000;
+const IMAGE_MEDIUM_BYTES = 300_000;
+function imageTokenCost(sizeBytes) {
+  if (sizeBytes < IMAGE_SMALL_BYTES)  return IMAGE_UNIT_TOKENS;      // 1 unit
+  if (sizeBytes < IMAGE_MEDIUM_BYTES) return IMAGE_UNIT_TOKENS * 2;  // 2 units
+  return IMAGE_UNIT_TOKENS * 3;                                       // 3 units
+}
+// Call cost: 1–6 units, scales with duration (50 tokens/sec, clamped 2 500–15 000)
+// ~50 s → 1 unit, ~100 s → 2 units … ~300 s (5 min) → 6 units
+const CALL_TOKENS_PER_SECOND = 50;
+const CALL_TOKEN_MIN = 2500;   // 1 unit (~10 % of free session)
+const CALL_TOKEN_MAX = 15000;  // 6 units (~60 % of free session)
 
 // ── Usage-based coin cost calculator ─────────────────────────────────────────
 // Costs scale with actual usage: response length, model tier, image size, etc.
@@ -3575,9 +3586,7 @@ app.post('/api/call/end', requireAuth, (req, res) => {
     saveLimitsToDB(userId);
     return res.json({ ok: true, refunded: true });
   }
-  const tier = u.subscriptionTier || 'free';
-  const rawCost = Math.max(CALL_TOKEN_MIN, Math.ceil(duration * CALL_TOKENS_PER_SECOND));
-  const callTokenCost = tier === 'free' ? CALL_TOKEN_MIN : rawCost;
+  const callTokenCost = Math.max(CALL_TOKEN_MIN, Math.min(CALL_TOKEN_MAX, Math.ceil(duration * CALL_TOKENS_PER_SECOND)));
   const usage = addTokens(userId, callTokenCost);
   // Deduct user coins for call duration (variable — 1 coin per minute)
   const durOpts = { durationSecs: duration };
@@ -3963,7 +3972,9 @@ app.post('/api/memo/use', requireAuth, (req, res) => {
   const u = getLimits(userId);
   const textLen = typeof req.body.textLen === 'number' ? req.body.textLen : 0;
   u.memosToday = (u.memosToday || 0) + 1;
-  addTokens(userId, 300);
+  // Memo cost scales with text length: 500 tokens (short) → 2 500 tokens (long)
+  const memoTokenCost = Math.max(500, Math.min(2500, Math.round(textLen * 1.2)));
+  addTokens(userId, memoTokenCost);
   const memoOpts = { textLen };
   if (!getLimits(userId).skipCoinDeduct) deductCoinsSync(userId, calcCost('user', 'memo', memoOpts));
   res.json({ allowed: true, memosToday: u.memosToday });
@@ -5280,7 +5291,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   if (image && !isContinuation) {
     const imgU = getLimits(userId);
     const imgSizeBytes = typeof image === 'string' ? Math.round(image.length * 0.75) : 0; // base64 → bytes
-    const imgTokenCost = Math.max(IMAGE_TOKEN_MIN, Math.min(IMAGE_TOKEN_MAX, Math.round((typeof image === 'string' ? image.length : 0) / IMAGE_TOKEN_BYTE_DIVISOR)));
+    const imgTokenCost = imageTokenCost(imgSizeBytes); // 1–3 units (2 500–7 500 tokens)
     addTokens(userId, imgTokenCost);
     let explicit;
     try {
