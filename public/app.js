@@ -9172,7 +9172,7 @@ async function createCharacter(e) {
     e.target.reset();
     pendingAvatarData = null;
     setGreetingMode('auto');
-    document.getElementById('greetingError').style.display = 'none';
+    const _gErr = document.getElementById('greetingError'); if (_gErr) _gErr.style.display = 'none';
     document.getElementById('newName').dataset.editingId = '';
     submitBtn.disabled = false;
     submitBtn.textContent = 'Create Character';

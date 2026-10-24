@@ -3105,7 +3105,6 @@ function startReplyStream(o) {
   });
   const cost = isGreetMode ? 0 : messageCost(modelTier, effort);
   const reservation = isGreetMode ? { warnings: [] } : addTokens(userId, cost);
-  // Service coin drain now happens in onComplete (variable cost based on response length)
   let fullResponse = '', held = '', released = false, finished = false;
   const send = (obj) => { try { res.write('data: ' + JSON.stringify(obj) + '\n\n'); } catch (_) {} };
   // While the AI is thinking or waiting for its turn, say "still here" every 10 seconds. Without this a long wait with no text can look
@@ -4146,8 +4145,8 @@ const OWNER_EMAILS = new Set(['support.charactermind@gmail.com']); // admin tool
 // Only the Character.Mind business account gets the top plan without paying. Every other account (including the
 // other admin login) gets exactly what its own subscription pays for.
 const FREE_TOP_PLAN_EMAILS = new Set(['support.charactermind@gmail.com']);
-// TEST_ACCOUNTS env var: comma-separated emails that get neverLimit=true (no usage/service-coin drain) for testing.
-// No admin or plan privileges — just unlimited usage so testing doesn't burn the service coin budget.
+// TEST_ACCOUNTS env var: comma-separated emails that get neverLimit=true for testing.
+// No admin or plan privileges — just unlimited usage so testing doesn't count against real limits.
 const TEST_ACCOUNTS = new Set((process.env.TEST_ACCOUNTS || '').split(',').map(e => e.trim()).filter(Boolean));
 function planFor(email, dbTier) { return FREE_TOP_PLAN_EMAILS.has(email) ? 'x20' : (dbTier || 'free'); }
 
