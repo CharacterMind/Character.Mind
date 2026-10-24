@@ -238,8 +238,8 @@ const PLAN_DATA = [
       'Opas & Opes: quick-witted, weirdly capable, zero fluff',
       'Every character unlocked — no velvet rope',
       'Up to ~7 messages per session (token-limited)',
-      '10 regenerations per day · 3 image uploads per day',
-      'Up to 6 calls per day · 50 memos per day',
+      'Up to 10 regenerations per day · up to 3 image uploads per day',
+      'Up to 6 calls per day · up to 50 memos per day',
     ],
   },
   {
@@ -249,8 +249,8 @@ const PLAN_DATA = [
       'Opis: sharper logic, built for mystery, never loses the thread',
       'Opos: plays GM — runs the whole room, drives plot, voices every NPC',
       'Up to ~21 messages per session — 3× free',
-      '30 regenerations per day · 9 image uploads per day',
-      '18 calls per day · 150 memos per day',
+      'Up to 30 regenerations per day · up to 9 image uploads per day',
+      'Up to 18 calls per day · up to 150 memos per day',
       'Everything in Free',
     ],
   },
@@ -260,9 +260,9 @@ const PLAN_DATA = [
     features: [
       'Opus: proper emotional weight — subtext, inner conflict, the whole thing',
       'Up to ~140 messages per session — 20× free',
-      '200 regenerations per day — 20× free',
-      '120 calls per day · 60 image uploads per day',
-      '1,000 memos per day',
+      'Up to 200 regenerations per day — 20× free',
+      'Up to 120 calls per day · up to 60 image uploads per day',
+      'Up to 1,000 memos per day',
       'Everything in Advanced',
     ],
   },
@@ -272,8 +272,8 @@ const PLAN_DATA = [
     features: [
       'Opys: plans the scene before it writes it — tension beats, pacing, full arcs',
       'Replies run 1.9× longer with multi-chapter stamina',
-      '300 calls per day · 150 image uploads per day · 2,500 memos per day',
-      '500 regenerations per day — 50× free',
+      'Up to 300 calls · up to 150 image uploads · up to 2,500 memos per day',
+      'Up to 500 regenerations per day — 50× free',
       'Everything in X20',
     ],
   },
@@ -284,8 +284,8 @@ const PLAN_DATA = [
       'Opys 5: the flagship model, gated here on purpose',
       '3.5× longer replies with multi-pass refinement — it rewrites itself until it\'s right',
       '⚡ Ultra Code: ships real production code for Unity, Roblox, and web — not pseudocode',
-      '600 calls per day · 300 image uploads per day · 5,000 memos per day',
-      '1,000 regenerations per day — 100× free',
+      'Up to 600 calls · up to 300 image uploads · up to 5,000 memos per day',
+      'Up to 1,000 regenerations per day — 100× free',
       'Everything in X50',
     ],
   },
@@ -297,8 +297,8 @@ const PLAN_DATA = [
       '5× longer replies with cinematic depth most models can\'t approach',
       '⚡ Ultra Code at full scale — pipelines, multi-system architecture, the works',
       'World-building mode: lore, faction maps, and character arcs that survive every session',
-      '1,200 calls per day · 600 image uploads per day · 10,000 memos per day',
-      '2,000 regenerations per day — 200× free',
+      'Up to 1,200 calls · up to 600 image uploads · up to 10,000 memos per day',
+      'Up to 2,000 regenerations per day — 200× free',
       'Everything in X100',
     ],
   },
@@ -5752,19 +5752,41 @@ function updateUsageModal(u) {
     if (subEl && subText !== undefined) subEl.textContent = subText;
   }
 
-  // Calls — coin-based, no daily count limit
+  // Calls
   const callsToday = u.callsToday || 0;
-  setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', 0,
-    `No daily limit · costs coins per response + per minute of call time`, false);
+  const callsLimit = u.callsLimit || 6;
+  const callsPct = callsLimit > 0 ? Math.min(100, Math.round(callsToday / callsLimit * 100)) : 0;
+  setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct,
+    `${callsToday} / ${callsLimit} today (up to ${callsLimit})`, false);
 
-  // Memos — coin-based, no daily count limit
+  // Memos
   const memosToday = u.memosToday || 0;
-  setBar('usageMemosBar', 'usageMemosPct', 'usageMemosSub', 0,
-    `No daily limit · costs coins based on message length`, false);
+  const memosLimit = u.memosLimit || 50;
+  const memosPct = memosLimit > 0 ? Math.min(100, Math.round(memosToday / memosLimit * 100)) : 0;
+  setBar('usageMemosBar', 'usageMemosPct', 'usageMemosSub', memosPct,
+    `${memosToday} / ${memosLimit} today (up to ${memosLimit})`, false);
 
-  // Images — coin-based, no daily count limit
-  setBar('usageImagesBar', 'usageImagesPct', 'usageImagesSub', 0,
-    `No daily limit · costs coins based on image file size`, false);
+  // Images
+  const imagesDay = u.imagesDay || 0;
+  const imageLimit = u.imageLimit || 3;
+  const imagesPct = imageLimit > 0 ? Math.min(100, Math.round(imagesDay / imageLimit * 100)) : 0;
+  setBar('usageImagesBar', 'usageImagesPct', 'usageImagesSub', imagesPct,
+    `${imagesDay} / ${imageLimit} today (up to ${imageLimit})`, false);
+
+  // Messages (estimated from session tokens)
+  const AVG_MSG_TOKENS = 3600;
+  const msgsUsed = Math.floor((u.sessionTokens || 0) / AVG_MSG_TOKENS);
+  const msgsMax  = Math.max(1, Math.floor((u.sessionLimit || 25000) / AVG_MSG_TOKENS));
+  const msgsPct  = Math.min(100, Math.round(msgsUsed / msgsMax * 100));
+  setBar('usageMsgBar', 'usageMsgPct', 'usageMsgSub', msgsPct,
+    `~${msgsUsed} used · up to ~${msgsMax} this session`, false);
+
+  // Regenerations
+  const regenToday = u.regenCount || 0;
+  const regenLimit = u.regenLimit || 10;
+  const regenPct = regenLimit > 0 ? Math.min(100, Math.round(regenToday / regenLimit * 100)) : 0;
+  setBar('usageRegenBar', 'usageRegenPct', 'usageRegenSub', regenPct,
+    `${regenToday} / ${regenLimit} today (up to ${regenLimit})`, false);
 
   // Daily resets subtitle
   const dailyResetsEl = document.getElementById('usageDailyResetsSub');
