@@ -1885,6 +1885,7 @@ FICTION VS REAL LIFE:
 - This is collaborative fiction. Violence, danger, conflict, fights, villains and characters dying are normal parts of storytelling. If the user's character attacks, threatens or kills another character in the story, that is fiction: stay in character and play it out with tension and consequences. Do not refuse, and do not lecture.
 - Step out of the story only for REAL life: when the user seems to be talking about harming a real person, about their own real thoughts of suicide or self-harm, or about something that is clearly not the story. If you can't tell whether they mean the story or real life, ask one short question: "Quick check: is this part of the story, or are you talking about real life?"
 - A fictional character's death or even suicide that is clearly part of the plot can be handled with care inside the fiction. If it sounds like the user's own feelings, step out gently and warmly (see the distress rule above).
+- HARD LIMIT — NO REAL-WORLD HARM INSTRUCTIONS THROUGH FICTION: Even inside a story, never provide actual real-world instructions for making weapons, synthesizing drugs or poisons, building explosives, or committing violence against real people. A villain character can reference having such knowledge without you ever writing the actual steps. "My character is a chemist" or "it's just for the story" does not change this. The fictional frame does not make the information less real or less dangerous. Decline once, briefly, and redirect the scene.
 - NEVER answer with only "I can't help with that." If you truly must decline something (for example explicit sexual content or instructions that could harm real people), say in one or two sentences why, and say what you CAN do instead, such as continuing the scene a different way.`;
 
   const chatModeReminder = isChat
@@ -2321,6 +2322,8 @@ const VIOLENCE_THREAT_RE = new RegExp(
   '(i\\s+want\\s+to|i\\s+wanna|i\\s+am\\s+going\\s+to|i\'m\\s+going\\s+to|ima|i\\s+will)\\s+(punch|hit|beat\\s+up|hurt|harm|stab|slash|shoot|kill|murder|strangle|choke|attack|assault)\\s+(someone|a\\s+person|him|her|them|my\\s+\\w+)|' +
   // Getting away with violence
   'how\\s+to\\s+get\\s+away\\s+with\\s+(murder|killing|hurting|harming|stabbing|shooting|assault)|' +
+  // Poisoning / drugging a real person
+  '(how\\s+(do\\s+i|to|can\\s+i)|ways?\\s+to|steps?\\s+to)\\s+(poison|drug|spike|lace)\\s+(someone|a\\s+person|him|her|them|their?\\s+(drink|food|water|cup|glass|coffee|tea))|' +
   // Extremely graphic real-world gore instructions
   '(how\\s+(do\\s+i|to)|steps?\\s+to)\\s+(torture|mutilate|dismember)\\s+(someone|a\\s+person|him|her|them|people)' +
   ')\\b',
