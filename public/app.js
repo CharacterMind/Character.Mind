@@ -5127,38 +5127,6 @@ async function buySessionPack(pack) {
   }
 }
 
-async function adminLoadServiceCoins() {
-  if (!isOwner()) return;
-  const el = document.getElementById('serviceCoinsDisplay');
-  if (!el) return;
-  try {
-    const d = await fetch('/api/admin/service-coins').then(r => r.json());
-    const bal = d.coins === null ? '∞' : d.coins.toLocaleString();
-    el.textContent = `Balance: ${bal} coins`;
-    el.style.color = (d.coins !== null && d.coins < 500) ? '#ef4444' : 'var(--accent-l)';
-  } catch (_) { el.textContent = 'Balance: error'; }
-}
-
-async function adminAddServiceCoins() {
-  if (!isOwner()) return;
-  const inp = document.getElementById('serviceCoinsAmount');
-  const statusEl = document.getElementById('serviceCoinsStatus');
-  const amount = parseInt(inp?.value);
-  if (!amount || amount <= 0) { if (statusEl) statusEl.textContent = 'Enter a valid amount.'; return; }
-  const btn = document.getElementById('serviceCoinsAddBtn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
-  if (statusEl) statusEl.textContent = '';
-  try {
-    const d = await fetch('/api/admin/service-coins/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount }) }).then(r => r.json());
-    if (d.ok) {
-      if (statusEl) statusEl.textContent = `Done ✓ New balance: ${d.coins.toLocaleString()} coins`;
-      if (inp) inp.value = '';
-      await adminLoadServiceCoins();
-    } else { if (statusEl) statusEl.textContent = d.error || 'Failed.'; }
-  } catch (_) { if (statusEl) statusEl.textContent = 'Network error.'; }
-  if (btn) { btn.disabled = false; btn.textContent = 'Add Coins'; }
-}
-
 async function doDailyCheckin() {
   try {
     const r = await fetch('/api/checkin', { method: 'POST' });
@@ -6136,7 +6104,6 @@ async function openUsageModal() {
   document.getElementById('usageModal').style.display = 'flex';
   const wrap = document.getElementById('resetLimitsWrap');
   if (wrap) wrap.hidden = !isOwner();
-  if (isOwner()) adminLoadServiceCoins();
   // Wire donation URL from constant; hide the row for the owner (they know it exists)
   const donateBtn = document.getElementById('usageDonateBtn');
   if (donateBtn) donateBtn.href = DONATION_URL;
@@ -7839,9 +7806,7 @@ async function startCallMode() {
     if (!r.ok) {
       const data = await r.json().catch(() => ({}));
       callStarting = false;
-      if (r.status === 503 || data.type === 'service_offline') {
-        showCallLimitModal(null, 'service_offline');
-      } else if (r.status === 429) {
+      if (r.status === 429) {
         showCallLimitModal(data.cooldownUntil || Date.now() + 3600000);
       }
       return;
@@ -8074,17 +8039,11 @@ function showCallLimitModal(resetsAt, reason) {
   const headEl = document.getElementById('callLimitHeadline');
   const subEl = document.getElementById('callLimitSub');
   const msgEl = document.getElementById('callLimitCharMsg');
-  if (reason === 'service_offline') {
-    if (headEl) headEl.textContent = 'Service is currently offline.';
-    if (subEl) subEl.textContent = 'The service will return once coins are refilled.';
-    if (msgEl) msgEl.textContent = '';
-  } else {
-    if (headEl) headEl.textContent = 'Voice calls unavailable right now.';
-    if (subEl) subEl.textContent = '';
-    if (msgEl) msgEl.textContent = CALL_LIMIT_MESSAGES[Math.floor(Math.random() * CALL_LIMIT_MESSAGES.length)];
-  }
+  if (headEl) headEl.textContent = 'Voice calls unavailable right now.';
+  if (subEl) subEl.textContent = '';
+  if (msgEl) msgEl.textContent = CALL_LIMIT_MESSAGES[Math.floor(Math.random() * CALL_LIMIT_MESSAGES.length)];
   let cdEl = null;
-  if (subEl && resetsAt && reason !== 'service_offline') {
+  if (subEl && resetsAt) {
     subEl.textContent = 'Resets in ';
     const span = document.createElement('span');
     span.className = 'call-limit-countdown';

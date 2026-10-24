@@ -439,7 +439,6 @@ if (db) {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `).catch(err => console.error('app_config table init error:', err));
-  initServiceCoins().catch(e => console.error('[service-coins] startup error:', e.message));
   initMissionMult().catch(e => console.error('[mission-mult] startup error:', e.message));
 
   db.query(`
@@ -1459,30 +1458,17 @@ const CALL_TOKEN_MIN = 1500;          // minimum per call (~10 short calls per f
 
 // ── Usage-based coin cost calculator ─────────────────────────────────────────
 // Costs scale with actual usage: response length, model tier, image size, etc.
-// side: 'service' (owner pool) or 'user' (per-user balance)
-// type: 'chat' | 'call' | 'image' | 'memo' | 'call_duration' | 'game'
+// type: 'chat' | 'call' | 'image' | 'memo' | 'call_duration'
 const COST_MODEL_MULT = { opes: 1, opis: 1.3, opos: 1.6, opus: 2.5, opys: 4, opys5: 7, opys6: 12 };
-function calcCost(side, type, { textLen = 0, imageSizeBytes = 0, modelTier = 'opes', durationSecs = 0 } = {}) {
+function calcCost(_side, type, { textLen = 0, imageSizeBytes = 0, modelTier = 'opes', durationSecs = 0 } = {}) {
   const mult = COST_MODEL_MULT[modelTier] || 1;
-  if (side === 'service') {
-    switch (type) {
-      case 'chat':          return Math.max(2,  Math.min(100, Math.round(Math.ceil(textLen / 30) * mult)));
-      case 'call':          return Math.max(3,  Math.min(80,  Math.round(Math.ceil(textLen / 20) * mult)));
-      case 'image':         return Math.max(5,  Math.min(80,  Math.ceil(imageSizeBytes / 5000)));
-      case 'memo':          return Math.max(1,  Math.min(30,  Math.ceil(textLen / 60)));
-      case 'call_duration': return Math.max(0,  Math.ceil(durationSecs / 60));
-      case 'game':          return 2;
-      default:              return 1;
-    }
-  } else {
-    switch (type) {
-      case 'chat':          return Math.max(8,  Math.min(200, Math.round(Math.ceil(textLen / 15) * mult)));
-      case 'call':          return Math.max(10, Math.min(150, Math.round(Math.ceil(textLen / 10) * mult)));
-      case 'image':         return Math.max(20, Math.min(150, Math.ceil(imageSizeBytes / 7000)));
-      case 'memo':          return Math.max(5,  Math.min(60,  Math.ceil(textLen / 40)));
-      case 'call_duration': return Math.max(0,  Math.ceil(durationSecs / 60));
-      default:              return 5;
-    }
+  switch (type) {
+    case 'chat':          return Math.max(8,  Math.min(200, Math.round(Math.ceil(textLen / 15) * mult)));
+    case 'call':          return Math.max(10, Math.min(150, Math.round(Math.ceil(textLen / 10) * mult)));
+    case 'image':         return Math.max(20, Math.min(150, Math.ceil(imageSizeBytes / 7000)));
+    case 'memo':          return Math.max(5,  Math.min(60,  Math.ceil(textLen / 40)));
+    case 'call_duration': return Math.max(0,  Math.ceil(durationSecs / 60));
+    default:              return 5;
   }
 }
 
@@ -1492,61 +1478,6 @@ function earnMult(userId) {
   const tier = userLimits[userId]?.subscriptionTier || 'free';
   return TIER_EARN_MULT[tier] ?? 1;
 }
-let serviceCoinsBal = null; // null = loading; Infinity = dev/no-DB (unlimited)
-let ownerCachedGid = null; // owner's google_id, resolved at startup so deductions work before first login
-
-async function initServiceCoins() {
-  if (!db) { serviceCoinsBal = Infinity; return; }
-  try {
-    const ownerEmail = [...OWNER_EMAILS][0];
-    if (ownerEmail) {
-      const r = await db.query('SELECT google_id, cm_coins FROM users WHERE email = $1', [ownerEmail]);
-      if (r.rows.length) {
-        ownerCachedGid = r.rows[0].google_id;
-        serviceCoinsBal = Math.max(0, parseInt(r.rows[0].cm_coins) || 0);
-        console.log('[service-coins] Owner balance:', serviceCoinsBal);
-        return;
-      }
-    }
-    // Owner not registered yet — read legacy app_config value as fallback
-    const rc = await db.query("SELECT value FROM app_config WHERE key='service_coins'");
-    serviceCoinsBal = rc.rows.length ? (parseInt(rc.rows[0].value) || 0) : 0;
-    console.log('[service-coins] Balance (no owner row yet):', serviceCoinsBal);
-  } catch (e) { serviceCoinsBal = Infinity; console.error('[service-coins] init error:', e.message); }
-}
-
-function isServiceOnline() {
-  return serviceCoinsBal === null || serviceCoinsBal === Infinity || serviceCoinsBal > 0;
-}
-
-function deductServiceCoins(amount) {
-  if (serviceCoinsBal === null || serviceCoinsBal === Infinity || !db) return;
-  serviceCoinsBal = Math.max(0, serviceCoinsBal - amount);
-  const gid = ownerCachedGid || [...ownerGoogleIds][0];
-  if (!gid) return;
-  db.query(
-    'UPDATE users SET cm_coins = GREATEST(0, cm_coins - $1) WHERE google_id = $2',
-    [amount, gid]
-  ).catch(e => console.error('[service-coins] save error:', e.message));
-  // Keep in-memory limits in sync so nav coin display stays accurate
-  const lim = userLimits[gid];
-  if (lim) lim.cmCoins = Math.max(0, (lim.cmCoins || 0) - amount);
-}
-
-async function addServiceCoinsBalance(amount) {
-  if (!db) return;
-  if (serviceCoinsBal === null) await initServiceCoins();
-  const gid = ownerCachedGid || [...ownerGoogleIds][0];
-  if (!gid) return;
-  if (serviceCoinsBal !== Infinity) serviceCoinsBal = (serviceCoinsBal || 0) + amount;
-  await db.query(
-    'UPDATE users SET cm_coins = cm_coins + $1 WHERE google_id = $2',
-    [amount, gid]
-  );
-  const lim = userLimits[gid];
-  if (lim) lim.cmCoins = (lim.cmCoins || 0) + amount;
-}
-
 // ── Mission Reward Multiplier ─────────────────────────────────────────────────
 let missionRewardMult = 1; // owner-configurable reward multiplier (e.g. 2 = double coins)
 
@@ -3627,9 +3558,6 @@ app.get('/api/exchange-rates', charReadLimiter, async (req, res) => {
 
 app.post('/api/call/start', requireAuth, (req, res) => {
   const userId = req.user.googleId;
-  if (!isServiceOnline() && !getLimits(userId).neverLimit) {
-    return res.status(503).json({ allowed: false, type: 'service_offline' });
-  }
   const sessionCheck = checkLimits(userId);
   if (sessionCheck.blocked) {
     return res.status(429).json({ allowed: false, type: sessionCheck.type, cooldownUntil: sessionCheck.cooldownUntil });
@@ -3651,9 +3579,8 @@ app.post('/api/call/end', requireAuth, (req, res) => {
   const rawCost = Math.max(CALL_TOKEN_MIN, Math.ceil(duration * CALL_TOKENS_PER_SECOND));
   const callTokenCost = tier === 'free' ? CALL_TOKEN_MIN : rawCost;
   const usage = addTokens(userId, callTokenCost);
-  // Deduct coins for call duration (variable — 1 coin per minute for service, same for user)
+  // Deduct user coins for call duration (variable — 1 coin per minute)
   const durOpts = { durationSecs: duration };
-  if (!getLimits(userId).neverLimit) deductServiceCoins(calcCost('service', 'call_duration', durOpts));
   if (!getLimits(userId).skipCoinDeduct) deductCoinsSync(userId, calcCost('user', 'call_duration', durOpts));
   trackMissionProgress(userId, 'call').catch(() => {});
   res.json({ ok: true, ...usage });
@@ -4038,7 +3965,6 @@ app.post('/api/memo/use', requireAuth, (req, res) => {
   u.memosToday = (u.memosToday || 0) + 1;
   addTokens(userId, 300);
   const memoOpts = { textLen };
-  if (!getLimits(userId).neverLimit) deductServiceCoins(calcCost('service', 'memo', memoOpts));
   if (!getLimits(userId).skipCoinDeduct) deductCoinsSync(userId, calcCost('user', 'memo', memoOpts));
   res.json({ allowed: true, memosToday: u.memosToday });
 });
@@ -4386,32 +4312,6 @@ app.post('/api/admin/wipe-my-data', requireAuth, async (req, res) => {
     ]).catch(() => {});
   }
   res.json({ ok: true });
-});
-
-// Service coin balance — owner reads and tops up (now backed by owner's cmCoins)
-app.get('/api/admin/service-coins', requireAuth, async (req, res) => {
-  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
-  const gid = ownerCachedGid || req.user.googleId;
-  if (db && gid) {
-    try {
-      if (!ownerCachedGid) ownerCachedGid = gid;
-      const r = await db.query('SELECT cm_coins FROM users WHERE google_id = $1', [gid]);
-      if (r.rows.length) {
-        const bal = Math.max(0, parseInt(r.rows[0].cm_coins) || 0);
-        serviceCoinsBal = bal; // keep in-memory cache in sync
-        return res.json({ coins: bal });
-      }
-    } catch (_) {}
-  }
-  res.json({ coins: serviceCoinsBal === Infinity ? null : (serviceCoinsBal || 0) });
-});
-
-app.post('/api/admin/service-coins/add', requireAuth, async (req, res) => {
-  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
-  const amount = parseInt(req.body.amount);
-  if (!Number.isInteger(amount) || amount <= 0 || amount > 500000) return res.status(400).json({ error: 'Invalid amount' });
-  await addServiceCoinsBalance(amount);
-  res.json({ ok: true, coins: serviceCoinsBal });
 });
 
 app.get('/api/admin/mission-mult', requireAuth, (req, res) => {
@@ -5345,9 +5245,6 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     const limit = checkLimits(userId);
     if (limit.blocked) return res.status(429).json({ error: limit.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limit });
   }
-  if (!isServiceOnline() && !getLimits(userId).neverLimit) {
-    return res.status(503).json({ error: 'service_offline', message: 'The service is temporarily unavailable. Please check back soon.' });
-  }
   const releaseSlot = acquireChatSlot(req, res, userId);
   if (!releaseSlot) return;
 
@@ -5401,7 +5298,6 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     }
     // Charge coins for image — variable cost based on image size
     const imgOpts = { imageSizeBytes: imgSizeBytes };
-    if (!getLimits(userId).neverLimit) deductServiceCoins(calcCost('service', 'image', imgOpts));
     if (!getLimits(userId).skipCoinDeduct) deductCoinsSync(userId, calcCost('user', 'image', imgOpts));
   }
 
@@ -5630,11 +5526,6 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       if (!getLimits(userId).skipCoinDeduct) {
         const type = callMode ? 'call' : 'chat';
         deductCoinsSync(userId, calcCost('user', type, { textLen: (text || '').length, modelTier }));
-      }
-      // Deduct service coins — variable cost based on response length and model
-      if (!getLimits(userId).neverLimit) {
-        const type = callMode ? 'call' : 'chat';
-        deductServiceCoins(calcCost('service', type, { textLen: (text || '').length, modelTier }));
       }
       return _swearBudgetJustHit ? { swearBudgetHit: true } : {};
     },
@@ -6796,7 +6687,6 @@ app.post('/api/game/played', requireAuth, async (req, res) => {
   try {
     const uid = req.user.googleId;
     const result = addTokens(uid, GAME_PLAY_TOKENS);
-    if (!getLimits(uid).neverLimit) deductServiceCoins(SERVICE_COIN_COSTS.game);
     trackMissionProgress(uid, 'game').catch(() => {});
     res.json(result);
   } catch (e) { console.error('[game/played]', e.message); res.status(500).json({ error: 'Server error' }); }
