@@ -5757,21 +5757,21 @@ function updateUsageModal(u) {
   const callsLimit = u.callsLimit || 6;
   const callsPct = callsLimit > 0 ? Math.min(100, Math.round(callsToday / callsLimit * 100)) : 0;
   setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct,
-    `${callsToday} / ${callsLimit} today (up to ${callsLimit})`, false);
+    `${callsToday} of ${callsLimit} used today · Up to ${callsLimit} calls per day · Each call counts toward your session token limit`, false);
 
   // Memos
   const memosToday = u.memosToday || 0;
   const memosLimit = u.memosLimit || 50;
   const memosPct = memosLimit > 0 ? Math.min(100, Math.round(memosToday / memosLimit * 100)) : 0;
   setBar('usageMemosBar', 'usageMemosPct', 'usageMemosSub', memosPct,
-    `${memosToday} / ${memosLimit} today (up to ${memosLimit})`, false);
+    `${memosToday} of ${memosLimit} used today · Up to ${memosLimit} memos per day · Each memo counts toward your session token limit`, false);
 
   // Images
   const imagesDay = u.imagesDay || 0;
   const imageLimit = u.imageLimit || 3;
   const imagesPct = imageLimit > 0 ? Math.min(100, Math.round(imagesDay / imageLimit * 100)) : 0;
   setBar('usageImagesBar', 'usageImagesPct', 'usageImagesSub', imagesPct,
-    `${imagesDay} / ${imageLimit} today (up to ${imageLimit})`, false);
+    `${imagesDay} of ${imageLimit} used today · Up to ${imageLimit} image uploads per day · Each image counts toward your session token limit`, false);
 
   // Messages (estimated from session tokens)
   const AVG_MSG_TOKENS = 3600;
