@@ -568,6 +568,11 @@ let currentCheckoutPlan = null;
 let currentCheckoutEffective = 0;
 function handleUpgradeCta(planKey) {
   if (planKey === 'free' || !planBuyable(planKey)) return;
+  if (!currentUser) {
+    closePricingModal();
+    showWarning('Please sign in first to subscribe to a plan.');
+    return;
+  }
   openPaypalCheckout(planKey, yearlyAvailable && pricingPeriod === 'annual' ? 'annual' : 'monthly');
 }
 
@@ -666,9 +671,15 @@ async function openPaypalCheckout(planKey, period) {
 
   if (effective === 0) return; // no payment SDK needed
 
+  // Show loading placeholder while PayPal button renders
+  const ppContainer = document.getElementById('paypal-button-container');
+  if (ppContainer && !paypalSdkLoaded) {
+    ppContainer.innerHTML = '<div style="height:44px;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.4);font-size:13px">Loading PayPal…</div>';
+  }
+
   if (!paypalSdkLoaded && !paypalSdkLoading) {
     paypalSdkLoading = true;
-    document.getElementById('paypal-checkout-status').textContent = 'Loading payment system…';
+    document.getElementById('paypal-checkout-status').textContent = '';
     try {
       const cfg = await fetch('/api/paypal/config').then(r => r.json());
       if (cfg && cfg.planIds) Object.assign(PAYPAL_PLAN_IDS, cfg.planIds);
@@ -5227,6 +5238,33 @@ async function adminSetMissionMult() {
   } catch (_) { if (statusEl) statusEl.textContent = 'Network error.'; }
   if (btn) { btn.disabled = false; btn.textContent = 'Set Multiplier'; }
 }
+
+async function adminSetSlotsWinRate(clear = false) {
+  if (!isOwner()) return;
+  const email = document.getElementById('slotsWinEmail')?.value?.trim();
+  if (!email) { showWarning('Enter the user email first.'); return; }
+  const rate = clear ? null : parseInt(document.getElementById('slotsWinRate')?.value, 10);
+  if (!clear && (isNaN(rate) || rate < 0 || rate > 100)) { showWarning('Win rate must be 0–100.'); return; }
+  const statusEl = document.getElementById('slotsWinRateStatus');
+  const btnId = clear ? 'slotsWinRateClearBtn' : 'slotsWinRateBtn';
+  const btn = document.getElementById(btnId);
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  if (statusEl) statusEl.textContent = '';
+  try {
+    const d = await fetch('/api/admin/set-slots-winrate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetEmail: email, winRate: rate }),
+    }).then(r => r.json());
+    if (statusEl) statusEl.textContent = d.ok
+      ? (clear ? `✓ Reset to default (50%) for ${email}` : `✓ Win rate set to ${rate}% for ${email}`)
+      : `✗ ${d.error || 'Failed'}`;
+  } catch (_) {
+    if (statusEl) statusEl.textContent = '✗ Network error.';
+  }
+  if (btn) { btn.disabled = false; btn.textContent = clear ? 'Reset to Default ↺' : 'Set Win Rate 🎰'; }
+}
+
+async function adminClearSlotsWinRate() { adminSetSlotsWinRate(true); }
 
 async function adminResetLimits() {
   if (!isOwner()) return;

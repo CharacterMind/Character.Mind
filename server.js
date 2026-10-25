@@ -337,6 +337,8 @@ if (db) {
     .catch(err => console.error('Add last_checkin column error:', err));
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS checkin_streak INTEGER NOT NULL DEFAULT 0`)
     .catch(err => console.error('Add checkin_streak column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS slots_win_rate INTEGER DEFAULT NULL`)
+    .catch(err => console.error('Add slots_win_rate column error:', err));
 
   db.query(`
     CREATE TABLE IF NOT EXISTS user_limits (
@@ -770,7 +772,7 @@ async function ensureTierLoaded(user) {
   try {
     if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId); // admin tools; the plan comes from planFor()
     if (!db) { u.tierLoaded = true; return; }
-    const r = await db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, cm_tokens, coins_earned_today, coins_day_reset, coins_monthly_reset, coins_earned_all_time, ban_until, violence_strikes, last_checkin, checkin_streak FROM users WHERE google_id = $1', [user.googleId]);
+    const r = await db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, cm_tokens, coins_earned_today, coins_day_reset, coins_monthly_reset, coins_earned_all_time, ban_until, violence_strikes, last_checkin, checkin_streak, slots_win_rate FROM users WHERE google_id = $1', [user.googleId]);
     const row = r.rows[0] || {};
     u.paypalTier = planFor(user.email, row.subscription_tier);
     u.coinTier = row.coin_tier || null;
@@ -785,6 +787,7 @@ async function ensureTierLoaded(user) {
     u.banUntil = row.ban_until ? new Date(row.ban_until).getTime() : null;
     if (row.last_checkin) u.lastCheckin = row.last_checkin;
     if (row.checkin_streak) u.checkinStreak = parseInt(row.checkin_streak) || 0;
+    u.slotsWinRate = row.slots_win_rate != null ? Number(row.slots_win_rate) : null;
     u.subscriptionTier = effectiveTier(u);
     u.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email) || TEST_ACCOUNTS.has(user.email);
     u.skipCoinDeduct = TEST_ACCOUNTS.has(user.email) && !OWNER_EMAILS.has(user.email); // owner always drains coins even if in TEST_ACCOUNTS
@@ -1902,7 +1905,14 @@ FICTION VS REAL LIFE:
     ? `\n\n⚠ CHAT MODE REMINDER: Everything above (including any character description or roleplay instructions) is background context only — it does NOT set the mode of this conversation. This is casual real-life chat. No asterisk actions, no narration, no scene-setting. Speak naturally as a friendly companion.`
     : ``;
 
-  return `${chatModeOverride}${p}${chatModeReminder}
+  const now = new Date();
+  const dateTimeStr = now.toLocaleString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'UTC', timeZoneName: 'short'
+  });
+  const dateContext = `[SYSTEM CONTEXT — Current date and time: ${dateTimeStr}. Use this whenever the user asks what day, date, time, month, or year it is.]\n\n`;
+
+  return `${dateContext}${chatModeOverride}${p}${chatModeReminder}
 
 ${characterStance}
 
@@ -4391,6 +4401,32 @@ app.post('/api/admin/mission-mult', requireAuth, async (req, res) => {
     [String(missionRewardMult)]
   ).catch(e => console.error('[mission-mult] save error:', e.message));
   res.json({ ok: true, mult: missionRewardMult });
+});
+
+// Owner-only: set or clear a per-user slots win rate override (0–100, null = reset to default 50%)
+app.post('/api/admin/set-slots-winrate', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  if (!db) return res.status(503).json({ error: 'No database' });
+  const { targetEmail, winRate } = req.body || {};
+  const email = String(targetEmail || '').trim().toLowerCase();
+  if (!email) return res.status(400).json({ error: 'targetEmail required' });
+  const rate = (winRate === null || winRate === '' || winRate === undefined)
+    ? null
+    : parseInt(winRate, 10);
+  if (rate !== null && (isNaN(rate) || rate < 0 || rate > 100))
+    return res.status(400).json({ error: 'winRate must be 0–100 or null to reset' });
+  try {
+    const { rows } = await db.query('SELECT google_id FROM users WHERE LOWER(email)=$1', [email]);
+    if (!rows.length) return res.status(404).json({ error: 'User not found' });
+    const targetId = rows[0].google_id;
+    await db.query('UPDATE users SET slots_win_rate=$1 WHERE google_id=$2', [rate, targetId]);
+    getLimits(targetId).slotsWinRate = rate;
+    console.log(`[admin] slots-winrate: ${email} → ${rate ?? 'default'}`);
+    res.json({ ok: true, email, winRate: rate });
+  } catch (err) {
+    console.error('[set-slots-winrate]', err.message);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
 });
 
 // Which build is running. The page checks this now and then and offers a reload when the site has been updated,
@@ -7027,22 +7063,21 @@ app.post('/api/coins/gamble', requireAuth, async (req, res) => {
     const u = getLimits(uid);
     if ((u.cmTokens || 0) < bet) return res.status(400).json({ error: 'Not enough tokens', balance: u.cmTokens || 0 });
 
-    // 50% lose | 50% win breakdown:
-    //   20% pair (1x — bet returned)
-    //   18% 2x  (common)
-    //    7% 3x
-    //    3% 5x
-    //  1.5% 7x
-    //  0.5% 10x (rare)
+    // Default: 50% lose | 50% win. Owner can override win% per user via /api/admin/set-slots-winrate.
+    // Win tier proportions (of the win share): pair 40%, 2x 36%, 3x 14%, 5x 6%, 7x 3%, 10x 1%
     const rand = Math.random();
     let multiplier, reels;
-    if (rand < 0.50)       { multiplier = 0;  reels = loseReels(); }
-    else if (rand < 0.70)  { multiplier = 1;  reels = pairReels(); }
-    else if (rand < 0.88)  { multiplier = 2;  reels = ['🍒','🍒','🍒']; }
-    else if (rand < 0.95)  { multiplier = 3;  reels = ['🍋','🍋','🍋']; }
-    else if (rand < 0.98)  { multiplier = 5;  reels = ['🍇','🍇','🍇']; }
-    else if (rand < 0.995) { multiplier = 7;  reels = ['⭐','⭐','⭐']; }
-    else                   { multiplier = 10; reels = ['💎','💎','💎']; }
+    const loseCut = (typeof u.slotsWinRate === 'number')
+      ? Math.max(0, Math.min(1, (100 - u.slotsWinRate) / 100))
+      : 0.50;
+    const w = 1 - loseCut;
+    if (rand < loseCut)                    { multiplier = 0;  reels = loseReels(); }
+    else if (rand < loseCut + w * 0.40)   { multiplier = 1;  reels = pairReels(); }
+    else if (rand < loseCut + w * 0.76)   { multiplier = 2;  reels = ['🍒','🍒','🍒']; }
+    else if (rand < loseCut + w * 0.90)   { multiplier = 3;  reels = ['🍋','🍋','🍋']; }
+    else if (rand < loseCut + w * 0.96)   { multiplier = 5;  reels = ['🍇','🍇','🍇']; }
+    else if (rand < loseCut + w * 0.99)   { multiplier = 7;  reels = ['⭐','⭐','⭐']; }
+    else                                   { multiplier = 10; reels = ['💎','💎','💎']; }
 
     const winnings = Math.floor(bet * multiplier);
     u.cmTokens = (u.cmTokens || 0) - bet + winnings;
