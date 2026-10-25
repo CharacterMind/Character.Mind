@@ -10886,20 +10886,52 @@ async function claimHalloweenGift() {
     hwLogoObserver.observe(document.body, { childList: true, subtree: true });
   }
 
-  // ── Jump scares ─────────────────────────────────────────────────────────────
+  // ── Jump scares — 8 distinct types ─────────────────────────────────────────
   const SCARES = [
-    { emoji: '👻', boo: 'BOO!',                  speak: 'BOO' },
-    { emoji: '💀', boo: 'YOU\'RE DEAD.',          speak: 'You are dead' },
-    { emoji: '🎃', boo: 'MUAHAHAHA!',             speak: 'Muahahaha' },
-    { emoji: '🧟', boo: 'BRAINSSS...',            speak: 'Braaains' },
-    { emoji: '🧛', boo: 'I VANT YOUR SOUL.',      speak: 'I vant your soul' },
-    { emoji: '🕷️', boo: 'EIGHT LEGS. ONE YOU.',   speak: 'Eight legs. One you.' },
-    { emoji: '👁️', boo: 'I SEE YOU.',             speak: 'I see you' },
-    { emoji: '😈', boo: 'WELCOME TO HELL.',       speak: 'Welcome to hell' },
-    { emoji: '⚰️', boo: 'YOUR TIME IS UP.',       speak: 'Your time is up' },
-    { emoji: '🩸', boo: 'RUN.',                   speak: 'Run' },
-    { emoji: '🗡️', boo: 'NO ESCAPE.',             speak: 'No escape' },
-    { emoji: '🌑', boo: 'THE DARK HAS COME.',     speak: 'The dark has come' },
+    // ── Demon face slamdowns (original style) ──────────────────────────────
+    { type: 'face', boo: 'BOO!',                 speak: 'BOO' },
+    { type: 'face', boo: "YOU'RE DEAD.",         speak: 'You are dead' },
+    { type: 'face', boo: 'MUAHAHAHA!',           speak: 'Muahahaha' },
+    { type: 'face', boo: 'BRAINSSS...',          speak: 'Braaains' },
+    { type: 'face', boo: "I VANT YOUR SOUL.",    speak: 'I vant your soul' },
+    { type: 'face', boo: 'EIGHT LEGS. ONE YOU.', speak: 'Eight legs. One you.' },
+    { type: 'face', boo: 'I SEE YOU.',           speak: 'I see you' },
+    { type: 'face', boo: 'WELCOME TO HELL.',     speak: 'Welcome to hell' },
+    { type: 'face', boo: 'YOUR TIME IS UP.',     speak: 'Your time is up' },
+    { type: 'face', boo: 'RUN.',                 speak: 'Run' },
+    { type: 'face', boo: 'NO ESCAPE.',           speak: 'No escape' },
+    { type: 'face', boo: 'THE DARK HAS COME.',   speak: 'The dark has come' },
+    // ── Giant emoji zoom-slam ───────────────────────────────────────────────
+    { type: 'emoji', emoji: '👻', boo: 'BOO!',             speak: 'BOO' },
+    { type: 'emoji', emoji: '🕷️', boo: 'GOT YOU.',         speak: 'Got you' },
+    { type: 'emoji', emoji: '💀', boo: 'DEAD.',             speak: 'Dead' },
+    { type: 'emoji', emoji: '🎃', boo: 'TRICK OR TREAT!',  speak: 'Trick or treat' },
+    { type: 'emoji', emoji: '🦇', boo: 'NOWHERE TO HIDE.', speak: 'Nowhere to hide' },
+    { type: 'emoji', emoji: '🕸️', boo: 'TRAPPED.',         speak: 'Trapped' },
+    { type: 'emoji', emoji: '🧛', boo: 'DINNER TIME.',     speak: 'Dinner time' },
+    { type: 'emoji', emoji: '🧟', boo: 'BRAINSSS...',      speak: 'Braaains' },
+    // ── TV static (canvas noise) ────────────────────────────────────────────
+    { type: 'static', boo: 'SIGNAL LOST.',              speak: 'Signal lost' },
+    { type: 'static', boo: 'THEY FOUND YOU.',           speak: 'They found you' },
+    { type: 'static', boo: 'TRANSMISSION INTERRUPTED.', speak: 'Transmission interrupted' },
+    // ── Blackout + lightning reveal ─────────────────────────────────────────
+    { type: 'dark', boo: 'HELLO THERE.',        speak: 'Hello there' },
+    { type: 'dark', boo: 'LOOK BEHIND YOU.',    speak: 'Look behind you' },
+    { type: 'dark', boo: 'THE LIGHTS ARE OUT.', speak: 'The lights are out' },
+    // ── Eyes closing in from all edges ─────────────────────────────────────
+    { type: 'eyes', boo: 'WATCHING.',             speak: 'Watching' },
+    { type: 'eyes', boo: "I'VE BEEN HERE.",       speak: "I've been here" },
+    { type: 'eyes', boo: 'YOU WERE NEVER ALONE.', speak: 'You were never alone' },
+    // ── Huge text crawls up from bottom ────────────────────────────────────
+    { type: 'crawl', boo: 'GETTING CLOSER...', speak: 'Getting closer' },
+    { type: 'crawl', boo: 'GOTCHA.',            speak: 'Gotcha' },
+    { type: 'crawl', boo: 'I AM ALREADY HERE.', speak: 'I am already here' },
+    // ── Spider drops from ceiling ───────────────────────────────────────────
+    { type: 'spider', boo: 'HELLO FRIEND.', speak: 'Hello friend' },
+    { type: 'spider', boo: 'EIGHT LEGS.',   speak: 'Eight legs' },
+    // ── Page possession / invert ────────────────────────────────────────────
+    { type: 'possession', boo: 'YOU CANNOT RUN.',        speak: 'You cannot run' },
+    { type: 'possession', boo: 'I LIVE IN YOUR SCREEN.', speak: 'I live in your screen' },
   ];
 
   // ── HORROR SOUND — sustained screech + bone-crushing bass + demon roar ────────
@@ -11310,17 +11342,12 @@ async function claimHalloweenGift() {
   function doJumpScare() {
     _scareTimer = null;
     if (hwPaused || !hwScares) return;
-    // Tab is hidden (user switched away, minimized, etc.) — don't scare into the void;
-    // reschedule so the scare fires only when they're actually looking at the page.
     if (document.hidden) return scheduleNextScare();
     const s = SCARES[Math.floor(Math.random() * SCARES.length)];
 
-    // Sound fires INSTANTLY
     hwScareSound();
-    // Demon speaks 100ms after the initial BOOM lands
     setTimeout(() => hwDemonSpeak(s.speak), 100);
 
-    // 3 rapid white screen flashes — strobe before the face slams in
     function flashScreen(count) {
       if (count <= 0) return;
       const f = document.createElement('div');
@@ -11329,50 +11356,241 @@ async function claimHalloweenGift() {
       setTimeout(() => { f.style.transition='opacity 0.04s'; f.style.opacity='0'; setTimeout(() => f.remove(), 55); }, 35);
       if (count > 1) setTimeout(() => flashScreen(count - 1), 85);
     }
-    flashScreen(3);
 
-    // Body shake + blood vignette
-    document.body.classList.add('hw-screaming');
-
-    // Glitch overlay — rapid channel-split flicker
-    const glitch = document.createElement('div');
-    glitch.className = 'hw-glitch-overlay';
-    document.body.appendChild(glitch);
-    let flickers = 0;
-    const flickerInterval = setInterval(() => {
-      glitch.style.opacity = Math.random() > 0.28 ? String(0.18 + Math.random() * 0.5) : '0';
-      glitch.style.transform = Math.random() > 0.7
-        ? `translateX(${(Math.random() - 0.5) * 14}px)`
-        : 'none';
-      if (++flickers > 22) clearInterval(flickerInterval);
-    }, 50);
-
-    // Spawn eyes
-    const eyes = hwSpawnEyes();
-
-    // Main overlay — full screen, face slams from center
-    const el = document.createElement('div');
-    el.className = 'hw-jump-scare';
-    el.innerHTML = `<div class="hw-js-inner"><div class="hw-js-face">${hwDemonFaceSVG()}</div><div class="hw-js-boo">${s.boo}</div></div>`;
-    document.body.appendChild(el);
-
-    // Activate on next frame so CSS animation fires cleanly
-    requestAnimationFrame(() => {
-      el.classList.add('hw-scare-active');
-
-      // Dismiss after 2.5s — longer than before so the dread really sets in
-      setTimeout(() => {
-        el.classList.remove('hw-scare-active');
-        el.classList.add('hw-scare-out');
-        clearInterval(flickerInterval);
-        glitch.style.opacity = '0';
-        document.body.classList.remove('hw-screaming');
-        eyes.forEach(e => { e.style.opacity = '0'; setTimeout(() => e.remove(), 400); });
-        setTimeout(() => { el.remove(); glitch.remove(); window.speechSynthesis?.cancel(); }, 600);
-      }, 2500);
-    });
+    const type = s.type || 'face';
+    if      (type === 'face')       _scareFace(s);
+    else if (type === 'emoji')      _scareEmoji(s);
+    else if (type === 'static')     _scareStatic(s);
+    else if (type === 'dark')       _scareDark(s);
+    else if (type === 'eyes')       _scareEyes(s);
+    else if (type === 'crawl')      _scareCrawl(s);
+    else if (type === 'spider')     _scareSpider(s);
+    else if (type === 'possession') _scarePossession(s);
+    else                            _scareFace(s);
 
     scheduleNextScare();
+
+    // ── Renderer: demon face slam (original) ─────────────────────────────
+    function _scareFace(s) {
+      flashScreen(3);
+      document.body.classList.add('hw-screaming');
+      const glitch = document.createElement('div');
+      glitch.className = 'hw-glitch-overlay';
+      document.body.appendChild(glitch);
+      let flickers = 0;
+      const fi = setInterval(() => {
+        glitch.style.opacity = Math.random() > 0.28 ? String(0.18 + Math.random() * 0.5) : '0';
+        glitch.style.transform = Math.random() > 0.7 ? `translateX(${(Math.random()-0.5)*14}px)` : 'none';
+        if (++flickers > 22) clearInterval(fi);
+      }, 50);
+      const eyes = hwSpawnEyes();
+      const el = document.createElement('div');
+      el.className = 'hw-jump-scare';
+      el.innerHTML = `<div class="hw-js-inner"><div class="hw-js-face">${hwDemonFaceSVG()}</div><div class="hw-js-boo">${s.boo}</div></div>`;
+      document.body.appendChild(el);
+      requestAnimationFrame(() => {
+        el.classList.add('hw-scare-active');
+        setTimeout(() => {
+          el.classList.remove('hw-scare-active'); el.classList.add('hw-scare-out');
+          clearInterval(fi); glitch.style.opacity = '0';
+          document.body.classList.remove('hw-screaming');
+          eyes.forEach(e => { e.style.opacity='0'; setTimeout(() => e.remove(), 400); });
+          setTimeout(() => { el.remove(); glitch.remove(); window.speechSynthesis?.cancel(); }, 600);
+        }, 2500);
+      });
+    }
+
+    // ── Renderer: giant emoji zoom-slams in ──────────────────────────────
+    function _scareEmoji(s) {
+      flashScreen(2);
+      document.body.classList.add('hw-screaming');
+      const el = document.createElement('div');
+      el.className = 'hw-jump-scare hw-scare-emoji-type';
+      el.style.cssText = 'opacity:1;background:rgba(0,0,0,0.88);';
+      el.innerHTML = `
+        <div class="hw-emoji-slam">${s.emoji}</div>
+        <div class="hw-js-boo" style="margin-top:16px">${s.boo}</div>`;
+      document.body.appendChild(el);
+      setTimeout(() => {
+        el.classList.add('hw-scare-out');
+        document.body.classList.remove('hw-screaming');
+        setTimeout(() => { el.remove(); window.speechSynthesis?.cancel(); }, 600);
+      }, 2000);
+    }
+
+    // ── Renderer: TV static (canvas noise) ───────────────────────────────
+    function _scareStatic(s) {
+      document.body.classList.add('hw-screaming');
+      const canvas = document.createElement('canvas');
+      canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:99999;pointer-events:none;image-rendering:pixelated;';
+      canvas.width = 320; canvas.height = 240;
+      document.body.appendChild(canvas);
+      const cx = canvas.getContext('2d');
+      let rafId;
+      (function draw() {
+        const img = cx.createImageData(320, 240);
+        for (let i = 0; i < img.data.length; i += 4) {
+          const v = Math.random() > 0.5 ? 200 + Math.random()*55 : Math.floor(Math.random()*40);
+          img.data[i]=v; img.data[i+1]=v; img.data[i+2]=v; img.data[i+3]=220;
+        }
+        cx.putImageData(img, 0, 0);
+        rafId = requestAnimationFrame(draw);
+      })();
+      const txt = document.createElement('div');
+      txt.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;pointer-events:none;';
+      txt.innerHTML = `<div style="font-family:Impact,Arial Black,sans-serif;font-size:min(11vw,9vh);color:#f00;text-shadow:0 0 24px #f00,2px 2px 0 #000;text-align:center;letter-spacing:.05em;animation:hwBooFlash .12s step-end 10">${s.boo}</div>`;
+      document.body.appendChild(txt);
+      setTimeout(() => {
+        cancelAnimationFrame(rafId);
+        canvas.style.transition='opacity .3s'; canvas.style.opacity='0';
+        txt.style.transition='opacity .3s'; txt.style.opacity='0';
+        document.body.classList.remove('hw-screaming');
+        setTimeout(() => { canvas.remove(); txt.remove(); window.speechSynthesis?.cancel(); }, 400);
+      }, 2300);
+    }
+
+    // ── Renderer: blackout + lightning flash ─────────────────────────────
+    function _scareDark(s) {
+      const dark = document.createElement('div');
+      dark.style.cssText = 'position:fixed;inset:0;background:#000;z-index:99999;pointer-events:none;opacity:0;transition:opacity .06s';
+      document.body.appendChild(dark);
+      requestAnimationFrame(() => { dark.style.opacity = '1'; });
+      const flash = (bg, dur, cb) => {
+        dark.style.transition='none'; dark.style.background=bg;
+        setTimeout(() => { dark.style.background='#000'; cb && setTimeout(cb,50); }, dur);
+      };
+      setTimeout(() => {
+        flash('#fff', 70, () => {
+          const skull = document.createElement('div');
+          skull.style.cssText='position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;pointer-events:none;';
+          skull.innerHTML='<div style="font-size:min(55vw,55vh);line-height:1;filter:drop-shadow(0 0 40px #f00)">💀</div>';
+          document.body.appendChild(skull);
+          setTimeout(() => skull.remove(), 130);
+        });
+        setTimeout(() => {
+          flash('#fff', 55, null);
+          setTimeout(() => {
+            const txt = document.createElement('div');
+            txt.style.cssText='position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;pointer-events:none;';
+            txt.innerHTML=`<div style="font-family:Impact,Arial Black,sans-serif;font-size:min(9vw,7vh);color:#f00;text-shadow:0 0 30px #f00;text-align:center;letter-spacing:.08em">${s.boo}</div>`;
+            document.body.appendChild(txt);
+            setTimeout(() => {
+              dark.style.transition='opacity .45s'; dark.style.opacity='0';
+              txt.style.transition='opacity .3s'; txt.style.opacity='0';
+              setTimeout(() => { dark.remove(); txt.remove(); window.speechSynthesis?.cancel(); }, 500);
+            }, 1300);
+          }, 320);
+        }, 750);
+      }, 380);
+    }
+
+    // ── Renderer: eyes close in from all edges ───────────────────────────
+    function _scareEyes(s) {
+      flashScreen(1);
+      const wrap = document.createElement('div');
+      wrap.style.cssText='position:fixed;inset:0;z-index:99999;pointer-events:none;background:rgba(0,0,0,.75);';
+      document.body.appendChild(wrap);
+      const pts = [
+        {x:'4%',y:'12%'},{x:'82%',y:'8%'},{x:'1%',y:'50%'},{x:'90%',y:'46%'},
+        {x:'8%',y:'82%'},{x:'78%',y:'78%'},{x:'44%',y:'3%'},{x:'42%',y:'90%'},
+      ];
+      pts.forEach((p,i) => {
+        const eye = document.createElement('div');
+        eye.style.cssText=`position:absolute;font-size:min(6vw,6vh);left:${p.x};top:${p.y};transform:translate(-50%,-50%);
+          transition:left ${1.4+i*.08}s ease-in,top ${1.4+i*.08}s ease-in,font-size ${1.4+i*.08}s ease-in;
+          line-height:1;filter:drop-shadow(0 0 8px #f00);opacity:0;`;
+        eye.textContent='👁️';
+        wrap.appendChild(eye);
+        setTimeout(() => { eye.style.opacity='1'; }, 40+i*60);
+        setTimeout(() => { eye.style.left='50%'; eye.style.top='50%'; eye.style.fontSize='min(20vw,20vh)'; }, 300+i*40);
+      });
+      const txt = document.createElement('div');
+      txt.style.cssText='position:absolute;bottom:12%;left:50%;transform:translateX(-50%);white-space:nowrap;opacity:0;transition:opacity .3s;font-family:Impact,Arial Black,sans-serif;font-size:min(7vw,5vh);color:#f00;text-shadow:0 0 20px #f00;letter-spacing:.08em;';
+      txt.textContent=s.boo; wrap.appendChild(txt);
+      setTimeout(() => { txt.style.opacity='1'; }, 1300);
+      setTimeout(() => {
+        wrap.style.transition='opacity .5s'; wrap.style.opacity='0';
+        setTimeout(() => { wrap.remove(); window.speechSynthesis?.cancel(); }, 600);
+      }, 2900);
+    }
+
+    // ── Renderer: text crawls up from bottom, grows huge ─────────────────
+    function _scareCrawl(s) {
+      flashScreen(2);
+      document.body.classList.add('hw-screaming');
+      const el = document.createElement('div');
+      el.style.cssText=`position:fixed;bottom:-80px;left:50%;transform:translateX(-50%);
+        font-family:Impact,Arial Black,sans-serif;color:#f00;white-space:nowrap;
+        text-shadow:0 0 30px #f00,0 0 60px #900;z-index:99999;pointer-events:none;
+        letter-spacing:.05em;font-size:10px;opacity:.8;
+        transition:bottom 1.5s cubic-bezier(.25,.46,.45,.94),font-size 1.5s cubic-bezier(.25,.46,.45,.94),opacity .2s;`;
+      el.textContent = s.boo;
+      document.body.appendChild(el);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        el.style.bottom='30%'; el.style.fontSize='min(14vw,17vh)';
+      }));
+      setTimeout(() => {
+        el.style.transition='all .35s ease-in';
+        el.style.fontSize='min(38vw,42vh)'; el.style.bottom='18%'; el.style.opacity='.25';
+        document.body.classList.remove('hw-screaming');
+        setTimeout(() => { el.remove(); window.speechSynthesis?.cancel(); }, 450);
+      }, 1900);
+    }
+
+    // ── Renderer: spider drops from ceiling on a thread ──────────────────
+    function _scareSpider(s) {
+      flashScreen(2);
+      document.body.classList.add('hw-screaming');
+      const wrap = document.createElement('div');
+      wrap.style.cssText='position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;pointer-events:none;display:flex;flex-direction:column;align-items:center;';
+      const thread = document.createElement('div');
+      thread.style.cssText='width:2px;background:rgba(255,255,255,.55);height:0;transition:height .55s linear;';
+      const spider = document.createElement('div');
+      spider.style.cssText=`font-size:min(28vw,32vh);line-height:1;
+        transform:translateY(-250px);opacity:0;
+        transition:transform .55s cubic-bezier(.25,.46,.45,.94),opacity .1s;
+        filter:drop-shadow(0 0 24px #f00);`;
+      spider.textContent='🕷️';
+      const txt = document.createElement('div');
+      txt.style.cssText=`font-family:Impact,Arial Black,sans-serif;font-size:min(7vw,6vh);color:#f00;
+        text-shadow:0 0 20px #f00;letter-spacing:.08em;margin-top:8px;opacity:0;transition:opacity .2s;`;
+      txt.textContent=s.boo;
+      wrap.append(thread,spider,txt); document.body.appendChild(wrap);
+      requestAnimationFrame(() => {
+        thread.style.height='38vh'; spider.style.transform='translateY(0)'; spider.style.opacity='1';
+        setTimeout(() => { txt.style.opacity='1'; }, 650);
+      });
+      setTimeout(() => {
+        wrap.style.transition='opacity .4s'; wrap.style.opacity='0';
+        document.body.classList.remove('hw-screaming');
+        setTimeout(() => { wrap.remove(); window.speechSynthesis?.cancel(); }, 500);
+      }, 2300);
+    }
+
+    // ── Renderer: page inverts + shakes (possession) ─────────────────────
+    function _scarePossession(s) {
+      flashScreen(4);
+      const savedFilter = document.body.style.filter;
+      document.body.style.transition='filter .05s';
+      document.body.style.filter='invert(1) hue-rotate(180deg) saturate(8) contrast(2)';
+      document.body.classList.add('hw-screaming');
+      const el = document.createElement('div');
+      el.style.cssText='position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;pointer-events:none;';
+      el.innerHTML=`<div style="font-family:Impact,Arial Black,sans-serif;font-size:min(11vw,9vh);color:#fff;text-shadow:0 0 20px #f00,4px 4px 0 #000;text-align:center;letter-spacing:.06em;animation:hwBooFlash .1s step-end 14">${s.boo}</div>`;
+      document.body.appendChild(el);
+      let tog=false;
+      const fi=setInterval(() => {
+        tog=!tog;
+        document.body.style.filter=tog?'invert(1) hue-rotate(180deg) saturate(8) contrast(2)':'invert(1) hue-rotate(210deg) saturate(5) contrast(1.4)';
+      },110);
+      setTimeout(() => {
+        clearInterval(fi);
+        document.body.style.transition='filter .4s'; document.body.style.filter=savedFilter||'';
+        document.body.classList.remove('hw-screaming');
+        el.style.transition='opacity .3s'; el.style.opacity='0';
+        setTimeout(() => { el.remove(); window.speechSynthesis?.cancel(); }, 500);
+      }, 2100);
+    }
   }
   function scheduleNextScare() {
     if (_scareTimer) clearTimeout(_scareTimer);

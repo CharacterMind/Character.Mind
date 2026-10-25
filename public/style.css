@@ -3813,6 +3813,26 @@ body.hw-screaming::after {
 .hw-jump-scare.hw-scare-active { opacity: 1; }
 .hw-jump-scare.hw-scare-out   { opacity: 0; transition: opacity 0.55s ease-in; }
 
+/* Emoji slam type */
+.hw-scare-emoji-type { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.hw-emoji-slam {
+  font-size: min(60vw, 58vh);
+  line-height: 1;
+  filter: drop-shadow(0 0 50px rgba(255,0,0,.9));
+  animation: hwEmojiSlam 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+@keyframes hwEmojiSlam {
+  0%   { transform: scale(0.04); opacity: 0; }
+  40%  { opacity: 1; }
+  100% { transform: scale(1.15); opacity: 0.95; }
+}
+
+/* Boo flash — used by static + possession types */
+@keyframes hwBooFlash {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.08; }
+}
+
 /* Inner container slams in from nothing */
 .hw-js-inner {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
