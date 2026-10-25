@@ -10927,6 +10927,19 @@ async function claimHalloweenGift() {
     // ── Page possession / invert ────────────────────────────────────────────
     { type: 'possession', boo: 'YOU CANNOT RUN.',        speak: 'You cannot run' },
     { type: 'possession', boo: 'I LIVE IN YOUR SCREEN.', speak: 'I live in your screen' },
+    // ── Perspective corridor rush (Silent Hill / RE / Outlast) ─────────────
+    { type: 'hallway', boo: 'THE END IS HERE.', speak: 'The end is here' },
+    { type: 'hallway', boo: 'YOU CAME BACK.',   speak: 'You came back' },
+    { type: 'hallway', boo: 'NO EXIT.',          speak: 'No exit' },
+    // ── Security camera (FNAF / Paranormal Activity) ──────────────────────
+    { type: 'security', boo: 'SECTOR BREACH.',   speak: 'Sector breach' },
+    { type: 'security', boo: 'FOUND YOU.',        speak: 'Found you' },
+    // ── Found footage / night-vision (Blair Witch / REC) ──────────────────
+    { type: 'found', boo: 'IT SAW THE CAMERA.',  speak: 'It saw the camera' },
+    { type: 'found', boo: 'LAST KNOWN FOOTAGE.', speak: 'Last known footage' },
+    // ── VHS static materialising figure (The Ring) ────────────────────────
+    { type: 'ring', boo: 'SEVEN DAYS.',   speak: 'Seven days' },
+    { type: 'ring', boo: 'COME CLOSER.',  speak: 'Come closer' },
   ];
 
   // ── HORROR SOUND — sustained screech + bone-crushing bass + demon roar ────────
@@ -11361,6 +11374,10 @@ async function claimHalloweenGift() {
     else if (type === 'crawl')      _scareCrawl(s);
     else if (type === 'spider')     _scareSpider(s);
     else if (type === 'possession') _scarePossession(s);
+    else if (type === 'hallway')    _scareHallway(s);
+    else if (type === 'security')   _scareSecurity(s);
+    else if (type === 'found')      _scareFound(s);
+    else if (type === 'ring')       _scareRing(s);
     else                            _scareFace(s);
 
     scheduleNextScare();
@@ -11585,6 +11602,180 @@ async function claimHalloweenGift() {
         el.style.transition='opacity .3s'; el.style.opacity='0';
         setTimeout(() => { el.remove(); window.speechSynthesis?.cancel(); }, 500);
       }, 2100);
+    }
+
+    // ── Renderer: perspective corridor rush (Silent Hill / RE / Outlast) ─────
+    function _scareHallway(s) {
+      flashScreen(2);
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#060606;overflow:hidden;pointer-events:none;';
+      const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+      svg.setAttribute('viewBox','0 0 800 500');
+      svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;';
+      svg.innerHTML =
+        '<defs><radialGradient id="hwHg" cx="50%" cy="50%" r="8%"><stop offset="0%" stop-color="#1a0808"/><stop offset="100%" stop-color="transparent"/></radialGradient></defs>' +
+        '<rect width="800" height="500" fill="#050505"/>' +
+        '<polygon points="0,0 800,0 490,250 310,250" fill="#0e0e0e"/>' +
+        '<polygon points="0,500 800,500 490,250 310,250" fill="#0d0d0d"/>' +
+        '<polygon points="0,0 0,500 310,250" fill="#111"/>' +
+        '<polygon points="800,0 800,500 490,250" fill="#0b0b0b"/>' +
+        '<line x1="80" y1="500" x2="310" y2="250" stroke="#191919" stroke-width="1.5"/>' +
+        '<line x1="80" y1="0" x2="310" y2="250" stroke="#191919" stroke-width="1.5"/>' +
+        '<line x1="720" y1="500" x2="490" y2="250" stroke="#161616" stroke-width="1.5"/>' +
+        '<line x1="720" y1="0" x2="490" y2="250" stroke="#161616" stroke-width="1.5"/>' +
+        '<line x1="170" y1="500" x2="310" y2="250" stroke="#151515" stroke-width="1"/>' +
+        '<line x1="170" y1="0" x2="310" y2="250" stroke="#151515" stroke-width="1"/>' +
+        '<line x1="630" y1="500" x2="490" y2="250" stroke="#131313" stroke-width="1"/>' +
+        '<line x1="630" y1="0" x2="490" y2="250" stroke="#131313" stroke-width="1"/>' +
+        '<ellipse cx="400" cy="250" rx="10" ry="10" fill="url(#hwHg)"/>' +
+        '<ellipse cx="400" cy="250" rx="3" ry="3" fill="#1f0606"/>';
+      wrap.appendChild(svg);
+      let fk = 6;
+      const fId = setInterval(() => {
+        svg.style.opacity = fk % 2 === 0 ? '1' : '0.85';
+        if (--fk <= 0) { clearInterval(fId); svg.style.opacity = '1'; }
+      }, 160);
+      const fig = document.createElement('div');
+      fig.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.025);font-size:min(100vw,95vh);line-height:1;opacity:0;filter:brightness(.2) saturate(0) blur(1px);transition:transform .6s cubic-bezier(.05,.8,.2,1),opacity .1s,filter .5s;pointer-events:none;';
+      fig.textContent = '🧟';
+      const boo = document.createElement('div');
+      boo.style.cssText = 'position:absolute;bottom:10%;left:0;right:0;text-align:center;font-family:Impact,Arial Black,sans-serif;font-size:min(8vw,7vh);color:#fff;text-shadow:0 0 25px #a00,3px 3px 0 #000;opacity:0;letter-spacing:.1em;pointer-events:none;';
+      boo.textContent = s.boo;
+      wrap.append(fig, boo);
+      document.body.appendChild(wrap);
+      setTimeout(() => {
+        fig.style.opacity = '.8'; fig.style.transform = 'translate(-50%,-50%) scale(1.5)'; fig.style.filter = 'brightness(.55) saturate(.3) blur(0)';
+        setTimeout(() => { boo.style.opacity = '1'; boo.style.transition = 'opacity .05s'; }, 350);
+      }, 450);
+      setTimeout(() => {
+        wrap.style.transition = 'opacity .3s'; wrap.style.opacity = '0';
+        setTimeout(() => { wrap.remove(); window.speechSynthesis?.cancel(); }, 400);
+      }, 2700);
+    }
+
+    // ── Renderer: security camera (FNAF / Paranormal Activity) ───────────────
+    function _scareSecurity(s) {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#000;overflow:hidden;pointer-events:none;';
+      const tint = document.createElement('div');
+      tint.style.cssText = 'position:absolute;inset:0;background:rgba(0,28,0,.4);';
+      const secCanvas = document.createElement('canvas');
+      secCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;opacity:.16;mix-blend-mode:screen;';
+      secCanvas.width = 180; secCanvas.height = 120;
+      const secCtx = secCanvas.getContext('2d');
+      let secRaf;
+      (function g() {
+        const d = secCtx.createImageData(180,120);
+        for (let i=0;i<d.data.length;i+=4) { const v=Math.random()*255; d.data[i]=0;d.data[i+1]=v;d.data[i+2]=0;d.data[i+3]=255; }
+        secCtx.putImageData(d,0,0); secRaf = requestAnimationFrame(g);
+      })();
+      const sl = document.createElement('div');
+      sl.style.cssText = 'position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.28) 3px,rgba(0,0,0,.28) 4px);';
+      const nowD = new Date();
+      const secTs = nowD.getFullYear()+'-'+String(nowD.getMonth()+1).padStart(2,'0')+'-'+String(nowD.getDate()).padStart(2,'0')+' '+String(nowD.getHours()).padStart(2,'0')+':'+String(nowD.getMinutes()).padStart(2,'0')+':'+String(nowD.getSeconds()).padStart(2,'0');
+      const hud = document.createElement('div');
+      hud.style.cssText = 'position:absolute;top:0;left:0;right:0;font-family:monospace;color:#0f0;font-size:min(1.7vw,12px);padding:12px;';
+      hud.innerHTML = 'CAM 04  HALL-B<span style="position:absolute;right:12px">'+secTs+'</span>';
+      const motion = document.createElement('div');
+      motion.style.cssText = 'position:absolute;top:36%;left:50%;transform:translateX(-50%);font-family:monospace;font-weight:bold;font-size:min(4vw,3.5vh);color:#f00;text-shadow:0 0 10px #f00;text-align:center;opacity:0;white-space:nowrap;';
+      motion.innerHTML = '⚠ MOTION DETECTED ⚠<br><span style="font-size:.6em;color:#fa0">SECTOR 4 — IMMEDIATE RESPONSE</span>';
+      const secFig = document.createElement('div');
+      secFig.style.cssText = 'position:absolute;font-size:min(72vw,68vh);line-height:1;top:50%;left:50%;transform:translate(-50%,-20%) scale(.07);opacity:0;filter:brightness(.2) saturate(0);transition:transform .3s ease-out,opacity .1s,filter .3s;';
+      secFig.textContent = '🧟';
+      wrap.append(tint, sl, secCanvas, hud, motion, secFig);
+      document.body.appendChild(wrap);
+      setTimeout(() => { motion.style.opacity='1'; motion.style.transition='opacity .06s'; }, 750);
+      setTimeout(() => {
+        secFig.style.opacity='.85'; secFig.style.transform='translate(-50%,-20%) scale(1.1)'; secFig.style.filter='brightness(.5) saturate(.25)';
+        setTimeout(() => { secFig.style.transform='translate(-50%,-20%) scale(1.7)'; secFig.style.filter='brightness(.7) saturate(.35)'; }, 200);
+      }, 1300);
+      setTimeout(() => {
+        cancelAnimationFrame(secRaf);
+        wrap.style.transition='opacity .3s'; wrap.style.opacity='0';
+        setTimeout(() => { wrap.remove(); window.speechSynthesis?.cancel(); }, 400);
+      }, 2900);
+    }
+
+    // ── Renderer: found footage night-vision (Blair Witch / REC) ─────────────
+    function _scareFound(s) {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#060a04;overflow:hidden;pointer-events:none;';
+      const shaky = document.createElement('div');
+      shaky.style.cssText = 'position:absolute;inset:-6%;width:112%;height:112%;animation:hwFoundShaky .11s infinite;';
+      const fndCanvas = document.createElement('canvas');
+      fndCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;opacity:.2;mix-blend-mode:screen;';
+      fndCanvas.width=180; fndCanvas.height=120;
+      const fndCtx=fndCanvas.getContext('2d');
+      let fndRaf;
+      (function g() {
+        const d=fndCtx.createImageData(180,120);
+        for(let i=0;i<d.data.length;i+=4){const v=Math.random()*220;d.data[i]=0;d.data[i+1]=v;d.data[i+2]=0;d.data[i+3]=255;}
+        fndCtx.putImageData(d,0,0); fndRaf=requestAnimationFrame(g);
+      })();
+      const vig=document.createElement('div');
+      vig.style.cssText='position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 38%,rgba(0,0,0,.88) 100%);';
+      const nowF=new Date();
+      const rec=document.createElement('div');
+      rec.style.cssText='position:absolute;top:12px;left:12px;font-family:monospace;font-size:min(1.7vw,12px);color:#0f0;font-weight:bold;';
+      rec.innerHTML='<span style="color:#f00;animation:hwRecBlink .55s step-end infinite">●</span> REC  '+String(nowF.getHours()).padStart(2,'0')+':'+String(nowF.getMinutes()).padStart(2,'0');
+      const fndFig=document.createElement('div');
+      fndFig.style.cssText='position:absolute;font-size:min(14vw,11vh);line-height:1;top:50%;left:50%;transform:translate(-50%,-50%) scale(.04);opacity:0;filter:brightness(.3) saturate(0) blur(2px);transition:transform .65s ease-out,opacity .12s,filter .45s;';
+      fndFig.textContent='🧟';
+      shaky.append(fndCanvas, vig, rec, fndFig);
+      wrap.appendChild(shaky);
+      document.body.appendChild(wrap);
+      setTimeout(()=>{ fndFig.style.opacity='.85'; fndFig.style.transform='translate(-50%,-50%) scale(4)'; fndFig.style.filter='brightness(.4) saturate(.2) blur(0)'; },400);
+      setTimeout(()=>{ fndFig.style.transform='translate(-50%,-50%) scale(20)'; fndFig.style.filter='brightness(.6) saturate(.3)'; },900);
+      setTimeout(()=>{
+        cancelAnimationFrame(fndRaf);
+        wrap.style.transition='opacity .3s'; wrap.style.opacity='0';
+        setTimeout(()=>{ wrap.remove(); window.speechSynthesis?.cancel(); },400);
+      },2700);
+    }
+
+    // ── Renderer: VHS static materialising figure (The Ring) ─────────────────
+    function _scareRing(s) {
+      const wrap=document.createElement('div');
+      wrap.style.cssText='position:fixed;inset:0;z-index:99999;background:#060606;overflow:hidden;pointer-events:none;';
+      const rngCanvas=document.createElement('canvas');
+      rngCanvas.style.cssText='position:absolute;inset:0;width:100%;height:100%;';
+      rngCanvas.width=280; rngCanvas.height=180;
+      const rngCtx=rngCanvas.getContext('2d');
+      let rngRaf, figA=0;
+      (function frame(){
+        const d=rngCtx.createImageData(280,180);
+        for(let i=0;i<d.data.length;i+=4){const v=Math.random()*255;d.data[i]=v;d.data[i+1]=v;d.data[i+2]=v;d.data[i+3]=255;}
+        rngCtx.putImageData(d,0,0);
+        if(figA>0){
+          rngCtx.save(); rngCtx.globalAlpha=figA; rngCtx.fillStyle='#000';
+          const bx=140,by=78;
+          rngCtx.beginPath(); rngCtx.arc(bx,by-28,12,0,Math.PI*2); rngCtx.fill();
+          rngCtx.fillRect(bx-10,by-16,20,42);
+          rngCtx.fillRect(bx-16,by+26,12,35);
+          rngCtx.fillRect(bx+4,by+26,12,35);
+          rngCtx.fillStyle='rgba(0,0,0,'+(figA*0.75)+')';
+          for(let h=0;h<5;h++){rngCtx.fillRect(bx-11+h*5,by-40,2,18+h*2);}
+          rngCtx.restore();
+        }
+        if(Math.random()<0.12){
+          rngCtx.fillStyle='rgba(200,200,200,'+(0.03+Math.random()*0.05)+')';
+          rngCtx.fillRect(0,Math.random()*180,280,1+Math.random()*3);
+        }
+        rngRaf=requestAnimationFrame(frame);
+      })();
+      const msg=document.createElement('div');
+      msg.style.cssText='position:absolute;bottom:14%;left:0;right:0;text-align:center;font-family:"Courier New",monospace;font-size:min(7vw,6.5vh);color:#ddd;text-shadow:0 0 6px #fff,0 0 25px #aaa;opacity:0;letter-spacing:.2em;';
+      msg.textContent=s.boo;
+      wrap.append(rngCanvas,msg);
+      document.body.appendChild(wrap);
+      setTimeout(()=>{figA=0.25;},600);
+      setTimeout(()=>{figA=0.6;},1100);
+      setTimeout(()=>{figA=0.92; msg.style.opacity='1'; msg.style.transition='opacity .12s';},1600);
+      setTimeout(()=>{
+        cancelAnimationFrame(rngRaf);
+        wrap.style.transition='opacity .35s'; wrap.style.opacity='0';
+        setTimeout(()=>{ wrap.remove(); window.speechSynthesis?.cancel(); },400);
+      },3000);
     }
   }
   function scheduleNextScare() {
