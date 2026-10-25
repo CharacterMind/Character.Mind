@@ -655,7 +655,6 @@
           <button class="btn-send" id="sendBtn" onclick="sendMessage(undefined, undefined, true)" title="Send (empty = let the AI keep talking)">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
           </button>
-          <button class="btn-slots" id="chatSlotsBtn" onclick="openSlotMachine()" title="Play slots" style="display:none">🎰</button>
           <button class="btn-call" id="callBtn" onclick="toggleCallMode()" title="Voice call">
             <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
           </button>
@@ -1408,7 +1407,6 @@
             <div class="settings-coin-monthly" id="settingsCoinMonthly"></div>
           </div>
           <div style="display:flex;flex-direction:column;gap:6px">
-            <button class="settings-coin-slots-btn" onclick="openSlotMachine()">🎰 Play Slots</button>
             <button class="settings-coin-slots-btn" onclick="openQuizModal()" style="background:linear-gradient(135deg,#7c3aed,#a855f7)">🧠 Take a Quiz</button>
             <button class="settings-coin-slots-btn" onclick="openCoinShop()" style="background:linear-gradient(135deg,#1e40af,#3b82f6)">🪙 Buy Coins</button>
           </div>

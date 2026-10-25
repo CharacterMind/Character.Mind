@@ -3594,6 +3594,20 @@ html, body {
 .ttt-x { font-size: 46px; font-weight: 900; color: var(--accent); line-height: 1; }
 .ttt-o { font-size: 46px; font-weight: 900; color: var(--text2); line-height: 1; }
 .ttt-status-text { font-size: 13px; color: var(--text2); font-style: italic; }
+.wd-grid { display: flex; flex-direction: column; gap: 5px; margin: 6px auto; width: fit-content; }
+.wd-row { display: flex; gap: 5px; }
+.wd-cell { width: 42px; height: 42px; border: 2px solid var(--border2); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; font-weight: 800; border-radius: 4px; color: var(--text1); }
+.wd-cell.filled { border-color: var(--text3); }
+.wd-cell.correct { background: #2d6a4f; border-color: #2d6a4f; color: #fff; }
+.wd-cell.present { background: #b59f3b; border-color: #b59f3b; color: #fff; }
+.wd-cell.absent { background: #3a3a3c; border-color: #3a3a3c; color: #fff; }
+.wd-kb { display: flex; flex-direction: column; gap: 5px; margin: 8px 0 4px; }
+.wd-kb-row { display: flex; gap: 4px; justify-content: center; }
+.wd-key { height: 42px; min-width: 30px; padding: 0 3px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 4px; color: var(--text1); font-size: 12px; font-weight: 700; cursor: pointer; }
+.wd-key.wd-wide { min-width: 42px; font-size: 11px; }
+.wd-key.correct { background: #2d6a4f; border-color: #2d6a4f; color: #fff; }
+.wd-key.present { background: #b59f3b; border-color: #b59f3b; color: #fff; }
+.wd-key.absent { background: #3a3a3c; border-color: #3a3a3c; color: #fff; }
 
 /* ── Wellness check-in toggle ───────────────────────────────────────────────── */
 .settings-toggle-row { display: flex; align-items: center; gap: 10px; cursor: pointer; width: fit-content; user-select: none; }

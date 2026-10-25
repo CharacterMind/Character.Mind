@@ -1073,6 +1073,11 @@ async function startQuiz(category) {
       body: JSON.stringify({ category }),
     });
     const d = await r.json();
+    if (!r.ok) {
+      document.getElementById('quizCooldownMsg').textContent = d.error || 'Something went wrong. Try again.';
+      document.querySelectorAll('.quiz-cat-btn').forEach(b => b.disabled = false);
+      return;
+    }
     if (d.cooldown) {
       const mins = Math.ceil(d.cooldownMs / 60000);
       document.getElementById('quizCooldownMsg').textContent = `${category} quiz on cooldown — try again in ${mins} min.`;
@@ -3571,8 +3576,7 @@ function restoreActiveGame(charId) {
   let state;
   try { state = JSON.parse(localStorage.getItem(userKey('cm_game_' + charId))); } catch (_) { return; }
   if (!state) return;
-  if (state.type === 'hangman') launchHangman(state);
-  else if (state.type === 'ttt') launchTicTacToe(state);
+  // game restore disabled — games re-added one at a time
 }
 
 function savePastChatLocal(charId, messages) {
@@ -4155,22 +4159,6 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
     skipAppend = true;
   }
 
-  // ── Game trigger detection ─────────────────────────────────────────────────
-  if (!overrideText && text && currentChar) {
-    const t = text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').trim();
-    const isHangman = /\bhangman\b/.test(t);
-    const isTTT = /tic[\s]*tac[\s]*toe/.test(text.toLowerCase()) || /\bttt\b/.test(t);
-    if (isHangman || isTTT) {
-      appendMessage('user', text);
-      touchRecentChat(currentChar.id);
-      document.getElementById('chatWelcome').innerHTML = '';
-      playSound('send');
-      scrollToBottom();
-      if (isHangman) launchHangman();
-      else launchTicTacToe();
-      return;
-    }
-  }
 
   if (!skipAppend) {
     if (text || imgB64) {
@@ -10279,6 +10267,193 @@ function launchTicTacToe(savedState) {
       renderTTT(tttClientCheck(board));
     })();
   }
+}
+
+async function launchWordle(savedState) {
+  const _wdKey = '_wd_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+  if (!savedState) {
+    const lockoutBarEl = document.getElementById('lockoutBar');
+    if (lockoutBarEl && lockoutBarEl.style.display !== 'none') {
+      const lockoutType = currentLockoutType || 'session';
+      const displayStr = document.getElementById('lockoutCountdown')?.textContent || '';
+      showLimitModal(lockoutType, displayStr);
+      return;
+    }
+  }
+
+  const msgEl = document.createElement('div');
+  msgEl.className = 'msg game-widget';
+  msgEl.innerHTML = '<div class="game-loading">Setting up Wordle…</div>';
+  document.getElementById('messages').appendChild(msgEl);
+  scrollToBottom();
+
+  let word, gameId = null;
+  if (savedState) {
+    word = savedState.word;
+    gameId = savedState.gameId || null;
+  } else {
+    try {
+      const r = await fetch('/api/game/wordle/word');
+      const d = await r.json();
+      if (r.status === 429 && (d.type === 'session' || d.type === 'weekly')) {
+        msgEl.remove();
+        if (d.type === 'session') startCooldown(d.cooldownUntil, 'session', true);
+        else startCooldown(d.resetsAt, 'weekly', true);
+        return;
+      }
+      if (r.status === 429 && d.gameNextAvailableAt) {
+        const secsLeft = Math.ceil((d.gameNextAvailableAt - Date.now()) / 1000);
+        const minsLeft = Math.ceil(secsLeft / 60);
+        msgEl.innerHTML = `<div class="game-loading">⏳ Game cooldown — come back in ${minsLeft} minute${minsLeft !== 1 ? 's' : ''}.</div>`;
+        return;
+      }
+      if (!r.ok) { msgEl.innerHTML = '<div class="game-loading">Couldn\'t load game. Try again.</div>'; return; }
+      word = d.word.toLowerCase();
+      gameId = d.gameId || null;
+    } catch (_) {
+      msgEl.innerHTML = '<div class="game-loading">Couldn\'t load game. Try again.</div>';
+      return;
+    }
+  }
+
+  const WORD_LEN = 5, MAX_GUESSES = 6;
+  const guesses = savedState ? (savedState.guesses || []) : [];
+  let currentGuess = '';
+  let gameOver = false;
+  let coinAwarded = false;
+
+  function evalGuess(g) {
+    const res = Array(WORD_LEN).fill('absent');
+    const rem = [...word];
+    for (let i = 0; i < WORD_LEN; i++) {
+      if (g[i] === word[i]) { res[i] = 'correct'; rem[rem.indexOf(g[i])] = null; }
+    }
+    for (let i = 0; i < WORD_LEN; i++) {
+      if (res[i] === 'correct') continue;
+      const j = rem.indexOf(g[i]);
+      if (j >= 0) { res[i] = 'present'; rem[j] = null; }
+    }
+    return res;
+  }
+
+  function keyState(letter) {
+    let best = '';
+    for (const g of guesses) {
+      const r = evalGuess(g);
+      for (let i = 0; i < WORD_LEN; i++) {
+        if (g[i] !== letter) continue;
+        if (r[i] === 'correct') return 'correct';
+        if (r[i] === 'present') best = 'present';
+        else if (!best) best = 'absent';
+      }
+    }
+    return best;
+  }
+
+  function renderWordle() {
+    const isWin = guesses.length > 0 && guesses[guesses.length - 1] === word;
+    gameOver = isWin || guesses.length >= MAX_GUESSES;
+
+    if (isWin && !coinAwarded && currentUser) {
+      coinAwarded = true;
+      fetch('/api/coins/award', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wordLength: WORD_LEN, gameId: gameId || undefined }),
+      }).then(r => r.json()).then(d => {
+        if (d && typeof d.balance === 'number') {
+          if (lastKnownUsage) lastKnownUsage.cmCoins = d.balance;
+          else lastKnownUsage = { cmCoins: d.balance };
+          updateNavCoinDisplay(lastKnownUsage);
+          updateSettingsCoinDisplay(d.balance, d.earnedToday, d.dailyCap);
+          if (d.awarded > 0) showCoinPop(d.awarded);
+        }
+      }).catch(() => {});
+    }
+
+    let rows = '';
+    for (let r = 0; r < MAX_GUESSES; r++) {
+      let cells = '';
+      for (let c = 0; c < WORD_LEN; c++) {
+        if (r < guesses.length) {
+          const ev = evalGuess(guesses[r]);
+          cells += `<div class="wd-cell ${ev[c]}">${guesses[r][c].toUpperCase()}</div>`;
+        } else if (r === guesses.length && !gameOver) {
+          const ch = currentGuess[c] || '';
+          cells += `<div class="wd-cell${ch ? ' filled' : ''}">${ch.toUpperCase()}</div>`;
+        } else {
+          cells += `<div class="wd-cell"></div>`;
+        }
+      }
+      rows += `<div class="wd-row">${cells}</div>`;
+    }
+
+    const KB_ROWS = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'];
+    let kbHtml = '';
+    for (let i = 0; i < KB_ROWS.length; i++) {
+      let keys = '';
+      if (i === 2) keys += `<button class="wd-key wd-wide" onclick="window['${_wdKey}']('Enter')">↵</button>`;
+      for (const k of KB_ROWS[i]) {
+        const st = keyState(k);
+        keys += `<button class="wd-key ${st}" onclick="window['${_wdKey}']('${k}')">${k.toUpperCase()}</button>`;
+      }
+      if (i === 2) keys += `<button class="wd-key wd-wide" onclick="window['${_wdKey}']('Backspace')">⌫</button>`;
+      kbHtml += `<div class="wd-kb-row">${keys}</div>`;
+    }
+
+    const statusHtml = isWin
+      ? `<div class="game-status win">🎉 You got it in ${guesses.length}!</div>`
+      : gameOver
+        ? `<div class="game-status lose">💀 The word was <strong>${word.toUpperCase()}</strong>.</div>`
+        : '';
+
+    msgEl.innerHTML = `
+      <div class="game-header">
+        <span class="game-title">🟩 Wordle</span>
+        <span style="font-size:12px;color:var(--text3)">${guesses.length}/${MAX_GUESSES}</span>
+      </div>
+      <div class="wd-grid">${rows}</div>
+      <div class="wd-kb">${kbHtml}</div>
+      ${statusHtml}
+      ${gameOver ? `<button class="game-new-btn" onclick="launchWordle();this.closest('.game-widget').remove()">Play Again</button>` : ''}
+    `;
+    scrollToBottom();
+
+    if (currentChar) {
+      if (gameOver) clearActiveGame(currentChar.id);
+      else saveActiveGame(currentChar.id, { type: 'wordle', word, gameId, guesses: [...guesses] });
+    }
+    if (gameOver) {
+      delete window[_wdKey];
+      if (msgEl._wdKb) { document.removeEventListener('keydown', msgEl._wdKb); delete msgEl._wdKb; }
+    }
+  }
+
+  window[_wdKey] = function(key) {
+    if (gameOver) return;
+    if (key === 'Backspace') {
+      currentGuess = currentGuess.slice(0, -1);
+    } else if (key === 'Enter') {
+      if (currentGuess.length !== WORD_LEN) return;
+      guesses.push(currentGuess);
+      currentGuess = '';
+    } else if (currentGuess.length < WORD_LEN && /^[a-z]$/.test(key)) {
+      currentGuess += key;
+    } else {
+      return;
+    }
+    renderWordle();
+  };
+
+  msgEl._wdKb = (e) => {
+    if (gameOver) return;
+    if (e.key === 'Enter') window[_wdKey]('Enter');
+    else if (e.key === 'Backspace') window[_wdKey]('Backspace');
+    else if (/^[a-zA-Z]$/.test(e.key)) window[_wdKey](e.key.toLowerCase());
+  };
+  document.addEventListener('keydown', msgEl._wdKb);
+
+  renderWordle();
 }
 
 // ── Halloween 2026 gift ────────────────────────────────────────────────────────

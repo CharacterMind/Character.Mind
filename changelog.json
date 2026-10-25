@@ -1,5 +1,32 @@
 [
   {
+    "id": "v355-games-stripped",
+    "version": "v355",
+    "date": "Oct 2026",
+    "title": "🔧 Games Temporarily Removed",
+    "subtitle": "All game entry points removed while games are debugged and re-added one at a time.",
+    "changed": [
+      "Removed Play Slots and Take a Quiz buttons from the coins panel in Settings",
+      "Removed slots shortcut button from the chat toolbar",
+      "Disabled in-chat game triggers — typing 'hangman', 'tic tac toe', or 'wordle' no longer intercepts the message",
+      "Disabled automatic game restore on page load",
+      "Game code and server endpoints remain intact; entry points will be re-added one at a time"
+    ]
+  },
+  {
+    "id": "v354-games-fix",
+    "version": "v354",
+    "date": "Oct 2026",
+    "title": "🎮 Games Fixed — Wordle Widget & Quiz Stability",
+    "subtitle": "Wordle now launches as a proper game widget; fixed a broken word in the Wordle bank and a quiz error state.",
+    "fixed": [
+      "Typing 'wordle' in chat now launches a proper Wordle widget — 6×5 grid with coloured tiles, on-screen keyboard, physical keyboard support, and coin award on win — instead of an unreliable text game",
+      "Removed CASTLE (6 letters) from the Wordle word bank — it made the game unwinnable since only 5-letter guesses are accepted",
+      "Fixed text-game Wordle word bank — all words are now exactly 5 letters",
+      "Quiz modal no longer shows a blank question screen when the server returns an error — now correctly shows the error message and re-enables the category buttons"
+    ]
+  },
+  {
     "id": "v353-scares-confetti-fix",
     "version": "v353",
     "date": "Oct 2026",
