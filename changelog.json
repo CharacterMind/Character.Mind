@@ -1,5 +1,22 @@
 [
   {
+    "id": "v357-wordle-back",
+    "version": "v357",
+    "date": "Oct 2026",
+    "title": "🟩 Wordle is Back",
+    "subtitle": "Wordle re-added with character greeting, game restore, and all known bugs fixed.",
+    "changed": [
+      "Wordle chat trigger re-added — typing 'wordle' launches the widget",
+      "Character now responds when Wordle starts with a brief in-character greeting",
+      "Game restore re-enabled for Wordle — in-progress games survive page refresh",
+      "Halloween effects disabled (flying skulls, bats, ghosts, jump scares, confetti, spider webs all stopped)",
+      "Fixed quiz button buried below plan tiers in Settings coin card — moved above the comparison grid",
+      "Fixed quiz progress bar stuck at 80% on last question",
+      "Fixed quiz blank screen when server returns an error mid-session",
+      "Fixed coin balance not updating after quiz win"
+    ]
+  },
+  {
     "id": "v355-games-stripped",
     "version": "v355",
     "date": "Oct 2026",

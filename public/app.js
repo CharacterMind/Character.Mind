@@ -3578,7 +3578,7 @@ function restoreActiveGame(charId) {
   let state;
   try { state = JSON.parse(localStorage.getItem(userKey('cm_game_' + charId))); } catch (_) { return; }
   if (!state) return;
-  // game restore disabled — games re-added one at a time
+  if (state.type === 'wordle') launchWordle(state);
 }
 
 function savePastChatLocal(charId, messages) {
@@ -4161,6 +4161,21 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
     skipAppend = true;
   }
 
+  // ── Wordle trigger ────────────────────────────────────────────────────────────
+  if (!overrideText && text && currentChar) {
+    const t = text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').trim();
+    if (/\bwordle\b/.test(t)) {
+      appendMessage('user', text);
+      touchRecentChat(currentChar.id);
+      document.getElementById('chatWelcome').innerHTML = '';
+      playSound('send');
+      scrollToBottom();
+      appendMessage('ai', "I've picked a secret 5-letter word — can you guess it in 6 tries? Good luck! 🟩");
+      scrollToBottom();
+      launchWordle();
+      return;
+    }
+  }
 
   if (!skipAppend) {
     if (text || imgB64) {
