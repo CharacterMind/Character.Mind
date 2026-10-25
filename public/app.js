@@ -6194,6 +6194,20 @@ async function openUsageModal() {
   document.getElementById('usageModal').style.display = 'flex';
   const wrap = document.getElementById('resetLimitsWrap');
   if (wrap) wrap.hidden = !isOwner();
+  // Auto-populate next version number for the announcement form
+  if (isOwner()) {
+    const annV = document.getElementById('annVersion');
+    if (annV && !annV.value) {
+      (async () => {
+        try {
+          const anns = window._announcements || await fetch('/api/announcements').then(r => r.json());
+          const latest = (anns[0]?.version || '');
+          const m = latest.match(/v?(\d+)/i);
+          if (m && !annV.value) annV.value = 'v' + (parseInt(m[1], 10) + 1);
+        } catch (_) {}
+      })();
+    }
+  }
   // Wire donation URL from constant; hide the row for the owner (they know it exists)
   const donateBtn = document.getElementById('usageDonateBtn');
   if (donateBtn) donateBtn.href = DONATION_URL;
