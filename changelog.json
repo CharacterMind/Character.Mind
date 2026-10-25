@@ -1,5 +1,17 @@
 [
   {
+    "id": "v344-call-token-cost-rebalanced",
+    "version": "v344",
+    "date": "Oct 2026",
+    "title": "📞 Voice Call Cost Rebalanced (10× Cheaper)",
+    "subtitle": "Calls still count against your session budget, but at 10 tokens/sec instead of 50 — a 5-minute call costs about the same as one chat message.",
+    "fixed": [
+      "Call token rate reduced from 50 → 10 tokens/second",
+      "Minimum call cost reduced from 2,500 → 200 tokens",
+      "Maximum call cost reduced from 15,000 → 2,000 tokens (5-min call ≈ 1 chat message)"
+    ]
+  },
+  {
     "id": "v343-floaters-nuclear-hide",
     "version": "v343",
     "date": "Oct 2026",

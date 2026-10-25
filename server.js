@@ -1478,11 +1478,11 @@ function imageTokenCost(sizeBytes) {
   if (sizeBytes < IMAGE_MEDIUM_BYTES) return IMAGE_UNIT_TOKENS * 2;  // 2 units
   return IMAGE_UNIT_TOKENS * 3;                                       // 3 units
 }
-// Call cost: 1–6 units, scales with duration (50 tokens/sec, clamped 2 500–15 000)
-// ~50 s → 1 unit, ~100 s → 2 units … ~300 s (5 min) → 6 units
-const CALL_TOKENS_PER_SECOND = 50;
-const CALL_TOKEN_MIN = 2500;   // 1 unit (~10 % of free session)
-const CALL_TOKEN_MAX = 15000;  // 6 units (~60 % of free session)
+// Call cost: scales with duration at 10 tokens/sec, clamped 200–2000.
+// ~20 s → 200 (min), ~2 min → 1 200, ~5 min → 2 000 (max, ~1 chat msg).
+const CALL_TOKENS_PER_SECOND = 10;
+const CALL_TOKEN_MIN = 200;   // ~20-second call
+const CALL_TOKEN_MAX = 2000;  // 5-minute call (~1 Opes chat message)
 
 // ── Usage-based coin cost calculator ─────────────────────────────────────────
 // Costs scale with actual usage: response length, model tier, image size, etc.
@@ -3617,12 +3617,12 @@ app.post('/api/call/end', requireAuth, (req, res) => {
     saveLimitsToDB(userId);
     return res.json({ ok: true, refunded: true });
   }
-  // Voice calls do NOT consume session tokens — they are limited by the daily call count instead.
+  const callTokenCost = Math.max(CALL_TOKEN_MIN, Math.min(CALL_TOKEN_MAX, Math.ceil(duration * CALL_TOKENS_PER_SECOND)));
+  const usage = addTokens(userId, callTokenCost);
   // Deduct user coins for call duration (variable — 1 coin per minute)
   const durOpts = { durationSecs: duration };
   if (!getLimits(userId).skipCoinDeduct) deductCoinsSync(userId, calcCost('user', 'call_duration', durOpts));
   trackMissionProgress(userId, 'call').catch(() => {});
-  const usage = { warnings: [], ...buildUsagePayload(getLimits(userId), userId) };
   res.json({ ok: true, ...usage });
 });
 
