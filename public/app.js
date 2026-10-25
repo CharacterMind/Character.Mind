@@ -612,7 +612,9 @@ async function openPaypalCheckout(planKey, period) {
   const yearly = currentCheckoutPeriod === 'annual';
 
   document.getElementById('paypalCheckoutTitle').textContent = `${plan.name} Plan${yearly ? ' (yearly)' : ''}`;
-  const price = yearly ? plan.annual : plan.monthly;
+  const saleOn = halloweenSaleActive();
+  const basePrice = yearly ? plan.annual : plan.monthly;
+  const price = (saleOn && basePrice > 0) ? Math.round(basePrice * (1 - HALLOWEEN_SALE.discount) * 100) / 100 : basePrice;
   const periodLabel = yearly ? 'yr' : 'mo';
 
   const origPriceEl = document.getElementById('paypalCheckoutOrigPrice');
@@ -625,14 +627,15 @@ async function openPaypalCheckout(planKey, period) {
   const coinSaveEl = document.getElementById('co-coin-save');
   const tot = document.getElementById('co-total-display');
 
-  // Always show original price struck-through when there's a coin discount or annual savings
   const hasCoins = userCoins > 0 && price > 0;
   const discount = hasCoins ? Math.min(coinValueUSD, price) : 0;
   const effective = +(price - discount).toFixed(2);
 
-  // Figure out base "full" price for the strikethrough
+  // Strikethrough label: during sale show the pre-sale price; otherwise show monthly*12 for annual
   let origLabel = '';
-  if (yearly && plan.monthly > 0) {
+  if (saleOn && basePrice > 0) {
+    origLabel = `${formatLocalPrice(basePrice)} / ${periodLabel}  (Save ${Math.round(HALLOWEEN_SALE.discount * 100)}%)`;
+  } else if (yearly && plan.monthly > 0) {
     const fullYear = plan.monthly * 12;
     const savePct = Math.round((1 - plan.annual / fullYear) * 100);
     origLabel = `${formatLocalPrice(fullYear)} / yr  (Save ${savePct}%)`;
@@ -641,18 +644,22 @@ async function openPaypalCheckout(planKey, period) {
   }
 
   if (hasCoins) {
-    // Struck-through original plan price
+    // Struck-through original price; green line shows the sale price (before coins); coin row deducts below
     if (origPriceEl) { origPriceEl.textContent = origLabel; origPriceEl.style.display = ''; }
-    // Effective price after coins, in green
-    if (priceEl) { priceEl.textContent = `${formatLocalPrice(effective)} / ${periodLabel}`; priceEl.classList.add('co-discounted'); }
-    // Coin row: "🪙 X coins  -$Y.YY" + "You're saving $Y.YY"
+    if (priceEl) { priceEl.textContent = `${formatLocalPrice(price)} / ${periodLabel}`; priceEl.classList.add('co-discounted'); }
     if (coinLabelEl) coinLabelEl.textContent = `🪙 ${userCoins.toLocaleString()} coins`;
     if (coinValueEl) coinValueEl.textContent = `-${formatLocalPrice(discount)}`;
     if (coinSaveEl) coinSaveEl.textContent = effective === 0 ? `✓ Fully covered! You're saving ${formatLocalPrice(discount)}` : `You're saving ${formatLocalPrice(discount)}`;
     if (coinRow) coinRow.style.display = '';
     if (tot) tot.textContent = formatLocalPrice(effective);
+  } else if (saleOn && basePrice > 0) {
+    // Sale, no coins: show pre-sale price struck through, sale price in green
+    if (origPriceEl) { origPriceEl.textContent = origLabel; origPriceEl.style.display = ''; }
+    if (priceEl) { priceEl.textContent = `${formatLocalPrice(price)} / ${periodLabel}`; priceEl.classList.add('co-discounted'); }
+    if (coinRow) coinRow.style.display = 'none';
+    if (tot) tot.textContent = formatLocalPrice(price);
   } else if (yearly && plan.monthly > 0) {
-    // Annual, no coins — still show annual savings strikethrough
+    // Annual, no sale, no coins — show annual savings strikethrough
     const fullYear = plan.monthly * 12;
     const savePct = Math.round((1 - plan.annual / fullYear) * 100);
     if (origPriceEl) { origPriceEl.textContent = `${formatLocalPrice(fullYear)} / yr`; origPriceEl.style.display = ''; }

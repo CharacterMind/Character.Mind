@@ -1,5 +1,16 @@
 [
   {
+    "id": "v340-checkout-price-coin-fix",
+    "version": "v340",
+    "date": "Oct 2026",
+    "title": "🎃 Checkout Price Matches Sale Price & Coins Applied Correctly",
+    "subtitle": "The checkout summary now shows the Halloween sale price and correctly deducts your coins from it.",
+    "fixed": [
+      "Checkout modal now shows the Halloween sale price (e.g. $287.99/yr for X50) matching the pricing card — no more mismatch",
+      "Coin savings are now deducted from the sale price in the checkout summary, so the total reflects both the sale and your coins"
+    ]
+  },
+  {
     "id": "v339-voice-restoration-confetti-fix",
     "version": "v339",
     "date": "Oct 2026",
