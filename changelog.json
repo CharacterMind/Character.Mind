@@ -1,5 +1,19 @@
 [
   {
+    "id": "v352-coins-not-for-usage",
+    "version": "v352",
+    "date": "Oct 2026",
+    "title": "🪙 Coins No Longer Drain on Use",
+    "subtitle": "Chat, calls, images, and memos no longer cost coins — your session tokens are the usage limit.",
+    "fixed": [
+      "Coins no longer deducted per chat message or voice call response",
+      "Coins no longer deducted for call duration",
+      "Coins no longer deducted when sending an image",
+      "Coins no longer deducted when saving a memo",
+      "Coins now only go down when you intentionally spend them (buying packs, redeeming a subscription, or slots)"
+    ]
+  },
+  {
     "id": "v351-coin-protection",
     "version": "v351",
     "date": "Oct 2026",

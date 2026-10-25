@@ -3628,9 +3628,6 @@ app.post('/api/call/end', requireAuth, (req, res) => {
   }
   const callTokenCost = Math.max(CALL_TOKEN_MIN, Math.min(CALL_TOKEN_MAX, Math.ceil(duration * CALL_TOKENS_PER_SECOND)));
   const usage = addTokens(userId, callTokenCost);
-  // Deduct user coins for call duration (variable — 1 coin per minute)
-  const durOpts = { durationSecs: duration };
-  if (!getLimits(userId).skipCoinDeduct) deductCoinsSync(userId, calcCost('user', 'call_duration', durOpts));
   trackMissionProgress(userId, 'call').catch(() => {});
   res.json({ ok: true, ...usage });
 });
@@ -4025,8 +4022,6 @@ app.post('/api/memo/use', requireAuth, (req, res) => {
   // Memo cost scales with text length: 500 tokens (short) → 2 500 tokens (long)
   const memoTokenCost = Math.max(500, Math.min(2500, Math.round(textLen * 1.2)));
   addTokens(userId, memoTokenCost);
-  const memoOpts = { textLen };
-  if (!getLimits(userId).skipCoinDeduct) deductCoinsSync(userId, calcCost('user', 'memo', memoOpts));
   res.json({ allowed: true, memosToday: u.memosToday });
 });
 
@@ -5417,9 +5412,6 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       refundTokens(userId, imgTokenCost);
       return res.status(451).json({ error: 'explicit_image' });
     }
-    // Charge coins for image — variable cost based on image size
-    const imgOpts = { imageSizeBytes: imgSizeBytes };
-    if (!getLimits(userId).skipCoinDeduct) deductCoinsSync(userId, calcCost('user', 'image', imgOpts));
   }
 
   // ── Slur detection (three strikes per conversation) ────────────────────────
@@ -5642,11 +5634,6 @@ app.post('/api/chat', requireAuth, async (req, res) => {
             _swearBudgetJustHit = true;
           }
         }
-      }
-      // Deduct user coins — variable cost based on response length and model
-      if (!getLimits(userId).skipCoinDeduct) {
-        const type = callMode ? 'call' : 'chat';
-        deductCoinsSync(userId, calcCost('user', type, { textLen: (text || '').length, modelTier }));
       }
       return _swearBudgetJustHit ? { swearBudgetHit: true } : {};
     },
