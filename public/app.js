@@ -10003,12 +10003,10 @@ function launchTicTacToe(savedState) {
   function applyHwLogo(el) {
     if (el.dataset.hwDone) return;
     el.dataset.hwDone = '1';
+    // Keep "character" and "." readable as gradient text; replace only the "i" in "mind" with an eye
     el.innerHTML =
-      '<span class="hw-logo-c">🌙</span>' +
-      '<span class="hw-logo-part">hara</span>' +
-      '<span class="hw-logo-c">🌙</span>' +
-      '<span class="hw-logo-part">ter.m</span>' +
-      '👁' +
+      '<span class="hw-logo-part">character.m</span>' +
+      '<span class="hw-logo-eye">👁</span>' +
       '<span class="hw-logo-part">nd</span>';
   }
   document.querySelectorAll('.logo-text').forEach(applyHwLogo);
@@ -10019,6 +10017,39 @@ function launchTicTacToe(savedState) {
       n.querySelectorAll?.('.logo-text').forEach(applyHwLogo);
     }));
   }).observe(document.body, { childList: true, subtree: true });
+
+  // ── Jump scares ─────────────────────────────────────────────────────────────
+  const SCARES = [
+    { emoji: '👻', boo: 'BOO!' },
+    { emoji: '💀', boo: 'YOU\'RE DEAD.' },
+    { emoji: '🎃', boo: 'MUAHAHAHA!' },
+    { emoji: '🧟', boo: 'BRAINSSS...' },
+    { emoji: '🧛', boo: 'I VANT YOUR SOUL.' },
+    { emoji: '🕷️', boo: 'EIGHT LEGS. ONE YOU.' },
+  ];
+  function doJumpScare() {
+    if (hwPaused) return scheduleNextScare();
+    const s = SCARES[Math.floor(Math.random() * SCARES.length)];
+    const el = document.createElement('div');
+    el.className = 'hw-jump-scare';
+    el.innerHTML = `<div class="hw-js-emoji">${s.emoji}</div><div class="hw-js-boo">${s.boo}</div>`;
+    document.body.appendChild(el);
+    requestAnimationFrame(() => {
+      el.style.opacity = '1';
+      el.style.transform = 'scale(1)';
+      setTimeout(() => {
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 500);
+      }, 900);
+    });
+    scheduleNextScare();
+  }
+  function scheduleNextScare() {
+    const delay = (5 + Math.random() * 10) * 60 * 1000; // 5-15 min
+    setTimeout(doJumpScare, delay);
+  }
+  // First scare 2-4 min after load
+  setTimeout(doJumpScare, (2 + Math.random() * 2) * 60 * 1000);
 
   // ── One-time welcome toast ──────────────────────────────────────────────────
   if (!sessionStorage.getItem('hw_toast_shown')) {

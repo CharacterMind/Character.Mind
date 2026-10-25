@@ -3575,11 +3575,10 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
-.halloween .logo-text .hw-logo-c {
+.halloween .logo-text .hw-logo-eye {
   display: inline-block;
-  transform: scaleX(-1);
-  font-size: 0.8em;
-  vertical-align: 0.04em;
+  font-size: 0.82em;
+  vertical-align: -0.05em;
 }
 .halloween .sidebar-section-label { color: rgba(249,115,22,0.55); }
 .halloween .chat-item:hover { background: rgba(249,115,22,0.06); }
@@ -3671,6 +3670,24 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
 }
 .halloween-web.web-left  { left: 0; }
 .halloween-web.web-right { right: 0; transform: scaleX(-1); transform-origin: right top; }
+
+/* ── Jump scare ── */
+.hw-jump-scare {
+  position: fixed; inset: 0; z-index: 99999;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(60,0,0,0.55); backdrop-filter: blur(2px);
+  pointer-events: none;
+  opacity: 0; transform: scale(1.12);
+  transition: opacity 0.07s ease-out, transform 0.07s ease-out;
+}
+.hw-jump-scare[style*="opacity: 1"] { transition: opacity 0.07s, transform 0.07s; }
+.hw-jump-scare[style*="opacity: 0"] { transition: opacity 0.5s ease-in; }
+.hw-js-emoji { font-size: min(52vw, 52vh); line-height: 1; filter: drop-shadow(0 0 40px rgba(255,100,0,0.8)); }
+.hw-js-boo {
+  font-size: clamp(28px, 6vw, 72px); font-weight: 900; letter-spacing: .1em;
+  color: #ff4400; text-shadow: 0 0 30px rgba(255,68,0,0.9), 0 0 60px rgba(255,68,0,0.5);
+  margin-top: 0.3em;
+}
 
 /* ── Motion toggle button ── */
 #hwMotionToggle {
