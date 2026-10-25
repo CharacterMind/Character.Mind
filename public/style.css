@@ -3606,14 +3606,25 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
 .halloween .call-end-btn { background: rgba(194,65,12,0.25); border-color: rgba(249,115,22,0.45); }
 .halloween .call-end-btn:hover { background: rgba(194,65,12,0.5); }
 
+/* ── Stage container — clips parade + confetti to content area ── */
+#hw-stage {
+  position: fixed;
+  top: 68px;
+  left: var(--sidebar-w, 270px);
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 8;
+}
+@media (max-width: 768px) { #hw-stage { left: 0; top: 52px; } }
+
 /* ── Flying parade characters ── */
 .hw-flyer {
-  position: fixed; pointer-events: none; z-index: 8; line-height: 1;
-  clip-path: inset(68px 0 0 var(--sidebar-w, 270px));
+  position: absolute; pointer-events: none; line-height: 1;
   filter: drop-shadow(0 0 6px rgba(249,115,22,0.35));
   will-change: transform;
 }
-@media (max-width: 768px) { .hw-flyer { clip-path: inset(52px 0 0 0); } }
 
 @keyframes hwFlyLeft {
   from { transform: translateX(calc(100vw + 100px)) translateY(0); }
@@ -3632,7 +3643,7 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
 
 /* ── Falling confetti ── */
 .hw-confetti {
-  position: fixed; top: -48px; pointer-events: none; z-index: 7;
+  position: absolute; top: -48px; pointer-events: none;
   animation: hwFall linear both; line-height: 1;
 }
 @keyframes hwFall {

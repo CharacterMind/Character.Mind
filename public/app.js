@@ -9944,11 +9944,15 @@ function launchTicTacToe(savedState) {
     toggleBtn.style.opacity = hwPaused ? '0.5' : '0.85';
   };
   updateToggle();
+  const hwStage = document.createElement('div');
+  hwStage.id = 'hw-stage';
+  document.body.appendChild(hwStage);
+
   toggleBtn.addEventListener('click', () => {
     hwPaused = !hwPaused;
     localStorage.setItem('hw_motion_off', hwPaused ? '1' : '0');
     updateToggle();
-    if (hwPaused) document.querySelectorAll('.hw-flyer,.hw-confetti').forEach(e => e.remove());
+    if (hwPaused) hwStage.querySelectorAll('.hw-flyer,.hw-confetti').forEach(e => e.remove());
   });
   document.body.appendChild(toggleBtn);
 
@@ -9963,8 +9967,8 @@ function launchTicTacToe(savedState) {
     const size   = minS + Math.random() * (maxS - minS);
     const topPct = minT + Math.random() * (maxT - minT);
     const dur    = minSpd + Math.random() * (maxSpd - minSpd);
-    el.style.cssText = `font-size:${size}px;top:${topPct}vh;animation:${fromRight?'hwFlyLeft':'hwFlyRight'} ${dur}s linear both;`;
-    document.body.appendChild(el);
+    el.style.cssText = `font-size:${size}px;top:calc(${topPct}vh - 68px);animation:${fromRight?'hwFlyLeft':'hwFlyRight'} ${dur}s linear both;`;
+    hwStage.appendChild(el);
     setTimeout(() => el.remove(), dur * 1000 + 600);
   }
 
@@ -9986,7 +9990,7 @@ function launchTicTacToe(savedState) {
     const sway = ((Math.random() - 0.5) * 80).toFixed(0);
     const rot  = ((Math.random() - 0.5) * 360).toFixed(0) + 'deg';
     el.style.cssText = `font-size:${size}px;left:${left}%;animation-duration:${dur}s;animation-delay:${(Math.random()*1.5).toFixed(2)}s;--hw-sway:${sway}px;--hw-rot:${rot};`;
-    document.body.appendChild(el);
+    hwStage.appendChild(el);
     setTimeout(() => el.remove(), (dur + 2) * 1000);
   }
 
