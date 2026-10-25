@@ -659,7 +659,7 @@ if (GOOGLE_AUTH_ENABLED) {
           if (row.checkin_streak) lim.checkinStreak = parseInt(row.checkin_streak) || 0;
           lim.subscriptionTier = effectiveTier(lim);
           lim.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email) || TEST_ACCOUNTS.has(user.email);
-          lim.skipCoinDeduct = TEST_ACCOUNTS.has(user.email) && !OWNER_EMAILS.has(user.email); // owner always drains coins even if in TEST_ACCOUNTS
+          lim.skipCoinDeduct = TEST_ACCOUNTS.has(user.email) || FREE_TOP_PLAN_EMAILS.has(user.email);
           lim.tierLoaded = true;
           checkMonthlyCoins(user.googleId, lim).catch(() => {});
           maybeTrackLogin(user.googleId);
@@ -794,7 +794,7 @@ async function ensureTierLoaded(user) {
     u.halloweenGift2026 = !!row.halloween_gift_2026;
     u.subscriptionTier = effectiveTier(u);
     u.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email) || TEST_ACCOUNTS.has(user.email);
-    u.skipCoinDeduct = TEST_ACCOUNTS.has(user.email) && !OWNER_EMAILS.has(user.email); // owner always drains coins even if in TEST_ACCOUNTS
+    u.skipCoinDeduct = TEST_ACCOUNTS.has(user.email) || FREE_TOP_PLAN_EMAILS.has(user.email);
     u.tierLoaded = true;
     await checkMonthlyCoins(user.googleId, u);
   } finally {
@@ -7091,7 +7091,7 @@ async function checkMonthlyCoins(uid, u) {
     }
 
     u.cmCoins  = (u.cmCoins  || 0) + coinGrant;
-    u.cmTokens = tokenGrant; // reset to fresh grant each month (tournament fresh start)
+    u.cmTokens = Math.max(u.cmTokens || 0, tokenGrant); // bring up to monthly minimum; never reduce tokens already earned
     u.coinsMonthlyReset = monthStart;
     u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + coinGrant;
     // Atomic: only applies if this month's grant hasn't been written yet — prevents double-grant
@@ -7099,7 +7099,7 @@ async function checkMonthlyCoins(uid, u) {
     const mResult = await db.query(
       `UPDATE users
          SET cm_coins = cm_coins + $1,
-             cm_tokens = $2,
+             cm_tokens = GREATEST(cm_tokens, $2),
              coins_monthly_reset = $3,
              coins_earned_all_time = COALESCE(coins_earned_all_time, 0) + $1
        WHERE google_id = $4
@@ -7117,6 +7117,8 @@ async function checkMonthlyCoins(uid, u) {
         u.coinsMonthlyReset = Number(fresh.rows[0].coins_monthly_reset) || monthStart;
         u.coinsEarnedAllTime = (u.coinsEarnedAllTime || coinGrant) - coinGrant; // undo optimistic add
       }
+    } else {
+      saveLimitsToDB(uid); // persist coinsMonthlyReset so restarts don't re-run this grant
     }
   }
 }

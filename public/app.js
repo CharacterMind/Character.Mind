@@ -7803,6 +7803,7 @@ async function _hwDemonPlay(blob, tokenRef) {
     const arrayBuf = await blob.arrayBuffer();
     if (tokenRef.stopped) return;
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
     const audioBuf = await ctx.decodeAudioData(arrayBuf);
     if (tokenRef.stopped) { ctx.close(); return; }
     const src = ctx.createBufferSource();
@@ -10228,8 +10229,8 @@ async function claimHalloweenGift() {
 
   // ── Settings state ──────────────────────────────────────────────────────────
   let hwPaused    = localStorage.getItem('hw_motion_off')  === '1';
-  let hwScares    = localStorage.getItem('hw_scares_off')  !== '1'; // default ON
-  let hwConfetti  = localStorage.getItem('hw_conf_off')    !== '1'; // default ON
+  let hwScares    = localStorage.getItem('hw_scares_on')   === '1'; // default OFF
+  let hwConfetti  = localStorage.getItem('hw_conf_on')     === '1'; // default OFF
   let confettiLoopId = null;
   let paradeLoopId   = null;
   let hwCallVoice = localStorage.getItem('hw_call_voice')  === 'demon';
@@ -10246,6 +10247,7 @@ async function claimHalloweenGift() {
   hwStage.id = 'hw-stage';
   if (!hwConfetti || hwPaused) hwStage.style.display = 'none';
   document.body.appendChild(hwStage);
+  if (hwPaused) { const sp = document.getElementById('seasonal-particles'); if (sp) sp.style.display = 'none'; }
 
   // ── Settings panel ──────────────────────────────────────────────────────────
   const hwPanel = document.createElement('div');
@@ -10326,28 +10328,33 @@ async function claimHalloweenGift() {
     localStorage.setItem('hw_motion_off', hwPaused ? '1' : '0');
     togMotion.textContent = hwPaused ? 'Off' : 'On';
     hwSetTog(togMotion, !hwPaused);
+    const _sp = document.getElementById('seasonal-particles');
     if (hwPaused) {
       clearTimeout(confettiLoopId); clearTimeout(paradeLoopId);
       confettiLoopId = null; paradeLoopId = null;
       hwStage.innerHTML = '';
       hwStage.style.display = 'none';
-    } else if (hwConfetti) {
-      clearTimeout(confettiLoopId); clearTimeout(paradeLoopId);
-      confettiLoopId = null; paradeLoopId = null;
-      hwStage.style.display = '';
-      startConfetti();
-      startParade();
+      if (_sp) _sp.style.display = 'none';
+    } else {
+      if (_sp) _sp.style.display = '';
+      if (hwConfetti) {
+        clearTimeout(confettiLoopId); clearTimeout(paradeLoopId);
+        confettiLoopId = null; paradeLoopId = null;
+        hwStage.style.display = '';
+        startConfetti();
+        startParade();
+      }
     }
   });
   togScares.addEventListener('click', () => {
     hwScares = !hwScares;
-    localStorage.setItem('hw_scares_off', hwScares ? '0' : '1');
+    localStorage.setItem('hw_scares_on', hwScares ? '1' : '0');
     togScares.textContent = hwScares ? 'On' : 'Off';
     hwSetTog(togScares, hwScares);
   });
   togConf.addEventListener('click', () => {
     hwConfetti = !hwConfetti;
-    localStorage.setItem('hw_conf_off', hwConfetti ? '0' : '1');
+    localStorage.setItem('hw_conf_on', hwConfetti ? '1' : '0');
     togConf.textContent = hwConfetti ? 'On' : 'Off';
     hwSetTog(togConf, hwConfetti);
     if (!hwConfetti) {
@@ -10973,8 +10980,10 @@ async function claimHalloweenGift() {
     _scareTimer = setTimeout(doJumpScare, delay);
   }
   // First scare: scales with frequency (freq 0 = 4-8min, freq 100 = 10-30s)
-  const _firstMin = Math.round((4 - hwFreq * 0.037) * 60 * 1000);
-  _scareTimer = setTimeout(doJumpScare, Math.max(10 * 1000, _firstMin + Math.random() * _firstMin));
+  if (hwScares) {
+    const _firstMin = Math.round((4 - hwFreq * 0.037) * 60 * 1000);
+    _scareTimer = setTimeout(doJumpScare, Math.max(10 * 1000, _firstMin + Math.random() * _firstMin));
+  }
 
   // ── One-time welcome toast ──────────────────────────────────────────────────
   if (!sessionStorage.getItem('hw_toast_shown')) {
