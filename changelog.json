@@ -13,6 +13,29 @@
     ]
   },
   {
+    "id": "v350-toggle-cleanup",
+    "version": "v350",
+    "date": "Oct 2026",
+    "title": "🎃 Halloween Toggle Reliability",
+    "subtitle": "Turning off any Halloween toggle now cleans up instantly and stays off.",
+    "fixed": [
+      "Motion Off / Confetti Off toggles now immediately remove all in-flight parade/confetti elements",
+      "Added a 300 ms deferred cleanup catch for any elements that spawn between click and removal",
+      "Sweep interval tightened to 1 second so any stray element disappears within one tick"
+    ]
+  },
+  {
+    "id": "v349-halloween-gift-expiry",
+    "version": "v349",
+    "date": "Oct 2026",
+    "title": "🎃 Halloween Gift Expiry & Banner Cleanup",
+    "subtitle": "Reset-for-free offer moved to usage modal only, expires November 5th.",
+    "changed": [
+      "Halloween reset-for-free offer no longer appears as a top banner — it's in the usage modal only",
+      "Offer and sale both hard-expire November 5th 2026 (was November 1st)"
+    ]
+  },
+  {
     "id": "v348-limits-tuning",
     "version": "v348",
     "date": "Oct 2026",
