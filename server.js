@@ -768,6 +768,11 @@ app.post('/api/user/recent-chats', requireAuth, async (req, res) => {
 async function ensureTierLoaded(user) {
   const u = getLimits(user.googleId);
   if (u.tierLoaded) return;
+  // Set email-based protections immediately — these don't need DB data.
+  // Must happen before any await so DB failures during deploys leave owner accounts protected.
+  u.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email) || TEST_ACCOUNTS.has(user.email);
+  u.skipCoinDeduct = TEST_ACCOUNTS.has(user.email) || FREE_TOP_PLAN_EMAILS.has(user.email);
+  if (u.skipCoinDeduct) SKIP_COIN_DEDUCT_IDS.add(user.googleId);
   // Prevent concurrent requests from each running a full DB load and overwriting in-memory coin state.
   // The second caller awaits the first load's promise and returns once done.
   if (u._tierLoadPromise) { await u._tierLoadPromise; return; }
@@ -794,9 +799,6 @@ async function ensureTierLoaded(user) {
     u.slotsWinRate = row.slots_win_rate != null ? Number(row.slots_win_rate) : null;
     u.halloweenGift2026 = !!row.halloween_gift_2026;
     u.subscriptionTier = effectiveTier(u);
-    u.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email) || TEST_ACCOUNTS.has(user.email);
-    u.skipCoinDeduct = TEST_ACCOUNTS.has(user.email) || FREE_TOP_PLAN_EMAILS.has(user.email);
-    if (u.skipCoinDeduct) SKIP_COIN_DEDUCT_IDS.add(user.googleId);
     u.tierLoaded = true;
     await checkMonthlyCoins(user.googleId, u);
   } finally {
