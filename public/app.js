@@ -5890,6 +5890,18 @@ function updateUsageModal(u) {
     dailyResetsEl.textContent = remaining > 0 ? 'Resets in ' + formatCountdown(remaining) : '';
   }
 
+  // Halloween 2026 gift row inside usage modal
+  const hwGiftUsageRow = document.getElementById('hwGiftUsageRow');
+  if (hwGiftUsageRow) {
+    const _now = Date.now();
+    const _hwStart = new Date('2026-10-01T00:00:00Z').getTime();
+    const _hwEnd   = new Date('2026-11-01T00:00:00Z').getTime();
+    const _hwActive = _now >= _hwStart && _now < _hwEnd;
+    hwGiftUsageRow.style.display = (_hwActive && currentUser && !currentUser.halloweenGift2026) ? '' : 'none';
+    const hwUsageBtn = document.getElementById('hwGiftUsageBtn');
+    if (hwUsageBtn) hwUsageBtn.disabled = !!(currentUser && currentUser.halloweenGift2026);
+  }
+
   // Game cooldown bar — fills green when ready, drains to orange/yellow while waiting
   const gamePctEl = document.getElementById('usageGamePct');
   const gameBar = document.getElementById('usageGameBar');
@@ -10125,6 +10137,10 @@ async function claimHalloweenGift() {
         banner.querySelector('.hw-gift-btn-row').style.display = 'none';
         setTimeout(() => { if (banner) banner.style.display = 'none'; }, 4000);
       }
+      const hwUsageRow = document.getElementById('hwGiftUsageRow');
+      if (hwUsageRow) hwUsageRow.style.display = 'none';
+      await loadUsage();
+      if (lastKnownUsage) updateUsageModal(lastKnownUsage);
     } else {
       if (btn) btn.disabled = false;
       showWarning(d.error || 'Could not claim gift. Try again.');

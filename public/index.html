@@ -146,6 +146,14 @@
 
       <div class="usage-sec-sub" id="usageDailyResetsSub" style="margin-top:10px"></div>
 
+      <!-- Halloween 2026 gift row — shown in JS when eligible -->
+      <div id="hwGiftUsageRow" style="display:none;margin-top:14px;padding:11px 14px;border-radius:10px;background:linear-gradient(135deg,rgba(61,18,0,0.85) 0%,rgba(26,13,46,0.85) 100%);border:1px solid rgba(249,115,22,0.3);">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+          <span style="font-size:12px;color:#fde68a;">🎃 <strong>Halloween Gift</strong> — reset all limits free</span>
+          <button id="hwGiftUsageBtn" onclick="claimHalloweenGift()" style="padding:5px 14px;border-radius:7px;border:none;background:linear-gradient(135deg,#ea580c,#7c3aed);color:#fff;font-weight:700;font-size:12px;cursor:pointer;flex-shrink:0;">🎁 Claim</button>
+        </div>
+      </div>
+
     </div>
 
     <!-- Session Credits -->
