@@ -10210,10 +10210,11 @@ async function claimHalloweenGift() {
   let hwFreq      = Math.max(0, Math.min(100, parseInt(localStorage.getItem('hw_scare_freq') || '50')));
   let hwVol       = Math.max(0, Math.min(100, parseInt(localStorage.getItem('hw_scare_vol')  || '70')));
 
-  // Call voice: store original and switch to gravelly Gemini voice if demon mode is on
-  const _origGeminiVoice = (typeof geminiVoiceName !== 'undefined') ? geminiVoiceName : 'Aoede';
-  if (hwCallVoice && typeof geminiVoiceName !== 'undefined') geminiVoiceName = 'Algenib';
-  if (hwCallVoice) document.body.classList.add('hw-demon-voice');
+  // Call voice: switch to gravelly Gemini voice if demon mode is on at startup
+  if (hwCallVoice) {
+    if (typeof geminiVoiceName !== 'undefined') geminiVoiceName = 'Algenib';
+    document.body.classList.add('hw-demon-voice');
+  }
 
   const hwStage = document.createElement('div');
   hwStage.id = 'hw-stage';
@@ -10301,7 +10302,7 @@ async function claimHalloweenGift() {
     if (hwPaused) {
       clearTimeout(confettiLoopId); clearTimeout(paradeLoopId);
       confettiLoopId = null; paradeLoopId = null;
-      hwStage.querySelectorAll('.hw-flyer,.hw-confetti').forEach(e => e.remove());
+      hwStage.innerHTML = '';
     } else if (hwConfetti) {
       clearTimeout(confettiLoopId); clearTimeout(paradeLoopId);
       confettiLoopId = null; paradeLoopId = null;
@@ -10323,7 +10324,7 @@ async function claimHalloweenGift() {
     if (!hwConfetti) {
       clearTimeout(confettiLoopId); clearTimeout(paradeLoopId);
       confettiLoopId = null; paradeLoopId = null;
-      hwStage.querySelectorAll('.hw-confetti,.hw-flyer').forEach(e => e.remove());
+      hwStage.innerHTML = '';
     } else if (!hwPaused) {
       clearTimeout(confettiLoopId); clearTimeout(paradeLoopId);
       confettiLoopId = null; paradeLoopId = null;
@@ -10337,8 +10338,10 @@ async function claimHalloweenGift() {
     togVoice.textContent = hwCallVoice ? '👹 Demon' : '🔊 Normal';
     hwSetTog(togVoice, hwCallVoice);
     document.body.classList.toggle('hw-demon-voice', hwCallVoice);
-    if (typeof geminiVoiceName !== 'undefined') {
-      geminiVoiceName = hwCallVoice ? 'Algenib' : _origGeminiVoice;
+    if (hwCallVoice) {
+      if (typeof geminiVoiceName !== 'undefined') geminiVoiceName = 'Algenib';
+    } else {
+      if (typeof loadCharVoice === 'function') loadCharVoice();
     }
   });
   freqSlider.addEventListener('input', () => {

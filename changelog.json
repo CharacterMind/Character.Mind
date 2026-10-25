@@ -1,5 +1,16 @@
 [
   {
+    "id": "v339-voice-restoration-confetti-fix",
+    "version": "v339",
+    "date": "Oct 2026",
+    "title": "🎃 Voice Restored on Normal Toggle & Confetti Fully Clears",
+    "subtitle": "Switching Call Voice to Normal now restores your character's actual voice; all confetti and parade elements clear instantly on toggle.",
+    "fixed": [
+      "Switching Call Voice back to Normal now correctly restores the character's configured voice instead of reverting to the app default ('Aoede')",
+      "All parade and confetti elements (bats, pumpkins, ghosts, sparkles) now clear immediately when the confetti toggle is turned off"
+    ]
+  },
+  {
     "id": "v338-voice-confetti-fixes",
     "version": "v338",
     "date": "Oct 2026",
