@@ -762,28 +762,38 @@ app.post('/api/user/recent-chats', requireAuth, async (req, res) => {
 async function ensureTierLoaded(user) {
   const u = getLimits(user.googleId);
   if (u.tierLoaded) return;
-  if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId); // admin tools; the plan comes from planFor()
-  if (!db) return;
-  const r = await db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, cm_tokens, coins_earned_today, coins_day_reset, coins_monthly_reset, coins_earned_all_time, ban_until, violence_strikes, last_checkin, checkin_streak FROM users WHERE google_id = $1', [user.googleId]);
-  const row = r.rows[0] || {};
-  u.paypalTier = planFor(user.email, row.subscription_tier);
-  u.coinTier = row.coin_tier || null;
-  u.coinTierExpires = Number(row.coin_tier_expires) || 0;
-  u.cmCoins = row.cm_coins || 0;
-  u.cmTokens = row.cm_tokens || 0;
-  u.coinsEarnedToday = row.coins_earned_today || 0;
-  u.coinsDayReset = Number(row.coins_day_reset) || 0;
-  u.coinsMonthlyReset = Number(row.coins_monthly_reset) || 0;
-  u.coinsEarnedAllTime = Number(row.coins_earned_all_time) || 0;
-  u.violenceStrikes = row.violence_strikes || 0;
-  u.banUntil = row.ban_until ? new Date(row.ban_until).getTime() : null;
-  if (row.last_checkin) u.lastCheckin = row.last_checkin;
-  if (row.checkin_streak) u.checkinStreak = parseInt(row.checkin_streak) || 0;
-  u.subscriptionTier = effectiveTier(u);
-  u.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email) || TEST_ACCOUNTS.has(user.email);
-  u.skipCoinDeduct = TEST_ACCOUNTS.has(user.email) && !OWNER_EMAILS.has(user.email); // owner always drains coins even if in TEST_ACCOUNTS
-  u.tierLoaded = true;
-  await checkMonthlyCoins(user.googleId, u);
+  // Prevent concurrent requests from each running a full DB load and overwriting in-memory coin state.
+  // The second caller awaits the first load's promise and returns once done.
+  if (u._tierLoadPromise) { await u._tierLoadPromise; return; }
+  let _resolve;
+  u._tierLoadPromise = new Promise(r => { _resolve = r; });
+  try {
+    if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId); // admin tools; the plan comes from planFor()
+    if (!db) { u.tierLoaded = true; return; }
+    const r = await db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, cm_tokens, coins_earned_today, coins_day_reset, coins_monthly_reset, coins_earned_all_time, ban_until, violence_strikes, last_checkin, checkin_streak FROM users WHERE google_id = $1', [user.googleId]);
+    const row = r.rows[0] || {};
+    u.paypalTier = planFor(user.email, row.subscription_tier);
+    u.coinTier = row.coin_tier || null;
+    u.coinTierExpires = Number(row.coin_tier_expires) || 0;
+    u.cmCoins = row.cm_coins || 0;
+    u.cmTokens = row.cm_tokens || 0;
+    u.coinsEarnedToday = row.coins_earned_today || 0;
+    u.coinsDayReset = Number(row.coins_day_reset) || 0;
+    u.coinsMonthlyReset = Number(row.coins_monthly_reset) || 0;
+    u.coinsEarnedAllTime = Number(row.coins_earned_all_time) || 0;
+    u.violenceStrikes = row.violence_strikes || 0;
+    u.banUntil = row.ban_until ? new Date(row.ban_until).getTime() : null;
+    if (row.last_checkin) u.lastCheckin = row.last_checkin;
+    if (row.checkin_streak) u.checkinStreak = parseInt(row.checkin_streak) || 0;
+    u.subscriptionTier = effectiveTier(u);
+    u.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email) || TEST_ACCOUNTS.has(user.email);
+    u.skipCoinDeduct = TEST_ACCOUNTS.has(user.email) && !OWNER_EMAILS.has(user.email); // owner always drains coins even if in TEST_ACCOUNTS
+    u.tierLoaded = true;
+    await checkMonthlyCoins(user.googleId, u);
+  } finally {
+    _resolve();
+    delete u._tierLoadPromise;
+  }
 }
 
 // At most 2 AI replies per user at once, so parallel requests can't blow past the token limits.
@@ -6565,6 +6575,67 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
   }
 
   res.sendStatus(200);
+});
+
+// ── Halloween 2026 gift ────────────────────────────────────────────────────────
+const HALLOWEEN_GIFT_COINS  = 100;
+const HALLOWEEN_GIFT_TOKENS = 200;
+const HALLOWEEN_GIFT_START  = new Date('2026-10-01T00:00:00Z').getTime();
+const HALLOWEEN_GIFT_END    = new Date('2026-11-01T00:00:00Z').getTime();
+
+app.get('/api/halloween/status', requireAuth, (req, res) => {
+  const now = Date.now();
+  const available = now >= HALLOWEEN_GIFT_START && now < HALLOWEEN_GIFT_END;
+  const claimed = !!getLimits(req.user.googleId).halloweenGift2026;
+  res.json({ available, claimed });
+});
+
+app.post('/api/halloween/claim', requireAuth, async (req, res) => {
+  const now = Date.now();
+  if (now < HALLOWEEN_GIFT_START || now >= HALLOWEEN_GIFT_END)
+    return res.status(400).json({ error: 'Halloween gift is not available right now.' });
+  const uid = req.user.googleId;
+  const u = getLimits(uid);
+  if (u.halloweenGift2026) return res.status(400).json({ error: 'Already claimed!' });
+  u.halloweenGift2026 = true;
+  saveLimitsToDB(uid);
+  if (db) {
+    await db.query(
+      'UPDATE users SET cm_coins = cm_coins + $1, cm_tokens = cm_tokens + $2, coins_earned_all_time = COALESCE(coins_earned_all_time,0) + $1 WHERE google_id = $3',
+      [HALLOWEEN_GIFT_COINS, HALLOWEEN_GIFT_TOKENS, uid]
+    ).catch(e => console.error('[halloween-claim]', e.message));
+    const r = await db.query('SELECT cm_coins, cm_tokens FROM users WHERE google_id=$1', [uid]).catch(() => null);
+    u.cmCoins  = r?.rows[0]?.cm_coins  ?? (u.cmCoins  + HALLOWEEN_GIFT_COINS);
+    u.cmTokens = r?.rows[0]?.cm_tokens ?? (u.cmTokens + HALLOWEEN_GIFT_TOKENS);
+  } else {
+    u.cmCoins  = (u.cmCoins  || 0) + HALLOWEEN_GIFT_COINS;
+    u.cmTokens = (u.cmTokens || 0) + HALLOWEEN_GIFT_TOKENS;
+  }
+  u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + HALLOWEEN_GIFT_COINS;
+  return res.json({ ok: true, coins: u.cmCoins, tokens: u.cmTokens });
+});
+
+// ── Stripe subscription sync (called after 3DS confirmation on the client) ────
+app.post('/api/stripe/sync', requireAuth, async (req, res) => {
+  if (!stripe || !db) return res.status(503).json({ error: 'Not available.' });
+  const userId = req.user.googleId;
+  try {
+    const row = await db.query('SELECT stripe_subscription_id FROM users WHERE google_id=$1', [userId]);
+    const subId = row.rows[0]?.stripe_subscription_id;
+    if (!subId) return res.json({ synced: false });
+    const sub = await stripe.subscriptions.retrieve(subId);
+    if (sub.status === 'active' || sub.status === 'trialing') {
+      const planKey = getPlanKeyFromStripePrice(sub.items?.data?.[0]?.price?.id);
+      if (planKey) {
+        await db.query('UPDATE users SET subscription_tier=$1 WHERE google_id=$2', [planKey, userId]);
+        const lim = getLimits(userId);
+        lim.subscriptionTier = planKey; lim.paypalTier = planKey; lim.tierLoaded = true;
+        saveLimitsToDB(userId);
+        return res.json({ synced: true, tier: planKey });
+      }
+    }
+  } catch (e) { console.error('[stripe-sync]', e.message); }
+  return res.json({ synced: false });
 });
 
 app.get('/terms', (req, res) => res.sendFile(path.join(__dirname, 'public', 'terms.html')));

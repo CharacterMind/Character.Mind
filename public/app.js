@@ -575,6 +575,8 @@ async function openPaypalCheckout(planKey, period) {
   const plan = PLAN_DATA.find(p => p.key === planKey);
   if (!plan) return;
   currentCheckoutPlan = planKey;
+  // Ensure local currency rates are loaded before we display prices
+  Promise.all([ensurePricingCountry(), loadExchangeRates()]).catch(() => {});
   await loadPaypalConfig();
   currentCheckoutPeriod = (period === 'annual' && yearlyAvailable) ? 'annual' : 'monthly';
   const yearly = currentCheckoutPeriod === 'annual';
@@ -603,35 +605,35 @@ async function openPaypalCheckout(planKey, period) {
   if (yearly && plan.monthly > 0) {
     const fullYear = plan.monthly * 12;
     const savePct = Math.round((1 - plan.annual / fullYear) * 100);
-    origLabel = `$${fullYear.toFixed(2)} / yr  (Save ${savePct}%)`;
+    origLabel = `${formatLocalPrice(fullYear)} / yr  (Save ${savePct}%)`;
   } else {
-    origLabel = `$${price.toFixed(2)} / ${periodLabel}`;
+    origLabel = `${formatLocalPrice(price)} / ${periodLabel}`;
   }
 
   if (hasCoins) {
     // Struck-through original plan price
     if (origPriceEl) { origPriceEl.textContent = origLabel; origPriceEl.style.display = ''; }
     // Effective price after coins, in green
-    if (priceEl) { priceEl.textContent = `$${effective.toFixed(2)} / ${periodLabel}`; priceEl.classList.add('co-discounted'); }
+    if (priceEl) { priceEl.textContent = `${formatLocalPrice(effective)} / ${periodLabel}`; priceEl.classList.add('co-discounted'); }
     // Coin row: "🪙 X coins  -$Y.YY" + "You're saving $Y.YY"
     if (coinLabelEl) coinLabelEl.textContent = `🪙 ${userCoins.toLocaleString()} coins`;
-    if (coinValueEl) coinValueEl.textContent = `-$${discount.toFixed(2)}`;
-    if (coinSaveEl) coinSaveEl.textContent = effective === 0 ? `✓ Fully covered! You're saving $${discount.toFixed(2)}` : `You're saving $${discount.toFixed(2)}`;
+    if (coinValueEl) coinValueEl.textContent = `-${formatLocalPrice(discount)}`;
+    if (coinSaveEl) coinSaveEl.textContent = effective === 0 ? `✓ Fully covered! You're saving ${formatLocalPrice(discount)}` : `You're saving ${formatLocalPrice(discount)}`;
     if (coinRow) coinRow.style.display = '';
-    if (tot) tot.textContent = `$${effective.toFixed(2)}`;
+    if (tot) tot.textContent = formatLocalPrice(effective);
   } else if (yearly && plan.monthly > 0) {
     // Annual, no coins — still show annual savings strikethrough
     const fullYear = plan.monthly * 12;
     const savePct = Math.round((1 - plan.annual / fullYear) * 100);
-    if (origPriceEl) { origPriceEl.textContent = `$${fullYear.toFixed(2)} / yr`; origPriceEl.style.display = ''; }
-    if (priceEl) { priceEl.textContent = `$${price.toFixed(2)} / yr  ·  Save ${savePct}%`; priceEl.classList.add('co-discounted'); }
+    if (origPriceEl) { origPriceEl.textContent = `${formatLocalPrice(fullYear)} / yr`; origPriceEl.style.display = ''; }
+    if (priceEl) { priceEl.textContent = `${formatLocalPrice(price)} / yr  ·  Save ${savePct}%`; priceEl.classList.add('co-discounted'); }
     if (coinRow) coinRow.style.display = 'none';
-    if (tot) tot.textContent = `$${price.toFixed(2)}`;
+    if (tot) tot.textContent = formatLocalPrice(price);
   } else {
     if (origPriceEl) origPriceEl.style.display = 'none';
-    if (priceEl) { priceEl.textContent = `$${price.toFixed(2)} / ${periodLabel}`; priceEl.classList.remove('co-discounted'); }
+    if (priceEl) { priceEl.textContent = `${formatLocalPrice(price)} / ${periodLabel}`; priceEl.classList.remove('co-discounted'); }
     if (coinRow) coinRow.style.display = 'none';
-    if (tot) tot.textContent = `$${price.toFixed(2)}`;
+    if (tot) tot.textContent = formatLocalPrice(price);
   }
   document.getElementById('paypal-checkout-status').textContent = '';
   document.getElementById('paypal-checkout-status').style.color = '';
@@ -923,6 +925,9 @@ async function submitStripePayment() {
       // 3D Secure confirmation required
       const { error: confirmError } = await stripeInstance.confirmCardPayment(data.clientSecret);
       if (confirmError) throw new Error(confirmError.message);
+      // Brief wait for Stripe webhook to process, then sync plan server-side
+      await new Promise(r => setTimeout(r, 2000));
+      await fetch('/api/stripe/sync', { method: 'POST' }).catch(() => {});
     }
 
     // Success
@@ -1311,6 +1316,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('appLoading').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
     loadUsage();
+    checkHalloweenGift();
     maybeShowWelcome();
     initSidebarState();
     initRpMode();
@@ -9979,6 +9985,48 @@ function launchTicTacToe(savedState) {
       waiting = false;
       renderTTT(tttClientCheck(board));
     })();
+  }
+}
+
+// ── Halloween 2026 gift ────────────────────────────────────────────────────────
+async function checkHalloweenGift() {
+  if (!currentUser) return;
+  try {
+    const r = await fetch('/api/halloween/status');
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d.available || d.claimed) return;
+    const banner = document.getElementById('halloweenGiftBanner');
+    if (banner) banner.style.display = 'flex';
+  } catch (_) {}
+}
+
+async function claimHalloweenGift() {
+  const btn = document.getElementById('hwGiftClaimBtn');
+  if (btn) btn.disabled = true;
+  try {
+    const r = await fetch('/api/halloween/claim', { method: 'POST' });
+    const d = await r.json();
+    if (d.ok) {
+      if (lastKnownUsage) {
+        lastKnownUsage.cmCoins  = d.coins;
+        lastKnownUsage.cmTokens = d.tokens;
+      }
+      updateSettingsCoinDisplay(d.coins, lastKnownUsage?.coinsEarnedToday || 0, lastKnownUsage?.coinDailyLimit || 100, lastKnownUsage?.coinsMonthlyReset);
+      updateNavCoinDisplay(lastKnownUsage);
+      const banner = document.getElementById('halloweenGiftBanner');
+      if (banner) {
+        banner.querySelector('.hw-gift-text').textContent = '🎃 Claimed! +100 coins & +200 tokens added to your account!';
+        banner.querySelector('.hw-gift-btn-row').style.display = 'none';
+        setTimeout(() => { if (banner) banner.style.display = 'none'; }, 4000);
+      }
+    } else {
+      if (btn) btn.disabled = false;
+      showWarning(d.error || 'Could not claim gift. Try again.');
+    }
+  } catch (_) {
+    if (btn) btn.disabled = false;
+    showWarning('Could not claim gift. Try again.');
   }
 }
 
