@@ -1,5 +1,19 @@
 [
   {
+    "id": "v345-halloween-toggles-split",
+    "version": "v345",
+    "date": "Oct 2026",
+    "title": "🎃 Halloween Animations & Floaters Split into Separate Toggles",
+    "subtitle": "Animations (characters flying sideways) and Floaters (emoji falling down) are now independent — turn each on or off separately alongside Jump Scares. Also fixes a coin drain bug for owner accounts.",
+    "fixed": [
+      "Animations toggle now controls only the horizontal parade characters (wizard, Dracula, ghosts, etc.) flying across the screen",
+      "Floaters toggle now controls only the vertically falling emoji confetti — independently of the parade",
+      "Jump Scares remains a separate toggle as before",
+      "Owner/exempt account coins were occasionally deducted during long AI responses — a 30-minute server memory purge could clear the skip flag mid-stream",
+      "Added a persistent protection set that survives memory purges, ensuring owner coins are never deducted"
+    ]
+  },
+  {
     "id": "v344-call-token-cost-rebalanced",
     "version": "v344",
     "date": "Oct 2026",

@@ -10228,9 +10228,10 @@ async function claimHalloweenGift() {
   ];
 
   // ── Settings state ──────────────────────────────────────────────────────────
-  let hwPaused    = localStorage.getItem('hw_motion_off')  === '1';
-  let hwScares    = localStorage.getItem('hw_scares_on')   === '1'; // default OFF
-  let hwConfetti  = localStorage.getItem('hw_conf_on')     === '1'; // default OFF
+  let hwPaused     = false; // kept for jump-scare / blood-flash guards; no longer toggled
+  let hwAnimations = localStorage.getItem('hw_anim_on')    === '1'; // horizontal parade, default OFF
+  let hwScares     = localStorage.getItem('hw_scares_on')  === '1'; // default OFF
+  let hwConfetti   = localStorage.getItem('hw_conf_on')    === '1'; // falling emoji, default OFF
   let confettiLoopId = null;
   let paradeLoopId   = null;
   let hwCallVoice = localStorage.getItem('hw_call_voice')  === 'demon';
@@ -10245,9 +10246,8 @@ async function claimHalloweenGift() {
 
   const hwStage = document.createElement('div');
   hwStage.id = 'hw-stage';
-  if (!hwConfetti || hwPaused) hwStage.style.display = 'none';
+  if (!hwAnimations && !hwConfetti) hwStage.style.display = 'none';
   document.body.appendChild(hwStage);
-  if (hwPaused) { const sp = document.getElementById('seasonal-particles'); if (sp) sp.style.display = 'none'; }
 
   // ── Settings panel ──────────────────────────────────────────────────────────
   const hwPanel = document.createElement('div');
@@ -10260,7 +10260,7 @@ async function claimHalloweenGift() {
     <div class="hw-panel-rows">
       <div class="hw-panel-row">
         <span>Animations</span>
-        <button class="hw-tog" id="hwTogMotion">${hwPaused ? 'Off' : 'On'}</button>
+        <button class="hw-tog" id="hwTogMotion">${hwAnimations ? 'On' : 'Off'}</button>
       </div>
       <div class="hw-panel-row">
         <span>Jump Scares</span>
@@ -10318,32 +10318,26 @@ async function claimHalloweenGift() {
   const togVoice   = document.getElementById('hwTogVoice');
   const freqSlider = document.getElementById('hwFreqSlider');
 
-  hwSetTog(togMotion, !hwPaused);
+  hwSetTog(togMotion, hwAnimations);
   hwSetTog(togScares, hwScares);
   hwSetTog(togConf, hwConfetti);
   hwSetTog(togVoice, hwCallVoice);
 
   togMotion.addEventListener('click', () => {
-    hwPaused = !hwPaused;
-    localStorage.setItem('hw_motion_off', hwPaused ? '1' : '0');
-    togMotion.textContent = hwPaused ? 'Off' : 'On';
-    hwSetTog(togMotion, !hwPaused);
-    const _sp = document.getElementById('seasonal-particles');
-    if (hwPaused) {
-      clearTimeout(confettiLoopId); clearTimeout(paradeLoopId);
-      confettiLoopId = null; paradeLoopId = null;
-      hwStage.innerHTML = '';
-      hwStage.style.display = 'none';
-      if (_sp) _sp.style.display = 'none';
+    hwAnimations = !hwAnimations;
+    localStorage.setItem('hw_anim_on', hwAnimations ? '1' : '0');
+    togMotion.textContent = hwAnimations ? 'On' : 'Off';
+    hwSetTog(togMotion, hwAnimations);
+    if (!hwAnimations) {
+      clearTimeout(paradeLoopId);
+      paradeLoopId = null;
+      hwStage.querySelectorAll('.hw-flyer').forEach(el => el.remove());
+      if (!hwConfetti) hwStage.style.display = 'none';
     } else {
-      if (_sp) _sp.style.display = '';
-      if (hwConfetti) {
-        clearTimeout(confettiLoopId); clearTimeout(paradeLoopId);
-        confettiLoopId = null; paradeLoopId = null;
-        hwStage.style.display = '';
-        startConfetti();
-        startParade();
-      }
+      clearTimeout(paradeLoopId);
+      paradeLoopId = null;
+      hwStage.style.display = '';
+      startParade();
     }
   });
   togScares.addEventListener('click', () => {
@@ -10358,16 +10352,15 @@ async function claimHalloweenGift() {
     togConf.textContent = hwConfetti ? 'On' : 'Off';
     hwSetTog(togConf, hwConfetti);
     if (!hwConfetti) {
-      clearTimeout(confettiLoopId); clearTimeout(paradeLoopId);
-      confettiLoopId = null; paradeLoopId = null;
-      hwStage.innerHTML = '';
-      hwStage.style.display = 'none';
-    } else if (!hwPaused) {
-      clearTimeout(confettiLoopId); clearTimeout(paradeLoopId);
-      confettiLoopId = null; paradeLoopId = null;
+      clearTimeout(confettiLoopId);
+      confettiLoopId = null;
+      hwStage.querySelectorAll('.hw-confetti').forEach(el => el.remove());
+      if (!hwAnimations) hwStage.style.display = 'none';
+    } else {
+      clearTimeout(confettiLoopId);
+      confettiLoopId = null;
       hwStage.style.display = '';
       startConfetti();
-      startParade();
     }
   });
   togVoice.addEventListener('click', () => {
@@ -10394,7 +10387,7 @@ async function claimHalloweenGift() {
 
   // ── Flying parade ───────────────────────────────────────────────────────────
   function spawnParade() {
-    if (hwPaused || !hwConfetti) return;
+    if (!hwAnimations) return;
     if (hwStage.querySelectorAll('.hw-flyer').length >= 4) return;
     const [emoji, minS, maxS, minSpd, maxSpd, minT, maxT] = PARADE[Math.floor(Math.random() * PARADE.length)];
     const fromRight = Math.random() > 0.5;
@@ -10411,20 +10404,20 @@ async function claimHalloweenGift() {
 
   function startParade() {
     (function loop() {
-      if (hwPaused || !hwConfetti) return;
+      if (!hwAnimations) return;
       spawnParade();
       if (Math.random() < 0.3) setTimeout(spawnParade, 400 + Math.random() * 600);
       paradeLoopId = setTimeout(loop, 1200 + Math.random() * 2000);
     })();
   }
-  if (hwConfetti && !hwPaused) {
+  if (hwAnimations) {
     for (let i = 0; i < 5; i++) setTimeout(spawnParade, i * 600);
     startParade();
   }
 
   // ── Falling confetti ────────────────────────────────────────────────────────
   function spawnConfetti() {
-    if (hwPaused || !hwConfetti) return;
+    if (!hwConfetti) return;
     if (hwStage.querySelectorAll('.hw-confetti').length >= 10) return;
     const el = document.createElement('div');
     el.className = 'hw-confetti';
@@ -10441,13 +10434,13 @@ async function claimHalloweenGift() {
 
   function startConfetti() {
     (function loop() {
-      if (hwPaused || !hwConfetti) return;
+      if (!hwConfetti) return;
       const burst = 1 + (Math.random() < 0.2 ? 2 : 0);
       for (let i = 0; i < burst; i++) setTimeout(spawnConfetti, i * 80);
       confettiLoopId = setTimeout(loop, 220 + Math.random() * 350);
     })();
   }
-  if (hwConfetti && !hwPaused) startConfetti();
+  if (hwConfetti) startConfetti();
 
   // ── Occasional crimson screen flash ─────────────────────────────────────────
   function hwBloodFlash() {
