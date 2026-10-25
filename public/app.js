@@ -9702,9 +9702,12 @@ function checkSeasonalEvent() {
     return;
   }
 
+  const particlesOff = (() => { try { return localStorage.getItem('cm_particles_' + event.name) === 'off'; } catch (_) { return false; } })();
+  if (!particlesOff) spawnParticles(event.emojis, event.count);
   if (event.accent) setAccentOverride(event.accent);
   setTimeout(() => transformLogoForEvent(event.name), 500);
   setTimeout(() => showEventBanner(event.banner, event.name), 1200);
+  setTimeout(() => _showParticlePill(event.name, event.emojis, event.count), 1500);
 }
 
 function runBirthdayEvent() {
@@ -9890,10 +9893,55 @@ function showEventBanner(msg, eventName) {
   banner.className = `event-banner event-banner--${eventName}`;
   banner.innerHTML = `
     <span>${msg}</span>
-    <button onclick="this.closest('.event-banner').remove()" aria-label="Dismiss">✕</button>
+    <button id="event-banner-particle-btn" aria-label="Toggle particles" title="Toggle particles" style="font-size:17px;background:none;border:none;cursor:pointer;padding:0 4px;opacity:.8;line-height:1"></button>
+    <button onclick="this.closest('.event-banner').remove()" aria-label="Dismiss" style="font-size:13px">✕</button>
   `;
   document.body.appendChild(banner);
+  const syncBannerBtn = () => {
+    const btn = document.getElementById('event-banner-particle-btn');
+    if (btn) btn.textContent = document.getElementById('seasonal-particles') ? '🎊' : '✨';
+  };
+  syncBannerBtn();
+  document.getElementById('event-banner-particle-btn')?.addEventListener('click', () => {
+    _toggleParticles(_activeSeasonalEvent);
+    syncBannerBtn();
+  });
   setTimeout(() => banner.remove(), 10000);
+}
+
+let _activeSeasonalEvent = null;
+
+function _showParticlePill(name, emojis, count) {
+  _activeSeasonalEvent = { name, emojis, count };
+  if (document.getElementById('particle-toggle-pill')) return;
+  const pill = document.createElement('button');
+  pill.id = 'particle-toggle-pill';
+  pill.title = 'Toggle seasonal particles';
+  const refresh = () => {
+    const on = !!document.getElementById('seasonal-particles');
+    pill.innerHTML = on ? `${emojis[0]} <span>Particles on</span>` : `✨ <span>Particles off</span>`;
+    pill.classList.toggle('particle-pill-off', !on);
+  };
+  pill.onclick = () => { _toggleParticles({ name, emojis, count }); refresh(); };
+  document.body.appendChild(pill);
+  refresh();
+}
+
+function _toggleParticles({ name, emojis, count }) {
+  const existing = document.getElementById('seasonal-particles');
+  if (existing) {
+    existing.remove();
+    try { localStorage.setItem('cm_particles_' + name, 'off'); } catch (_) {}
+  } else {
+    spawnParticles(emojis, count);
+    try { localStorage.setItem('cm_particles_' + name, 'on'); } catch (_) {}
+  }
+  const pill = document.getElementById('particle-toggle-pill');
+  if (pill) {
+    const on = !!document.getElementById('seasonal-particles');
+    pill.innerHTML = on ? `${emojis[0]} <span>Particles on</span>` : `✨ <span>Particles off</span>`;
+    pill.classList.toggle('particle-pill-off', !on);
+  }
 }
 
 // Voice features (call button, read-aloud) stay hidden until a TTS provider is configured server-side.
