@@ -10489,14 +10489,12 @@ async function claimHalloweenGift() {
     localStorage.setItem('hw_anim_on', hwAnimations ? '1' : '0');
     togMotion.textContent = hwAnimations ? 'On' : 'Off';
     hwSetTog(togMotion, hwAnimations);
+    clearTimeout(paradeLoopId);
+    paradeLoopId = null;
     if (!hwAnimations) {
-      clearTimeout(paradeLoopId);
-      paradeLoopId = null;
-      hwStage.querySelectorAll('.hw-flyer').forEach(el => el.remove());
-      if (!hwConfetti) hwStage.style.display = 'none';
+      hwSyncStage();
+      setTimeout(hwSyncStage, 300); // catch any delayed spawns
     } else {
-      clearTimeout(paradeLoopId);
-      paradeLoopId = null;
       hwStage.style.display = '';
       startParade();
     }
@@ -10512,14 +10510,12 @@ async function claimHalloweenGift() {
     localStorage.setItem('hw_conf_on', hwConfetti ? '1' : '0');
     togConf.textContent = hwConfetti ? 'On' : 'Off';
     hwSetTog(togConf, hwConfetti);
+    clearTimeout(confettiLoopId);
+    confettiLoopId = null;
     if (!hwConfetti) {
-      clearTimeout(confettiLoopId);
-      confettiLoopId = null;
-      hwStage.querySelectorAll('.hw-confetti').forEach(el => el.remove());
-      if (!hwAnimations) hwStage.style.display = 'none';
+      hwSyncStage();
+      setTimeout(hwSyncStage, 300); // catch any delayed spawns
     } else {
-      clearTimeout(confettiLoopId);
-      confettiLoopId = null;
       hwStage.style.display = '';
       startConfetti();
     }
@@ -10604,7 +10600,7 @@ async function claimHalloweenGift() {
   if (hwConfetti) startConfetti();
 
   // Periodic guard: remove stray items if flags went false (catches any timing edge cases)
-  setInterval(hwSyncStage, 2000);
+  setInterval(hwSyncStage, 1000);
 
   // ── Occasional crimson screen flash ─────────────────────────────────────────
   function hwBloodFlash() {
