@@ -3737,6 +3737,7 @@ body.hw-screaming::after {
   background: #000;
   pointer-events: none;
   opacity: 0;
+  overflow: hidden;
   transition: opacity 0.03s;
 }
 .hw-jump-scare.hw-scare-active { opacity: 1; }
@@ -3745,7 +3746,7 @@ body.hw-screaming::after {
 /* Inner container slams in from nothing */
 .hw-js-inner {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  width: 100%; padding: 0 12px;
+  width: 100%; padding: 0 12px; box-sizing: border-box;
   animation: hwScareSlam 0.13s cubic-bezier(0.05, 1.8, 0.4, 0.85) both;
 }
 @keyframes hwScareSlam {
@@ -3755,11 +3756,17 @@ body.hw-screaming::after {
   100% { transform: scale(1) rotate(0deg); filter: brightness(1) saturate(1); }
 }
 
-/* Demon face — fills screen */
+/* Demon face — auto-fits any screen size (phone, tablet, desktop, landscape) */
 .hw-js-face {
-  width: min(88vw, 75vh);
-  height: min(75vh, 88vw);
+  /* aspect-ratio matches SVG viewBox 300 × 330 */
+  aspect-ratio: 300 / 330;
+  /* Fill as wide as 88vw, but shrink if height would push boo text off screen */
+  width: 100%; max-width: 88vw;
+  /* Cap height so boo text always has room — svh accounts for mobile browser chrome */
+  max-height: calc(100vh - 8rem);   /* fallback for older browsers */
+  max-height: calc(100svh - 8rem);  /* small viewport height: conservative, always fits */
   display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
   filter:
     drop-shadow(0 0 40px rgba(255,0,0,1))
     drop-shadow(0 0 80px rgba(200,0,0,0.7))
@@ -3779,8 +3786,10 @@ body.hw-screaming::after {
 /* Boo text */
 .hw-js-boo {
   font-family: 'Impact', 'Arial Black', sans-serif;
-  font-size: clamp(2.4rem, 10vw, 7.5rem);
+  /* min(8vw, 5.5dvh) = responsive to both screen width AND height */
+  font-size: clamp(1.6rem, min(8vw, 5.5dvh), 6rem);
   font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase;
+  white-space: nowrap;
   color: #ff0000;
   text-shadow:
     0 0 20px #ff0000,
