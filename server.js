@@ -660,6 +660,7 @@ if (GOOGLE_AUTH_ENABLED) {
           lim.subscriptionTier = effectiveTier(lim);
           lim.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email) || TEST_ACCOUNTS.has(user.email);
           lim.skipCoinDeduct = TEST_ACCOUNTS.has(user.email) || FREE_TOP_PLAN_EMAILS.has(user.email);
+          if (lim.skipCoinDeduct) SKIP_COIN_DEDUCT_IDS.add(user.googleId);
           lim.tierLoaded = true;
           checkMonthlyCoins(user.googleId, lim).catch(() => {});
           maybeTrackLogin(user.googleId);
@@ -795,6 +796,7 @@ async function ensureTierLoaded(user) {
     u.subscriptionTier = effectiveTier(u);
     u.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email) || TEST_ACCOUNTS.has(user.email);
     u.skipCoinDeduct = TEST_ACCOUNTS.has(user.email) || FREE_TOP_PLAN_EMAILS.has(user.email);
+    if (u.skipCoinDeduct) SKIP_COIN_DEDUCT_IDS.add(user.googleId);
     u.tierLoaded = true;
     await checkMonthlyCoins(user.googleId, u);
   } finally {
@@ -859,7 +861,7 @@ setInterval(() => {
     const cw = getCallWindowStart();
     const imgActive = !!(u.imagesDay && u.imageFirstUsedAt && (now - u.imageFirstUsedAt) < 24 * 60 * 60 * 1000);
     const dailyActive = ((u.callsToday || u.memosToday) && u.callDayStart >= cw) || imgActive;
-    if (sessionExpired && weeklyExpired && !dailyActive) delete userLimits[sid];
+    if (sessionExpired && weeklyExpired && !dailyActive && !u.skipCoinDeduct) delete userLimits[sid];
   }
   // Clean conversations idle for more than 4 hours
   const CONV_TTL = 4 * 60 * 60 * 1000;
@@ -1373,6 +1375,9 @@ function getCallWindowStart() {
 }
 
 const userLimits = {};
+// Persistent set of Google IDs that should never have coins deducted (owner + free-top-plan accounts).
+// Populated when those users' tiers load; survives the 30-minute userLimits purge cycle.
+const SKIP_COIN_DEDUCT_IDS = new Set();
 
 function getLimits(sid) {
   const now = Date.now();
@@ -2379,6 +2384,7 @@ const SLUR_COIN_DEDUCTIONS = [25, 50, 100]; // per slur strike (1, 2, 3+)
 
 async function deductCoins(userId, amount) {
   if (!db || amount <= 0) return;
+  if (SKIP_COIN_DEDUCT_IDS.has(userId)) return;
   try {
     const r = await db.query(
       'UPDATE users SET cm_coins = GREATEST(0, cm_coins - $1) WHERE google_id = $2 RETURNING cm_coins',
@@ -2393,6 +2399,7 @@ async function deductCoins(userId, amount) {
 // in the same-turn buildUsagePayload call; persists to DB fire-and-forget.
 function deductCoinsSync(userId, amount) {
   if (amount <= 0) return getLimits(userId).cmCoins || 0;
+  if (SKIP_COIN_DEDUCT_IDS.has(userId)) return getLimits(userId).cmCoins || 0;
   const lim = getLimits(userId);
   lim.cmCoins = Math.max(0, (lim.cmCoins || 0) - amount);
   if (db) {
