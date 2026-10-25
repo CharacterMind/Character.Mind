@@ -3565,8 +3565,21 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
   position: relative; z-index: 20;
 }
 .halloween .logo-text {
+  background: none !important;
+  -webkit-background-clip: unset !important;
+  -webkit-text-fill-color: unset !important;
+  color: #f97316;
+}
+.halloween .logo-text .hw-logo-part {
   background: linear-gradient(120deg,#fbbf24 0%,#f97316 55%,#c084fc 100%);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.halloween .logo-text .hw-logo-c {
+  display: inline-block;
+  transform: scaleX(-1);
+  font-size: 0.8em;
+  vertical-align: 0.04em;
 }
 .halloween .sidebar-section-label { color: rgba(249,115,22,0.55); }
 .halloween .chat-item:hover { background: rgba(249,115,22,0.06); }

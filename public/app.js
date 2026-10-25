@@ -9999,6 +9999,27 @@ function launchTicTacToe(savedState) {
     setTimeout(scheduleConfetti, 350 + Math.random() * 500);
   })();
 
+  // ── Halloween logo: flipped 🌙 for "c", 👁 for "i" in "mind" ───────────────
+  function applyHwLogo(el) {
+    if (el.dataset.hwDone) return;
+    el.dataset.hwDone = '1';
+    el.innerHTML =
+      '<span class="hw-logo-c">🌙</span>' +
+      '<span class="hw-logo-part">hara</span>' +
+      '<span class="hw-logo-c">🌙</span>' +
+      '<span class="hw-logo-part">ter.m</span>' +
+      '👁' +
+      '<span class="hw-logo-part">nd</span>';
+  }
+  document.querySelectorAll('.logo-text').forEach(applyHwLogo);
+  new MutationObserver(muts => {
+    muts.forEach(m => m.addedNodes.forEach(n => {
+      if (n.nodeType !== 1) return;
+      if (n.classList?.contains('logo-text')) applyHwLogo(n);
+      n.querySelectorAll?.('.logo-text').forEach(applyHwLogo);
+    }));
+  }).observe(document.body, { childList: true, subtree: true });
+
   // ── One-time welcome toast ──────────────────────────────────────────────────
   if (!sessionStorage.getItem('hw_toast_shown')) {
     sessionStorage.setItem('hw_toast_shown', '1');
