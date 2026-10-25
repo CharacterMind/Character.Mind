@@ -10188,117 +10188,191 @@ async function claimHalloweenGift() {
     { emoji: '🌑', boo: 'THE DARK HAS COME.',     speak: 'The dark has come' },
   ];
 
-  // ── ABSURDLY terrifying sound: 7 simultaneous horror layers ──────────────────
+  // ── HORROR SOUND — sustained screech + bone-crushing bass + demon roar ────────
   function hwScareSound() {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const t = ctx.currentTime;
-      const master = ctx.createGain();
-      master.gain.value = 1.0;
-      master.connect(ctx.destination);
+      const sr = ctx.sampleRate;
 
-      // 1. Sub-bass CANNON — physical speaker impact
+      // Hard limiter so we can drive gains very high without true digital clipping
+      const limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.value = -2; limiter.knee.value = 0;
+      limiter.ratio.value = 20; limiter.attack.value = 0.001; limiter.release.value = 0.08;
+      limiter.connect(ctx.destination);
+      const master = ctx.createGain();
+      master.gain.value = 2.0;
+      master.connect(limiter);
+
+      // 1. INSTANT CRACK — white noise burst, sounds like electricity / jump impact
+      const crackBuf = ctx.createBuffer(1, Math.floor(sr * 0.12), sr);
+      const crackD = crackBuf.getChannelData(0);
+      for (let i = 0; i < crackD.length; i++) crackD[i] = Math.random() * 2 - 1;
+      const crack = ctx.createBufferSource();
+      const crackG = ctx.createGain();
+      crack.buffer = crackBuf;
+      crackG.gain.setValueAtTime(0, t);
+      crackG.gain.linearRampToValueAtTime(3.5, t + 0.003); // instantaneous spike
+      crackG.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+      crack.connect(crackG); crackG.connect(master);
+      crack.start(t);
+
+      // 2. SUB-BASS CANNON — moves your speakers / headphones
       const sub = ctx.createOscillator();
       const subG = ctx.createGain();
       sub.type = 'sine';
-      sub.frequency.setValueAtTime(60, t);
-      sub.frequency.exponentialRampToValueAtTime(14, t + 0.7);
+      sub.frequency.setValueAtTime(85, t);
+      sub.frequency.exponentialRampToValueAtTime(10, t + 0.85);
       subG.gain.setValueAtTime(0, t);
-      subG.gain.linearRampToValueAtTime(1.4, t + 0.015);
-      subG.gain.exponentialRampToValueAtTime(0.001, t + 0.75);
+      subG.gain.linearRampToValueAtTime(3.2, t + 0.008);
+      subG.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
       sub.connect(subG); subG.connect(master);
-      sub.start(t); sub.stop(t + 0.8);
+      sub.start(t); sub.stop(t + 0.95);
 
-      // 2. Second boom 90ms later — double-impact punch
-      const sub2 = ctx.createOscillator();
-      const sub2G = ctx.createGain();
-      sub2.type = 'sine';
-      sub2.frequency.setValueAtTime(45, t + 0.09);
-      sub2.frequency.exponentialRampToValueAtTime(10, t + 0.55);
-      sub2G.gain.setValueAtTime(0, t + 0.09);
-      sub2G.gain.linearRampToValueAtTime(0.9, t + 0.105);
-      sub2G.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
-      sub2.connect(sub2G); sub2G.connect(master);
-      sub2.start(t + 0.09); sub2.stop(t + 0.65);
+      // 3. THE SCREECH — sustained 2.8s high-pitched sawtooth, hard-clipped
+      //    This is the sound that defines horror game jump scares
+      const screech = ctx.createOscillator();
+      const screechClip = ctx.createWaveShaper();
+      const screechLpf = ctx.createBiquadFilter();
+      const screechEnv = ctx.createGain();
+      const clipCurve = new Float32Array(4096);
+      for (let i = 0; i < 4096; i++) {
+        const x = (i * 2) / 4096 - 1;
+        clipCurve[i] = Math.max(-0.55, Math.min(0.55, x * 5)); // hard clip at ±0.55
+      }
+      screechClip.curve = clipCurve; screechClip.oversample = '4x';
+      screech.type = 'sawtooth';
+      screech.frequency.setValueAtTime(3900, t);
+      screech.frequency.linearRampToValueAtTime(2400, t + 2.8); // pitch slowly falls
+      screechLpf.type = 'highpass'; screechLpf.frequency.value = 2000; // keep it piercing
+      screechEnv.gain.setValueAtTime(0, t);
+      screechEnv.gain.linearRampToValueAtTime(2.2, t + 0.015); // INSTANT attack
+      screechEnv.gain.setValueAtTime(2.2, t + 0.6);
+      screechEnv.gain.exponentialRampToValueAtTime(0.001, t + 2.9);
+      screech.connect(screechClip); screechClip.connect(screechLpf); screechLpf.connect(screechEnv); screechEnv.connect(master);
+      screech.start(t); screech.stop(t + 3.0);
 
-      // 3. Brutal distorted demon growl
+      // 4. SCREECH HARMONIC — second layer offset slightly for psychoacoustic chaos
+      const screech2 = ctx.createOscillator();
+      const s2Clip = ctx.createWaveShaper();
+      const s2Env = ctx.createGain();
+      const clip2 = new Float32Array(2048);
+      for (let i = 0; i < 2048; i++) { const x = (i * 2) / 2048 - 1; clip2[i] = Math.tanh(x * 10) * 0.5; }
+      s2Clip.curve = clip2; s2Clip.oversample = '2x';
+      screech2.type = 'square';
+      screech2.frequency.setValueAtTime(4700, t + 0.06);
+      screech2.frequency.linearRampToValueAtTime(2900, t + 2.8);
+      s2Env.gain.setValueAtTime(0, t + 0.06);
+      s2Env.gain.linearRampToValueAtTime(1.0, t + 0.1);
+      s2Env.gain.exponentialRampToValueAtTime(0.001, t + 2.8);
+      screech2.connect(s2Clip); s2Clip.connect(s2Env); s2Env.connect(master);
+      screech2.start(t + 0.06); screech2.stop(t + 2.9);
+
+      // 5. DEMON ROAR — brutal low sawtooth with max distortion
       const growl = ctx.createOscillator();
       const growlDist = ctx.createWaveShaper();
       const growlG = ctx.createGain();
       const gc = new Float32Array(1024);
-      for (let i = 0; i < 1024; i++) { const x = (i * 2) / 1024 - 1; gc[i] = Math.sign(x) * (1 - Math.exp(-Math.abs(x) * 14)); }
+      for (let i = 0; i < 1024; i++) { const x = (i * 2) / 1024 - 1; gc[i] = Math.sign(x) * (1 - Math.exp(-Math.abs(x) * 22)); }
       growlDist.curve = gc; growlDist.oversample = '4x';
       growl.type = 'sawtooth';
-      growl.frequency.setValueAtTime(42, t);
-      growl.frequency.setValueAtTime(85, t + 0.06);
-      growl.frequency.exponentialRampToValueAtTime(28, t + 0.7);
-      growlG.gain.setValueAtTime(0.9, t);
-      growlG.gain.exponentialRampToValueAtTime(0.001, t + 0.75);
+      growl.frequency.setValueAtTime(48, t);
+      growl.frequency.setValueAtTime(95, t + 0.06);
+      growl.frequency.exponentialRampToValueAtTime(30, t + 1.5);
+      growlG.gain.setValueAtTime(1.5, t);
+      growlG.gain.exponentialRampToValueAtTime(0.001, t + 1.6);
       growl.connect(growlDist); growlDist.connect(growlG); growlG.connect(master);
-      growl.start(t); growl.stop(t + 0.8);
+      growl.start(t); growl.stop(t + 1.7);
 
-      // 4. Banshee scream — triple-pitch layered shriek
-      [3400, 2200, 1600].forEach((startHz, i) => {
-        const sc = ctx.createOscillator();
-        const sf = ctx.createBiquadFilter();
-        const sg = ctx.createGain();
-        const delay = i * 0.025;
-        sc.type = i === 0 ? 'sawtooth' : 'square';
-        sc.frequency.setValueAtTime(startHz, t + delay);
-        sc.frequency.exponentialRampToValueAtTime(80 + i * 30, t + delay + 0.55);
-        sf.type = 'bandpass'; sf.frequency.value = startHz * 0.6; sf.Q.value = 5;
-        sg.gain.setValueAtTime(0, t + delay);
-        sg.gain.linearRampToValueAtTime(0.65 - i * 0.1, t + delay + 0.04);
-        sg.gain.exponentialRampToValueAtTime(0.001, t + delay + 0.6);
-        sc.connect(sf); sf.connect(sg); sg.connect(master);
-        sc.start(t + delay); sc.stop(t + delay + 0.65);
+      // 6. HUMAN SCREAM SIMULATION — band-pass filtered noise through vocal formants
+      const screamBuf = ctx.createBuffer(1, Math.floor(sr * 2.2), sr);
+      const sd = screamBuf.getChannelData(0);
+      for (let i = 0; i < sd.length; i++) sd[i] = Math.random() * 2 - 1;
+      // F1 (~850Hz) and F2 (~2400Hz) — the two key screaming formants
+      [850, 2400].forEach((freq, fi) => {
+        const src = ctx.createBufferSource();
+        const flt = ctx.createBiquadFilter();
+        const gn  = ctx.createGain();
+        src.buffer = screamBuf;
+        flt.type = 'bandpass'; flt.frequency.value = freq; flt.Q.value = fi === 0 ? 14 : 9;
+        gn.gain.setValueAtTime(0, t + 0.04);
+        gn.gain.linearRampToValueAtTime(fi === 0 ? 1.8 : 1.3, t + 0.1);
+        gn.gain.exponentialRampToValueAtTime(0.001, t + 2.2);
+        src.connect(flt); flt.connect(gn); gn.connect(master);
+        src.start(t + 0.04); src.stop(t + 2.3);
       });
 
-      // 5. Ring-modulated alien/demon texture
+      // 7. RING MODULATOR — unearthly alien screaming texture
       const carrier = ctx.createOscillator();
-      const modulator = ctx.createOscillator();
-      const ringGain = ctx.createGain();
+      const mod = ctx.createOscillator();
+      const ringG = ctx.createGain();
       const ringOut = ctx.createGain();
-      carrier.type = 'sawtooth'; carrier.frequency.setValueAtTime(220, t); carrier.frequency.linearRampToValueAtTime(55, t + 1.2);
-      modulator.type = 'sine'; modulator.frequency.setValueAtTime(37, t); modulator.frequency.linearRampToValueAtTime(19, t + 1.2);
-      ringGain.gain.value = 0; // modulator controls gain of carrier
-      modulator.connect(ringGain.gain);
-      carrier.connect(ringGain);
-      ringOut.gain.setValueAtTime(0, t); ringOut.gain.linearRampToValueAtTime(0.45, t + 0.12); ringOut.gain.exponentialRampToValueAtTime(0.001, t + 1.25);
-      ringGain.connect(ringOut); ringOut.connect(master);
-      carrier.start(t); carrier.stop(t + 1.3);
-      modulator.start(t); modulator.stop(t + 1.3);
+      carrier.type = 'sawtooth'; carrier.frequency.setValueAtTime(200, t); carrier.frequency.linearRampToValueAtTime(50, t + 1.8);
+      mod.type = 'sine'; mod.frequency.setValueAtTime(45, t); mod.frequency.linearRampToValueAtTime(24, t + 1.8);
+      ringG.gain.value = 0; mod.connect(ringG.gain); carrier.connect(ringG);
+      ringOut.gain.setValueAtTime(0, t); ringOut.gain.linearRampToValueAtTime(0.7, t + 0.12); ringOut.gain.exponentialRampToValueAtTime(0.001, t + 1.9);
+      ringG.connect(ringOut); ringOut.connect(master);
+      carrier.start(t); carrier.stop(t + 2.0);
+      mod.start(t); mod.stop(t + 2.0);
 
-      // 6. Demonic choir — three detuned sine tones
-      [65, 87, 52].forEach((hz, i) => {
-        const ch = ctx.createOscillator();
-        const chG = ctx.createGain();
-        ch.type = 'sine'; ch.frequency.setValueAtTime(hz, t + 0.15); ch.frequency.linearRampToValueAtTime(hz * 0.7, t + 2.2);
-        chG.gain.setValueAtTime(0, t + 0.15); chG.gain.linearRampToValueAtTime(0.28, t + 0.4); chG.gain.exponentialRampToValueAtTime(0.001, t + 2.3);
-        ch.connect(chG); chG.connect(master);
-        ch.start(t + 0.15); ch.stop(t + 2.4);
-      });
-
-      // 7. Backward-ramp noise scrape (rising chaos)
-      const sr = ctx.sampleRate;
-      const nLen = Math.floor(sr * 0.5);
-      const nBuf = ctx.createBuffer(1, nLen, sr);
-      const nd = nBuf.getChannelData(0);
-      for (let i = 0; i < nLen; i++) {
-        const env = i / nLen; // rises from silence — sounds like "something coming"
-        nd[i] = (Math.random() * 2 - 1) * env * 0.7;
-      }
-      const nSrc = ctx.createBufferSource();
-      const nFilt = ctx.createBiquadFilter();
-      const nG = ctx.createGain();
-      nSrc.buffer = nBuf;
-      nFilt.type = 'bandpass'; nFilt.frequency.value = 1200; nFilt.Q.value = 2;
-      nG.gain.setValueAtTime(0.7, t); nG.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
-      nSrc.connect(nFilt); nFilt.connect(nG); nG.connect(master);
-      nSrc.start(t); nSrc.stop(t + 0.5);
-
-      setTimeout(() => { try { ctx.close(); } catch(_){} }, 3000);
+      setTimeout(() => { try { ctx.close(); } catch(_){} }, 4000);
     } catch(_) {}
+  }
+
+  // SVG demon face — fills the jump scare overlay
+  function hwDemonFaceSVG() {
+    return `<svg viewBox="0 0 300 330" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="eg" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#ff2200"/>
+          <stop offset="55%" stop-color="#aa0000"/>
+          <stop offset="100%" stop-color="#000"/>
+        </radialGradient>
+      </defs>
+      <ellipse cx="150" cy="165" rx="135" ry="155" fill="#c0b09a"/>
+      <path d="M150 10 L145 48 M148 48 L153 58 M153 58 L146 88" stroke="#7a1010" stroke-width="2.5" fill="none" opacity=".65"/>
+      <path d="M186 26 L180 54 M180 54 L187 62" stroke="#7a1010" stroke-width="1.5" fill="none" opacity=".45"/>
+      <path d="M114 30 L111 56 M111 56 L119 64" stroke="#7a1010" stroke-width="1.5" fill="none" opacity=".45"/>
+      <path d="M58 108 Q78 92 94 104 Q110 116 108 130" stroke="#8B0000" stroke-width="1.5" fill="none" opacity=".5"/>
+      <path d="M242 100 Q224 86 207 97 Q191 110 194 126" stroke="#8B0000" stroke-width="1.5" fill="none" opacity=".5"/>
+      <ellipse cx="88" cy="133" rx="50" ry="44" fill="#080000" stroke="#500000" stroke-width="3.5"/>
+      <ellipse cx="212" cy="133" rx="50" ry="44" fill="#080000" stroke="#500000" stroke-width="3.5"/>
+      <circle cx="88" cy="133" r="24" fill="url(#eg)"/>
+      <circle cx="212" cy="133" r="24" fill="url(#eg)"/>
+      <circle cx="88" cy="133" r="13" fill="#ff1100"/>
+      <circle cx="212" cy="133" r="13" fill="#ff1100"/>
+      <circle cx="88" cy="133" r="5" fill="#000"/>
+      <circle cx="212" cy="133" r="5" fill="#000"/>
+      <circle cx="97" cy="124" r="6" fill="rgba(255,255,255,.78)"/>
+      <circle cx="221" cy="124" r="6" fill="rgba(255,255,255,.78)"/>
+      <ellipse cx="137" cy="205" rx="12" ry="9" fill="#160606" opacity=".9"/>
+      <ellipse cx="163" cy="205" rx="12" ry="9" fill="#160606" opacity=".9"/>
+      <path d="M132 215 Q150 228 168 215" stroke="#160606" stroke-width="2" fill="none"/>
+      <path d="M36 258 Q74 238 150 242 Q226 238 264 258 Q244 326 150 336 Q56 326 36 258Z" fill="#060000"/>
+      <path d="M56 255 L62 290 L68 255" fill="#ddd8cc"/>
+      <path d="M72 251 L78 292 L84 251" fill="#ddd8cc"/>
+      <path d="M88 248 L95 294 L102 248" fill="#ddd8cc"/>
+      <path d="M106 246 L113 296 L120 246" fill="#ddd8cc"/>
+      <path d="M124 244 L131 297 L138 244" fill="#ddd8cc"/>
+      <path d="M142 244 L149 297 L156 244" fill="#ddd8cc"/>
+      <path d="M160 244 L167 297 L174 244" fill="#ddd8cc"/>
+      <path d="M178 246 L185 296 L192 246" fill="#ddd8cc"/>
+      <path d="M196 248 L203 294 L210 248" fill="#ddd8cc"/>
+      <path d="M214 251 L220 292 L226 251" fill="#ddd8cc"/>
+      <path d="M230 255 L236 288 L242 255" fill="#ddd8cc"/>
+      <ellipse cx="150" cy="310" rx="58" ry="24" fill="#8B1515"/>
+      <path d="M96 295 Q150 332 204 295" fill="#6a0000"/>
+      <path d="M40 262 Q30 282 34 305 Q36 318 32 335" stroke="#8B0000" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+      <circle cx="32" cy="338" r="7" fill="#8B0000"/>
+      <path d="M260 262 Q270 284 266 307 Q264 320 269 336" stroke="#8B0000" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <circle cx="269" cy="338" r="6" fill="#8B0000"/>
+      <path d="M138 26 Q135 56 133 74 Q131 84 135 104" stroke="#8B0000" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <circle cx="135" cy="107" r="7" fill="#8B0000"/>
+      <path d="M164 20 Q167 52 165 70 Q163 80 167 96" stroke="#aa0000" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <circle cx="167" cy="98" r="5" fill="#aa0000"/>
+      <path d="M100 42 Q98 62 100 76" stroke="#880000" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <circle cx="100" cy="78" r="4" fill="#880000"/>
+    </svg>`;
   }
 
   // Demonic speech: minimum pitch, slow rate, deepest available voice
@@ -10338,55 +10412,61 @@ async function claimHalloweenGift() {
     if (hwPaused) return scheduleNextScare();
     const s = SCARES[Math.floor(Math.random() * SCARES.length)];
 
-    // Sound: fire immediately
+    // Sound fires INSTANTLY
     hwScareSound();
-    // Demonic voice 80ms after initial BOOM hits
-    setTimeout(() => hwDemonSpeak(s.speak), 80);
+    // Demon speaks 100ms after the initial BOOM lands
+    setTimeout(() => hwDemonSpeak(s.speak), 100);
 
-    // Visual: shake the body, add glitch overlay, spawn eyes
+    // 3 rapid white screen flashes — strobe before the face slams in
+    function flashScreen(count) {
+      if (count <= 0) return;
+      const f = document.createElement('div');
+      f.style.cssText = 'position:fixed;inset:0;background:#fff;z-index:99998;pointer-events:none';
+      document.body.appendChild(f);
+      setTimeout(() => { f.style.transition='opacity 0.04s'; f.style.opacity='0'; setTimeout(() => f.remove(), 55); }, 35);
+      if (count > 1) setTimeout(() => flashScreen(count - 1), 85);
+    }
+    flashScreen(3);
+
+    // Body shake + blood vignette
     document.body.classList.add('hw-screaming');
-    const eyes = hwSpawnEyes();
 
-    // Static/glitch flicker overlay
+    // Glitch overlay — rapid channel-split flicker
     const glitch = document.createElement('div');
     glitch.className = 'hw-glitch-overlay';
     document.body.appendChild(glitch);
+    let flickers = 0;
+    const flickerInterval = setInterval(() => {
+      glitch.style.opacity = Math.random() > 0.28 ? String(0.18 + Math.random() * 0.5) : '0';
+      glitch.style.transform = Math.random() > 0.7
+        ? `translateX(${(Math.random() - 0.5) * 14}px)`
+        : 'none';
+      if (++flickers > 22) clearInterval(flickerInterval);
+    }, 50);
 
-    // Main jump scare element — appears from a random screen corner
-    const corners = [
-      'translate(-30%, -30%)', 'translate(30%, -30%)',
-      'translate(-30%, 30%)',  'translate(30%, 30%)',
-    ];
-    const corner = corners[Math.floor(Math.random() * corners.length)];
+    // Spawn eyes
+    const eyes = hwSpawnEyes();
+
+    // Main overlay — full screen, face slams from center
     const el = document.createElement('div');
     el.className = 'hw-jump-scare';
-    el.innerHTML = `<div class="hw-js-emoji">${s.emoji}</div><div class="hw-js-boo">${s.boo}</div>`;
-    el.style.setProperty('--hw-js-corner', corner);
+    el.innerHTML = `<div class="hw-js-inner"><div class="hw-js-face">${hwDemonFaceSVG()}</div><div class="hw-js-boo">${s.boo}</div></div>`;
     document.body.appendChild(el);
 
+    // Activate on next frame so CSS animation fires cleanly
     requestAnimationFrame(() => {
-      el.style.opacity = '1';
-      el.style.transform = 'scale(1) translate(0,0)';
+      el.classList.add('hw-scare-active');
 
-      // Glitch flickers
-      let flickers = 0;
-      const flickerInterval = setInterval(() => {
-        glitch.style.opacity = Math.random() > 0.4 ? String(0.1 + Math.random() * 0.35) : '0';
-        if (++flickers > 14) clearInterval(flickerInterval);
-      }, 60);
-
+      // Dismiss after 2.5s — longer than before so the dread really sets in
       setTimeout(() => {
-        el.style.opacity = '0';
-        el.style.transform = `scale(1.4) ${corner}`;
+        el.classList.remove('hw-scare-active');
+        el.classList.add('hw-scare-out');
+        clearInterval(flickerInterval);
         glitch.style.opacity = '0';
         document.body.classList.remove('hw-screaming');
         eyes.forEach(e => { e.style.opacity = '0'; setTimeout(() => e.remove(), 400); });
-        setTimeout(() => {
-          el.remove();
-          glitch.remove();
-          window.speechSynthesis?.cancel();
-        }, 500);
-      }, 1600);
+        setTimeout(() => { el.remove(); glitch.remove(); window.speechSynthesis?.cancel(); }, 600);
+      }, 2500);
     });
 
     scheduleNextScare();
