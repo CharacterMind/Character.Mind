@@ -324,6 +324,10 @@ function planBuyable(key) {
   return true;
 }
 
+// Halloween sale — 40% off all paid plans, both monthly and annual. Ends Nov 1 2026.
+const HALLOWEEN_SALE = { discount: 0.40, ends: new Date('2026-11-01T06:00:00Z') };
+function halloweenSaleActive() { return new Date() < HALLOWEEN_SALE.ends && new Date().getMonth() === 9; }
+
 let pricingPeriod = 'monthly';
 
 // ── Country / currency data for pricing display ────────────────────────────
@@ -448,17 +452,22 @@ function renderPricingCards() {
     rateEl.innerHTML = `🪙 1 C.M. Coin&nbsp;≈&nbsp;<strong>${localOneCoins === 'Free' ? '$0.01' : localOneCoins}</strong>&nbsp;— shown in your local currency`;
   }
 
+  const saleOn = halloweenSaleActive();
   container.innerHTML = PLAN_DATA.filter(p => ACTIVE_PLANS.includes(p.key)).map(plan => {
     const isCurrent = plan.key === currentTier;
-    const price = pricingPeriod === 'annual' ? plan.annual : plan.monthly;
+    const basePrice = pricingPeriod === 'annual' ? plan.annual : plan.monthly;
+    const price = (saleOn && basePrice > 0) ? Math.round(basePrice * (1 - HALLOWEEN_SALE.discount) * 100) / 100 : basePrice;
     const priceStr = formatLocalPrice(price);
-    const periodStr = price === 0 ? 'forever' : pricingPeriod === 'annual' ? '/ year' : '/ month';
+    const origStr = (saleOn && basePrice > 0) ? formatLocalPrice(basePrice) : null;
+    const periodStr = basePrice === 0 ? 'forever' : pricingPeriod === 'annual' ? '/ year' : '/ month';
     let perMonth = '<div class="pc-per-month"></div>';
     if (plan.annual > 0 && pricingPeriod === 'annual') {
-      const savePct = Math.round((1 - plan.annual / (plan.monthly * 12)) * 100);
-      const perMonthLocal = formatLocalPrice(plan.annual / 12);
+      const effectiveAnnual = saleOn ? Math.round(plan.annual * (1 - HALLOWEEN_SALE.discount) * 100) / 100 : plan.annual;
+      const savePct = Math.round((1 - effectiveAnnual / (plan.monthly * 12)) * 100);
+      const perMonthLocal = formatLocalPrice(effectiveAnnual / 12);
       perMonth = `<div class="pc-per-month">~${perMonthLocal}/mo &nbsp;<span class="pc-save-pct">Save ${savePct}%</span></div>`;
     }
+    const saleBadge = saleOn && basePrice > 0 ? `<div class="pc-halloween-badge">🎃 -40%</div>` : '';
     const badge = plan.badge ? `<div class="pc-badge">${escHtml(plan.badge)}</div>` : '';
     const features = plan.features.map(f => `<li>✓ ${escHtml(f)}</li>`).join('');
     const coinCost = plan.coinsPerMonth || 0;
@@ -493,9 +502,9 @@ function renderPricingCards() {
     const ctaText = isCurrent ? 'Current plan' : soon ? 'Subscribe' : 'Upgrade';
     const ctaClass = 'pc-cta' + (isCurrent ? ' pc-cta-current' : '');
     return `<div class="pricing-card${isCurrent ? ' pc-current' : ''}${plan.badge ? ' pc-featured' : ''}">
-      ${badge}
+      ${badge}${saleBadge}
       <div class="pc-name">${escHtml(plan.name)}</div>
-      <div class="pc-price">${priceStr}<span class="pc-period"> ${periodStr}</span></div>
+      <div class="pc-price">${origStr ? `<span class="pc-orig-price">${origStr}</span> ` : ''}${priceStr}<span class="pc-period"> ${periodStr}</span></div>
       ${perMonth}
       ${coinValueRow}
       <ul class="pc-features">${features}</ul>
@@ -5515,6 +5524,8 @@ async function adminPostAnnouncement() {
       // Show unread dot
       const dot = document.getElementById('whatsNewDot');
       if (dot) dot.hidden = false;
+      const mDot = document.getElementById('mobWhatsNewDot');
+      if (mDot) mDot.hidden = false;
     } else {
       if (info) info.textContent = d.error || 'Failed.';
     }
@@ -5914,6 +5925,8 @@ async function openWhatsNew() {
   modal.style.display = 'flex';
   const dot = document.getElementById('whatsNewDot');
   if (dot) dot.hidden = true;
+  const mobDot = document.getElementById('mobWhatsNewDot');
+  if (mobDot) mobDot.hidden = true;
   const body = document.getElementById('whatsNewBody');
   if (window._announcements) {
     try { localStorage.setItem('cm_wn_seen', window._announcements[0]?.id || ''); } catch (_) {}
@@ -6186,6 +6199,8 @@ async function checkWhatsNewDot() {
     if (seen !== data[0].id) {
       const dot = document.getElementById('whatsNewDot');
       if (dot) dot.hidden = false;
+      const mobDot2 = document.getElementById('mobWhatsNewDot');
+      if (mobDot2) mobDot2.hidden = false;
     }
   } catch (_) {}
 }
@@ -10247,6 +10262,7 @@ async function claimHalloweenGift() {
   // ── Flying parade ───────────────────────────────────────────────────────────
   function spawnParade() {
     if (hwPaused || !hwConfetti) return;
+    if (hwStage.querySelectorAll('.hw-flyer').length >= 4) return;
     const [emoji, minS, maxS, minSpd, maxSpd, minT, maxT] = PARADE[Math.floor(Math.random() * PARADE.length)];
     const fromRight = Math.random() > 0.5;
     const el = document.createElement('div');
@@ -10271,6 +10287,7 @@ async function claimHalloweenGift() {
   // ── Falling confetti ────────────────────────────────────────────────────────
   function spawnConfetti() {
     if (hwPaused || !hwConfetti) return;
+    if (hwStage.querySelectorAll('.hw-confetti').length >= 10) return;
     const el = document.createElement('div');
     el.className = 'hw-confetti';
     el.textContent = CONFETTI[Math.floor(Math.random() * CONFETTI.length)];
