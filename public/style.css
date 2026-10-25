@@ -2617,6 +2617,8 @@ html, body {
   .mob-nav-title {
     font-size: 15px; font-weight: 700; letter-spacing: -.3px;
     color: var(--text1);
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
 
   /* Mobile chat header */

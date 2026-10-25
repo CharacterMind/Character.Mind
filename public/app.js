@@ -8391,20 +8391,29 @@ function listenForSpeech() {
     else if (callModeActive && !callMuted) setTimeout(() => listenForSpeech(), 300);
   };
 
+  const isAndroid = /android/i.test(navigator.userAgent);
   callRecognition = new SR();
-  callRecognition.continuous = true;   // don't cut off on short pauses
-  callRecognition.interimResults = false;
+  // Android Chrome doesn't truly support continuous mode — it stops silently
+  // after a few seconds, causing rapid restart loops that fight with Google
+  // Assistant / Hey Google over the mic. Use single-shot mode on Android instead.
+  callRecognition.continuous = !isAndroid;
+  callRecognition.interimResults = isAndroid; // interim results help on single-shot Android
   callRecognition.lang = 'en-US';
 
   callRecognition.onresult = (e) => {
     for (let i = e.resultIndex; i < e.results.length; i++) {
-      if (e.results[i].isFinal) {
-        transcript += (transcript ? ' ' : '') + e.results[i][0].transcript.trim();
+      const result = e.results[i];
+      // On Android (interimResults=true), grab interim text too so we get the
+      // phrase even if recognition ends before isFinal fires
+      if (result.isFinal) {
+        transcript += (transcript ? ' ' : '') + result[0].transcript.trim();
+      } else if (isAndroid && result[0].transcript.trim()) {
+        transcript = result[0].transcript.trim(); // keep latest interim
       }
     }
     if (transcript) {
       if (silenceTimer) clearTimeout(silenceTimer);
-      silenceTimer = setTimeout(dispatch, SILENCE_MS);
+      silenceTimer = setTimeout(dispatch, isAndroid ? 800 : SILENCE_MS);
     }
   };
 
@@ -8413,15 +8422,20 @@ function listenForSpeech() {
       dispatched = true;
       showCallMicError();
       setCallState('listening');
-      setTimeout(() => { if (callModeActive && !callMuted) listenForSpeech(); }, 6000); // Bug 4 fix: retry after giving user time to grant mic
+      setTimeout(() => { if (callModeActive && !callMuted) listenForSpeech(); }, 6000);
       return;
     }
-    if (!transcript && !dispatched) { dispatched = true; setTimeout(() => listenForSpeech(), 300); }
+    // On Android, 'aborted' or 'no-speech' happen frequently — restart with a
+    // longer back-off to avoid hammering the audio session
+    const delay = isAndroid ? 600 : 300;
+    if (!transcript && !dispatched) { dispatched = true; setTimeout(() => listenForSpeech(), delay); }
   };
 
-  callRecognition.onend = () => { if (!dispatched) dispatch(); };
+  callRecognition.onend = () => {
+    if (!dispatched) dispatch();
+  };
 
-  try { callRecognition.start(); } catch(_) { setTimeout(() => listenForSpeech(), 1000); }
+  try { callRecognition.start(); } catch(_) { setTimeout(() => listenForSpeech(), isAndroid ? 800 : 1000); }
 }
 
 function sendCallMessage(text) {
