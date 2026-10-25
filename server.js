@@ -4235,6 +4235,15 @@ app.post('/api/admin/reset-session', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// Owner-only: wipe weekly token window for own account
+app.post('/api/admin/reset-weekly', requireAuth, (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  const u = getLimits(req.user.googleId);
+  u.weeklyTokens = 0; u.weeklyStart = null; u.warned = {};
+  saveLimitsToDB(req.user.googleId);
+  res.json({ ok: true, ...buildUsagePayload(u, req.user.googleId) });
+});
+
 // Owner-only: grant yourself any token credit (extends your effective session + weekly limits), coins, and/or CM tokens
 app.post('/api/admin/give-self', requireAuth, async (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });

@@ -1300,7 +1300,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('appLoading').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
     loadUsage();
-    doDailyCheckin();
     maybeShowWelcome();
     initSidebarState();
     initRpMode();
@@ -7648,8 +7647,49 @@ function stopCallAudio() {
   if (callAudio) { try { callAudio.pause(); } catch (_) {} callAudio = null; }
 }
 
+// Applies demon pitch-shift / echo via Web Audio API; resolves when playback ends
+async function _hwDemonPlay(blob, tokenRef) {
+  try {
+    const arrayBuf = await blob.arrayBuffer();
+    if (tokenRef.stopped) return;
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const audioBuf = await ctx.decodeAudioData(arrayBuf);
+    if (tokenRef.stopped) { ctx.close(); return; }
+    const src = ctx.createBufferSource();
+    src.buffer = audioBuf;
+    src.playbackRate.value = 0.68; // down ~2.8 semitones from half-speed
+    // Soft distortion
+    const dist = ctx.createWaveShaper();
+    const n = 256, curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) { const x = (i * 2) / n - 1; curve[i] = (Math.PI + 150) * x / (Math.PI + 150 * Math.abs(x)); }
+    dist.curve = curve; dist.oversample = '4x';
+    // Low-pass + gain
+    const lpf = ctx.createBiquadFilter(); lpf.type = 'lowpass'; lpf.frequency.value = 2200;
+    const gain = ctx.createGain(); gain.gain.value = 0.85;
+    // Echo
+    const delay = ctx.createDelay(0.6); delay.delayTime.value = 0.14;
+    const dg = ctx.createGain(); dg.gain.value = 0.2;
+    src.connect(dist); dist.connect(lpf); lpf.connect(gain);
+    gain.connect(ctx.destination);
+    gain.connect(delay); delay.connect(dg); dg.connect(ctx.destination);
+    tokenRef.stop = () => { try { src.stop(); } catch(_){} setTimeout(() => ctx.close(), 200); };
+    src.start(0);
+    const dur = (audioBuf.duration / 0.68 + 0.8) * 1000;
+    await new Promise(res => { src.onended = res; setTimeout(res, dur); });
+    try { if (!tokenRef.stopped) ctx.close(); } catch(_){}
+  } catch(e) { /* fallback to silence */ }
+}
+
 async function playCallBlob(blob) {
   if (!callModeActive) return;
+  if (document.body.classList.contains('halloween')) {
+    const token = {};
+    callAudio = { pause: () => { token.stopped = true; token.stop?.(); } };
+    await _hwDemonPlay(blob, token);
+    callAudio = null;
+    if (!token.stopped && callModeActive) listenForSpeech();
+    return;
+  }
   const url = URL.createObjectURL(blob);
   const audio = new Audio(url);
   callAudio = audio;
@@ -7717,6 +7757,12 @@ async function callModeTTS_server(text) {
   // Play a blob without triggering listenForSpeech (used for all-but-last sentences)
   const playBlobOnly = (blob) => new Promise(resolve => {
     if (!callModeActive) { resolve(); return; }
+    if (document.body.classList.contains('halloween')) {
+      const token = {};
+      callAudio = { pause: () => { token.stopped = true; token.stop?.(); } };
+      _hwDemonPlay(blob, token).then(() => { callAudio = null; resolve(); });
+      return;
+    }
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     callAudio = audio;
@@ -9917,21 +9963,32 @@ function launchTicTacToe(savedState) {
   // ── Flying parade ───────────────────────────────────────────────────────────
   // Each entry: [emoji, minSize, maxSize, minSpeed, maxSpeed, minTop%, maxTop%]
   const PARADE = [
-    ['👻', 30, 52, 12, 20, 18, 72],
-    ['🧙‍♀️', 34, 56, 10, 18, 12, 65],
-    ['🧟', 28, 46, 16, 24, 55, 82],
-    ['💀', 26, 40, 14, 22, 20, 75],
-    ['🎃', 30, 48, 13, 21, 25, 78],
-    ['🐱', 24, 38, 11, 19, 60, 85],
-    ['🕷️', 22, 36, 9,  17, 18, 80],
-    ['🦇', 24, 40, 12, 20, 15, 70],
-    ['🧛', 30, 50, 11, 19, 10, 65],
-    ['☠️', 26, 42, 13, 21, 22, 74],
-    ['🔮', 24, 38, 14, 22, 30, 78],
-    ['🌙', 22, 36, 10, 18, 10, 50],
+    ['👻', 30, 58, 9, 17, 18, 72],
+    ['🧙‍♀️', 34, 62, 8, 15, 12, 65],
+    ['🧟', 28, 52, 12, 20, 55, 82],
+    ['💀', 26, 46, 10, 18, 20, 75],
+    ['🎃', 30, 56, 10, 17, 25, 78],
+    ['🐱', 24, 42, 9,  17, 60, 85],
+    ['🕷️', 22, 42, 7,  14, 18, 80],
+    ['🦇', 24, 46, 9,  16, 15, 70],
+    ['🧛', 30, 56, 8,  15, 10, 65],
+    ['☠️', 26, 48, 10, 18, 22, 74],
+    ['🔮', 24, 42, 11, 18, 30, 78],
+    ['🌙', 22, 40, 8,  15, 10, 50],
+    ['🩸', 20, 38, 11, 19, 30, 80],
+    ['🦴', 22, 38, 10, 18, 25, 75],
+    ['⚰️', 28, 48, 9,  16, 40, 80],
+    ['🧿', 20, 34, 8,  15, 15, 65],
+    ['🪬', 22, 36, 9,  16, 20, 70],
+    ['😈', 28, 50, 10, 17, 15, 72],
+    ['👁️', 18, 32, 8,  14, 25, 75],
+    ['🌑', 22, 40, 8,  14, 10, 55],
   ];
 
-  const CONFETTI = ['👻','🎃','💀','🦇','🕸️','🍬','⚗️','🕯️','🌙','✨','🔮','☠️','🧡','🕷️'];
+  const CONFETTI = [
+    '👻','🎃','💀','🦇','🕸️','🍬','⚗️','🕯️','🌙','✨','🔮','☠️','🧡','🕷️',
+    '🩸','🦴','⚰️','😈','👁️','🪄','🌑','🧿','🌑','💉','🗡️','🔪',
+  ];
 
   // ── Motion toggle (accessibility) ──────────────────────────────────────────
   let hwPaused = localStorage.getItem('hw_motion_off') === '1';
@@ -9972,10 +10029,12 @@ function launchTicTacToe(savedState) {
     setTimeout(() => el.remove(), dur * 1000 + 600);
   }
 
-  for (let i = 0; i < 3; i++) setTimeout(spawnParade, i * 900);
+  for (let i = 0; i < 5; i++) setTimeout(spawnParade, i * 600);
   (function scheduleParade() {
     spawnParade();
-    setTimeout(scheduleParade, 1800 + Math.random() * 2800);
+    // Occasionally spawn a second creature right after for density
+    if (Math.random() < 0.3) setTimeout(spawnParade, 400 + Math.random() * 600);
+    setTimeout(scheduleParade, 1200 + Math.random() * 2000);
   })();
 
   // ── Falling confetti ────────────────────────────────────────────────────────
@@ -9984,20 +10043,35 @@ function launchTicTacToe(savedState) {
     const el = document.createElement('div');
     el.className = 'hw-confetti';
     el.textContent = CONFETTI[Math.floor(Math.random() * CONFETTI.length)];
-    const size = 14 + Math.random() * 20;
-    const left = 5  + Math.random() * 90;
-    const dur  = 5  + Math.random() * 7;
-    const sway = ((Math.random() - 0.5) * 80).toFixed(0);
-    const rot  = ((Math.random() - 0.5) * 360).toFixed(0) + 'deg';
-    el.style.cssText = `font-size:${size}px;left:${left}%;animation-duration:${dur}s;animation-delay:${(Math.random()*1.5).toFixed(2)}s;--hw-sway:${sway}px;--hw-rot:${rot};`;
+    const size = 14 + Math.random() * 26;
+    const left = 2  + Math.random() * 96;
+    const dur  = 3.5 + Math.random() * 5.5;
+    const sway = ((Math.random() - 0.5) * 110).toFixed(0);
+    const rot  = ((Math.random() - 0.5) * 480).toFixed(0) + 'deg';
+    el.style.cssText = `font-size:${size}px;left:${left}%;animation-duration:${dur}s;animation-delay:${(Math.random()*0.8).toFixed(2)}s;--hw-sway:${sway}px;--hw-rot:${rot};`;
     hwStage.appendChild(el);
     setTimeout(() => el.remove(), (dur + 2) * 1000);
   }
 
   (function scheduleConfetti() {
-    spawnConfetti();
-    setTimeout(scheduleConfetti, 350 + Math.random() * 500);
+    const burst = 1 + (Math.random() < 0.2 ? 2 : 0); // occasional burst of 3
+    for (let i = 0; i < burst; i++) setTimeout(spawnConfetti, i * 80);
+    setTimeout(scheduleConfetti, 220 + Math.random() * 350);
   })();
+
+  // ── Occasional crimson screen flash ─────────────────────────────────────────
+  function hwBloodFlash() {
+    if (hwPaused) return;
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9998;background:rgba(120,0,0,0.22);opacity:1;transition:opacity 0.8s ease-out;';
+    document.body.appendChild(el);
+    requestAnimationFrame(() => {
+      el.style.opacity = '0';
+      setTimeout(() => el.remove(), 900);
+    });
+    setTimeout(hwBloodFlash, (8 + Math.random() * 12) * 60 * 1000);
+  }
+  setTimeout(hwBloodFlash, (3 + Math.random() * 4) * 60 * 1000);
 
   // ── Halloween logo: flipped 🌙 for "c", 👁 for "i" in "mind" ───────────────
   function applyHwLogo(el) {
@@ -10027,9 +10101,50 @@ function launchTicTacToe(savedState) {
     { emoji: '🧛', boo: 'I VANT YOUR SOUL.' },
     { emoji: '🕷️', boo: 'EIGHT LEGS. ONE YOU.' },
   ];
+  // Synthesized jump scare sound — no audio files needed
+  function hwScareSound() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      // Deep rumble
+      const osc1 = ctx.createOscillator();
+      const g1 = ctx.createGain();
+      osc1.type = 'sawtooth';
+      osc1.frequency.setValueAtTime(120, ctx.currentTime);
+      osc1.frequency.exponentialRampToValueAtTime(30, ctx.currentTime + 0.5);
+      g1.gain.setValueAtTime(0.6, ctx.currentTime);
+      g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
+      osc1.connect(g1); g1.connect(ctx.destination);
+      osc1.start(); osc1.stop(ctx.currentTime + 0.55);
+      // High shriek
+      const osc2 = ctx.createOscillator();
+      const g2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(1600, ctx.currentTime + 0.05);
+      osc2.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.35);
+      g2.gain.setValueAtTime(0, ctx.currentTime);
+      g2.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.07);
+      g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+      osc2.connect(g2); g2.connect(ctx.destination);
+      osc2.start(ctx.currentTime + 0.05); osc2.stop(ctx.currentTime + 0.4);
+      // Noise burst
+      const buf = ctx.createBuffer(1, ctx.sampleRate * 0.3, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.25;
+      const noise = ctx.createBufferSource();
+      const ng = ctx.createGain();
+      noise.buffer = buf;
+      ng.gain.setValueAtTime(0.3, ctx.currentTime);
+      ng.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      noise.connect(ng); ng.connect(ctx.destination);
+      noise.start(); noise.stop(ctx.currentTime + 0.3);
+      setTimeout(() => ctx.close(), 1200);
+    } catch(_) {}
+  }
+
   function doJumpScare() {
     if (hwPaused) return scheduleNextScare();
     const s = SCARES[Math.floor(Math.random() * SCARES.length)];
+    hwScareSound();
     const el = document.createElement('div');
     el.className = 'hw-jump-scare';
     el.innerHTML = `<div class="hw-js-emoji">${s.emoji}</div><div class="hw-js-boo">${s.boo}</div>`;

@@ -3712,3 +3712,168 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
 }
 @keyframes hwToastIn  { from { opacity:0; transform:translateX(-50%) translateY(-18px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
 @keyframes hwToastOut { from { opacity:1; } to { opacity:0; transform:translateX(-50%) translateY(-12px); } }
+
+/* ── Halloween Modals ─────────────────────────────────────────────────────── */
+
+/* Shared modal overlay darkening */
+.halloween .modal-overlay {
+  background: rgba(10,0,0,0.92);
+}
+
+/* Generic modal base in Halloween */
+.halloween .modal,
+.halloween .usage-modal,
+.halloween .settings-modal,
+.halloween .pricing-modal {
+  background: linear-gradient(160deg, #0f0600 0%, #0d0b16 100%);
+  border-color: rgba(249,115,22,0.35);
+  box-shadow: 0 0 0 1px rgba(249,115,22,0.18), 0 40px 90px rgba(0,0,0,.85), inset 0 0 60px rgba(249,115,22,0.03);
+}
+.halloween .modal h2,
+.halloween .usage-modal-title,
+.halloween .settings-section-title,
+.halloween .pricing-modal h2 {
+  color: #fb923c;
+  text-shadow: 0 0 18px rgba(249,115,22,0.45);
+}
+
+/* Usage modal */
+.halloween .usage-modal-head {
+  border-bottom-color: rgba(249,115,22,0.2);
+}
+.halloween .usage-headline { color: #fde68a; }
+.halloween .usage-modal-rule { background: rgba(249,115,22,0.18); }
+.halloween .usage-sec-label { color: #fb923c; }
+.halloween .usage-track-modal { background: rgba(249,115,22,0.1); border-radius: 6px; }
+.halloween .usage-fill-modal.green { background: linear-gradient(90deg, #f97316, #fbbf24); }
+.halloween .usage-fill-modal.yellow { background: linear-gradient(90deg, #c2410c, #f97316); }
+.halloween .usage-fill-modal.red { background: linear-gradient(90deg, #7f1d1d, #dc2626); }
+.halloween .usage-sec-pct { color: #fbbf24; font-weight: 700; }
+
+/* Settings modal */
+.halloween .settings-modal { background: linear-gradient(160deg, #0f0600 0%, #0d0b16 100%); }
+.halloween .settings-tabs { border-bottom-color: rgba(249,115,22,0.18); }
+.halloween .settings-tab.active {
+  color: #fb923c;
+  border-bottom-color: #f97316;
+}
+.halloween .settings-tab:hover { color: #fde68a; }
+.halloween .settings-plan-card {
+  background: rgba(249,115,22,0.07);
+  border-color: rgba(249,115,22,0.3);
+}
+.halloween .settings-plan-upgrade-btn {
+  background: linear-gradient(135deg, #c2410c, #7c3aed);
+  border-color: rgba(249,115,22,0.4);
+  color: #fde68a;
+}
+.halloween .settings-plan-upgrade-btn:hover {
+  background: linear-gradient(135deg, #ea580c, #9333ea);
+}
+.halloween .settings-usage-bar-track { background: rgba(249,115,22,0.12); }
+.halloween .settings-usage-bar-fill { background: linear-gradient(90deg, #f97316, #fbbf24); }
+.halloween .settings-label { color: rgba(249,115,22,0.7); }
+.halloween .settings-row:hover { background: rgba(249,115,22,0.04); }
+.halloween input[type="text"],
+.halloween input[type="email"],
+.halloween input[type="number"],
+.halloween select,
+.halloween textarea {
+  background: rgba(249,115,22,0.06);
+  border-color: rgba(249,115,22,0.25);
+  color: #fde68a;
+}
+.halloween input[type="text"]:focus,
+.halloween input[type="email"]:focus,
+.halloween input[type="number"]:focus,
+.halloween select:focus,
+.halloween textarea:focus {
+  border-color: rgba(249,115,22,0.55);
+  box-shadow: 0 0 0 3px rgba(249,115,22,0.1);
+  outline: none;
+}
+
+/* Pricing modal */
+.halloween .pricing-modal::before {
+  content: '🎃 BEWARE THE PAYWALL 🎃';
+  display: block; text-align: center;
+  font-size: 11px; letter-spacing: .12em; font-weight: 700;
+  color: rgba(249,115,22,0.45);
+  margin-bottom: 10px;
+}
+.halloween .pricing-card {
+  background: rgba(249,115,22,0.05);
+  border-color: rgba(249,115,22,0.2);
+  transition: border-color .2s, box-shadow .2s;
+}
+.halloween .pricing-card:hover {
+  border-color: rgba(249,115,22,0.5);
+  box-shadow: 0 0 20px rgba(249,115,22,0.12);
+}
+.halloween .pricing-card.pc-current {
+  border-color: #f97316;
+  background: rgba(249,115,22,0.1);
+  box-shadow: 0 0 0 1px rgba(249,115,22,0.3), 0 4px 24px rgba(249,115,22,0.12);
+}
+.halloween .pricing-card.pc-featured {
+  border-color: #c084fc;
+  background: rgba(192,84,252,0.08);
+  box-shadow: 0 0 0 1px rgba(192,84,252,0.3), 0 4px 24px rgba(192,84,252,0.1);
+}
+.halloween .pc-tier-name { color: #fb923c; }
+.halloween .pc-price { color: #fbbf24; text-shadow: 0 0 12px rgba(251,191,36,0.4); }
+.halloween .pc-feature { color: rgba(253,230,138,0.75); }
+.halloween .pc-feature::before { content: '🕸 '; }
+.halloween .pc-btn {
+  background: linear-gradient(135deg, #c2410c, #7c3aed);
+  border: none; color: #fff;
+}
+.halloween .pc-btn:hover { background: linear-gradient(135deg, #ea580c, #9333ea); }
+.halloween .pc-btn.pc-btn-current { background: rgba(249,115,22,0.18); color: #fb923c; }
+
+/* Spooky scrollbar inside modals */
+.halloween .modal *::-webkit-scrollbar-track { background: #0f0600; }
+.halloween .modal *::-webkit-scrollbar-thumb { background: rgba(249,115,22,0.35); border-radius: 4px; }
+
+/* ── Intensified Call Overlay ─────────────────────────────────────────────── */
+.halloween .call-overlay {
+  background: #070000 !important;
+}
+.halloween .call-bg {
+  background: radial-gradient(ellipse at 50% 30%, #1a0400 0%, #0a0012 100%) !important;
+}
+.halloween .call-orb-1 {
+  background: radial-gradient(circle at 60% 50%, rgba(249,115,22,0.7) 0%, transparent 65%) !important;
+  animation: hwOrbPulse 3s ease-in-out infinite;
+}
+.halloween .call-orb-2 {
+  background: radial-gradient(circle at 30% 40%, rgba(124,58,237,0.65) 0%, transparent 65%) !important;
+  animation: hwOrbPulse 4.5s ease-in-out infinite reverse;
+}
+@keyframes hwOrbPulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.12); }
+}
+.halloween .call-char-name {
+  color: #fb923c !important;
+  text-shadow: 0 0 20px rgba(249,115,22,0.7), 0 0 40px rgba(249,115,22,0.3);
+  animation: hwNameFlicker 6s ease-in-out infinite;
+}
+@keyframes hwNameFlicker {
+  0%, 95%, 100% { opacity: 1; }
+  96%           { opacity: 0.7; }
+  97%           { opacity: 1; }
+  98%           { opacity: 0.5; }
+}
+.halloween .call-status {
+  color: rgba(251,146,60,0.65) !important;
+}
+.halloween .call-end-btn {
+  background: rgba(120,0,0,0.5) !important;
+  border-color: rgba(220,38,38,0.6) !important;
+  box-shadow: 0 0 16px rgba(220,38,38,0.25);
+}
+.halloween .call-end-btn:hover {
+  background: rgba(180,0,0,0.65) !important;
+  box-shadow: 0 0 24px rgba(220,38,38,0.45);
+}
