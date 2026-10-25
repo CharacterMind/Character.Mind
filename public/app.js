@@ -10094,50 +10094,115 @@ function launchTicTacToe(savedState) {
 
   // ── Jump scares ─────────────────────────────────────────────────────────────
   const SCARES = [
-    { emoji: '👻', boo: 'BOO!' },
-    { emoji: '💀', boo: 'YOU\'RE DEAD.' },
-    { emoji: '🎃', boo: 'MUAHAHAHA!' },
-    { emoji: '🧟', boo: 'BRAINSSS...' },
-    { emoji: '🧛', boo: 'I VANT YOUR SOUL.' },
-    { emoji: '🕷️', boo: 'EIGHT LEGS. ONE YOU.' },
+    { emoji: '👻', boo: 'BOO!',               speak: 'BOO' },
+    { emoji: '💀', boo: 'YOU\'RE DEAD.',       speak: 'You are dead' },
+    { emoji: '🎃', boo: 'MUAHAHAHA!',          speak: 'Muahahaha' },
+    { emoji: '🧟', boo: 'BRAINSSS...',         speak: 'Braaains' },
+    { emoji: '🧛', boo: 'I VANT YOUR SOUL.',   speak: 'I vant your soul' },
+    { emoji: '🕷️', boo: 'EIGHT LEGS. ONE YOU.', speak: 'Eight legs. One you.' },
+    { emoji: '👁️', boo: 'I SEE YOU.',          speak: 'I see you' },
+    { emoji: '😈', boo: 'WELCOME TO HELL.',    speak: 'Welcome to hell' },
+    { emoji: '⚰️', boo: 'YOUR TIME IS UP.',    speak: 'Your time is up' },
+    { emoji: '🩸', boo: 'RUN.',                speak: 'Run' },
   ];
-  // Synthesized jump scare sound — no audio files needed
+
+  // Extremely terrifying synthesized sound: sub-bass impact + resonant shriek + distorted growl + noise
   function hwScareSound() {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      // Deep rumble
-      const osc1 = ctx.createOscillator();
-      const g1 = ctx.createGain();
-      osc1.type = 'sawtooth';
-      osc1.frequency.setValueAtTime(120, ctx.currentTime);
-      osc1.frequency.exponentialRampToValueAtTime(30, ctx.currentTime + 0.5);
-      g1.gain.setValueAtTime(0.6, ctx.currentTime);
-      g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
-      osc1.connect(g1); g1.connect(ctx.destination);
-      osc1.start(); osc1.stop(ctx.currentTime + 0.55);
-      // High shriek
-      const osc2 = ctx.createOscillator();
-      const g2 = ctx.createGain();
-      osc2.type = 'sine';
-      osc2.frequency.setValueAtTime(1600, ctx.currentTime + 0.05);
-      osc2.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.35);
-      g2.gain.setValueAtTime(0, ctx.currentTime);
-      g2.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.07);
-      g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-      osc2.connect(g2); g2.connect(ctx.destination);
-      osc2.start(ctx.currentTime + 0.05); osc2.stop(ctx.currentTime + 0.4);
-      // Noise burst
-      const buf = ctx.createBuffer(1, ctx.sampleRate * 0.3, ctx.sampleRate);
-      const data = buf.getChannelData(0);
-      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.25;
-      const noise = ctx.createBufferSource();
-      const ng = ctx.createGain();
-      noise.buffer = buf;
-      ng.gain.setValueAtTime(0.3, ctx.currentTime);
-      ng.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-      noise.connect(ng); ng.connect(ctx.destination);
-      noise.start(); noise.stop(ctx.currentTime + 0.3);
-      setTimeout(() => ctx.close(), 1200);
+      const t = ctx.currentTime;
+
+      // ── Sub-bass BOOM ──
+      const sub = ctx.createOscillator();
+      const subG = ctx.createGain();
+      sub.type = 'sine';
+      sub.frequency.setValueAtTime(80, t);
+      sub.frequency.exponentialRampToValueAtTime(18, t + 0.6);
+      subG.gain.setValueAtTime(0, t);
+      subG.gain.linearRampToValueAtTime(1.2, t + 0.02);
+      subG.gain.exponentialRampToValueAtTime(0.001, t + 0.65);
+      sub.connect(subG); subG.connect(ctx.destination);
+      sub.start(t); sub.stop(t + 0.7);
+
+      // ── Distorted sawtooth growl ──
+      const saw = ctx.createOscillator();
+      const sawDist = ctx.createWaveShaper();
+      const sawG = ctx.createGain();
+      const sawCurve = new Float32Array(512);
+      for (let i = 0; i < 512; i++) { const x = (i * 2) / 512 - 1; sawCurve[i] = Math.tanh(x * 8); }
+      sawDist.curve = sawCurve; sawDist.oversample = '4x';
+      saw.type = 'sawtooth';
+      saw.frequency.setValueAtTime(55, t);
+      saw.frequency.setValueAtTime(110, t + 0.08);
+      saw.frequency.linearRampToValueAtTime(40, t + 0.5);
+      sawG.gain.setValueAtTime(0.7, t);
+      sawG.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+      saw.connect(sawDist); sawDist.connect(sawG); sawG.connect(ctx.destination);
+      saw.start(t); saw.stop(t + 0.6);
+
+      // ── Piercing banshee shriek (freq glide 3000→200) ──
+      const shriek = ctx.createOscillator();
+      const shriekFilter = ctx.createBiquadFilter();
+      const shriekG = ctx.createGain();
+      shriek.type = 'sawtooth';
+      shriek.frequency.setValueAtTime(3200, t + 0.04);
+      shriek.frequency.exponentialRampToValueAtTime(180, t + 0.5);
+      shriekFilter.type = 'bandpass';
+      shriekFilter.frequency.setValueAtTime(2400, t + 0.04);
+      shriekFilter.frequency.exponentialRampToValueAtTime(200, t + 0.5);
+      shriekFilter.Q.value = 4;
+      shriekG.gain.setValueAtTime(0, t);
+      shriekG.gain.linearRampToValueAtTime(0.9, t + 0.06);
+      shriekG.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+      shriek.connect(shriekFilter); shriekFilter.connect(shriekG); shriekG.connect(ctx.destination);
+      shriek.start(t + 0.04); shriek.stop(t + 0.6);
+
+      // ── Long haunting undertone (eerie whale-like moan) ──
+      const moan = ctx.createOscillator();
+      const moanG = ctx.createGain();
+      moan.type = 'sine';
+      moan.frequency.setValueAtTime(140, t + 0.1);
+      moan.frequency.linearRampToValueAtTime(90, t + 1.8);
+      moanG.gain.setValueAtTime(0, t + 0.1);
+      moanG.gain.linearRampToValueAtTime(0.35, t + 0.25);
+      moanG.gain.setValueAtTime(0.35, t + 1.2);
+      moanG.gain.exponentialRampToValueAtTime(0.001, t + 1.9);
+      moan.connect(moanG); moanG.connect(ctx.destination);
+      moan.start(t + 0.1); moan.stop(t + 2.0);
+
+      // ── Noise burst (white → filtered dark) ──
+      const sr = ctx.sampleRate;
+      const noiseBuf = ctx.createBuffer(1, sr * 0.4, sr);
+      const nd = noiseBuf.getChannelData(0);
+      for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+      const noiseSrc = ctx.createBufferSource();
+      const noiseFilter = ctx.createBiquadFilter();
+      const noiseG = ctx.createGain();
+      noiseSrc.buffer = noiseBuf;
+      noiseFilter.type = 'lowpass'; noiseFilter.frequency.value = 800;
+      noiseG.gain.setValueAtTime(0.55, t);
+      noiseG.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+      noiseSrc.connect(noiseFilter); noiseFilter.connect(noiseG); noiseG.connect(ctx.destination);
+      noiseSrc.start(t); noiseSrc.stop(t + 0.4);
+
+      setTimeout(() => { try { ctx.close(); } catch(_){} }, 2500);
+    } catch(_) {}
+  }
+
+  // Demonic speech synthesis using Web Speech API at extreme pitch/rate
+  function hwDemonSpeak(text) {
+    try {
+      if (!window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.pitch = 0.01;  // as low as browsers allow — demon floor
+      u.rate  = 0.55;  // slow and menacing
+      u.volume = 1;
+      // Prefer a deep male voice if available
+      const voices = window.speechSynthesis.getVoices();
+      const deep = voices.find(v => /male|david|alex|daniel|fred|ralph/i.test(v.name) && /en/i.test(v.lang));
+      if (deep) u.voice = deep;
+      window.speechSynthesis.speak(u);
     } catch(_) {}
   }
 
@@ -10145,6 +10210,8 @@ function launchTicTacToe(savedState) {
     if (hwPaused) return scheduleNextScare();
     const s = SCARES[Math.floor(Math.random() * SCARES.length)];
     hwScareSound();
+    // Speak slightly after the initial BOOM so voice cuts through
+    setTimeout(() => hwDemonSpeak(s.speak), 80);
     const el = document.createElement('div');
     el.className = 'hw-jump-scare';
     el.innerHTML = `<div class="hw-js-emoji">${s.emoji}</div><div class="hw-js-boo">${s.boo}</div>`;
@@ -10154,8 +10221,8 @@ function launchTicTacToe(savedState) {
       el.style.transform = 'scale(1)';
       setTimeout(() => {
         el.style.opacity = '0';
-        setTimeout(() => el.remove(), 500);
-      }, 900);
+        setTimeout(() => { el.remove(); window.speechSynthesis?.cancel(); }, 500);
+      }, 1400); // slightly longer to let demon voice finish
     });
     scheduleNextScare();
   }
