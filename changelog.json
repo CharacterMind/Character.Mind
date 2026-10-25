@@ -1,5 +1,18 @@
 [
   {
+    "id": "v351-coin-protection",
+    "version": "v351",
+    "date": "Oct 2026",
+    "title": "🔒 Coin Protection Fix",
+    "subtitle": "Protected accounts can no longer have coins drained through any path.",
+    "fixed": [
+      "Session pack purchases no longer deduct coins from protected accounts",
+      "Coin-redeem and coin-checkout endpoints now skip deduction for protected accounts",
+      "Buying CM Tokens with coins is now free for protected accounts",
+      "PayPal subscription-suspend webhook no longer charges coins to owner accounts"
+    ]
+  },
+  {
     "id": "v348-limits-tuning",
     "version": "v348",
     "date": "Oct 2026",

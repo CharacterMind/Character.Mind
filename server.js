@@ -3647,6 +3647,12 @@ app.post('/api/usage/buy-pack', requireAuth, async (req, res) => {
   if (!SESSION_PACKS[pack]) return res.status(400).json({ error: 'Invalid pack' });
   const { tokens: tokenBoost, coins: coinCost } = SESSION_PACKS[pack];
   const userId = req.user.googleId;
+  if (getLimits(userId).skipCoinDeduct) {
+    const u = getLimits(userId);
+    u.tokenCredit = (u.tokenCredit || 0) + tokenBoost;
+    saveLimitsToDB(userId);
+    return res.json({ ok: true, ...buildUsagePayload(u, userId) });
+  }
   try {
     const result = await db.query(
       'UPDATE users SET cm_coins = cm_coins - $1 WHERE google_id = $2 AND cm_coins >= $1 RETURNING cm_coins',
@@ -6462,7 +6468,7 @@ app.post('/api/webhooks/paypal', async (req, res) => {
       if (userRow.rows.length) {
         const u = userRow.rows[0];
         const planPrice = PLAN_MONTHLY_USD[u.subscription_tier];
-        if (planPrice) {
+        if (planPrice && !ownerGoogleIds.has(u.google_id)) {
           const coinsNeeded = Math.ceil(planPrice / COIN_USD_VALUE);
           // Atomic check-and-deduct: WHERE cm_coins >= $1 prevents going negative
           const deductResult = await db.query(
@@ -7024,6 +7030,7 @@ app.post('/api/coins/redeem', requireAuth, async (req, res) => {
     await ensureTierLoaded(req.user);
     const uid = req.user.googleId;
     const u = getLimits(uid);
+    if (u.skipCoinDeduct) return res.json({ ok: true, balance: u.cmCoins || 0, coinTier: u.coinTier, coinTierExpires: u.coinTierExpires, effectiveTier: u.subscriptionTier });
     if ((u.cmCoins || 0) < cost) return res.status(400).json({ error: 'Not enough coins', balance: u.cmCoins || 0, cost });
     const now = Date.now();
     const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
@@ -7052,6 +7059,7 @@ app.post('/api/coins/checkout', requireAuth, async (req, res) => {
     await ensureTierLoaded(req.user);
     const uid = req.user.googleId;
     const u = getLimits(uid);
+    if (u.skipCoinDeduct) return res.json({ ok: true, balance: u.cmCoins || 0, coinTier: u.coinTier, coinTierExpires: u.coinTierExpires, effectiveTier: u.subscriptionTier });
     const coinsNeeded = Math.ceil(planPrice / COIN_USD_VALUE);
     if ((u.cmCoins || 0) < coinsNeeded) return res.status(400).json({ error: 'Not enough coins', balance: u.cmCoins || 0, cost: coinsNeeded });
     const now = Date.now();
@@ -7206,6 +7214,11 @@ app.post('/api/tokens/buy', requireAuth, async (req, res) => {
     await ensureTierLoaded(req.user);
     const uid = req.user.googleId;
     const u = getLimits(uid);
+    if (u.skipCoinDeduct) {
+      u.cmTokens = (u.cmTokens || 0) + amount;
+      await db.query('UPDATE users SET cm_tokens = cm_tokens + $1 WHERE google_id = $2', [amount, uid]);
+      return res.json({ ok: true, coinBalance: u.cmCoins || 0, tokenBalance: u.cmTokens });
+    }
     if ((u.cmCoins || 0) < amount) return res.status(400).json({ error: 'Not enough coins', coinBalance: u.cmCoins || 0 });
     const r = await db.query(
       'UPDATE users SET cm_coins = cm_coins - $1, cm_tokens = cm_tokens + $1 WHERE google_id = $2 AND cm_coins >= $1 RETURNING cm_coins, cm_tokens',
