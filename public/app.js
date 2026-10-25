@@ -1040,6 +1040,152 @@ function closeCoinShop() {
   coinShopSelectedPack = null;
 }
 
+// ── Quiz ──────────────────────────────────────────────────────────────────────
+let _quizId = null;
+let _quizQuestions = [];
+let _quizAnswers = [];
+let _quizCurrent = 0;
+let _quizAnswered = false;
+
+function openQuizModal() {
+  if (!currentUser) { showWarning('Sign in to take a quiz.'); return; }
+  _quizShowScreen('cat');
+  document.getElementById('quizCooldownMsg').textContent = '';
+  document.getElementById('quizOverlay').style.display = 'flex';
+}
+function closeQuizModal() {
+  document.getElementById('quizOverlay').style.display = 'none';
+}
+function _quizShowScreen(name) {
+  document.getElementById('quizScreenCat').style.display    = name === 'cat'    ? '' : 'none';
+  document.getElementById('quizScreenQ').style.display      = name === 'q'      ? '' : 'none';
+  document.getElementById('quizScreenResult').style.display = name === 'result' ? '' : 'none';
+}
+async function startQuiz(category) {
+  document.querySelectorAll('.quiz-cat-btn').forEach(b => b.disabled = true);
+  document.getElementById('quizCooldownMsg').textContent = 'Loading…';
+  try {
+    const r = await fetch('/api/quiz/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category }),
+    });
+    const d = await r.json();
+    if (d.cooldown) {
+      const mins = Math.ceil(d.cooldownMs / 60000);
+      document.getElementById('quizCooldownMsg').textContent = `${category} quiz on cooldown — try again in ${mins} min.`;
+      document.querySelectorAll('.quiz-cat-btn').forEach(b => b.disabled = false);
+      return;
+    }
+    _quizId = d.quizId;
+    _quizQuestions = d.questions;
+    _quizAnswers = [];
+    _quizCurrent = 0;
+    _quizShowScreen('q');
+    _quizRenderQuestion();
+  } catch (_) {
+    document.getElementById('quizCooldownMsg').textContent = 'Something went wrong. Try again.';
+    document.querySelectorAll('.quiz-cat-btn').forEach(b => b.disabled = false);
+  }
+}
+function _quizRenderQuestion() {
+  const q = _quizQuestions[_quizCurrent];
+  const total = _quizQuestions.length;
+  const idx = _quizCurrent;
+  _quizAnswered = false;
+
+  document.getElementById('quizProgress').textContent = `Question ${idx + 1} / ${total}`;
+  document.getElementById('quizProgressFill').style.width = `${((idx) / total) * 100}%`;
+  const diffLabel = ['', 'Easy', 'Medium', 'Hard'];
+  document.getElementById('quizCategory').textContent = `${diffLabel[q.d] || ''} · ${q.d === 1 ? 5 : q.d === 2 ? 10 : 20} coins`;
+  document.getElementById('quizQuestion').textContent = q.q;
+  document.getElementById('quizFeedback').textContent = '';
+  document.getElementById('quizNextBtn').style.display = 'none';
+
+  const optsEl = document.getElementById('quizOptions');
+  optsEl.innerHTML = '';
+  q.opts.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'quiz-opt-btn';
+    btn.textContent = opt;
+    btn.onclick = () => _quizPickAnswer(i);
+    optsEl.appendChild(btn);
+  });
+}
+function _quizPickAnswer(idx) {
+  if (_quizAnswered) return;
+  _quizAnswered = true;
+  const q = _quizQuestions[_quizCurrent];
+  _quizAnswers.push(idx);
+
+  const btns = document.querySelectorAll('.quiz-opt-btn');
+  btns.forEach(b => b.disabled = true);
+  btns[q.a].classList.add('quiz-correct');
+  if (idx !== q.a) {
+    btns[idx].classList.add('quiz-wrong');
+    document.getElementById('quizFeedback').textContent = `✗ Correct answer: ${q.opts[q.a]}`;
+    document.getElementById('quizFeedback').style.color = 'var(--text3)';
+  } else {
+    document.getElementById('quizFeedback').textContent = '✓ Correct!';
+    document.getElementById('quizFeedback').style.color = '#4ade80';
+  }
+
+  const isLast = _quizCurrent >= _quizQuestions.length - 1;
+  const nextBtn = document.getElementById('quizNextBtn');
+  nextBtn.textContent = isLast ? 'See Results' : 'Next →';
+  nextBtn.style.display = '';
+}
+async function quizNext() {
+  _quizCurrent++;
+  if (_quizCurrent < _quizQuestions.length) {
+    _quizRenderQuestion();
+    return;
+  }
+  // Submit
+  document.getElementById('quizNextBtn').disabled = true;
+  document.getElementById('quizNextBtn').textContent = 'Submitting…';
+  try {
+    const r = await fetch('/api/quiz/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quizId: _quizId, answers: _quizAnswers }),
+    });
+    const d = await r.json();
+    _quizShowResult(d);
+  } catch (_) {
+    _quizShowResult({ ok: false, correct: 0, total: _quizQuestions.length, coinsEarned: 0, breakdown: [] });
+  }
+}
+function _quizShowResult(d) {
+  const pct = d.total > 0 ? Math.round((d.correct / d.total) * 100) : 0;
+  const emoji = pct === 100 ? '🏆' : pct >= 70 ? '⭐' : pct >= 40 ? '🎯' : '📚';
+  document.getElementById('quizResultEmoji').textContent = emoji;
+  document.getElementById('quizResultTitle').textContent = pct === 100 ? 'Perfect score!' : pct >= 70 ? 'Well done!' : pct >= 40 ? 'Good effort!' : 'Keep studying!';
+  document.getElementById('quizResultScore').textContent = `${d.correct} / ${d.total} correct (${pct}%)`;
+  document.getElementById('quizCoinsEarned').textContent = `+${d.coinsEarned || 0}`;
+  document.getElementById('quizCoinsLabel').textContent = d.coinsEarned > 0 ? 'C.M. Coins earned' : 'No coins earned';
+
+  // Breakdown
+  const bEl = document.getElementById('quizBreakdown');
+  bEl.innerHTML = '';
+  (d.breakdown || []).forEach((b, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--border2)';
+    row.innerHTML = `<span style="font-size:16px;flex-shrink:0">${b.correct ? '✅' : '❌'}</span><div style="flex:1"><div style="font-weight:500;color:var(--text1)">${b.q}</div>${!b.correct ? `<div style="color:var(--text3);font-size:12px;margin-top:2px">Answer: ${b.correctAnswer}</div>` : ''}</div>${b.correct ? `<span style="color:#4ade80;font-weight:700;flex-shrink:0">+${b.coins}</span>` : ''}`;
+    bEl.appendChild(row);
+  });
+
+  _quizShowScreen('result');
+  if (d.coinsEarned > 0 && typeof updateNavCoinDisplay === 'function') {
+    loadUsage();
+  }
+}
+function quizPlayAgain() {
+  _quizShowScreen('cat');
+  document.querySelectorAll('.quiz-cat-btn').forEach(b => b.disabled = false);
+  document.getElementById('quizCooldownMsg').textContent = '';
+}
+
 async function selectCoinPack(pack) {
   coinShopSelectedPack = pack;
   document.querySelectorAll('.coin-pack-card').forEach(c => c.classList.toggle('selected', c.dataset.packId === pack.id));
@@ -10259,7 +10405,7 @@ async function claimHalloweenGift() {
     </div>
     <div class="hw-panel-rows">
       <div class="hw-panel-row">
-        <span>Animations</span>
+        <span>Floaters</span>
         <button class="hw-tog" id="hwTogMotion">${hwAnimations ? 'On' : 'Off'}</button>
       </div>
       <div class="hw-panel-row">
@@ -10267,7 +10413,7 @@ async function claimHalloweenGift() {
         <button class="hw-tog" id="hwTogScares">${hwScares ? 'On' : 'Off'}</button>
       </div>
       <div class="hw-panel-row">
-        <span>Floaters</span>
+        <span>Confetti</span>
         <button class="hw-tog" id="hwTogConf">${hwConfetti ? 'On' : 'Off'}</button>
       </div>
       <div class="hw-panel-row">

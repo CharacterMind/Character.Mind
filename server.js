@@ -7398,6 +7398,171 @@ app.get('/api/game/hangman/word', requireAuthGame, (req, res) => {
   res.json({ word, gameId });
 });
 
+// ── Quiz Game ─────────────────────────────────────────────────────────────────
+const QUIZ_COINS_PER_D = { 1: 5, 2: 10, 3: 20 }; // coins per correct answer by difficulty
+const QUIZ_SESSION_CAP = 100;   // max coins per quiz session
+const QUIZ_COOLDOWN_MS = 30 * 60 * 1000; // 30 min cooldown per category
+
+const QUIZ_BANK = {
+  astronomy: [
+    { q: 'What is the closest star to Earth?', opts: ['The Sun', 'Proxima Centauri', 'Alpha Centauri B', 'Betelgeuse'], a: 0, d: 1 },
+    { q: 'How many planets are in our solar system?', opts: ['7', '8', '9', '10'], a: 1, d: 1 },
+    { q: 'What is the largest planet in our solar system?', opts: ['Saturn', 'Neptune', 'Jupiter', 'Uranus'], a: 2, d: 1 },
+    { q: 'The Milky Way is what type of galaxy?', opts: ['Elliptical', 'Irregular', 'Barred spiral', 'Ring'], a: 2, d: 1 },
+    { q: 'What visible layer of the Sun can we see from Earth?', opts: ['Core', 'Convection zone', 'Photosphere', 'Chromosphere'], a: 2, d: 1 },
+    { q: 'What is the approximate age of the universe?', opts: ['4.6 billion years', '10 billion years', '13.8 billion years', '20 billion years'], a: 2, d: 2 },
+    { q: 'Which moon of Saturn has a thick atmosphere and hydrocarbon lakes?', opts: ['Enceladus', 'Titan', 'Rhea', 'Mimas'], a: 1, d: 2 },
+    { q: 'What is the name of the supermassive black hole at the center of the Milky Way?', opts: ['M87*', 'Sagittarius A*', 'Cygnus X-1', 'TON 618'], a: 1, d: 2 },
+    { q: 'What phenomenon makes a star appear to shift position as Earth orbits the Sun?', opts: ['Doppler shift', 'Stellar parallax', 'Light aberration', 'Precession'], a: 1, d: 2 },
+    { q: 'The Chandrasekhar limit (~1.4 solar masses) is the maximum mass for a stable what?', opts: ['Neutron star', 'White dwarf', 'Red giant', 'Brown dwarf'], a: 1, d: 2 },
+    { q: 'What 1965 accidental discovery confirmed the Big Bang theory?', opts: ['Gamma-ray bursts', 'X-ray background', 'Cosmic microwave background', 'Neutrino flux'], a: 2, d: 3 },
+    { q: 'The Schwarzschild radius defines what for a non-rotating black hole?', opts: ['Radius where fusion begins', 'Event horizon radius', 'Photon sphere radius', 'Innermost stable orbit'], a: 1, d: 3 },
+    { q: 'The Hubble constant measures what?', opts: ['Age of the universe', 'Rate of expansion of the universe', 'Speed of light', 'Density of dark matter'], a: 1, d: 3 },
+    { q: 'What is a magnetar?', opts: ['A star at a galaxy\'s outer edge', 'A neutron star with an extremely strong magnetic field', 'A dark matter particle candidate', 'A failed star below 0.08 solar masses'], a: 1, d: 3 },
+    { q: 'The Roche limit is the critical distance within which what occurs?', opts: ['Planets cannot form from a protostellar disk', 'Tidal forces overcome a body\'s own self-gravity', 'Light cannot escape a black hole', 'Fusion ignites in a protostar'], a: 1, d: 3 },
+  ],
+  neurology: [
+    { q: 'What is the largest part of the human brain?', opts: ['Cerebellum', 'Brainstem', 'Cerebrum', 'Limbic system'], a: 2, d: 1 },
+    { q: 'Which brain region is primarily responsible for balance and coordination?', opts: ['Cerebrum', 'Cerebellum', 'Hippocampus', 'Amygdala'], a: 1, d: 1 },
+    { q: 'What cell type transmits electrical signals in the nervous system?', opts: ['Astrocyte', 'Oligodendrocyte', 'Neuron', 'Microglia'], a: 2, d: 1 },
+    { q: 'What is the protective layered covering of the brain and spinal cord called?', opts: ['Periosteum', 'Myelin sheath', 'Meninges', 'Periventricular zone'], a: 2, d: 1 },
+    { q: 'Which neurotransmitter is most strongly associated with reward and pleasure?', opts: ['Acetylcholine', 'GABA', 'Dopamine', 'Glutamate'], a: 2, d: 1 },
+    { q: 'What is the primary function of myelin in the nervous system?', opts: ['Produce neurotransmitters', 'Insulate axons and speed signal conduction', 'Filter cerebrospinal fluid', 'Regulate the blood-brain barrier'], a: 1, d: 2 },
+    { q: 'The hippocampus is primarily associated with which function?', opts: ['Visual processing', 'Motor control', 'Memory formation', 'Hunger regulation'], a: 2, d: 2 },
+    { q: 'What is the junction between two neurons called?', opts: ['Node of Ranvier', 'Synapse', 'Axon hillock', 'Dendrite arbor'], a: 1, d: 2 },
+    { q: 'Which brain lobe primarily processes visual information?', opts: ['Frontal', 'Parietal', 'Temporal', 'Occipital'], a: 3, d: 2 },
+    { q: 'Which disorder involves degeneration of dopaminergic neurons in the substantia nigra?', opts: ['Alzheimer\'s disease', 'Multiple sclerosis', 'Parkinson\'s disease', 'Huntington\'s disease'], a: 2, d: 2 },
+    { q: 'Long-term potentiation (LTP) critically requires activation of which receptor type?', opts: ['GABA-A', 'AMPA only', 'NMDA', 'Muscarinic'], a: 2, d: 3 },
+    { q: 'The blood-brain barrier is maintained primarily by what?', opts: ['Gap junctions between neurons', 'Tight junctions between endothelial cells', 'Astrocyte foot processes alone', 'Pericyte desmosomes'], a: 1, d: 3 },
+    { q: 'CNS axon demyelination is the defining feature of which disease?', opts: ['ALS', 'Guillain-Barré syndrome', 'Multiple sclerosis', 'Charcot-Marie-Tooth disease'], a: 2, d: 3 },
+    { q: 'An action potential\'s refractory period primarily prevents what?', opts: ['Neurotransmitter release', 'Backward propagation of the action potential', 'Calcium influx at the synapse', 'Dendrite depolarization'], a: 1, d: 3 },
+    { q: 'Which CAG trinucleotide-repeat expansion disease has been a focus of CRISPR-Cas9 research?', opts: ['Alzheimer\'s', 'Parkinson\'s', 'Huntington\'s', 'ALS'], a: 2, d: 3 },
+  ],
+  biology: [
+    { q: 'What is often called the powerhouse of the cell?', opts: ['Nucleus', 'Ribosome', 'Mitochondria', 'Golgi apparatus'], a: 2, d: 1 },
+    { q: 'DNA stands for what?', opts: ['Deoxyribonucleic acid', 'Diribonucleic acid', 'Deoxyribonitric acid', 'Dinucleotide acid'], a: 0, d: 1 },
+    { q: 'What process do plants use to convert sunlight into chemical energy?', opts: ['Cellular respiration', 'Photosynthesis', 'Fermentation', 'Glycolysis'], a: 1, d: 1 },
+    { q: 'How many chromosomes does a typical human somatic cell have?', opts: ['23', '44', '46', '48'], a: 2, d: 1 },
+    { q: 'What is the basic structural and functional unit of life?', opts: ['Atom', 'Organ', 'Tissue', 'Cell'], a: 3, d: 1 },
+    { q: 'Enzymes are typically what type of biomolecule?', opts: ['Lipids', 'Carbohydrates', 'Proteins', 'Nucleic acids'], a: 2, d: 2 },
+    { q: 'Which organelle is the primary site of protein synthesis?', opts: ['Lysosome', 'Ribosome', 'Smooth ER', 'Vacuole'], a: 1, d: 2 },
+    { q: 'What is the process by which a cell engulfs large solid particles called?', opts: ['Pinocytosis', 'Osmosis', 'Phagocytosis', 'Exocytosis'], a: 2, d: 2 },
+    { q: 'After meiosis, human gametes contain how many chromosomes?', opts: ['46', '23', '92', '12'], a: 1, d: 2 },
+    { q: 'Which RNA molecule carries amino acids to the ribosome during translation?', opts: ['mRNA', 'rRNA', 'tRNA', 'snRNA'], a: 2, d: 2 },
+    { q: 'What is the main role of telomerase in dividing cells?', opts: ['Repair double-strand DNA breaks', 'Extend telomeres shortened during replication', 'Methylate CpG islands', 'Catalyze the ligation step of replication'], a: 1, d: 3 },
+    { q: 'Which ~22-nucleotide RNA molecules silence gene expression post-transcriptionally?', opts: ['siRNA', 'piRNA', 'miRNA', 'lncRNA'], a: 2, d: 3 },
+    { q: 'The mitochondrial apoptosis pathway triggered by cytochrome c release is called the what?', opts: ['Death receptor pathway', 'Intrinsic pathway', 'Extrinsic pathway', 'Necroptosis pathway'], a: 1, d: 3 },
+    { q: 'The Hayflick limit describes what property of normal somatic cells?', opts: ['Maximum mitosis rate', 'Maximum number of divisions before senescence', 'Maximum protein output', 'Minimum size before division'], a: 1, d: 3 },
+    { q: 'In cancer therapy, synthetic lethality exploits what?', opts: ['Two individually cytotoxic drugs combined', 'Cell death from the simultaneous loss of two gene functions', 'Inducing necrosis instead of apoptosis', 'Targeting mitochondrial DNA only'], a: 1, d: 3 },
+  ],
+  anatomy: [
+    { q: 'How many bones are in the adult human body?', opts: ['176', '206', '230', '256'], a: 1, d: 1 },
+    { q: 'What is the largest organ in the human body?', opts: ['Liver', 'Lungs', 'Skin', 'Brain'], a: 2, d: 1 },
+    { q: 'What does the heart pump through the body?', opts: ['Lymph', 'Blood', 'Plasma only', 'Cerebrospinal fluid'], a: 1, d: 1 },
+    { q: 'How many chambers does the human heart have?', opts: ['2 atria and 2 ventricles', '1 atrium and 3 ventricles', '3 atria and 1 ventricle', '4 ventricles'], a: 0, d: 1 },
+    { q: 'Which is the longest bone in the human body?', opts: ['Tibia', 'Humerus', 'Fibula', 'Femur'], a: 3, d: 1 },
+    { q: 'What valve separates the left atrium from the left ventricle?', opts: ['Tricuspid valve', 'Aortic valve', 'Mitral valve', 'Pulmonary valve'], a: 2, d: 2 },
+    { q: 'What structure connects muscle to bone?', opts: ['Ligament', 'Cartilage', 'Tendon', 'Fascia'], a: 2, d: 2 },
+    { q: 'The thoracic duct drains lymph into which vessel?', opts: ['Superior vena cava', 'Aorta', 'Left subclavian vein', 'Pulmonary trunk'], a: 2, d: 2 },
+    { q: 'Which organ produces bile?', opts: ['Gallbladder', 'Pancreas', 'Liver', 'Duodenum'], a: 2, d: 2 },
+    { q: 'The brachial plexus originates from which spinal cord levels?', opts: ['L1–L5', 'C5–T1', 'T1–T6', 'C1–C4'], a: 1, d: 2 },
+    { q: 'Which nerve provides primary motor innervation to the diaphragm?', opts: ['Vagus nerve', 'Intercostal nerves', 'Phrenic nerve', 'Thoracic splanchnic nerves'], a: 2, d: 3 },
+    { q: 'The inguinal ligament runs from the anterior superior iliac spine (ASIS) to which bony landmark?', opts: ['Pubic symphysis', 'Pubic tubercle', 'Greater trochanter', 'Iliac crest'], a: 1, d: 3 },
+    { q: 'The sternal angle (angle of Louis) corresponds to which vertebral level?', opts: ['T3', 'T4', 'T5', 'T6'], a: 1, d: 3 },
+    { q: 'In the fetal heart, the foramen ovale allows blood to bypass the what?', opts: ['Liver', 'Pulmonary circulation', 'Systemic circulation', 'Portal circulation'], a: 1, d: 3 },
+    { q: 'Which artery is classically described as the first branch of the external carotid artery?', opts: ['Facial artery', 'Lingual artery', 'Superior thyroid artery', 'Occipital artery'], a: 2, d: 3 },
+  ],
+};
+const QUIZ_ALL_CATS = Object.keys(QUIZ_BANK);
+
+const quizSessions = new Map(); // quizId -> { uid, qs, issued }
+setInterval(() => {
+  const cutoff = Date.now() - 60 * 60 * 1000;
+  for (const [id, v] of quizSessions) { if (v.issued < cutoff) quizSessions.delete(id); }
+}, 10 * 60 * 1000);
+
+app.post('/api/quiz/start', requireAuth, (req, res) => {
+  const uid = req.user.googleId;
+  const u = getLimits(uid);
+  const cat = ((req.body || {}).category || 'mixed').toLowerCase();
+  if (cat !== 'mixed' && !QUIZ_BANK[cat]) return res.status(400).json({ error: 'Unknown category' });
+
+  const cooldownKey = `quizCd_${cat}`;
+  const left = Math.max(0, QUIZ_COOLDOWN_MS - (Date.now() - (u[cooldownKey] || 0)));
+  if (left > 0) return res.json({ cooldown: true, cooldownMs: left });
+
+  const pool = cat === 'mixed' ? QUIZ_ALL_CATS.flatMap(k => QUIZ_BANK[k]) : QUIZ_BANK[cat];
+  const shuffled = pool.slice().sort(() => Math.random() - 0.5);
+  const count = 5 + Math.floor(Math.random() * 6); // 5–10
+  const qs = shuffled.slice(0, count);
+
+  const quizId = crypto.randomBytes(16).toString('hex');
+  quizSessions.set(quizId, { uid, qs, issued: Date.now() });
+  u[cooldownKey] = Date.now();
+
+  res.json({
+    quizId,
+    category: cat,
+    questions: qs.map(({ q, opts, d }, i) => ({ i, q, opts, d })),
+  });
+});
+
+app.post('/api/quiz/submit', requireAuth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'No database' });
+  const uid = req.user.googleId;
+  const { quizId, answers } = req.body || {};
+  if (!quizId || !Array.isArray(answers)) return res.status(400).json({ error: 'Missing quizId or answers' });
+
+  const session = quizSessions.get(quizId);
+  if (!session || session.uid !== uid) return res.status(403).json({ error: 'Invalid or expired quiz session' });
+  quizSessions.delete(quizId);
+
+  const { qs } = session;
+  if (answers.length !== qs.length) return res.status(400).json({ error: 'Answer count mismatch' });
+
+  let rawCoins = 0;
+  const breakdown = qs.map((q, i) => {
+    const correct = answers[i] === q.a;
+    const coins = correct ? (QUIZ_COINS_PER_D[q.d] || 0) : 0;
+    rawCoins += coins;
+    return { q: q.q, correct, coins, correctAnswer: q.opts[q.a] };
+  });
+  const toAward = Math.min(rawCoins, QUIZ_SESSION_CAP);
+  const correctCount = breakdown.filter(b => b.correct).length;
+
+  if (toAward > 0) {
+    try {
+      await ensureTierLoaded(req.user);
+      const u = getLimits(uid);
+      const utcMidnight = new Date(); utcMidnight.setUTCHours(0, 0, 0, 0);
+      const dayStart = utcMidnight.getTime();
+      if ((u.coinsDayReset || 0) < dayStart) { u.coinsEarnedToday = 0; u.coinsDayReset = dayStart; }
+      const capped = Math.min(toAward, Math.max(0, COIN_DAILY_CAP - (u.coinsEarnedToday || 0)));
+      if (capped > 0) {
+        const r = await db.query(
+          `UPDATE users
+             SET cm_coins           = cm_coins + $1,
+                 coins_earned_today = CASE WHEN coins_day_reset < $2 THEN $1 ELSE coins_earned_today + $1 END,
+                 coins_day_reset    = GREATEST(COALESCE(coins_day_reset, 0), $2),
+                 coins_earned_all_time = COALESCE(coins_earned_all_time, 0) + $1
+           WHERE google_id = $3
+           RETURNING cm_coins, coins_earned_today`,
+          [capped, dayStart, uid]
+        );
+        u.cmCoins = r.rows[0]?.cm_coins ?? u.cmCoins;
+        u.coinsEarnedToday = r.rows[0]?.coins_earned_today ?? u.coinsEarnedToday;
+        console.log(`[quiz/submit] uid=${uid} correct=${correctCount}/${qs.length} awarded=${capped}`);
+        return res.json({ ok: true, correct: correctCount, total: qs.length, coinsEarned: capped, balance: u.cmCoins, breakdown });
+      }
+    } catch (e) {
+      console.error('[quiz/submit]', e.message);
+    }
+  }
+
+  const u2 = getLimits(uid);
+  res.json({ ok: true, correct: correctCount, total: qs.length, coinsEarned: 0, balance: u2.cmCoins || 0, breakdown });
+});
+
 // ── Announcements ──────────────────────────────────────────────────────────
 let ANNOUNCEMENTS = [];
 try {
