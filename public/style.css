@@ -3606,22 +3606,38 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
 .halloween .call-end-btn { background: rgba(194,65,12,0.25); border-color: rgba(249,115,22,0.45); }
 .halloween .call-end-btn:hover { background: rgba(194,65,12,0.5); }
 
-/* ── Bats: fly only in main content area, below header ── */
-.halloween-bat {
-  position: fixed; pointer-events: none; z-index: 8; opacity: 0.65;
-  animation: batFly linear infinite;
-  /* clip to main content area — right of sidebar, below logo row */
+/* ── Flying parade characters ── */
+.hw-flyer {
+  position: fixed; pointer-events: none; z-index: 8; line-height: 1;
   clip-path: inset(68px 0 0 var(--sidebar-w, 270px));
+  filter: drop-shadow(0 0 6px rgba(249,115,22,0.35));
+  will-change: transform;
 }
-@media (max-width: 768px) {
-  .halloween-bat { clip-path: inset(52px 0 0 0); }
+@media (max-width: 768px) { .hw-flyer { clip-path: inset(52px 0 0 0); } }
+
+@keyframes hwFlyLeft {
+  from { transform: translateX(calc(100vw + 100px)) translateY(0); }
+  20%  { transform: translateX(78vw)  translateY(-28px); }
+  50%  { transform: translateX(50vw)  translateY(16px); }
+  80%  { transform: translateX(22vw)  translateY(-20px); }
+  to   { transform: translateX(-100px) translateY(0); }
 }
-@keyframes batFly {
-  0%   { transform: translateX(110vw) translateY(0px) scaleX(1); }
-  25%  { transform: translateX(75vw)  translateY(-28px) scaleX(1); }
-  50%  { transform: translateX(50vw)  translateY(14px) scaleX(-1); }
-  75%  { transform: translateX(25vw)  translateY(-18px) scaleX(-1); }
-  100% { transform: translateX(-10vw) translateY(0px) scaleX(-1); }
+@keyframes hwFlyRight {
+  from { transform: translateX(-100px) translateY(0); }
+  20%  { transform: translateX(22vw)  translateY(-24px); }
+  50%  { transform: translateX(50vw)  translateY(12px); }
+  80%  { transform: translateX(78vw)  translateY(-18px); }
+  to   { transform: translateX(calc(100vw + 100px)) translateY(0); }
+}
+
+/* ── Falling confetti ── */
+.hw-confetti {
+  position: fixed; top: -48px; pointer-events: none; z-index: 7;
+  animation: hwFall linear both; line-height: 1;
+}
+@keyframes hwFall {
+  0%   { transform: translateY(0)     translateX(0)              rotate(0deg);   opacity: 0.9; }
+  100% { transform: translateY(105vh) translateX(var(--hw-sway)) rotate(var(--hw-rot)); opacity: 0.2; }
 }
 
 /* ── Spider webs: corners, behind UI ── */
@@ -3631,6 +3647,17 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
 }
 .halloween-web.web-left  { left: 0; }
 .halloween-web.web-right { right: 0; transform: scaleX(-1); transform-origin: right top; }
+
+/* ── Motion toggle button ── */
+#hwMotionToggle {
+  position: fixed; bottom: 18px; right: 18px; z-index: 10020;
+  background: rgba(15,4,0,0.82); border: 1px solid rgba(249,115,22,0.45);
+  border-radius: 20px; padding: 5px 11px; cursor: pointer;
+  font-size: 14px; color: #ffa94d; backdrop-filter: blur(6px);
+  transition: opacity .2s, transform .15s; line-height: 1.4;
+  user-select: none;
+}
+#hwMotionToggle:hover { transform: scale(1.08); opacity: 1 !important; }
 
 /* ── Halloween toast ── */
 .halloween-toast {

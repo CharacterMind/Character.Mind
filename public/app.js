@@ -9906,59 +9906,96 @@ function launchTicTacToe(savedState) {
 
 // ── Halloween Theme (October 1-31) ────────────────────────────────────────────
 (function initHalloween() {
-  const now = new Date();
-  if (now.getMonth() !== 9) return; // only in October
-
+  if (new Date().getMonth() !== 9) return;
   document.body.classList.add('halloween');
 
-  // Spider web SVG (corner piece)
-  const webSVG = `<svg class="halloween-web web-left" width="160" height="160" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
-    <g stroke="#c084fc" stroke-width="0.8" fill="none" opacity="0.9">
-      <!-- Radial spokes from top-left corner -->
-      <line x1="0" y1="0" x2="160" y2="0"/>
-      <line x1="0" y1="0" x2="140" y2="30"/>
-      <line x1="0" y1="0" x2="110" y2="65"/>
-      <line x1="0" y1="0" x2="75" y2="95"/>
-      <line x1="0" y1="0" x2="40" y2="125"/>
-      <line x1="0" y1="0" x2="0" y2="160"/>
-      <!-- Concentric arcs -->
-      <path d="M30,0 Q28,28 0,30"/>
-      <path d="M65,0 Q58,38 40,53 Q22,65 0,65"/>
-      <path d="M100,0 Q88,48 65,72 Q43,92 18,98 Q0,100 0,100"/>
-      <path d="M135,0 Q118,55 90,84 Q65,108 36,118 Q14,124 0,130"/>
-      <!-- Spider hanging -->
-      <line x1="85" y1="0" x2="85" y2="35" stroke="#a855f7" stroke-width="0.6"/>
-      <ellipse cx="85" cy="38" rx="5" ry="7" fill="#7c3aed" stroke="#a855f7" stroke-width="0.8"/>
-      <ellipse cx="85" cy="35" rx="3" ry="3" fill="#7c3aed"/>
-      <!-- Spider legs -->
-      <line x1="85" y1="37" x2="78" y2="32" stroke="#a855f7" stroke-width="0.5"/>
-      <line x1="85" y1="37" x2="77" y2="38" stroke="#a855f7" stroke-width="0.5"/>
-      <line x1="85" y1="37" x2="92" y2="32" stroke="#a855f7" stroke-width="0.5"/>
-      <line x1="85" y1="37" x2="93" y2="38" stroke="#a855f7" stroke-width="0.5"/>
-    </g>
-  </svg>`;
-
-  const webRight = webSVG.replace('web-left','web-right');
+  // ── Spider webs in the corners ──────────────────────────────────────────────
+  const webSVG = `<svg class="halloween-web web-left" width="180" height="180" viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg"><g stroke="#c084fc" stroke-width="0.9" fill="none"><line x1="0" y1="0" x2="180" y2="0"/><line x1="0" y1="0" x2="155" y2="35"/><line x1="0" y1="0" x2="120" y2="75"/><line x1="0" y1="0" x2="78" y2="108"/><line x1="0" y1="0" x2="38" y2="140"/><line x1="0" y1="0" x2="0" y2="180"/><path d="M35,0 Q32,32 0,35"/><path d="M75,0 Q66,44 46,62 Q26,76 0,78"/><path d="M115,0 Q100,56 74,84 Q50,106 22,112 Q0,116 0,116"/><path d="M155,0 Q134,65 104,96 Q76,122 44,132 Q18,138 0,152"/><line x1="90" y1="0" x2="90" y2="42" stroke="#a855f7" stroke-width="0.7"/><ellipse cx="90" cy="46" rx="6" ry="8" fill="#7c3aed" stroke="#a855f7" stroke-width="0.9"/><ellipse cx="90" cy="42" rx="3.5" ry="3.5" fill="#6d28d9"/><line x1="90" y1="44" x2="81" y2="38" stroke="#a855f7" stroke-width="0.6"/><line x1="90" y1="44" x2="80" y2="46" stroke="#a855f7" stroke-width="0.6"/><line x1="90" y1="44" x2="99" y2="38" stroke="#a855f7" stroke-width="0.6"/><line x1="90" y1="44" x2="100" y2="46" stroke="#a855f7" stroke-width="0.6"/></g></svg>`;
   document.body.insertAdjacentHTML('beforeend', webSVG);
-  document.body.insertAdjacentHTML('beforeend', webRight);
+  document.body.insertAdjacentHTML('beforeend', webSVG.replace('web-left','web-right'));
 
-  // Animated bats
-  const BAT = `<svg viewBox="0 0 32 16" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%"><path d="M16 7 Q12 2 7 4 Q3 6 1 9 Q6 7 9 10 Q12 13 16 9 Q20 13 23 10 Q26 7 31 9 Q29 6 25 4 Q20 2 16 7Z" fill="currentColor"/><ellipse cx="16" cy="9" rx="2.5" ry="3" fill="currentColor"/></svg>`;
-  const bats = [
-    { top: '8vh',  duration: 28, delay: 0,   size: 28, color: '#c084fc' },
-    { top: '22vh', duration: 22, delay: 8,   size: 22, color: '#a855f7' },
-    { top: '14vh', duration: 35, delay: 15,  size: 34, color: '#e879f9' },
-    { top: '30vh', duration: 19, delay: 22,  size: 20, color: '#c084fc' },
+  // ── Flying parade ───────────────────────────────────────────────────────────
+  // Each entry: [emoji, minSize, maxSize, minSpeed, maxSpeed, minTop%, maxTop%]
+  const PARADE = [
+    ['👻', 30, 52, 12, 20, 18, 72],
+    ['🧙‍♀️', 34, 56, 10, 18, 12, 65],
+    ['🧟', 28, 46, 16, 24, 55, 82],
+    ['💀', 26, 40, 14, 22, 20, 75],
+    ['🎃', 30, 48, 13, 21, 25, 78],
+    ['🐱', 24, 38, 11, 19, 60, 85],
+    ['🕷️', 22, 36, 9,  17, 18, 80],
+    ['🦇', 24, 40, 12, 20, 15, 70],
+    ['🧛', 30, 50, 11, 19, 10, 65],
+    ['☠️', 26, 42, 13, 21, 22, 74],
+    ['🔮', 24, 38, 14, 22, 30, 78],
+    ['🌙', 22, 36, 10, 18, 10, 50],
   ];
-  bats.forEach(b => {
-    const el = document.createElement('div');
-    el.className = 'halloween-bat';
-    el.style.cssText = `top:${b.top};width:${b.size}px;height:${b.size/2}px;color:${b.color};animation-duration:${b.duration}s;animation-delay:-${b.delay}s;`;
-    el.innerHTML = BAT;
-    document.body.appendChild(el);
-  });
 
-  // One-time Halloween toast per session
+  const CONFETTI = ['👻','🎃','💀','🦇','🕸️','🍬','⚗️','🕯️','🌙','✨','🔮','☠️','🧡','🕷️'];
+
+  // ── Motion toggle (accessibility) ──────────────────────────────────────────
+  let hwPaused = localStorage.getItem('hw_motion_off') === '1';
+
+  const toggleBtn = document.createElement('button');
+  toggleBtn.id = 'hwMotionToggle';
+  toggleBtn.title = 'Toggle Halloween animations';
+  const updateToggle = () => {
+    toggleBtn.textContent = hwPaused ? '🎃 ▶' : '🎃 ⏸';
+    toggleBtn.style.opacity = hwPaused ? '0.5' : '0.85';
+  };
+  updateToggle();
+  toggleBtn.addEventListener('click', () => {
+    hwPaused = !hwPaused;
+    localStorage.setItem('hw_motion_off', hwPaused ? '1' : '0');
+    updateToggle();
+    if (hwPaused) document.querySelectorAll('.hw-flyer,.hw-confetti').forEach(e => e.remove());
+  });
+  document.body.appendChild(toggleBtn);
+
+  // ── Flying parade ───────────────────────────────────────────────────────────
+  function spawnParade() {
+    if (hwPaused) return;
+    const [emoji, minS, maxS, minSpd, maxSpd, minT, maxT] = PARADE[Math.floor(Math.random() * PARADE.length)];
+    const fromRight = Math.random() > 0.5;
+    const el = document.createElement('div');
+    el.className = 'hw-flyer';
+    el.textContent = emoji;
+    const size   = minS + Math.random() * (maxS - minS);
+    const topPct = minT + Math.random() * (maxT - minT);
+    const dur    = minSpd + Math.random() * (maxSpd - minSpd);
+    el.style.cssText = `font-size:${size}px;top:${topPct}vh;animation:${fromRight?'hwFlyLeft':'hwFlyRight'} ${dur}s linear both;`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), dur * 1000 + 600);
+  }
+
+  for (let i = 0; i < 3; i++) setTimeout(spawnParade, i * 900);
+  (function scheduleParade() {
+    spawnParade();
+    setTimeout(scheduleParade, 1800 + Math.random() * 2800);
+  })();
+
+  // ── Falling confetti ────────────────────────────────────────────────────────
+  function spawnConfetti() {
+    if (hwPaused) return;
+    const el = document.createElement('div');
+    el.className = 'hw-confetti';
+    el.textContent = CONFETTI[Math.floor(Math.random() * CONFETTI.length)];
+    const size = 14 + Math.random() * 20;
+    const left = 5  + Math.random() * 90;
+    const dur  = 5  + Math.random() * 7;
+    const sway = ((Math.random() - 0.5) * 80).toFixed(0);
+    const rot  = ((Math.random() - 0.5) * 360).toFixed(0) + 'deg';
+    el.style.cssText = `font-size:${size}px;left:${left}%;animation-duration:${dur}s;animation-delay:${(Math.random()*1.5).toFixed(2)}s;--hw-sway:${sway}px;--hw-rot:${rot};`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), (dur + 2) * 1000);
+  }
+
+  (function scheduleConfetti() {
+    spawnConfetti();
+    setTimeout(scheduleConfetti, 350 + Math.random() * 500);
+  })();
+
+  // ── One-time welcome toast ──────────────────────────────────────────────────
   if (!sessionStorage.getItem('hw_toast_shown')) {
     sessionStorage.setItem('hw_toast_shown', '1');
     const toast = document.createElement('div');
