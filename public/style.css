@@ -3693,18 +3693,17 @@ html, body {
 .halloween .call-end-btn { background: rgba(194,65,12,0.25); border-color: rgba(249,115,22,0.45); }
 .halloween .call-end-btn:hover { background: rgba(194,65,12,0.5); }
 
-/* ── Stage container — clips parade + confetti to content area ── */
+/* ── Stage container — full viewport so parade + confetti cross the whole screen ── */
 #hw-stage {
   position: fixed;
-  top: 68px;
-  left: var(--sidebar-w, 270px);
+  top: 0;
+  left: 0;
   right: 0;
   bottom: 0;
   overflow: hidden;
   pointer-events: none;
-  z-index: 8;
+  z-index: 490;
 }
-@media (max-width: 768px) { #hw-stage { left: 0; top: 52px; } }
 
 /* ── Flying parade characters ── */
 .hw-flyer {
