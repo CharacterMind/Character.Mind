@@ -1,5 +1,16 @@
 [
   {
+    "id": "v347-confetti-fix",
+    "version": "v347",
+    "date": "Oct 2026",
+    "title": "🎃 Halloween Confetti Fix",
+    "subtitle": "Floating/falling Halloween items now reliably disappear when their toggles are set to Off.",
+    "fixed": [
+      "Stray Halloween parade/confetti items now removed within 2 seconds if their toggle is Off — handles any timing edge case where cleanup didn't fully catch in-flight elements",
+      "Opening the Halloween settings panel now immediately syncs visual state with toggle state"
+    ]
+  },
+  {
     "id": "v346-bug-sweep",
     "version": "v346",
     "date": "Oct 2026",

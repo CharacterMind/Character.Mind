@@ -10461,9 +10461,16 @@ async function claimHalloweenGift() {
   settingsBtn.style.opacity = '0.85';
   document.body.appendChild(settingsBtn);
 
+  function hwSyncStage() {
+    if (!hwAnimations) hwStage.querySelectorAll('.hw-flyer').forEach(el => el.remove());
+    if (!hwConfetti)   hwStage.querySelectorAll('.hw-confetti').forEach(el => el.remove());
+    if (!hwAnimations && !hwConfetti) hwStage.style.display = 'none';
+  }
+
   settingsBtn.addEventListener('click', () => {
     const open = hwPanel.classList.toggle('hw-panel-open');
     settingsBtn.style.opacity = open ? '1' : '0.85';
+    if (open) hwSyncStage();
   });
   document.getElementById('hwPanelClose').addEventListener('click', () => {
     hwPanel.classList.remove('hw-panel-open');
@@ -10602,6 +10609,9 @@ async function claimHalloweenGift() {
     })();
   }
   if (hwConfetti) startConfetti();
+
+  // Periodic guard: remove stray items if flags went false (catches any timing edge cases)
+  setInterval(hwSyncStage, 2000);
 
   // ── Occasional crimson screen flash ─────────────────────────────────────────
   function hwBloodFlash() {
