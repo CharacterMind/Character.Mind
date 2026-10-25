@@ -945,7 +945,7 @@ function saveLimitsToDB(userId) {
 }
 
 const LIMITS = {
-  SESSION_COOLDOWN_MS: 2 * 60 * 60 * 1000,
+  SESSION_COOLDOWN_MS: 1 * 60 * 60 * 1000,
   WEEKLY_MS: 7 * 24 * 60 * 60 * 1000,
   REGEN_FREE: 10, // kept for reference — actual limits use TIER_REGEN_LIMITS below
   CALL_DAILY: 3
@@ -955,9 +955,9 @@ const LIMITS = {
 // so that "X20" really means 20×, "X50" really means 50×, etc.
 // Advanced = free + ~2 avg messages (a modest bump above free).
 // AVG_MESSAGE_TOKENS is kept for reference and UI estimates only.
-const FREE_SESSION_TOKENS = 25000;
+const FREE_SESSION_TOKENS = 60000;
 const AVG_MESSAGE_TOKENS  = 3600;
-const WEEKLY_SESSIONS     = 2;
+const WEEKLY_SESSIONS     = 3;
 const TIER_TOKEN_LIMITS = {
   free:     { session: FREE_SESSION_TOKENS,        weekly: Infinity },
   advanced: { session: FREE_SESSION_TOKENS * 3,    weekly: FREE_SESSION_TOKENS * 3   * WEEKLY_SESSIONS },
@@ -1498,10 +1498,10 @@ const COST_MODEL_MULT = { opes: 1, opis: 1.3, opos: 1.6, opus: 2.5, opys: 4, opy
 function calcCost(_side, type, { textLen = 0, imageSizeBytes = 0, modelTier = 'opes', durationSecs = 0 } = {}) {
   const mult = COST_MODEL_MULT[modelTier] || 1;
   switch (type) {
-    case 'chat':          return Math.max(8,  Math.min(200, Math.round(Math.ceil(textLen / 15) * mult)));
-    case 'call':          return Math.max(10, Math.min(150, Math.round(Math.ceil(textLen / 10) * mult)));
+    case 'chat':          return Math.max(5,  Math.min(80,  Math.round(Math.ceil(textLen / 25) * mult)));
+    case 'call':          return Math.max(8,  Math.min(60,  Math.round(Math.ceil(textLen / 18) * mult)));
     case 'image':         return Math.max(20, Math.min(150, Math.ceil(imageSizeBytes / 7000)));
-    case 'memo':          return Math.max(5,  Math.min(60,  Math.ceil(textLen / 40)));
+    case 'memo':          return Math.max(5,  Math.min(30,  Math.ceil(textLen / 40)));
     case 'call_duration': return Math.max(0,  Math.ceil(durationSecs / 60));
     default:              return 5;
   }

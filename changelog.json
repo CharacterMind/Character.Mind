@@ -1,5 +1,20 @@
 [
   {
+    "id": "v348-limits-tuning",
+    "version": "v348",
+    "date": "Oct 2026",
+    "title": "⚡ More Room to Chat",
+    "subtitle": "Bigger session windows, less coin drain — everything feels less restricted.",
+    "changed": [
+      "Free session token cap raised from 25k to 60k — roughly double the messages before cooldown",
+      "Session cooldown reduced from 2 hours to 1 hour — get back to chatting faster",
+      "Paid tier weekly allowance raised from 2× to 3× sessions per week",
+      "Chat coin cost reduced ~40-60%: typical message now costs 20-30 coins instead of 40-80",
+      "Voice call coin cost reduced similarly (max 60 instead of 150)",
+      "Memo coin cost cap halved (max 30 instead of 60)"
+    ]
+  },
+  {
     "id": "v347-confetti-fix",
     "version": "v347",
     "date": "Oct 2026",
