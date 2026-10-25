@@ -9616,7 +9616,7 @@ function checkSeasonalEvent() {
     },
     {
       name: 'halloween',
-      check: () => false,
+      check: (m, d) => m === 10 && d >= 25,
       emojis: ['🎃','👻','🕷️','🦇','🕸️','💀'],
       count: 22,
       banner: "👻 Happy Halloween from character.mind!",
@@ -9702,7 +9702,6 @@ function checkSeasonalEvent() {
     return;
   }
 
-  spawnParticles(event.emojis, event.count);
   if (event.accent) setAccentOverride(event.accent);
   setTimeout(() => transformLogoForEvent(event.name), 500);
   setTimeout(() => showEventBanner(event.banner, event.name), 1200);
