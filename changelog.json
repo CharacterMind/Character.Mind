@@ -1,5 +1,135 @@
 [
   {
+    "id": "halloween-2026-jumpscare",
+    "version": "v334",
+    "date": "Oct 2026",
+    "title": "🎃 Halloween: Horror-Movie Jump Scares",
+    "subtitle": "Demonic faces, multi-layer horror audio, and a demon voice that will haunt your nightmares.",
+    "added": [
+      "Horror-movie grade jump scares — a custom SVG demon skull face slams onto the screen with cracked bones, hollow eye sockets, glowing red pupils, and dripping blood",
+      "7-layer horror audio: noise crack burst, sub-bass cannon, sustained screech, screech harmonic, demon roar, simulated human scream, and ring modulator — all mixed and hard-limited for maximum impact",
+      "Demon voice reads a horror line aloud on every scare using ultra-low pitch speech synthesis",
+      "3 white strobe flashes right before the face appears, full body-shake animation, glitch overlay, and floating eyes that fade in around the screen",
+      "Jump scares now auto-fit any screen size — phone, tablet, or desktop, portrait or landscape, the face and text never get cut off"
+    ]
+  },
+  {
+    "id": "halloween-2026-theme",
+    "version": "v334",
+    "date": "Oct 2026",
+    "title": "🎃 Halloween: Full Platform Theme",
+    "subtitle": "The whole app goes spooky every October — pumpkin logos, orange glows, confetti parade, and more.",
+    "added": [
+      "Full Halloween skin: orange-and-black UI, glowing pumpkin effects, spooky nav logo with flipped moon-C and eye-for-i",
+      "Halloween parade: pumpkins, ghosts, skulls, and bats float across the screen in a continuous confetti stream",
+      "Motion toggle button — pause all Halloween effects if you prefer a calmer experience",
+      "Annual billing toggle restored to the pricing modal",
+      "x50 plan added to the pricing options",
+      "Halloween gift: a coin bonus drops automatically during the Halloween season"
+    ]
+  },
+  {
+    "id": "v334-game-fixes",
+    "version": "v334",
+    "date": "Oct 2026",
+    "title": "Game Fixes",
+    "subtitle": "Wordle keyboard restored, confetti no longer covers the game board.",
+    "fixed": [
+      "Wordle on-screen keyboard was being cut off — the game iframe height was too short; now correctly sized so the full keyboard is visible",
+      "Wordle keyboard input now fires correctly — key events dispatched to both document and window so all game implementations receive them",
+      "Halloween confetti parade no longer overlays the game card — games now render above the effect layer",
+      "Hangman and Tic-Tac-Toe memory cleaned up properly when a game ends — no more stale game state accumulating on the page",
+      "Tic-Tac-Toe board no longer freezes permanently after a cooldown — the waiting flag is now correctly cleared"
+    ]
+  },
+  {
+    "id": "v334-checkout-coin-fixes",
+    "version": "v334",
+    "date": "Oct 2026",
+    "title": "Checkout & Coin Fixes",
+    "subtitle": "Coin counter is stable on load, checkout currency correct, and Stripe 3DS works reliably.",
+    "fixed": [
+      "Coin counter no longer briefly shows the wrong value and then jumps on page load",
+      "Checkout now displays the correct currency (USD) — was sometimes showing a mismatched symbol",
+      "Stripe 3D Secure (bank verification popup) now handled reliably at checkout — no more failed payments when your bank requires additional confirmation"
+    ]
+  },
+  {
+    "id": "v333-system-cleanup",
+    "version": "v333",
+    "date": "Oct 2026",
+    "title": "System Cleanup & Bug Fixes",
+    "subtitle": "A sweep of small reliability issues across the server and UI.",
+    "fixed": [
+      "Various server-side edge cases cleaned up — no more stale state on certain request paths",
+      "Minor UI fixes following the usage panel and tier limit updates"
+    ]
+  },
+  {
+    "id": "v332-violence-filter",
+    "version": "v332",
+    "date": "Oct 2026",
+    "title": "Content Moderation & Ban Clarity",
+    "subtitle": "Stricter real-world violence filter and clearer ban messaging.",
+    "changed": [
+      "Real-world violence filter tightened — content involving actual people or real-world harm is caught more consistently",
+      "Per-account ban messages updated to be clearer about the reason and duration"
+    ]
+  },
+  {
+    "id": "v331-usage-modal-detail",
+    "version": "v331",
+    "date": "Oct 2026",
+    "title": "Usage Panel: Detailed Descriptions",
+    "subtitle": "Each usage row now tells you exactly what it's counting.",
+    "changed": [
+      "Usage modal subtext rewritten with full per-action detail — calls, memos, images, messages, and regenerates each show a clear description of what counts toward that limit"
+    ]
+  },
+  {
+    "id": "v330-usage-tracking",
+    "version": "v330",
+    "date": "Oct 2026",
+    "title": "Usage Panel: All Actions Tracked",
+    "subtitle": "Calls, memos, images, messages, and regenerates all tracked separately in the usage panel.",
+    "added": [
+      "Usage panel now shows a counter for every action type: messages sent, calls made, memos read aloud, images sent, and AI responses regenerated",
+      "Each counter updates live as you use the app — no need to close and reopen the panel"
+    ]
+  },
+  {
+    "id": "v329-tier-limits-sync",
+    "version": "v329",
+    "date": "Oct 2026",
+    "title": "Tier Limits Synced",
+    "subtitle": "What the usage panel shows now matches what the server actually enforces.",
+    "fixed": [
+      "Tier session limits are now consistent between the server and the UI — the usage panel no longer shows different numbers than what the server is using",
+      "All tier limits updated in one place so server and client always agree"
+    ]
+  },
+  {
+    "id": "v328-token-costs",
+    "version": "v328",
+    "date": "Oct 2026",
+    "title": "Session Token Costs Recalibrated",
+    "subtitle": "Call, image, and memo token costs tuned for a better balance across all tiers.",
+    "changed": [
+      "Session token costs for voice calls, image messages, and memo read-alouds recalibrated — each action uses a more accurate token estimate, so your session budget lasts as expected"
+    ]
+  },
+  {
+    "id": "v327-service-coin-removed",
+    "version": "v327",
+    "date": "Oct 2026",
+    "title": "Service Coin System Removed",
+    "subtitle": "The hidden server-side coin budget is gone — no more platform-level spending limits.",
+    "changed": [
+      "Removed the service coin / owner-budget system that tracked coin costs at the server level — this was a background limit on total platform usage that never surfaced to users but could silently block requests",
+      "Backend simplified: coin costs are now purely a per-user balance thing, not a shared server budget"
+    ]
+  },
+  {
     "id": "v326-bug-fixes",
     "version": "v326",
     "date": "Oct 2026",
