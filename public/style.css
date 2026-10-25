@@ -2535,8 +2535,8 @@ html, body {
   html, body { font-size: 16px; }
 
   /* Sidebar becomes a fixed slide-in overlay */
-  .sidebar {
-    position: fixed;
+  .sidebar, .halloween .sidebar {
+    position: fixed !important;
     top: 0; left: 0;
     height: 100%; height: 100dvh;
     z-index: 500;
@@ -2548,7 +2548,7 @@ html, body {
   }
 
   /* Collapsed state: slide fully off-screen */
-  .sidebar.collapsed {
+  .sidebar.collapsed, .halloween .sidebar.collapsed {
     transform: translateX(-110%);
     width: var(--sidebar-w) !important;
     border-right: none !important;
