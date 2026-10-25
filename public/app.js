@@ -10244,6 +10244,7 @@ async function claimHalloweenGift() {
 
   const hwStage = document.createElement('div');
   hwStage.id = 'hw-stage';
+  if (!hwConfetti || hwPaused) hwStage.style.display = 'none';
   document.body.appendChild(hwStage);
 
   // ── Settings panel ──────────────────────────────────────────────────────────
@@ -10264,7 +10265,7 @@ async function claimHalloweenGift() {
         <button class="hw-tog" id="hwTogScares">${hwScares ? 'On' : 'Off'}</button>
       </div>
       <div class="hw-panel-row">
-        <span>Confetti</span>
+        <span>Floaters</span>
         <button class="hw-tog" id="hwTogConf">${hwConfetti ? 'On' : 'Off'}</button>
       </div>
       <div class="hw-panel-row">
@@ -10329,9 +10330,11 @@ async function claimHalloweenGift() {
       clearTimeout(confettiLoopId); clearTimeout(paradeLoopId);
       confettiLoopId = null; paradeLoopId = null;
       hwStage.innerHTML = '';
+      hwStage.style.display = 'none';
     } else if (hwConfetti) {
       clearTimeout(confettiLoopId); clearTimeout(paradeLoopId);
       confettiLoopId = null; paradeLoopId = null;
+      hwStage.style.display = '';
       startConfetti();
       startParade();
     }
@@ -10351,9 +10354,11 @@ async function claimHalloweenGift() {
       clearTimeout(confettiLoopId); clearTimeout(paradeLoopId);
       confettiLoopId = null; paradeLoopId = null;
       hwStage.innerHTML = '';
+      hwStage.style.display = 'none';
     } else if (!hwPaused) {
       clearTimeout(confettiLoopId); clearTimeout(paradeLoopId);
       confettiLoopId = null; paradeLoopId = null;
+      hwStage.style.display = '';
       startConfetti();
       startParade();
     }

@@ -1,5 +1,17 @@
 [
   {
+    "id": "v343-floaters-nuclear-hide",
+    "version": "v343",
+    "date": "Oct 2026",
+    "title": "🎃 Floaters Toggle Now Truly Hides Everything",
+    "subtitle": "The Halloween panel's Floaters toggle now hides the entire effect layer — renamed from 'Confetti' so it's obvious it controls ghosts, bats, pumpkins and all.",
+    "fixed": [
+      "Turning Floaters Off now hides the entire #hw-stage layer, so nothing can slip through",
+      "Renamed 'Confetti' to 'Floaters' in the Halloween panel — it controls all flying/falling elements, not just confetti",
+      "Stage starts hidden on page load if Floaters was previously set to Off"
+    ]
+  },
+  {
     "id": "v342-calls-no-longer-eat-session-tokens",
     "version": "v342",
     "date": "Oct 2026",
