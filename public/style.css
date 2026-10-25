@@ -2327,6 +2327,34 @@ html, body {
   animation: candle-flicker 1.8s ease-in-out infinite;
 }
 
+/* ── Halloween gift banner ── */
+.hw-gift-bar {
+  display: flex; align-items: center; gap: 12px;
+  margin: 12px 16px 0;
+  padding: 12px 16px; border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255,107,0,.15), rgba(255,60,0,.08));
+  border: 1px solid rgba(255,107,0,.35);
+  animation: hw-gift-pulse 2.5s ease-in-out infinite;
+}
+.hw-gift-bar--done { animation: none; background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.1); }
+@keyframes hw-gift-pulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(255,107,0,.25); }
+  50%      { box-shadow: 0 0 12px 3px rgba(255,107,0,.2); }
+}
+.hw-gift-icon { font-size: 22px; flex-shrink: 0; }
+.hw-gift-text { flex: 1; font-size: 13px; color: var(--text1); line-height: 1.4; }
+.hw-gift-text strong { color: #ff7a00; }
+.hw-gift-btn {
+  flex-shrink: 0; padding: 7px 16px; border-radius: 8px; border: none; cursor: pointer;
+  background: #ff6a00; color: #fff; font-weight: 700; font-size: 13px; transition: opacity .15s;
+}
+.hw-gift-btn:hover { opacity: .85; }
+.hw-gift-btn:disabled { opacity: .5; cursor: default; }
+.hw-gift-dismiss {
+  flex-shrink: 0; background: none; border: none; cursor: pointer;
+  color: var(--text3); font-size: 16px; padding: 4px 8px; line-height: 1;
+}
+
 /* Halloween: ✦ → 🎃 */
 .halloween-icon { animation: pumpkin-glow 2.5s ease-in-out infinite; }
 

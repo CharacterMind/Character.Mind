@@ -6676,7 +6676,12 @@ app.post('/api/halloween/claim', requireAuth, async (req, res) => {
     u.cmCoins  = (u.cmCoins  || 0) + HALLOWEEN_GIFT_COINS;
     u.cmTokens = (u.cmTokens || 0) + HALLOWEEN_GIFT_TOKENS;
     u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + HALLOWEEN_GIFT_COINS;
-    return res.json({ ok: true, coins: u.cmCoins, tokens: u.cmTokens });
+    u.sessionTokens = 0; u.sessionStartedAt = null; u.cooldownUntil = null;
+    u.weeklyTokens = 0; u.weeklyStart = null; u.warned = {};
+    u.callsToday = 0; u.callDayStart = null;
+    u.memosToday = 0; u.memoDayStart = null;
+    u.imagesDay = 0; u.imageDayStart = null; u.imageFirstUsedAt = null;
+    return res.json({ ok: true, reset: true, coins: u.cmCoins, tokens: u.cmTokens });
   }
   // Atomic: only awards if halloween_gift_2026 is still FALSE in the DB — survives server restarts
   const claimResult = await db.query(
@@ -6694,10 +6699,17 @@ app.post('/api/halloween/claim', requireAuth, async (req, res) => {
   }
   u.halloweenGift2026 = true;
   u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + HALLOWEEN_GIFT_COINS;
+  // Full limits reset — wipe session, weekly, daily calls/memos/images
+  u.sessionTokens = 0; u.sessionStartedAt = null; u.cooldownUntil = null;
+  u.weeklyTokens = 0; u.weeklyStart = null; u.warned = {};
+  u.callsToday = 0; u.callDayStart = null;
+  u.memosToday = 0; u.memoDayStart = null;
+  u.imagesDay = 0; u.imageDayStart = null; u.imageFirstUsedAt = null;
+  saveLimitsToDB(uid);
   const r = await db.query('SELECT cm_coins, cm_tokens FROM users WHERE google_id=$1', [uid]).catch(() => null);
   u.cmCoins  = r?.rows[0]?.cm_coins  ?? (u.cmCoins  + HALLOWEEN_GIFT_COINS);
   u.cmTokens = r?.rows[0]?.cm_tokens ?? (u.cmTokens + HALLOWEEN_GIFT_TOKENS);
-  return res.json({ ok: true, coins: u.cmCoins, tokens: u.cmTokens });
+  return res.json({ ok: true, reset: true, coins: u.cmCoins, tokens: u.cmTokens });
 });
 
 // ── Stripe subscription sync (called after 3DS confirmation on the client) ────
