@@ -10695,6 +10695,9 @@ async function claimHalloweenGift() {
     hwStage.innerHTML = ''; hwStage.style.display = 'none';
     document.querySelectorAll('.halloween-web').forEach(el => el.remove());
     document.body.classList.remove('hw-screaming','hw-demon-voice');
+    // Restore logo text to plain "character.mind"
+    hwLogoObserver.disconnect();
+    document.querySelectorAll('.logo-text[data-hw-done]').forEach(restoreHwLogo);
   }
   function hwEnableAll() {
     document.body.classList.add('halloween');
@@ -10703,6 +10706,9 @@ async function claimHalloweenGift() {
     if (hwConfetti) { hwStage.style.display = ''; startConfetti(); }
     if (hwAnimations) { hwStage.style.display = ''; startParade(); }
     if (hwCallVoice) document.body.classList.add('hw-demon-voice');
+    // Re-apply Halloween logo and watch for new logo elements
+    document.querySelectorAll('.logo-text').forEach(applyHwLogo);
+    hwLogoObserver.observe(document.body, { childList: true, subtree: true });
   }
 
   togMaster.addEventListener('click', () => {
@@ -10780,7 +10786,7 @@ async function claimHalloweenGift() {
   // ── Flying parade ───────────────────────────────────────────────────────────
   function spawnParade() {
     if (!hwAnimations) return;
-    if (hwStage.querySelectorAll('.hw-flyer').length >= 8) return;
+    if (hwStage.querySelectorAll('.hw-flyer').length >= 14) return;
     const [emoji, minS, maxS, minSpd, maxSpd, minT, maxT] = PARADE[Math.floor(Math.random() * PARADE.length)];
     const fromRight = Math.random() > 0.5;
     const el = document.createElement('div');
@@ -10810,7 +10816,7 @@ async function claimHalloweenGift() {
   // ── Falling confetti ────────────────────────────────────────────────────────
   function spawnConfetti() {
     if (!hwConfetti) return;
-    if (hwStage.querySelectorAll('.hw-confetti').length >= 30) return;
+    if (hwStage.querySelectorAll('.hw-confetti').length >= 50) return;
     const el = document.createElement('div');
     el.className = 'hw-confetti';
     el.textContent = CONFETTI[Math.floor(Math.random() * CONFETTI.length)];
@@ -10855,24 +10861,30 @@ async function claimHalloweenGift() {
   }
   setTimeout(hwBloodFlash, (3 + Math.random() * 4) * 60 * 1000);
 
-  // ── Halloween logo: flipped 🌙 for "c", 👁 for "i" in "mind" ───────────────
+  // ── Halloween logo: 👁 for "i" in "mind" ────────────────────────────────────
   function applyHwLogo(el) {
     if (el.dataset.hwDone) return;
     el.dataset.hwDone = '1';
-    // Keep "character" and "." readable as gradient text; replace only the "i" in "mind" with an eye
     el.innerHTML =
       '<span class="hw-logo-part">character.m</span>' +
       '<span class="hw-logo-eye">👁</span>' +
       '<span class="hw-logo-part">nd</span>';
   }
-  document.querySelectorAll('.logo-text').forEach(applyHwLogo);
-  new MutationObserver(muts => {
+  function restoreHwLogo(el) {
+    el.textContent = 'character.mind';
+    delete el.dataset.hwDone;
+  }
+  let hwLogoObserver = new MutationObserver(muts => {
     muts.forEach(m => m.addedNodes.forEach(n => {
       if (n.nodeType !== 1) return;
       if (n.classList?.contains('logo-text')) applyHwLogo(n);
       n.querySelectorAll?.('.logo-text').forEach(applyHwLogo);
     }));
-  }).observe(document.body, { childList: true, subtree: true });
+  });
+  if (_hwMasterOn) {
+    document.querySelectorAll('.logo-text').forEach(applyHwLogo);
+    hwLogoObserver.observe(document.body, { childList: true, subtree: true });
+  }
 
   // ── Jump scares ─────────────────────────────────────────────────────────────
   const SCARES = [
@@ -10897,13 +10909,13 @@ async function claimHalloweenGift() {
       const t = ctx.currentTime;
       const sr = ctx.sampleRate;
 
-      // Hard limiter so we can drive gains very high without true digital clipping
+      // Limiter ceiling capped at -18 dBFS so even max volume isn't jarring
       const limiter = ctx.createDynamicsCompressor();
-      limiter.threshold.value = -2; limiter.knee.value = 0;
+      limiter.threshold.value = -18; limiter.knee.value = 3;
       limiter.ratio.value = 20; limiter.attack.value = 0.001; limiter.release.value = 0.08;
       limiter.connect(ctx.destination);
       const master = ctx.createGain();
-      master.gain.value = 2.0 * (hwVol / 100);
+      master.gain.value = 0.3 * (hwVol / 100);
       master.connect(limiter);
 
       // 1. INSTANT CRACK — white noise burst, sounds like electricity / jump impact
@@ -11203,9 +11215,9 @@ async function claimHalloweenGift() {
       const t = ctx.currentTime;
       const dur = 4.5; // duration matching slow speech
       const master = ctx.createGain();
-      master.gain.value = 1.4 * (hwVol / 100);
+      master.gain.value = 0.2 * (hwVol / 100);
       const comp = ctx.createDynamicsCompressor();
-      comp.threshold.value = -6; comp.ratio.value = 8; comp.attack.value = 0.005;
+      comp.threshold.value = -18; comp.ratio.value = 8; comp.attack.value = 0.005;
       master.connect(comp); comp.connect(ctx.destination);
 
       // Layer 1: Sub-bass demon body (ultra-low sawtooth with hard-clipping distortion)
