@@ -7091,6 +7091,7 @@ function pairReels() {
 }
 
 app.post('/api/coins/gamble', requireAuth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'Service temporarily unavailable' });
   const bet = Math.floor(Number(req.body.bet));
   if (!bet || bet < 1 || bet > 100) return res.status(400).json({ error: 'Bet must be 1–100 tokens' });
   try {
