@@ -2482,20 +2482,6 @@ html, body {
 .season-dot--thanksgiving { /* leaf falls naturally */ }
 .season-dot--july4       { animation: star-twinkle 1s ease-in-out infinite; }
 
-/* Particle toggle pill */
-#particle-toggle-pill {
-  position: fixed; bottom: 68px; right: 20px; z-index: 8001;
-  background: var(--bg2); border: 1px solid var(--border2);
-  border-radius: 20px; padding: 6px 13px;
-  font-size: 12px; font-weight: 600; color: var(--text2);
-  cursor: pointer; display: flex; align-items: center; gap: 6px;
-  transition: background .15s, color .15s, border-color .15s;
-  box-shadow: 0 2px 10px rgba(0,0,0,.3);
-}
-#particle-toggle-pill:hover { background: var(--bg3); color: var(--text); }
-#particle-toggle-pill.particle-pill-off { opacity: .55; }
-#particle-toggle-pill span { pointer-events: none; }
-
 /* Event banner — base */
 .event-banner {
   position: fixed;
