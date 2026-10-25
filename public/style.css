@@ -3543,46 +3543,104 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
 .settings-toggle-label { font-size: 13px; color: var(--text2); min-width: 22px; }
 
 /* ── Halloween Theme (October) ──────────────────────────────────────────────── */
-.halloween { --halloween-orange: #f97316; --halloween-orange-dim: rgba(249,115,22,0.12); }
+.halloween {
+  --halloween-orange:     #f97316;
+  --halloween-orange-dim: rgba(249,115,22,0.12);
+  --halloween-orange-mid: rgba(249,115,22,0.28);
+  --hw-user-bubble:       #1c0900;
+  --hw-ai-bubble:         #0d0b16;
+  /* Replace accent with Halloween purple-orange gradient everywhere */
+  --accent:     #c2410c;
+  --accent-l:   #fb923c;
+  --accent-d:   #9a3412;
+  --accent-dim: rgba(194,65,12,0.14);
+  --narration:  #fb923c;
+  --user-bubble:#1c0900;
+}
 
-/* Bats */
+/* ── Sidebar ── */
+.halloween .sidebar {
+  background: linear-gradient(180deg,#100600 0%,#18181b 40%);
+  border-right-color: rgba(249,115,22,0.18);
+  position: relative; z-index: 20;
+}
+.halloween .logo-text {
+  background: linear-gradient(120deg,#fbbf24 0%,#f97316 55%,#c084fc 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.halloween .sidebar-section-label { color: rgba(249,115,22,0.55); }
+.halloween .chat-item:hover { background: rgba(249,115,22,0.06); }
+.halloween .chat-item.active { background: rgba(249,115,22,0.1); border-left-color: #f97316; }
+
+/* ── Chat bubbles ── */
+.halloween .msg.user .bubble {
+  background: #1c0900;
+  border-left: 2px solid rgba(249,115,22,0.45);
+  box-shadow: 0 2px 16px rgba(249,115,22,0.1);
+}
+.halloween .msg.ai .bubble {
+  background: #0d0b16;
+  border-left: 2px solid rgba(192,84,252,0.28);
+}
+.halloween .narration { color: #fb923c; }
+
+/* ── Input area ── */
+.halloween .input-area,
+.halloween .input-wrap { background: #110800; }
+.halloween .input-wrap textarea:focus { border-color: rgba(249,115,22,0.5); box-shadow: 0 0 0 3px rgba(249,115,22,0.1); }
+.halloween .btn-send { background: linear-gradient(135deg,#c2410c,#7c3aed); }
+.halloween .btn-send:hover { background: linear-gradient(135deg,#ea580c,#9333ea); }
+
+/* ── Chat body ── */
+.halloween .chat-body { background: radial-gradient(ellipse at 50% 0%,#1a0600 0%,#0c0a10 60%); }
+
+/* ── Home view ── */
+.halloween .home-view { background: radial-gradient(ellipse at 50% -10%,#1f0a00 0%,#0c0a10 55%); }
+.halloween .char-card:hover { border-color: rgba(249,115,22,0.35); box-shadow: 0 4px 20px rgba(249,115,22,0.1); }
+
+/* ── Call overlay ── */
+.halloween .call-bg { background: #0f0400 !important; }
+.halloween .call-orb-1 { background: radial-gradient(circle at 60% 50%,rgba(249,115,22,0.55) 0%,transparent 70%) !important; }
+.halloween .call-orb-2 { background: radial-gradient(circle at 30% 40%,rgba(124,58,237,0.55) 0%,transparent 70%) !important; }
+.halloween .call-char-name { color: #fb923c; }
+.halloween .call-end-btn { background: rgba(194,65,12,0.25); border-color: rgba(249,115,22,0.45); }
+.halloween .call-end-btn:hover { background: rgba(194,65,12,0.5); }
+
+/* ── Bats: fly only in main content area, below header ── */
 .halloween-bat {
-  position: fixed; pointer-events: none; z-index: 9990; opacity: 0.7;
+  position: fixed; pointer-events: none; z-index: 8; opacity: 0.65;
   animation: batFly linear infinite;
+  /* clip to main content area — right of sidebar, below logo row */
+  clip-path: inset(68px 0 0 var(--sidebar-w, 270px));
+}
+@media (max-width: 768px) {
+  .halloween-bat { clip-path: inset(52px 0 0 0); }
 }
 @keyframes batFly {
   0%   { transform: translateX(110vw) translateY(0px) scaleX(1); }
-  25%  { transform: translateX(75vw)  translateY(-30px) scaleX(1); }
-  50%  { transform: translateX(50vw)  translateY(10px) scaleX(-1); }
-  75%  { transform: translateX(25vw)  translateY(-20px) scaleX(-1); }
+  25%  { transform: translateX(75vw)  translateY(-28px) scaleX(1); }
+  50%  { transform: translateX(50vw)  translateY(14px) scaleX(-1); }
+  75%  { transform: translateX(25vw)  translateY(-18px) scaleX(-1); }
   100% { transform: translateX(-10vw) translateY(0px) scaleX(-1); }
 }
-@keyframes batFlapWing {
-  0%, 100% { d: path("M16 9 Q12 3 6 5 Q2 7 1 11 Q6 9 9 12 Q12 15 16 11 Q20 15 23 12 Q26 9 31 11 Q30 7 26 5 Q20 3 16 9Z"); }
-  50%       { d: path("M16 9 Q12 5 6 7 Q2 9 1 11 Q6 10 9 12 Q12 14 16 11 Q20 14 23 12 Q26 10 31 11 Q30 9 26 7 Q20 5 16 9Z"); }
-}
 
-/* Spider webs */
+/* ── Spider webs: corners, behind UI ── */
 .halloween-web {
-  position: fixed; top: 0; pointer-events: none; z-index: 9989; opacity: 0.28;
-  filter: drop-shadow(0 0 3px rgba(180,100,255,0.4));
+  position: fixed; top: 0; pointer-events: none; z-index: 6; opacity: 0.22;
+  filter: drop-shadow(0 0 4px rgba(192,84,252,0.35));
 }
 .halloween-web.web-left  { left: 0; }
 .halloween-web.web-right { right: 0; transform: scaleX(-1); transform-origin: right top; }
 
-/* Halloween toast */
+/* ── Halloween toast ── */
 .halloween-toast {
   position: fixed; top: 18px; left: 50%; transform: translateX(-50%) translateY(0);
-  background: linear-gradient(135deg, #160800, #2a1000);
+  background: linear-gradient(135deg,#160800,#2a1000);
   border: 1px solid #f97316; border-radius: 12px;
   padding: 9px 22px; color: #ffa94d; font-size: 13.5px; font-weight: 500;
   z-index: 10010; box-shadow: 0 0 24px rgba(249,115,22,0.35);
   white-space: nowrap; letter-spacing: .02em;
-  animation: hwToastIn .45s cubic-bezier(.34,1.56,.64,1) both,
-             hwToastOut .4s ease 5.5s forwards;
+  animation: hwToastIn .45s cubic-bezier(.34,1.56,.64,1) both, hwToastOut .4s ease 5.5s forwards;
 }
 @keyframes hwToastIn  { from { opacity:0; transform:translateX(-50%) translateY(-18px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
 @keyframes hwToastOut { from { opacity:1; } to { opacity:0; transform:translateX(-50%) translateY(-12px); } }
-
-/* Subtle orange glow on user messages during Halloween */
-.halloween .msg.user .bubble { box-shadow: 0 0 14px rgba(249,115,22,0.12); }
