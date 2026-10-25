@@ -3578,7 +3578,7 @@ app.post('/api/call/start', requireAuth, (req, res) => {
   const u = getLimits(userId);
   const callLimit = getCallLimitForUser(userId);
   if ((u.callsToday || 0) >= callLimit) {
-    return res.status(429).json({ allowed: false, type: 'call_daily_limit', callsToday: u.callsToday, callLimit });
+    return res.status(429).json({ allowed: false, type: 'call_daily_limit', callsToday: u.callsToday, callLimit, resetsAt: getCallWindowStart() + 8 * 60 * 60 * 1000 });
   }
   u.callsToday = (u.callsToday || 0) + 1;
   if (!u.callDayStart) u.callDayStart = Date.now();
@@ -3982,7 +3982,7 @@ app.post('/api/memo/use', requireAuth, (req, res) => {
   const u = getLimits(userId);
   const memoLimit = getMemoLimitForUser(userId);
   if ((u.memosToday || 0) >= memoLimit) {
-    return res.status(429).json({ allowed: false, type: 'memo_daily_limit', memosToday: u.memosToday, memoLimit });
+    return res.status(429).json({ allowed: false, type: 'memo_daily_limit', memosToday: u.memosToday, memoLimit, resetsAt: getCallWindowStart() + 8 * 60 * 60 * 1000 });
   }
   const textLen = typeof req.body.textLen === 'number' ? req.body.textLen : 0;
   u.memosToday = (u.memosToday || 0) + 1;
@@ -5316,7 +5316,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     const imgU = getLimits(userId);
     const imgLimit = getImageLimitForUser(userId);
     if ((imgU.imagesDay || 0) >= imgLimit) {
-      return res.status(429).json({ error: 'image_daily_limit', imagesDay: imgU.imagesDay, imageLimit: imgLimit });
+      return res.status(429).json({ type: 'image', imageResetAt: imgU.imageFirstUsedAt ? imgU.imageFirstUsedAt + 24*60*60*1000 : Date.now() + 24*60*60*1000, imagesDay: imgU.imagesDay, imageLimit: imgLimit });
     }
     imgU.imagesDay = (imgU.imagesDay || 0) + 1;
     if (!imgU.imageFirstUsedAt) imgU.imageFirstUsedAt = Date.now();

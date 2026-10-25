@@ -7556,7 +7556,12 @@ async function toggleTTS(btn) {
     const memoR = await fetch('/api/memo/use', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ textLen: text.length }) });
     if (!memoR.ok) {
       stopActiveTTS();
-      showTTSError('Not enough coins to read this message');
+      const memoData = await memoR.json().catch(() => ({}));
+      if (memoR.status === 429 && memoData.type === 'memo_daily_limit') {
+        showMemoLimitBanner(memoData.resetsAt);
+      } else {
+        showTTSError('Memo unavailable — try again shortly');
+      }
       return;
     }
   } catch (_) { /* network error — try TTS anyway */ }
@@ -7830,7 +7835,7 @@ async function startCallMode() {
       const data = await r.json().catch(() => ({}));
       callStarting = false;
       if (r.status === 429) {
-        showCallLimitModal(data.cooldownUntil || Date.now() + 3600000);
+        showCallLimitModal(data.resetsAt || data.cooldownUntil || Date.now() + 3600000);
       }
       return;
     }
@@ -9890,3 +9895,68 @@ function launchTicTacToe(savedState) {
     })();
   }
 }
+
+// ── Halloween Theme (October 1-31) ────────────────────────────────────────────
+(function initHalloween() {
+  const now = new Date();
+  if (now.getMonth() !== 9) return; // only in October
+
+  document.body.classList.add('halloween');
+
+  // Spider web SVG (corner piece)
+  const webSVG = `<svg class="halloween-web web-left" width="160" height="160" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
+    <g stroke="#c084fc" stroke-width="0.8" fill="none" opacity="0.9">
+      <!-- Radial spokes from top-left corner -->
+      <line x1="0" y1="0" x2="160" y2="0"/>
+      <line x1="0" y1="0" x2="140" y2="30"/>
+      <line x1="0" y1="0" x2="110" y2="65"/>
+      <line x1="0" y1="0" x2="75" y2="95"/>
+      <line x1="0" y1="0" x2="40" y2="125"/>
+      <line x1="0" y1="0" x2="0" y2="160"/>
+      <!-- Concentric arcs -->
+      <path d="M30,0 Q28,28 0,30"/>
+      <path d="M65,0 Q58,38 40,53 Q22,65 0,65"/>
+      <path d="M100,0 Q88,48 65,72 Q43,92 18,98 Q0,100 0,100"/>
+      <path d="M135,0 Q118,55 90,84 Q65,108 36,118 Q14,124 0,130"/>
+      <!-- Spider hanging -->
+      <line x1="85" y1="0" x2="85" y2="35" stroke="#a855f7" stroke-width="0.6"/>
+      <ellipse cx="85" cy="38" rx="5" ry="7" fill="#7c3aed" stroke="#a855f7" stroke-width="0.8"/>
+      <ellipse cx="85" cy="35" rx="3" ry="3" fill="#7c3aed"/>
+      <!-- Spider legs -->
+      <line x1="85" y1="37" x2="78" y2="32" stroke="#a855f7" stroke-width="0.5"/>
+      <line x1="85" y1="37" x2="77" y2="38" stroke="#a855f7" stroke-width="0.5"/>
+      <line x1="85" y1="37" x2="92" y2="32" stroke="#a855f7" stroke-width="0.5"/>
+      <line x1="85" y1="37" x2="93" y2="38" stroke="#a855f7" stroke-width="0.5"/>
+    </g>
+  </svg>`;
+
+  const webRight = webSVG.replace('web-left','web-right');
+  document.body.insertAdjacentHTML('beforeend', webSVG);
+  document.body.insertAdjacentHTML('beforeend', webRight);
+
+  // Animated bats
+  const BAT = `<svg viewBox="0 0 32 16" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%"><path d="M16 7 Q12 2 7 4 Q3 6 1 9 Q6 7 9 10 Q12 13 16 9 Q20 13 23 10 Q26 7 31 9 Q29 6 25 4 Q20 2 16 7Z" fill="currentColor"/><ellipse cx="16" cy="9" rx="2.5" ry="3" fill="currentColor"/></svg>`;
+  const bats = [
+    { top: '8vh',  duration: 28, delay: 0,   size: 28, color: '#c084fc' },
+    { top: '22vh', duration: 22, delay: 8,   size: 22, color: '#a855f7' },
+    { top: '14vh', duration: 35, delay: 15,  size: 34, color: '#e879f9' },
+    { top: '30vh', duration: 19, delay: 22,  size: 20, color: '#c084fc' },
+  ];
+  bats.forEach(b => {
+    const el = document.createElement('div');
+    el.className = 'halloween-bat';
+    el.style.cssText = `top:${b.top};width:${b.size}px;height:${b.size/2}px;color:${b.color};animation-duration:${b.duration}s;animation-delay:-${b.delay}s;`;
+    el.innerHTML = BAT;
+    document.body.appendChild(el);
+  });
+
+  // One-time Halloween toast per session
+  if (!sessionStorage.getItem('hw_toast_shown')) {
+    sessionStorage.setItem('hw_toast_shown', '1');
+    const toast = document.createElement('div');
+    toast.className = 'halloween-toast';
+    toast.textContent = '🎃 Happy Halloween from character.mind';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 6200);
+  }
+})();

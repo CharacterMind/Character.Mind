@@ -3541,3 +3541,48 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
 .settings-toggle-thumb { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: #fff; border-radius: 50%; transition: left .2s; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
 .settings-toggle-row input:checked + .settings-toggle-track .settings-toggle-thumb { left: 20px; }
 .settings-toggle-label { font-size: 13px; color: var(--text2); min-width: 22px; }
+
+/* ── Halloween Theme (October) ──────────────────────────────────────────────── */
+.halloween { --halloween-orange: #f97316; --halloween-orange-dim: rgba(249,115,22,0.12); }
+
+/* Bats */
+.halloween-bat {
+  position: fixed; pointer-events: none; z-index: 9990; opacity: 0.7;
+  animation: batFly linear infinite;
+}
+@keyframes batFly {
+  0%   { transform: translateX(110vw) translateY(0px) scaleX(1); }
+  25%  { transform: translateX(75vw)  translateY(-30px) scaleX(1); }
+  50%  { transform: translateX(50vw)  translateY(10px) scaleX(-1); }
+  75%  { transform: translateX(25vw)  translateY(-20px) scaleX(-1); }
+  100% { transform: translateX(-10vw) translateY(0px) scaleX(-1); }
+}
+@keyframes batFlapWing {
+  0%, 100% { d: path("M16 9 Q12 3 6 5 Q2 7 1 11 Q6 9 9 12 Q12 15 16 11 Q20 15 23 12 Q26 9 31 11 Q30 7 26 5 Q20 3 16 9Z"); }
+  50%       { d: path("M16 9 Q12 5 6 7 Q2 9 1 11 Q6 10 9 12 Q12 14 16 11 Q20 14 23 12 Q26 10 31 11 Q30 9 26 7 Q20 5 16 9Z"); }
+}
+
+/* Spider webs */
+.halloween-web {
+  position: fixed; top: 0; pointer-events: none; z-index: 9989; opacity: 0.28;
+  filter: drop-shadow(0 0 3px rgba(180,100,255,0.4));
+}
+.halloween-web.web-left  { left: 0; }
+.halloween-web.web-right { right: 0; transform: scaleX(-1); transform-origin: right top; }
+
+/* Halloween toast */
+.halloween-toast {
+  position: fixed; top: 18px; left: 50%; transform: translateX(-50%) translateY(0);
+  background: linear-gradient(135deg, #160800, #2a1000);
+  border: 1px solid #f97316; border-radius: 12px;
+  padding: 9px 22px; color: #ffa94d; font-size: 13.5px; font-weight: 500;
+  z-index: 10010; box-shadow: 0 0 24px rgba(249,115,22,0.35);
+  white-space: nowrap; letter-spacing: .02em;
+  animation: hwToastIn .45s cubic-bezier(.34,1.56,.64,1) both,
+             hwToastOut .4s ease 5.5s forwards;
+}
+@keyframes hwToastIn  { from { opacity:0; transform:translateX(-50%) translateY(-18px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+@keyframes hwToastOut { from { opacity:1; } to { opacity:0; transform:translateX(-50%) translateY(-12px); } }
+
+/* Subtle orange glow on user messages during Halloween */
+.halloween .msg.user .bubble { box-shadow: 0 0 14px rgba(249,115,22,0.12); }
