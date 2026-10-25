@@ -1,5 +1,26 @@
 [
   {
+    "id": "v338-voice-confetti-fixes",
+    "version": "v338",
+    "date": "Oct 2026",
+    "title": "🎃 Call Voice & Confetti Toggle Fixed",
+    "subtitle": "Normal call voice now works during Halloween, and confetti toggle reliably stops all animations.",
+    "fixed": [
+      "Call voice toggle now works correctly — switching to Normal plays regular audio instead of silence; demon mode still uses the pitched-down demonic voice",
+      "Confetti toggle no longer double-starts animations when rapidly toggled — existing loops are cancelled before new ones begin"
+    ]
+  },
+  {
+    "id": "v337-mobile-sidebar-fix",
+    "version": "v337",
+    "date": "Oct 2026",
+    "title": "Mobile Sidebar Fixed",
+    "subtitle": "Sidebar is fully clickable on mobile during Halloween — no more darkened, unresponsive overlay.",
+    "fixed": [
+      "Mobile sidebar was darkened and unclickable during Halloween due to a z-index CSS conflict — the Halloween theme rule was overriding the sidebar's mobile z-index, placing it behind the backdrop overlay"
+    ]
+  },
+  {
     "id": "v336-halloween-fixes",
     "version": "v336",
     "date": "Oct 2026",

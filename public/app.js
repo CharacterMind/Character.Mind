@@ -7806,7 +7806,7 @@ async function _hwDemonPlay(blob, tokenRef) {
 
 async function playCallBlob(blob) {
   if (!callModeActive) return;
-  if (document.body.classList.contains('halloween')) {
+  if (document.body.classList.contains('hw-demon-voice')) {
     const token = {};
     callAudio = { pause: () => { token.stopped = true; token.stop?.(); } };
     await _hwDemonPlay(blob, token);
@@ -7881,7 +7881,7 @@ async function callModeTTS_server(text) {
   // Play a blob without triggering listenForSpeech (used for all-but-last sentences)
   const playBlobOnly = (blob) => new Promise(resolve => {
     if (!callModeActive) { resolve(); return; }
-    if (document.body.classList.contains('halloween')) {
+    if (document.body.classList.contains('hw-demon-voice')) {
       const token = {};
       callAudio = { pause: () => { token.stopped = true; token.stop?.(); } };
       _hwDemonPlay(blob, token).then(() => { callAudio = null; resolve(); });
@@ -10182,6 +10182,7 @@ async function claimHalloweenGift() {
   // Call voice: store original and switch to gravelly Gemini voice if demon mode is on
   const _origGeminiVoice = (typeof geminiVoiceName !== 'undefined') ? geminiVoiceName : 'Aoede';
   if (hwCallVoice && typeof geminiVoiceName !== 'undefined') geminiVoiceName = 'Algenib';
+  if (hwCallVoice) document.body.classList.add('hw-demon-voice');
 
   const hwStage = document.createElement('div');
   hwStage.id = 'hw-stage';
@@ -10263,6 +10264,8 @@ async function claimHalloweenGift() {
       confettiLoopId = null; paradeLoopId = null;
       hwStage.querySelectorAll('.hw-flyer,.hw-confetti').forEach(e => e.remove());
     } else if (hwConfetti) {
+      clearTimeout(confettiLoopId); clearTimeout(paradeLoopId);
+      confettiLoopId = null; paradeLoopId = null;
       startConfetti();
       startParade();
     }
@@ -10283,6 +10286,8 @@ async function claimHalloweenGift() {
       confettiLoopId = null; paradeLoopId = null;
       hwStage.querySelectorAll('.hw-confetti,.hw-flyer').forEach(e => e.remove());
     } else if (!hwPaused) {
+      clearTimeout(confettiLoopId); clearTimeout(paradeLoopId);
+      confettiLoopId = null; paradeLoopId = null;
       startConfetti();
       startParade();
     }
@@ -10292,6 +10297,7 @@ async function claimHalloweenGift() {
     localStorage.setItem('hw_call_voice', hwCallVoice ? 'demon' : 'normal');
     togVoice.textContent = hwCallVoice ? '👹 Demon' : '🔊 Normal';
     hwSetTog(togVoice, hwCallVoice);
+    document.body.classList.toggle('hw-demon-voice', hwCallVoice);
     if (typeof geminiVoiceName !== 'undefined') {
       geminiVoiceName = hwCallVoice ? 'Algenib' : _origGeminiVoice;
     }
