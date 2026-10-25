@@ -681,8 +681,12 @@ async function openPaypalCheckout(planKey, period) {
     paypalSdkLoading = true;
     document.getElementById('paypal-checkout-status').textContent = '';
     try {
-      const cfg = await fetch('/api/paypal/config').then(r => r.json());
-      if (cfg && cfg.planIds) Object.assign(PAYPAL_PLAN_IDS, cfg.planIds);
+      const cfg = await loadPaypalConfig();
+      if (!cfg || !cfg.clientId) {
+        document.getElementById('paypal-checkout-status').textContent = 'PayPal is not configured. Please contact support.';
+        paypalSdkLoading = false;
+        return;
+      }
       await new Promise((resolve, reject) => {
         const s = document.createElement('script');
         s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(cfg.clientId)}&vault=true&intent=subscription&components=buttons&disable-funding=card,credit,paylater`;
@@ -691,6 +695,7 @@ async function openPaypalCheckout(planKey, period) {
         document.head.appendChild(s);
       });
       paypalSdkLoaded = true;
+      paypalSdkLoading = false;
       document.getElementById('paypal-checkout-status').textContent = '';
     } catch (err) {
       document.getElementById('paypal-checkout-status').textContent = 'Failed to load payment system. Please refresh and try again.';
