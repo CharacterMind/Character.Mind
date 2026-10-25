@@ -339,6 +339,8 @@ if (db) {
     .catch(err => console.error('Add checkin_streak column error:', err));
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS slots_win_rate INTEGER DEFAULT NULL`)
     .catch(err => console.error('Add slots_win_rate column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS halloween_gift_2026 BOOLEAN NOT NULL DEFAULT FALSE`)
+    .catch(err => console.error('Add halloween_gift_2026 column error:', err));
 
   db.query(`
     CREATE TABLE IF NOT EXISTS user_limits (
@@ -772,7 +774,7 @@ async function ensureTierLoaded(user) {
   try {
     if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId); // admin tools; the plan comes from planFor()
     if (!db) { u.tierLoaded = true; return; }
-    const r = await db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, cm_tokens, coins_earned_today, coins_day_reset, coins_monthly_reset, coins_earned_all_time, ban_until, violence_strikes, last_checkin, checkin_streak, slots_win_rate FROM users WHERE google_id = $1', [user.googleId]);
+    const r = await db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, cm_tokens, coins_earned_today, coins_day_reset, coins_monthly_reset, coins_earned_all_time, ban_until, violence_strikes, last_checkin, checkin_streak, slots_win_rate, halloween_gift_2026 FROM users WHERE google_id = $1', [user.googleId]);
     const row = r.rows[0] || {};
     u.paypalTier = planFor(user.email, row.subscription_tier);
     u.coinTier = row.coin_tier || null;
@@ -788,6 +790,7 @@ async function ensureTierLoaded(user) {
     if (row.last_checkin) u.lastCheckin = row.last_checkin;
     if (row.checkin_streak) u.checkinStreak = parseInt(row.checkin_streak) || 0;
     u.slotsWinRate = row.slots_win_rate != null ? Number(row.slots_win_rate) : null;
+    u.halloweenGift2026 = !!row.halloween_gift_2026;
     u.subscriptionTier = effectiveTier(u);
     u.neverLimit = FREE_TOP_PLAN_EMAILS.has(user.email) || TEST_ACCOUNTS.has(user.email);
     u.skipCoinDeduct = TEST_ACCOUNTS.has(user.email) && !OWNER_EMAILS.has(user.email); // owner always drains coins even if in TEST_ACCOUNTS
@@ -6632,22 +6635,35 @@ app.post('/api/halloween/claim', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Halloween gift is not available right now.' });
   const uid = req.user.googleId;
   const u = getLimits(uid);
+  // Fast in-memory check (avoids a DB round-trip when clearly already claimed)
   if (u.halloweenGift2026) return res.status(400).json({ error: 'Already claimed!' });
-  u.halloweenGift2026 = true;
-  saveLimitsToDB(uid);
-  if (db) {
-    await db.query(
-      'UPDATE users SET cm_coins = cm_coins + $1, cm_tokens = cm_tokens + $2, coins_earned_all_time = COALESCE(coins_earned_all_time,0) + $1 WHERE google_id = $3',
-      [HALLOWEEN_GIFT_COINS, HALLOWEEN_GIFT_TOKENS, uid]
-    ).catch(e => console.error('[halloween-claim]', e.message));
-    const r = await db.query('SELECT cm_coins, cm_tokens FROM users WHERE google_id=$1', [uid]).catch(() => null);
-    u.cmCoins  = r?.rows[0]?.cm_coins  ?? (u.cmCoins  + HALLOWEEN_GIFT_COINS);
-    u.cmTokens = r?.rows[0]?.cm_tokens ?? (u.cmTokens + HALLOWEEN_GIFT_TOKENS);
-  } else {
+  if (!db) {
+    // No DB — in-memory fallback (still guards against double-claim within this server lifetime)
+    u.halloweenGift2026 = true;
     u.cmCoins  = (u.cmCoins  || 0) + HALLOWEEN_GIFT_COINS;
     u.cmTokens = (u.cmTokens || 0) + HALLOWEEN_GIFT_TOKENS;
+    u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + HALLOWEEN_GIFT_COINS;
+    return res.json({ ok: true, coins: u.cmCoins, tokens: u.cmTokens });
   }
+  // Atomic: only awards if halloween_gift_2026 is still FALSE in the DB — survives server restarts
+  const claimResult = await db.query(
+    `UPDATE users
+       SET halloween_gift_2026 = TRUE,
+           cm_coins = cm_coins + $1,
+           cm_tokens = cm_tokens + $2,
+           coins_earned_all_time = COALESCE(coins_earned_all_time, 0) + $1
+     WHERE google_id = $3 AND halloween_gift_2026 = FALSE`,
+    [HALLOWEEN_GIFT_COINS, HALLOWEEN_GIFT_TOKENS, uid]
+  ).catch(e => { console.error('[halloween-claim]', e.message); return { rowCount: 0 }; });
+  if (!claimResult.rowCount) {
+    u.halloweenGift2026 = true; // sync memory so fast-path blocks future attempts
+    return res.status(400).json({ error: 'Already claimed!' });
+  }
+  u.halloweenGift2026 = true;
   u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + HALLOWEEN_GIFT_COINS;
+  const r = await db.query('SELECT cm_coins, cm_tokens FROM users WHERE google_id=$1', [uid]).catch(() => null);
+  u.cmCoins  = r?.rows[0]?.cm_coins  ?? (u.cmCoins  + HALLOWEEN_GIFT_COINS);
+  u.cmTokens = r?.rows[0]?.cm_tokens ?? (u.cmTokens + HALLOWEEN_GIFT_TOKENS);
   return res.json({ ok: true, coins: u.cmCoins, tokens: u.cmTokens });
 });
 
@@ -7029,10 +7045,30 @@ async function checkMonthlyCoins(uid, u) {
     u.cmTokens = tokenGrant; // reset to fresh grant each month (tournament fresh start)
     u.coinsMonthlyReset = monthStart;
     u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + coinGrant;
-    await db.query(
-      'UPDATE users SET cm_coins=$1, cm_tokens=$2, coins_monthly_reset=$3, coins_earned_all_time=COALESCE(coins_earned_all_time,0)+$4 WHERE google_id=$5',
-      [u.cmCoins, u.cmTokens, monthStart, coinGrant, uid]
-    ).catch(() => {});
+    // Atomic: only applies if this month's grant hasn't been written yet — prevents double-grant
+    // when ensureTierLoaded fails on cold start and in-memory coinsMonthlyReset is stale.
+    const mResult = await db.query(
+      `UPDATE users
+         SET cm_coins = cm_coins + $1,
+             cm_tokens = $2,
+             coins_monthly_reset = $3,
+             coins_earned_all_time = COALESCE(coins_earned_all_time, 0) + $1
+       WHERE google_id = $4
+         AND (coins_monthly_reset IS NULL OR coins_monthly_reset < $3)`,
+      [coinGrant, tokenGrant, monthStart, uid]
+    ).catch(() => null);
+    if (!mResult?.rowCount) {
+      // Another process already granted this month (restart race) — reload authoritative values
+      const fresh = await db.query(
+        'SELECT cm_coins, cm_tokens, coins_monthly_reset FROM users WHERE google_id=$1', [uid]
+      ).catch(() => null);
+      if (fresh?.rows[0]) {
+        u.cmCoins = fresh.rows[0].cm_coins;
+        u.cmTokens = fresh.rows[0].cm_tokens;
+        u.coinsMonthlyReset = Number(fresh.rows[0].coins_monthly_reset) || monthStart;
+        u.coinsEarnedAllTime = (u.coinsEarnedAllTime || coinGrant) - coinGrant; // undo optimistic add
+      }
+    }
   }
 }
 

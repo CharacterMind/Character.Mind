@@ -704,7 +704,8 @@ async function openPaypalCheckout(planKey, period) {
     }
   }
 
-  if (paypalSdkLoaded) initPayPalWidgets(planKey);
+  // Use currentCheckoutPlan in case the user switched plans while SDK was loading
+  if (paypalSdkLoaded) initPayPalWidgets(currentCheckoutPlan || planKey);
 }
 
 function initPayPalWidgets(planKey) {
@@ -719,6 +720,7 @@ function initPayPalWidgets(planKey) {
       fundingSource: paypal.FUNDING.PAYPAL,
       style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'subscribe' },
       createSubscription(data, actions) {
+        if (!currentUser) throw new Error('Session expired — please refresh and sign in again');
         return actions.subscription.create({ plan_id: planId, custom_id: String(currentUser.googleId) });
       },
       onApprove(data) { return verifyAndActivateSubscription(data.subscriptionID, planKey); },
@@ -10113,28 +10115,120 @@ async function claimHalloweenGift() {
     '🩸','🦴','⚰️','😈','👁️','🪄','🌑','🧿','🌑','💉','🗡️','🔪',
   ];
 
-  // ── Motion toggle (accessibility) ──────────────────────────────────────────
-  let hwPaused = localStorage.getItem('hw_motion_off') === '1';
+  // ── Settings state ──────────────────────────────────────────────────────────
+  let hwPaused    = localStorage.getItem('hw_motion_off')  === '1';
+  let hwScares    = localStorage.getItem('hw_scares_off')  !== '1'; // default ON
+  let hwConfetti  = localStorage.getItem('hw_conf_off')    !== '1'; // default ON
+  let hwCallVoice = localStorage.getItem('hw_call_voice')  === 'demon';
+  let hwFreq      = Math.max(0, Math.min(100, parseInt(localStorage.getItem('hw_scare_freq') || '50')));
 
-  const toggleBtn = document.createElement('button');
-  toggleBtn.id = 'hwMotionToggle';
-  toggleBtn.title = 'Toggle Halloween animations';
-  const updateToggle = () => {
-    toggleBtn.textContent = hwPaused ? '🎃 ▶' : '🎃 ⏸';
-    toggleBtn.style.opacity = hwPaused ? '0.5' : '0.85';
-  };
-  updateToggle();
+  // Call voice: store original and switch to gravelly Gemini voice if demon mode is on
+  const _origGeminiVoice = (typeof geminiVoiceName !== 'undefined') ? geminiVoiceName : 'Aoede';
+  if (hwCallVoice && typeof geminiVoiceName !== 'undefined') geminiVoiceName = 'Algenib';
+
   const hwStage = document.createElement('div');
   hwStage.id = 'hw-stage';
   document.body.appendChild(hwStage);
 
-  toggleBtn.addEventListener('click', () => {
+  // ── Settings panel ──────────────────────────────────────────────────────────
+  const hwPanel = document.createElement('div');
+  hwPanel.id = 'hwSettingsPanel';
+  hwPanel.innerHTML = `
+    <div class="hw-panel-hd">
+      <span>🎃 Halloween</span>
+      <button class="hw-panel-close" id="hwPanelClose">✕</button>
+    </div>
+    <div class="hw-panel-rows">
+      <div class="hw-panel-row">
+        <span>Animations</span>
+        <button class="hw-tog" id="hwTogMotion">${hwPaused ? 'Off' : 'On'}</button>
+      </div>
+      <div class="hw-panel-row">
+        <span>Jump Scares</span>
+        <button class="hw-tog" id="hwTogScares">${hwScares ? 'On' : 'Off'}</button>
+      </div>
+      <div class="hw-panel-row">
+        <span>Confetti</span>
+        <button class="hw-tog" id="hwTogConf">${hwConfetti ? 'On' : 'Off'}</button>
+      </div>
+      <div class="hw-panel-row">
+        <span>Call Voice</span>
+        <button class="hw-tog hw-tog-voice" id="hwTogVoice">${hwCallVoice ? '👹 Demon' : '🔊 Normal'}</button>
+      </div>
+      <div class="hw-panel-row hw-panel-freq">
+        <span>Scare Frequency</span>
+        <div class="hw-freq-wrap">
+          <span class="hw-freq-lbl">Rare</span>
+          <input type="range" id="hwFreqSlider" min="0" max="100" value="${hwFreq}" class="hw-freq-slider">
+          <span class="hw-freq-lbl">Often</span>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(hwPanel);
+
+  const settingsBtn = document.createElement('button');
+  settingsBtn.id = 'hwMotionToggle';
+  settingsBtn.title = 'Halloween settings';
+  settingsBtn.textContent = '🎃';
+  settingsBtn.style.opacity = '0.85';
+  document.body.appendChild(settingsBtn);
+
+  settingsBtn.addEventListener('click', () => {
+    const open = hwPanel.classList.toggle('hw-panel-open');
+    settingsBtn.style.opacity = open ? '1' : '0.85';
+  });
+  document.getElementById('hwPanelClose').addEventListener('click', () => {
+    hwPanel.classList.remove('hw-panel-open');
+    settingsBtn.style.opacity = '0.85';
+  });
+
+  function hwSetTog(btn, on, activeClass = 'hw-tog-on') {
+    btn.classList.toggle(activeClass, on);
+  }
+  const togMotion  = document.getElementById('hwTogMotion');
+  const togScares  = document.getElementById('hwTogScares');
+  const togConf    = document.getElementById('hwTogConf');
+  const togVoice   = document.getElementById('hwTogVoice');
+  const freqSlider = document.getElementById('hwFreqSlider');
+
+  hwSetTog(togMotion, !hwPaused);
+  hwSetTog(togScares, hwScares);
+  hwSetTog(togConf, hwConfetti);
+  hwSetTog(togVoice, hwCallVoice);
+
+  togMotion.addEventListener('click', () => {
     hwPaused = !hwPaused;
     localStorage.setItem('hw_motion_off', hwPaused ? '1' : '0');
-    updateToggle();
+    togMotion.textContent = hwPaused ? 'Off' : 'On';
+    hwSetTog(togMotion, !hwPaused);
     if (hwPaused) hwStage.querySelectorAll('.hw-flyer,.hw-confetti').forEach(e => e.remove());
   });
-  document.body.appendChild(toggleBtn);
+  togScares.addEventListener('click', () => {
+    hwScares = !hwScares;
+    localStorage.setItem('hw_scares_off', hwScares ? '0' : '1');
+    togScares.textContent = hwScares ? 'On' : 'Off';
+    hwSetTog(togScares, hwScares);
+  });
+  togConf.addEventListener('click', () => {
+    hwConfetti = !hwConfetti;
+    localStorage.setItem('hw_conf_off', hwConfetti ? '0' : '1');
+    togConf.textContent = hwConfetti ? 'On' : 'Off';
+    hwSetTog(togConf, hwConfetti);
+    if (!hwConfetti) hwStage.querySelectorAll('.hw-confetti').forEach(e => e.remove());
+  });
+  togVoice.addEventListener('click', () => {
+    hwCallVoice = !hwCallVoice;
+    localStorage.setItem('hw_call_voice', hwCallVoice ? 'demon' : 'normal');
+    togVoice.textContent = hwCallVoice ? '👹 Demon' : '🔊 Normal';
+    hwSetTog(togVoice, hwCallVoice);
+    if (typeof geminiVoiceName !== 'undefined') {
+      geminiVoiceName = hwCallVoice ? 'Algenib' : _origGeminiVoice;
+    }
+  });
+  freqSlider.addEventListener('input', () => {
+    hwFreq = parseInt(freqSlider.value);
+    localStorage.setItem('hw_scare_freq', hwFreq);
+  });
 
   // ── Flying parade ───────────────────────────────────────────────────────────
   function spawnParade() {
@@ -10162,7 +10256,7 @@ async function claimHalloweenGift() {
 
   // ── Falling confetti ────────────────────────────────────────────────────────
   function spawnConfetti() {
-    if (hwPaused) return;
+    if (hwPaused || !hwConfetti) return;
     const el = document.createElement('div');
     el.className = 'hw-confetti';
     el.textContent = CONFETTI[Math.floor(Math.random() * CONFETTI.length)];
@@ -10362,75 +10456,258 @@ async function claimHalloweenGift() {
     } catch(_) {}
   }
 
-  // SVG demon face — fills the jump scare overlay
+  // SVG demon face — grotesque horror, fills the jump scare overlay
   function hwDemonFaceSVG() {
     return `<svg viewBox="0 0 300 330" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <radialGradient id="eg" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="#ff2200"/>
-          <stop offset="55%" stop-color="#aa0000"/>
+        <radialGradient id="eg" cx="50%" cy="45%" r="55%">
+          <stop offset="0%" stop-color="#ff4400"/>
+          <stop offset="30%" stop-color="#cc0000"/>
+          <stop offset="70%" stop-color="#550000"/>
           <stop offset="100%" stop-color="#000"/>
         </radialGradient>
+        <radialGradient id="bg2" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#300000"/>
+          <stop offset="100%" stop-color="#000"/>
+        </radialGradient>
+        <filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="bloodGlow"><feGaussianBlur stdDeviation="2"/></filter>
       </defs>
-      <ellipse cx="150" cy="165" rx="135" ry="155" fill="#c0b09a"/>
-      <path d="M150 10 L145 48 M148 48 L153 58 M153 58 L146 88" stroke="#7a1010" stroke-width="2.5" fill="none" opacity=".65"/>
-      <path d="M186 26 L180 54 M180 54 L187 62" stroke="#7a1010" stroke-width="1.5" fill="none" opacity=".45"/>
-      <path d="M114 30 L111 56 M111 56 L119 64" stroke="#7a1010" stroke-width="1.5" fill="none" opacity=".45"/>
-      <path d="M58 108 Q78 92 94 104 Q110 116 108 130" stroke="#8B0000" stroke-width="1.5" fill="none" opacity=".5"/>
-      <path d="M242 100 Q224 86 207 97 Q191 110 194 126" stroke="#8B0000" stroke-width="1.5" fill="none" opacity=".5"/>
-      <ellipse cx="88" cy="133" rx="50" ry="44" fill="#080000" stroke="#500000" stroke-width="3.5"/>
-      <ellipse cx="212" cy="133" rx="50" ry="44" fill="#080000" stroke="#500000" stroke-width="3.5"/>
-      <circle cx="88" cy="133" r="24" fill="url(#eg)"/>
-      <circle cx="212" cy="133" r="24" fill="url(#eg)"/>
-      <circle cx="88" cy="133" r="13" fill="#ff1100"/>
-      <circle cx="212" cy="133" r="13" fill="#ff1100"/>
-      <circle cx="88" cy="133" r="5" fill="#000"/>
-      <circle cx="212" cy="133" r="5" fill="#000"/>
-      <circle cx="97" cy="124" r="6" fill="rgba(255,255,255,.78)"/>
-      <circle cx="221" cy="124" r="6" fill="rgba(255,255,255,.78)"/>
-      <ellipse cx="137" cy="205" rx="12" ry="9" fill="#160606" opacity=".9"/>
-      <ellipse cx="163" cy="205" rx="12" ry="9" fill="#160606" opacity=".9"/>
-      <path d="M132 215 Q150 228 168 215" stroke="#160606" stroke-width="2" fill="none"/>
-      <path d="M36 258 Q74 238 150 242 Q226 238 264 258 Q244 326 150 336 Q56 326 36 258Z" fill="#060000"/>
-      <path d="M56 255 L62 290 L68 255" fill="#ddd8cc"/>
-      <path d="M72 251 L78 292 L84 251" fill="#ddd8cc"/>
-      <path d="M88 248 L95 294 L102 248" fill="#ddd8cc"/>
-      <path d="M106 246 L113 296 L120 246" fill="#ddd8cc"/>
-      <path d="M124 244 L131 297 L138 244" fill="#ddd8cc"/>
-      <path d="M142 244 L149 297 L156 244" fill="#ddd8cc"/>
-      <path d="M160 244 L167 297 L174 244" fill="#ddd8cc"/>
-      <path d="M178 246 L185 296 L192 246" fill="#ddd8cc"/>
-      <path d="M196 248 L203 294 L210 248" fill="#ddd8cc"/>
-      <path d="M214 251 L220 292 L226 251" fill="#ddd8cc"/>
-      <path d="M230 255 L236 288 L242 255" fill="#ddd8cc"/>
-      <ellipse cx="150" cy="310" rx="58" ry="24" fill="#8B1515"/>
-      <path d="M96 295 Q150 332 204 295" fill="#6a0000"/>
-      <path d="M40 262 Q30 282 34 305 Q36 318 32 335" stroke="#8B0000" stroke-width="4.5" fill="none" stroke-linecap="round"/>
-      <circle cx="32" cy="338" r="7" fill="#8B0000"/>
-      <path d="M260 262 Q270 284 266 307 Q264 320 269 336" stroke="#8B0000" stroke-width="4" fill="none" stroke-linecap="round"/>
-      <circle cx="269" cy="338" r="6" fill="#8B0000"/>
-      <path d="M138 26 Q135 56 133 74 Q131 84 135 104" stroke="#8B0000" stroke-width="4" fill="none" stroke-linecap="round"/>
-      <circle cx="135" cy="107" r="7" fill="#8B0000"/>
-      <path d="M164 20 Q167 52 165 70 Q163 80 167 96" stroke="#aa0000" stroke-width="3" fill="none" stroke-linecap="round"/>
-      <circle cx="167" cy="98" r="5" fill="#aa0000"/>
-      <path d="M100 42 Q98 62 100 76" stroke="#880000" stroke-width="2" fill="none" stroke-linecap="round"/>
-      <circle cx="100" cy="78" r="4" fill="#880000"/>
+
+      <!-- Skull base — dead gray necrotic skin -->
+      <ellipse cx="150" cy="162" rx="132" ry="150" fill="#3a2a22"/>
+
+      <!-- Exposed skull / bone cracks breaking through skin -->
+      <path d="M80 30 Q90 18 110 22 Q120 14 135 20 Q148 8 162 18 Q176 12 190 24 Q205 18 218 30" stroke="#d4c8b0" stroke-width="3.5" fill="none" opacity=".85"/>
+      <path d="M100 40 Q108 28 118 36 Q126 22 140 32" stroke="#c8bcaa" stroke-width="2.5" fill="none" opacity=".7"/>
+      <path d="M162 36 Q172 24 183 34 Q193 20 205 32" stroke="#c8bcaa" stroke-width="2.5" fill="none" opacity=".7"/>
+      <!-- Bone showing through forehead -->
+      <ellipse cx="150" cy="48" rx="42" ry="18" fill="#cdc2aa" opacity=".55"/>
+      <ellipse cx="106" cy="56" rx="22" ry="10" fill="#bfb498" opacity=".4"/>
+      <ellipse cx="194" cy="56" rx="22" ry="10" fill="#bfb498" opacity=".4"/>
+
+      <!-- Deep gash cracks in skin revealing flesh/bone -->
+      <path d="M62 90 L78 102 L66 118 L82 130" stroke="#8b0000" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M64 91 L80 103 L68 119 L84 131" stroke="#cc2200" stroke-width="2" fill="none" opacity=".6"/>
+      <path d="M238 88 L222 100 L234 116 L218 130" stroke="#8b0000" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M236 89 L220 101 L232 117 L216 131" stroke="#cc2200" stroke-width="2" fill="none" opacity=".6"/>
+
+      <!-- Forehead gash with stitches -->
+      <path d="M110 72 Q130 62 150 68 Q170 62 190 72" stroke="#6b0000" stroke-width="6" fill="none" stroke-linecap="round"/>
+      <path d="M110 72 Q130 62 150 68 Q170 62 190 72" stroke="#cc0000" stroke-width="2" fill="none" opacity=".7"/>
+      <line x1="118" y1="65" x2="118" y2="80" stroke="#440000" stroke-width="2.5"/>
+      <line x1="130" y1="62" x2="130" y2="77" stroke="#440000" stroke-width="2.5"/>
+      <line x1="142" y1="60" x2="142" y2="76" stroke="#440000" stroke-width="2.5"/>
+      <line x1="158" y1="60" x2="158" y2="76" stroke="#440000" stroke-width="2.5"/>
+      <line x1="170" y1="62" x2="170" y2="77" stroke="#440000" stroke-width="2.5"/>
+      <line x1="182" y1="65" x2="182" y2="80" stroke="#440000" stroke-width="2.5"/>
+
+      <!-- Deep sunken eye sockets — cavernous and wrong -->
+      <ellipse cx="88" cy="133" rx="54" ry="48" fill="#050000" stroke="#3a0000" stroke-width="4"/>
+      <ellipse cx="212" cy="133" rx="54" ry="48" fill="#050000" stroke="#3a0000" stroke-width="4"/>
+      <!-- Necrotic skin folds around eyes -->
+      <path d="M40 108 Q60 90 100 100 Q118 106 114 134" stroke="#2a0000" stroke-width="6" fill="none"/>
+      <path d="M260 108 Q240 90 200 100 Q182 106 186 134" stroke="#2a0000" stroke-width="6" fill="none"/>
+
+      <!-- Bloodshot sclera (whites of eyes, filled with red veins) -->
+      <circle cx="88" cy="133" r="36" fill="#ffe8e8"/>
+      <circle cx="212" cy="133" r="36" fill="#ffe8e8"/>
+      <!-- Red veins radiating across sclera -->
+      <line x1="66" y1="115" x2="80" y2="126" stroke="#cc0000" stroke-width="1.2" opacity=".8"/>
+      <line x1="58" y1="130" x2="72" y2="130" stroke="#cc0000" stroke-width="1.2" opacity=".7"/>
+      <line x1="64" y1="148" x2="78" y2="140" stroke="#cc0000" stroke-width="1.2" opacity=".8"/>
+      <line x1="100" y1="112" x2="94" y2="122" stroke="#cc0000" stroke-width="1.2" opacity=".7"/>
+      <line x1="108" y1="128" x2="96" y2="130" stroke="#cc0000" stroke-width="1.0" opacity=".7"/>
+      <line x1="190" y1="115" x2="204" y2="126" stroke="#cc0000" stroke-width="1.2" opacity=".8"/>
+      <line x1="240" y1="130" x2="226" y2="130" stroke="#cc0000" stroke-width="1.2" opacity=".7"/>
+      <line x1="236" y1="148" x2="222" y2="140" stroke="#cc0000" stroke-width="1.2" opacity=".8"/>
+      <line x1="194" y1="112" x2="200" y2="122" stroke="#cc0000" stroke-width="1.0" opacity=".7"/>
+
+      <!-- Iris — oversized, wrong color, predatory -->
+      <circle cx="88" cy="133" r="24" fill="url(#eg)" filter="url(#glow)"/>
+      <circle cx="212" cy="133" r="24" fill="url(#eg)" filter="url(#glow)"/>
+      <!-- Contracted slit pupil (vertical, reptilian) -->
+      <ellipse cx="88"  cy="133" rx="5" ry="18" fill="#000"/>
+      <ellipse cx="212" cy="133" rx="5" ry="18" fill="#000"/>
+      <!-- Eye glint -->
+      <ellipse cx="98"  cy="122" rx="6" ry="5" fill="rgba(255,200,200,.7)"/>
+      <ellipse cx="222" cy="122" rx="6" ry="5" fill="rgba(255,200,200,.7)"/>
+
+      <!-- Nose — just a rotting void with exposed cartilage -->
+      <ellipse cx="150" cy="198" rx="18" ry="14" fill="#050000"/>
+      <path d="M136 196 Q142 188 150 192 Q158 188 164 196" stroke="#2a0000" stroke-width="3" fill="none"/>
+      <!-- Exposed nasal bone -->
+      <path d="M144 190 Q150 182 156 190" stroke="#b8a898" stroke-width="2.5" fill="none" opacity=".6"/>
+
+      <!-- Stretched / torn cheek wound with stitches -->
+      <path d="M42 172 Q60 160 80 168 Q88 174 78 185 Q62 194 44 185 Z" fill="#3a0000" opacity=".7"/>
+      <path d="M44 175 Q62 163 79 170" stroke="#cc0000" stroke-width="2" fill="none"/>
+      <line x1="52" y1="166" x2="52" y2="182" stroke="#550000" stroke-width="2"/>
+      <line x1="62" y1="162" x2="62" y2="178" stroke="#550000" stroke-width="2"/>
+      <line x1="72" y1="164" x2="72" y2="180" stroke="#550000" stroke-width="2"/>
+      <!-- Right cheek wound -->
+      <path d="M258 172 Q240 160 220 168 Q212 174 222 185 Q238 194 256 185 Z" fill="#3a0000" opacity=".7"/>
+      <path d="M256 175 Q238 163 221 170" stroke="#cc0000" stroke-width="2" fill="none"/>
+      <line x1="248" y1="166" x2="248" y2="182" stroke="#550000" stroke-width="2"/>
+      <line x1="238" y1="162" x2="238" y2="178" stroke="#550000" stroke-width="2"/>
+      <line x1="228" y1="164" x2="228" y2="180" stroke="#550000" stroke-width="2"/>
+
+      <!-- Gaping maw — wider, more jagged -->
+      <path d="M30 260 Q70 235 150 240 Q230 235 270 260 Q248 332 150 340 Q52 332 30 260Z" fill="#030000"/>
+      <!-- Gum/flesh border — raw and infected -->
+      <path d="M32 262 Q72 240 150 244 Q228 240 268 262" stroke="#550000" stroke-width="4" fill="none"/>
+
+      <!-- Teeth — uneven, broken, some missing, some extra-long -->
+      <path d="M54 258 L58 298 L64 258" fill="#d0cfc0"/>
+      <path d="M68 252 L73 298 L79 252" fill="#c8c7b8"/>
+      <path d="M83 248 L89 300 L95 248" fill="#d4d3c4"/>
+      <!-- Broken tooth with exposed pulp -->
+      <path d="M100 246 L104 285 L109 265 L113 246" fill="#c8c7b8"/>
+      <path d="M104 285 L109 265" stroke="#880000" stroke-width="2.5"/>
+      <path d="M118 244 L124 302 L130 244" fill="#ccc8b8"/>
+      <path d="M136 242 L142 303 L148 242" fill="#d0cfc0"/>
+      <path d="M152 242 L158 303 L164 242" fill="#d0cfc0"/>
+      <path d="M170 244 L176 302 L182 244" fill="#ccc8b8"/>
+      <!-- Extra-long fang-like tooth -->
+      <path d="M188 246 L192 310 L197 246" fill="#c4c3b4"/>
+      <path d="M203 248 L207 298 L212 248" fill="#c8c7b8"/>
+      <path d="M218 252 L222 296 L228 252" fill="#d0cfc0"/>
+      <path d="M234 258 L238 292 L244 258" fill="#c8c7b8"/>
+
+      <!-- Blood pooling at mouth corners -->
+      <ellipse cx="150" cy="315" rx="62" ry="22" fill="#6a0000"/>
+      <path d="M94 298 Q150 336 206 298" fill="#500000"/>
+      <!-- Dripping blood from mouth -->
+      <path d="M120 302 Q118 316 122 328 Q120 338 118 348" stroke="#8b0000" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+      <circle cx="117" cy="350" r="5.5" fill="#8b0000"/>
+      <path d="M150 305 Q148 322 152 338 Q150 350 148 362" stroke="#aa0000" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <circle cx="147" cy="364" r="7" fill="#aa0000"/>
+      <path d="M180 302 Q182 316 178 328 Q180 340 182 350" stroke="#8b0000" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <circle cx="183" cy="352" r="5" fill="#8b0000"/>
+
+      <!-- Forehead blood drips from cranial cracks -->
+      <path d="M134 28 Q132 48 136 68 Q134 82 132 98" stroke="#8b0000" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+      <circle cx="131" cy="101" r="8" fill="#8b0000"/>
+      <path d="M166 22 Q168 44 164 62 Q166 76 168 92" stroke="#aa0000" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+      <circle cx="169" cy="95" r="6" fill="#aa0000"/>
+      <path d="M110 40 Q108 56 112 72" stroke="#770000" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <circle cx="112" cy="75" r="4.5" fill="#770000"/>
+      <path d="M192 38 Q194 54 190 70" stroke="#770000" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <circle cx="190" cy="73" r="4" fill="#770000"/>
+
+      <!-- Blood streaks down cheeks -->
+      <path d="M52 148 Q46 172 50 200 Q48 218 44 236" stroke="#770000" stroke-width="3" fill="none" opacity=".7" stroke-linecap="round"/>
+      <path d="M248 148 Q254 172 250 200 Q252 218 256 236" stroke="#770000" stroke-width="3" fill="none" opacity=".7" stroke-linecap="round"/>
+
+      <!-- Side blood drips (large drops) -->
+      <path d="M38 270 Q28 290 32 314 Q30 328 28 344" stroke="#8b0000" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <circle cx="27" cy="347" r="8" fill="#8b0000"/>
+      <path d="M262 270 Q272 292 268 316 Q270 330 272 346" stroke="#8b0000" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+      <circle cx="273" cy="349" r="7" fill="#8b0000"/>
+
+      <!-- Dark rot / necrosis patches -->
+      <ellipse cx="72" cy="158" rx="18" ry="12" fill="#1a0000" opacity=".6"/>
+      <ellipse cx="228" cy="158" rx="18" ry="12" fill="#1a0000" opacity=".6"/>
+      <ellipse cx="150" cy="225" rx="25" ry="12" fill="#1a0000" opacity=".5"/>
     </svg>`;
   }
 
-  // Demonic speech: minimum pitch, slow rate, deepest available voice
+  // Demonic speech: Web Speech API at minimum pitch + simultaneous Web Audio hell-choir
   function hwDemonSpeak(text) {
+    // ── Web Speech: absolute floor pitch + dead-slow rate ──────────────────────
     try {
       if (!window.speechSynthesis) return;
       window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.pitch = 0.01;
-      u.rate  = 0.45;
-      u.volume = 1;
+      const utt = new SpeechSynthesisUtterance(text);
+      utt.pitch  = 0;      // floor — browser clamps above 0 internally
+      utt.rate   = 0.35;   // extremely slow, drawn out
+      utt.volume = 0.85;
       const voices = window.speechSynthesis.getVoices();
-      const deep = voices.find(v => /male|david|alex|daniel|fred|ralph|microsoft david/i.test(v.name) && /en/i.test(v.lang));
-      if (deep) u.voice = deep;
-      window.speechSynthesis.speak(u);
+      // Prefer the deepest available male voice
+      const deep = voices.find(v => /male|david|alex|daniel|fred|ralph|microsoft david/i.test(v.name) && /en/i.test(v.lang))
+                || voices.find(v => /en/i.test(v.lang));
+      if (deep) utt.voice = deep;
+      window.speechSynthesis.speak(utt);
+    } catch(_) {}
+
+    // ── Web Audio: hell-choir layer that plays UNDER the speech ────────────────
+    // Web Speech audio cannot be intercepted, so we layer a separate audio context
+    // playing demon-resonance tones simultaneously to create the impression of distortion.
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const t = ctx.currentTime;
+      const dur = 4.5; // duration matching slow speech
+      const master = ctx.createGain();
+      master.gain.value = 1.4;
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -6; comp.ratio.value = 8; comp.attack.value = 0.005;
+      master.connect(comp); comp.connect(ctx.destination);
+
+      // Layer 1: Sub-bass demon body (ultra-low sawtooth with hard-clipping distortion)
+      const sub = ctx.createOscillator();
+      sub.type = 'sawtooth';
+      sub.frequency.setValueAtTime(58, t);
+      sub.frequency.exponentialRampToValueAtTime(22, t + dur);
+      const subDist = ctx.createWaveShaper();
+      const sdc = new Float32Array(1024);
+      for (let i = 0; i < 1024; i++) { const x = (i * 2) / 1024 - 1; sdc[i] = Math.sign(x) * (1 - Math.exp(-Math.abs(x) * 28)); }
+      subDist.curve = sdc; subDist.oversample = '4x';
+      const subG = ctx.createGain();
+      subG.gain.setValueAtTime(0, t);
+      subG.gain.linearRampToValueAtTime(0.55, t + 0.12);
+      subG.gain.setValueAtTime(0.55, t + dur - 0.5);
+      subG.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      sub.connect(subDist); subDist.connect(subG); subG.connect(master);
+      sub.start(t); sub.stop(t + dur + 0.1);
+
+      // Layer 2: Stacked detuned hell-choir (3 slightly-off frequencies → unearthly chorus)
+      [62, 66, 54].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(freq, t);
+        osc.frequency.linearRampToValueAtTime(freq * 0.72, t + dur);
+        const og = ctx.createGain();
+        og.gain.setValueAtTime(0, t + i * 0.06);
+        og.gain.linearRampToValueAtTime(0.18, t + 0.25 + i * 0.06);
+        og.gain.exponentialRampToValueAtTime(0.001, t + dur - 0.1);
+        osc.connect(og); og.connect(master);
+        osc.start(t + i * 0.05); osc.stop(t + dur);
+      });
+
+      // Layer 3: Ring modulator for alien-metallic texture
+      const carrier = ctx.createOscillator();
+      const mod     = ctx.createOscillator();
+      const ringG   = ctx.createGain();
+      const ringOut = ctx.createGain();
+      carrier.type = 'sawtooth'; carrier.frequency.setValueAtTime(110, t); carrier.frequency.linearRampToValueAtTime(40, t + dur);
+      mod.type     = 'sine';     mod.frequency.setValueAtTime(48, t);     mod.frequency.linearRampToValueAtTime(20, t + dur);
+      ringG.gain.value = 0;
+      mod.connect(ringG.gain);
+      carrier.connect(ringG);
+      ringOut.gain.setValueAtTime(0, t);
+      ringOut.gain.linearRampToValueAtTime(0.35, t + 0.15);
+      ringOut.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      ringG.connect(ringOut); ringOut.connect(master);
+      carrier.start(t); carrier.stop(t + dur);
+      mod.start(t); mod.stop(t + dur);
+
+      // Layer 4: Growling noise bursts — random sputtering demonic breaths
+      for (let b = 0; b < 5; b++) {
+        const bt = t + 0.3 + b * 0.7 + Math.random() * 0.3;
+        const nBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.08), ctx.sampleRate);
+        const nd = nBuf.getChannelData(0);
+        for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+        const nSrc = ctx.createBufferSource();
+        const nFlt = ctx.createBiquadFilter();
+        const nG   = ctx.createGain();
+        nSrc.buffer = nBuf;
+        nFlt.type = 'bandpass'; nFlt.frequency.value = 120 + b * 40; nFlt.Q.value = 8;
+        nG.gain.setValueAtTime(0, bt); nG.gain.linearRampToValueAtTime(0.4, bt + 0.01); nG.gain.exponentialRampToValueAtTime(0.001, bt + 0.09);
+        nSrc.connect(nFlt); nFlt.connect(nG); nG.connect(master);
+        nSrc.start(bt); nSrc.stop(bt + 0.12);
+      }
+
+      setTimeout(() => { try { ctx.close(); } catch(_){} }, (dur + 1) * 1000);
     } catch(_) {}
   }
 
@@ -10452,7 +10729,7 @@ async function claimHalloweenGift() {
   }
 
   function doJumpScare() {
-    if (hwPaused) return scheduleNextScare();
+    if (hwPaused || !hwScares) return scheduleNextScare();
     const s = SCARES[Math.floor(Math.random() * SCARES.length)];
 
     // Sound fires INSTANTLY
@@ -10515,11 +10792,15 @@ async function claimHalloweenGift() {
     scheduleNextScare();
   }
   function scheduleNextScare() {
-    const delay = (5 + Math.random() * 10) * 60 * 1000;
+    // freq 0 = very rare (15-25 min), freq 50 = normal (5-10 min), freq 100 = frequent (0.5-2 min)
+    const minMs = Math.round((15 - hwFreq * 0.145) * 60 * 1000); // 15min → ~0.5min
+    const maxMs = Math.round((25 - hwFreq * 0.23)  * 60 * 1000); // 25min → ~2min
+    const delay = Math.max(30 * 1000, minMs + Math.random() * Math.max(0, maxMs - minMs));
     setTimeout(doJumpScare, delay);
   }
-  // First scare 2-4 min after load
-  setTimeout(doJumpScare, (2 + Math.random() * 2) * 60 * 1000);
+  // First scare: scales with frequency (freq 0 = 4-8min, freq 100 = 10-30s)
+  const _firstMin = Math.round((4 - hwFreq * 0.037) * 60 * 1000);
+  setTimeout(doJumpScare, Math.max(10 * 1000, _firstMin + Math.random() * _firstMin));
 
   // ── One-time welcome toast ──────────────────────────────────────────────────
   if (!sessionStorage.getItem('hw_toast_shown')) {
