@@ -1103,7 +1103,7 @@ function _quizRenderQuestion() {
   _quizAnswered = false;
 
   document.getElementById('quizProgress').textContent = `Question ${idx + 1} / ${total}`;
-  document.getElementById('quizProgressFill').style.width = `${((idx) / total) * 100}%`;
+  document.getElementById('quizProgressFill').style.width = `${((idx + 1) / total) * 100}%`;
   const diffLabel = ['', 'Easy', 'Medium', 'Hard'];
   document.getElementById('quizCategory').textContent = `${diffLabel[q.d] || ''} · ${q.d === 1 ? 5 : q.d === 2 ? 10 : 20} coins`;
   document.getElementById('quizQuestion').textContent = q.q;
@@ -1159,6 +1159,10 @@ async function quizNext() {
       body: JSON.stringify({ quizId: _quizId, answers: _quizAnswers }),
     });
     const d = await r.json();
+    if (!r.ok) {
+      _quizShowResult({ ok: false, correct: 0, total: _quizQuestions.length, coinsEarned: 0, breakdown: [] });
+      return;
+    }
     _quizShowResult(d);
   } catch (_) {
     _quizShowResult({ ok: false, correct: 0, total: _quizQuestions.length, coinsEarned: 0, breakdown: [] });
@@ -1184,9 +1188,7 @@ function _quizShowResult(d) {
   });
 
   _quizShowScreen('result');
-  if (d.coinsEarned > 0 && typeof updateNavCoinDisplay === 'function') {
-    loadUsage();
-  }
+  if (d.coinsEarned > 0) loadUsage();
 }
 function quizPlayAgain() {
   _quizShowScreen('cat');
