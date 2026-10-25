@@ -10564,9 +10564,9 @@ async function claimHalloweenGift() {
 
 // ── Halloween Theme (October 1-31) ────────────────────────────────────────────
 (function initHalloween() {
-  return; // disabled — re-adding features one at a time
-  if (new Date().getMonth() !== 9) return; // eslint-disable-line no-unreachable
-  document.body.classList.add('halloween');
+  if (new Date().getMonth() !== 9) return;
+  const _hwMasterOn = localStorage.getItem('hw_mode') !== '0';
+  if (_hwMasterOn) document.body.classList.add('halloween');
 
   // Update annual toggle label to reflect combined savings during Halloween sale
   if (halloweenSaleActive()) {
@@ -10578,9 +10578,12 @@ async function claimHalloweenGift() {
   }
 
   // ── Spider webs in the corners ──────────────────────────────────────────────
+  // webSVG defined here so hwEnableAll() can re-add them after toggling back on
   const webSVG = `<svg class="halloween-web web-left" width="180" height="180" viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg"><g stroke="#c084fc" stroke-width="0.9" fill="none"><line x1="0" y1="0" x2="180" y2="0"/><line x1="0" y1="0" x2="155" y2="35"/><line x1="0" y1="0" x2="120" y2="75"/><line x1="0" y1="0" x2="78" y2="108"/><line x1="0" y1="0" x2="38" y2="140"/><line x1="0" y1="0" x2="0" y2="180"/><path d="M35,0 Q32,32 0,35"/><path d="M75,0 Q66,44 46,62 Q26,76 0,78"/><path d="M115,0 Q100,56 74,84 Q50,106 22,112 Q0,116 0,116"/><path d="M155,0 Q134,65 104,96 Q76,122 44,132 Q18,138 0,152"/><line x1="90" y1="0" x2="90" y2="42" stroke="#a855f7" stroke-width="0.7"/><ellipse cx="90" cy="46" rx="6" ry="8" fill="#7c3aed" stroke="#a855f7" stroke-width="0.9"/><ellipse cx="90" cy="42" rx="3.5" ry="3.5" fill="#6d28d9"/><line x1="90" y1="44" x2="81" y2="38" stroke="#a855f7" stroke-width="0.6"/><line x1="90" y1="44" x2="80" y2="46" stroke="#a855f7" stroke-width="0.6"/><line x1="90" y1="44" x2="99" y2="38" stroke="#a855f7" stroke-width="0.6"/><line x1="90" y1="44" x2="100" y2="46" stroke="#a855f7" stroke-width="0.6"/></g></svg>`;
-  document.body.insertAdjacentHTML('beforeend', webSVG);
-  document.body.insertAdjacentHTML('beforeend', webSVG.replace('web-left','web-right'));
+  if (_hwMasterOn) {
+    document.body.insertAdjacentHTML('beforeend', webSVG);
+    document.body.insertAdjacentHTML('beforeend', webSVG.replace('web-left','web-right'));
+  }
 
   // ── Flying parade ───────────────────────────────────────────────────────────
   // Each entry: [emoji, minSize, maxSize, minSpeed, maxSpeed, minTop%, maxTop%]
@@ -10616,7 +10619,7 @@ async function claimHalloweenGift() {
   let hwPaused     = false; // kept for jump-scare / blood-flash guards; no longer toggled
   let hwAnimations = localStorage.getItem('hw_anim_on')    === '1'; // horizontal parade, default OFF
   let hwScares     = localStorage.getItem('hw_scares_on')  === '1'; // default OFF
-  let hwConfetti   = localStorage.getItem('hw_conf_on')    === '1'; // falling emoji, default OFF
+  let hwConfetti   = localStorage.getItem('hw_conf_on')    !== '0'; // falling emoji, default ON
   let confettiLoopId = null;
   let paradeLoopId   = null;
   let hwCallVoice = localStorage.getItem('hw_call_voice')  === 'demon';
@@ -10643,6 +10646,10 @@ async function claimHalloweenGift() {
       <button class="hw-panel-close" id="hwPanelClose">✕</button>
     </div>
     <div class="hw-panel-rows">
+      <div class="hw-panel-row" style="border-bottom:1px solid rgba(249,115,22,0.2);margin-bottom:4px;padding-bottom:10px">
+        <span style="font-weight:700">Halloween Mode</span>
+        <button class="hw-tog" id="hwTogMaster">On</button>
+      </div>
       <div class="hw-panel-row">
         <span>Floaters</span>
         <button class="hw-tog" id="hwTogMotion">${hwAnimations ? 'On' : 'Off'}</button>
@@ -10718,6 +10725,41 @@ async function claimHalloweenGift() {
   hwSetTog(togScares, hwScares);
   hwSetTog(togConf, hwConfetti);
   hwSetTog(togVoice, hwCallVoice);
+
+  // ── Master on/off toggle ──────────────────────────────────────────────────
+  let hwMaster = localStorage.getItem('hw_mode') !== '0'; // default ON
+  const togMaster = document.getElementById('hwTogMaster');
+  hwSetTog(togMaster, hwMaster);
+  if (!hwMaster) {
+    togMaster.textContent = 'Off';
+    document.body.classList.remove('halloween');
+    hwStage.style.display = 'none';
+  }
+
+  function hwDisableAll() {
+    document.body.classList.remove('halloween');
+    clearTimeout(confettiLoopId); confettiLoopId = null;
+    clearTimeout(paradeLoopId); paradeLoopId = null;
+    hwStage.innerHTML = ''; hwStage.style.display = 'none';
+    document.querySelectorAll('.halloween-web').forEach(el => el.remove());
+    document.body.classList.remove('hw-screaming','hw-demon-voice');
+  }
+  function hwEnableAll() {
+    document.body.classList.add('halloween');
+    document.body.insertAdjacentHTML('beforeend', webSVG);
+    document.body.insertAdjacentHTML('beforeend', webSVG.replace('web-left','web-right'));
+    if (hwConfetti) { hwStage.style.display = ''; startConfetti(); }
+    if (hwAnimations) { hwStage.style.display = ''; startParade(); }
+    if (hwCallVoice) document.body.classList.add('hw-demon-voice');
+  }
+
+  togMaster.addEventListener('click', () => {
+    hwMaster = !hwMaster;
+    localStorage.setItem('hw_mode', hwMaster ? '1' : '0');
+    togMaster.textContent = hwMaster ? 'On' : 'Off';
+    hwSetTog(togMaster, hwMaster);
+    if (hwMaster) hwEnableAll(); else hwDisableAll();
+  });
 
   togMotion.addEventListener('click', () => {
     hwAnimations = !hwAnimations;
@@ -10808,7 +10850,7 @@ async function claimHalloweenGift() {
       paradeLoopId = setTimeout(loop, 1200 + Math.random() * 2000);
     })();
   }
-  if (hwAnimations) {
+  if (_hwMasterOn && hwAnimations) {
     for (let i = 0; i < 5; i++) setTimeout(spawnParade, i * 600);
     startParade();
   }
@@ -10838,7 +10880,7 @@ async function claimHalloweenGift() {
       confettiLoopId = setTimeout(loop, 220 + Math.random() * 350);
     })();
   }
-  if (hwConfetti) startConfetti();
+  if (_hwMasterOn && hwConfetti) startConfetti();
 
   // Periodic guard: remove stray items if flags went false (catches any timing edge cases)
   setInterval(hwSyncStage, 1000);
