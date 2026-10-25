@@ -10458,6 +10458,10 @@ async function claimHalloweenGift() {
     if (!hwAnimations) hwStage.querySelectorAll('.hw-flyer').forEach(el => el.remove());
     if (!hwConfetti)   hwStage.querySelectorAll('.hw-confetti').forEach(el => el.remove());
     if (!hwAnimations && !hwConfetti) hwStage.style.display = 'none';
+    if (!hwScares) {
+      document.querySelectorAll('.hw-jump-scare,.hw-glitch-overlay').forEach(el => el.remove());
+      document.body.classList.remove('hw-screaming');
+    }
   }
 
   settingsBtn.addEventListener('click', () => {
@@ -10504,6 +10508,12 @@ async function claimHalloweenGift() {
     localStorage.setItem('hw_scares_on', hwScares ? '1' : '0');
     togScares.textContent = hwScares ? 'On' : 'Off';
     hwSetTog(togScares, hwScares);
+    if (hwScares) {
+      scheduleNextScare();
+    } else {
+      if (_scareTimer) { clearTimeout(_scareTimer); _scareTimer = null; }
+      hwSyncStage();
+    }
   });
   togConf.addEventListener('click', () => {
     hwConfetti = !hwConfetti;
@@ -11059,7 +11069,7 @@ async function claimHalloweenGift() {
 
   function doJumpScare() {
     _scareTimer = null;
-    if (hwPaused || !hwScares) return scheduleNextScare();
+    if (hwPaused || !hwScares) return;
     // Tab is hidden (user switched away, minimized, etc.) — don't scare into the void;
     // reschedule so the scare fires only when they're actually looking at the page.
     if (document.hidden) return scheduleNextScare();

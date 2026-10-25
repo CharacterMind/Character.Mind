@@ -1,5 +1,17 @@
 [
   {
+    "id": "v353-scares-confetti-fix",
+    "version": "v353",
+    "date": "Oct 2026",
+    "title": "🎃 Jump Scares & Cleanup Fixed",
+    "subtitle": "Toggling Jump Scares on now actually works, and stuck overlays are cleaned up automatically.",
+    "fixed": [
+      "Turning Jump Scares On now immediately schedules the first scare — previously toggling On did nothing until a page reload",
+      "Turning Jump Scares Off now cancels the pending scare timer and cleans up any stuck scare overlays instantly",
+      "Any stuck jump scare face, glitch overlay, or screen-shake class is now swept away by the 1-second cleanup interval"
+    ]
+  },
+  {
     "id": "v352-coins-not-for-usage",
     "version": "v352",
     "date": "Oct 2026",
