@@ -6050,15 +6050,9 @@ function updateUsageModal(u) {
     dailyResetsEl.textContent = remaining > 0 ? 'Resets in ' + formatCountdown(remaining) : '';
   }
 
-  // Halloween 2026 gift row inside usage modal
+  // Halloween 2026 gift row — disabled
   const hwGiftUsageRow = document.getElementById('hwGiftUsageRow');
-  if (hwGiftUsageRow) {
-    const _now = Date.now();
-    const _hwStart = new Date('2026-10-01T00:00:00Z').getTime();
-    const _hwEnd   = new Date('2026-11-05T00:00:00Z').getTime();
-    const _hwActive = _now >= _hwStart && _now < _hwEnd;
-    hwGiftUsageRow.style.display = (_hwActive && currentUser) ? '' : 'none';
-  }
+  if (hwGiftUsageRow) hwGiftUsageRow.style.display = 'none';
 
   // Game cooldown bar — fills green when ready, drains to orange/yellow while waiting
   const gamePctEl = document.getElementById('usageGamePct');
@@ -6394,11 +6388,7 @@ async function checkWhatsNewDot() {
 
 function _showHwGiftRow() {
   const row = document.getElementById('hwGiftUsageRow');
-  if (!row) return;
-  const now = Date.now();
-  const active = now >= new Date('2026-10-01T00:00:00Z').getTime() && now < new Date('2026-11-05T00:00:00Z').getTime();
-  // Show to all logged-in users during October — server handles the limits reset for everyone
-  row.style.display = (active && currentUser) ? '' : 'none';
+  if (row) row.style.display = 'none'; // disabled
 }
 
 async function openUsageModal() {
@@ -9625,7 +9615,7 @@ function checkSeasonalEvent() {
     },
     {
       name: 'halloween',
-      check: (m, d) => m === 10 && d >= 25,
+      check: () => false,
       emojis: ['🎃','👻','🕷️','🦇','🕸️','💀'],
       count: 22,
       banner: "👻 Happy Halloween from character.mind!",
