@@ -4235,13 +4235,21 @@ app.post('/api/admin/reset-session', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-// Owner-only: wipe weekly token window for own account
-app.post('/api/admin/reset-weekly', requireAuth, (req, res) => {
+// Owner-only: wipe weekly token window (own account, or targetEmail for any account)
+app.post('/api/admin/reset-weekly', requireAuth, async (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
-  const u = getLimits(req.user.googleId);
+  let targetId = req.user.googleId;
+  if (req.body.targetEmail) {
+    try {
+      const row = await db.query('SELECT google_id FROM users WHERE email = $1 LIMIT 1', [req.body.targetEmail]);
+      if (!row.rows.length) return res.status(404).json({ error: 'User not found' });
+      targetId = row.rows[0].google_id;
+    } catch(e) { return res.status(500).json({ error: e.message }); }
+  }
+  const u = getLimits(targetId);
   u.weeklyTokens = 0; u.weeklyStart = null; u.warned = {};
-  saveLimitsToDB(req.user.googleId);
-  res.json({ ok: true, ...buildUsagePayload(u, req.user.googleId) });
+  saveLimitsToDB(targetId);
+  res.json({ ok: true, targetId, ...buildUsagePayload(u, targetId) });
 });
 
 // Owner-only: grant yourself any token credit (extends your effective session + weekly limits), coins, and/or CM tokens
