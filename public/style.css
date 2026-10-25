@@ -3612,7 +3612,6 @@ html, body {
 .halloween .sidebar {
   background: linear-gradient(180deg,#100600 0%,#18181b 40%);
   border-right-color: rgba(249,115,22,0.18);
-  position: relative; z-index: 20;
 }
 .halloween .logo-text {
   background: none !important;
