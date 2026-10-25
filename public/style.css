@@ -2939,7 +2939,7 @@ html, body {
   margin-top: 2px; letter-spacing: 0;
 }
 .pricing-cards {
-  display: grid; grid-template-columns: repeat(4,1fr); gap: 14px;
+  display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; padding-top: 14px;
 }
 @media (max-width: 700px) { .pricing-cards { grid-template-columns: repeat(2,1fr); } }
 @media (max-width: 420px) { .pricing-cards { grid-template-columns: 1fr; } }
@@ -2959,9 +2959,11 @@ html, body {
 .pc-price { font-size: 26px; font-weight: 800; color: var(--text1); line-height: 1.1; }
 .pc-period { font-size: 13px; font-weight: 500; color: var(--text3); }
 .pc-per-month { font-size: 11px; color: var(--text3); min-height: 16px; display: flex; align-items: center; gap: 4px; }
-.pc-save-pct { background: rgba(34,197,94,.18); color: #4ade80; padding: 1px 6px; border-radius: 8px; font-weight: 700; font-size: 10px; }
+.pc-save-pct { background: rgba(34,197,94,.25); color: #4ade80; padding: 2px 8px; border-radius: 8px; font-weight: 700; font-size: 11px; }
 .pc-orig-price { font-size: 14px; font-weight: 500; color: var(--text3); text-decoration: line-through; margin-right: 2px; }
-.pc-halloween-badge { position: absolute; top: -11px; right: 12px; background: #f97316; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+.pc-halloween-badge { position: absolute; top: -13px; right: 12px; background: #f97316; color: #fff; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 10px; white-space: nowrap; box-shadow: 0 2px 6px rgba(249,115,22,.4); }
+.pc-coin-savings-line { flex: 1 0 100%; margin-top: 3px; font-size: 11px; color: var(--text2); }
+.pc-coin-savings-line strong { color: var(--accent-l); }
 .pc-features {
   list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-direction: column; gap: 7px; flex: 1;
 }

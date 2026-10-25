@@ -6207,14 +6207,41 @@ const PAYPAL_PLAN_IDS_YEARLY = {
   x100:     process.env.PAYPAL_PLAN_X100_YEARLY,
   x200:     process.env.PAYPAL_PLAN_X200_YEARLY,
 };
+// Halloween sale plans (40% off) — set these in Render from the output of create_halloween_plans.js
+const PAYPAL_PLAN_IDS_HALLOWEEN = {
+  advanced: process.env.PAYPAL_PLAN_ADVANCED_HALLOWEEN,
+  x20:      process.env.PAYPAL_PLAN_X20_HALLOWEEN,
+  x50:      process.env.PAYPAL_PLAN_X50_HALLOWEEN,
+  x100:     process.env.PAYPAL_PLAN_X100_HALLOWEEN,
+  x200:     process.env.PAYPAL_PLAN_X200_HALLOWEEN,
+};
+const PAYPAL_PLAN_IDS_HALLOWEEN_YEARLY = {
+  advanced: process.env.PAYPAL_PLAN_ADVANCED_HALLOWEEN_YEARLY,
+  x20:      process.env.PAYPAL_PLAN_X20_HALLOWEEN_YEARLY,
+  x50:      process.env.PAYPAL_PLAN_X50_HALLOWEEN_YEARLY,
+  x100:     process.env.PAYPAL_PLAN_X100_HALLOWEEN_YEARLY,
+  x200:     process.env.PAYPAL_PLAN_X200_HALLOWEEN_YEARLY,
+};
+const HALLOWEEN_SALE_ENDS = new Date('2026-11-01T06:00:00Z');
+function halloweenSaleActive() { const n = new Date(); return n < HALLOWEEN_SALE_ENDS && n.getMonth() === 9; }
 // Yearly is offered once the first three yearly plans exist; X100/X200 are sold only when their own plan ids are set (planIds.x100 / planIds.x200)
 const yearlyAvailable = () => ['advanced', 'x20', 'x50'].every(k => PAYPAL_PLAN_IDS_YEARLY[k]);
-// the PayPal plan to charge for a plan and period (monthly or annual)
-function paypalPlanIdFor(planKey, period) { return (period === 'annual' ? PAYPAL_PLAN_IDS_YEARLY : PAYPAL_PLAN_IDS)[planKey]; }
+// the PayPal plan to charge for a plan and period (monthly or annual) — uses Halloween plans during the sale
+function paypalPlanIdFor(planKey, period) {
+  if (halloweenSaleActive()) {
+    const hwMap = period === 'annual' ? PAYPAL_PLAN_IDS_HALLOWEEN_YEARLY : PAYPAL_PLAN_IDS_HALLOWEEN;
+    if (hwMap[planKey]) return hwMap[planKey];
+  }
+  return (period === 'annual' ? PAYPAL_PLAN_IDS_YEARLY : PAYPAL_PLAN_IDS)[planKey];
+}
 // which of our plans a PayPal plan id belongs to, and for which period
 function paypalPlanFromId(planId) {
   if (!planId) return null;
-  for (const [period, map] of [['monthly', PAYPAL_PLAN_IDS], ['annual', PAYPAL_PLAN_IDS_YEARLY]]) {
+  const allMaps = [
+    ['monthly', PAYPAL_PLAN_IDS], ['annual', PAYPAL_PLAN_IDS_YEARLY],
+    ['monthly', PAYPAL_PLAN_IDS_HALLOWEEN], ['annual', PAYPAL_PLAN_IDS_HALLOWEEN_YEARLY],
+  ];
+  for (const [period, map] of allMaps) {
     const tier = Object.keys(map).find(k => map[k] && map[k] === planId);
     if (tier) return { tier, period };
   }
@@ -6234,10 +6261,16 @@ async function getPayPalToken() {
 }
 
 app.get('/api/paypal/config', (req, res) => {
+  const saleOn = halloweenSaleActive();
   const planIds = {};
-  for (const [k, v] of Object.entries(PAYPAL_PLAN_IDS)) if (v) planIds[k] = v;
+  // Use Halloween plans as primary source; fall back to regular plans for any tier without a Halloween plan
+  for (const [k, v] of Object.entries(saleOn ? PAYPAL_PLAN_IDS_HALLOWEEN : PAYPAL_PLAN_IDS)) if (v) planIds[k] = v;
+  if (saleOn) for (const [k, v] of Object.entries(PAYPAL_PLAN_IDS)) if (v && !planIds[k]) planIds[k] = v;
   const yearlyPlanIds = {};
-  if (yearlyAvailable()) for (const [k, v] of Object.entries(PAYPAL_PLAN_IDS_YEARLY)) if (v) yearlyPlanIds[k] = v;
+  if (yearlyAvailable()) {
+    for (const [k, v] of Object.entries(saleOn ? PAYPAL_PLAN_IDS_HALLOWEEN_YEARLY : PAYPAL_PLAN_IDS_YEARLY)) if (v) yearlyPlanIds[k] = v;
+    if (saleOn) for (const [k, v] of Object.entries(PAYPAL_PLAN_IDS_YEARLY)) if (v && !yearlyPlanIds[k]) yearlyPlanIds[k] = v;
+  }
   res.json({ clientId: process.env.PAYPAL_CLIENT_ID || '', env: process.env.PAYPAL_ENV || 'sandbox', planIds, yearlyAvailable: yearlyAvailable(), yearlyPlanIds });
 });
 

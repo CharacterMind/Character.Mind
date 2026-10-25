@@ -453,6 +453,14 @@ function renderPricingCards() {
   }
 
   const saleOn = halloweenSaleActive();
+
+  // Keep annual button label in sync with whether the Halloween sale is active
+  const annualToggle = document.getElementById('pricingBtnAnnual');
+  if (annualToggle) {
+    const lbl = annualToggle.querySelector('.pt-save-label');
+    if (lbl) lbl.textContent = saleOn ? '🎃 70% off' : '50% off';
+  }
+
   container.innerHTML = PLAN_DATA.filter(p => ACTIVE_PLANS.includes(p.key)).map(plan => {
     const isCurrent = plan.key === currentTier;
     const basePrice = pricingPeriod === 'annual' ? plan.annual : plan.monthly;
@@ -485,9 +493,17 @@ function renderPricingCards() {
         : pctCovered > 0
           ? `<span class="pc-coin-coverage">Offsets ${pctCovered}% this month</span>`
           : '';
+      let coinSavingsLine = '';
+      if (pctCovered > 0) {
+        const planPriceLocal = formatLocalPrice(cashPriceUSD);
+        const afterCoins = Math.max(0, cashPriceUSD - userCoinValueUSD);
+        const afterCoinsLocal = afterCoins <= 0 ? 'Free' : formatLocalPrice(afterCoins);
+        coinSavingsLine = `<div class="pc-coin-savings-line"><span class="pc-orig-price">${planPriceLocal}/mo</span> → <strong>${afterCoinsLocal}/mo with coins</strong></div>`;
+      }
       coinValueRow = `<div class="pc-coin-value-row">
         <span class="pc-coin-val-label">🪙 Your ${userCoins.toLocaleString()} coins ≈ <strong>${userCoinValueLocal}</strong></span>
         ${coverageBadge}
+        ${coinSavingsLine}
       </div>`;
     }
     if (coinCost > 0 && !isCurrent) {
@@ -10109,6 +10125,15 @@ async function claimHalloweenGift() {
   if (new Date().getMonth() !== 9) return;
   document.body.classList.add('halloween');
 
+  // Update annual toggle label to reflect combined savings during Halloween sale
+  if (halloweenSaleActive()) {
+    const annualBtn = document.getElementById('pricingBtnAnnual');
+    if (annualBtn) {
+      const lbl = annualBtn.querySelector('.pt-save-label');
+      if (lbl) lbl.textContent = '🎃 70% off';
+    }
+  }
+
   // ── Spider webs in the corners ──────────────────────────────────────────────
   const webSVG = `<svg class="halloween-web web-left" width="180" height="180" viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg"><g stroke="#c084fc" stroke-width="0.9" fill="none"><line x1="0" y1="0" x2="180" y2="0"/><line x1="0" y1="0" x2="155" y2="35"/><line x1="0" y1="0" x2="120" y2="75"/><line x1="0" y1="0" x2="78" y2="108"/><line x1="0" y1="0" x2="38" y2="140"/><line x1="0" y1="0" x2="0" y2="180"/><path d="M35,0 Q32,32 0,35"/><path d="M75,0 Q66,44 46,62 Q26,76 0,78"/><path d="M115,0 Q100,56 74,84 Q50,106 22,112 Q0,116 0,116"/><path d="M155,0 Q134,65 104,96 Q76,122 44,132 Q18,138 0,152"/><line x1="90" y1="0" x2="90" y2="42" stroke="#a855f7" stroke-width="0.7"/><ellipse cx="90" cy="46" rx="6" ry="8" fill="#7c3aed" stroke="#a855f7" stroke-width="0.9"/><ellipse cx="90" cy="42" rx="3.5" ry="3.5" fill="#6d28d9"/><line x1="90" y1="44" x2="81" y2="38" stroke="#a855f7" stroke-width="0.6"/><line x1="90" y1="44" x2="80" y2="46" stroke="#a855f7" stroke-width="0.6"/><line x1="90" y1="44" x2="99" y2="38" stroke="#a855f7" stroke-width="0.6"/><line x1="90" y1="44" x2="100" y2="46" stroke="#a855f7" stroke-width="0.6"/></g></svg>`;
   document.body.insertAdjacentHTML('beforeend', webSVG);
@@ -10148,6 +10173,8 @@ async function claimHalloweenGift() {
   let hwPaused    = localStorage.getItem('hw_motion_off')  === '1';
   let hwScares    = localStorage.getItem('hw_scares_off')  !== '1'; // default ON
   let hwConfetti  = localStorage.getItem('hw_conf_off')    !== '1'; // default ON
+  let confettiLoopId = null;
+  let paradeLoopId   = null;
   let hwCallVoice = localStorage.getItem('hw_call_voice')  === 'demon';
   let hwFreq      = Math.max(0, Math.min(100, parseInt(localStorage.getItem('hw_scare_freq') || '50')));
 
@@ -10230,7 +10257,14 @@ async function claimHalloweenGift() {
     localStorage.setItem('hw_motion_off', hwPaused ? '1' : '0');
     togMotion.textContent = hwPaused ? 'Off' : 'On';
     hwSetTog(togMotion, !hwPaused);
-    if (hwPaused) hwStage.querySelectorAll('.hw-flyer,.hw-confetti').forEach(e => e.remove());
+    if (hwPaused) {
+      clearTimeout(confettiLoopId); clearTimeout(paradeLoopId);
+      confettiLoopId = null; paradeLoopId = null;
+      hwStage.querySelectorAll('.hw-flyer,.hw-confetti').forEach(e => e.remove());
+    } else if (hwConfetti) {
+      startConfetti();
+      startParade();
+    }
   });
   togScares.addEventListener('click', () => {
     hwScares = !hwScares;
@@ -10243,7 +10277,14 @@ async function claimHalloweenGift() {
     localStorage.setItem('hw_conf_off', hwConfetti ? '0' : '1');
     togConf.textContent = hwConfetti ? 'On' : 'Off';
     hwSetTog(togConf, hwConfetti);
-    if (!hwConfetti) hwStage.querySelectorAll('.hw-confetti,.hw-flyer').forEach(e => e.remove());
+    if (!hwConfetti) {
+      clearTimeout(confettiLoopId); clearTimeout(paradeLoopId);
+      confettiLoopId = null; paradeLoopId = null;
+      hwStage.querySelectorAll('.hw-confetti,.hw-flyer').forEach(e => e.remove());
+    } else if (!hwPaused) {
+      startConfetti();
+      startParade();
+    }
   });
   togVoice.addEventListener('click', () => {
     hwCallVoice = !hwCallVoice;
@@ -10276,13 +10317,16 @@ async function claimHalloweenGift() {
     setTimeout(() => el.remove(), dur * 1000 + 600);
   }
 
+  function startParade() {
+    (function loop() {
+      if (hwPaused || !hwConfetti) return;
+      spawnParade();
+      if (Math.random() < 0.3) setTimeout(spawnParade, 400 + Math.random() * 600);
+      paradeLoopId = setTimeout(loop, 1200 + Math.random() * 2000);
+    })();
+  }
   for (let i = 0; i < 5; i++) setTimeout(spawnParade, i * 600);
-  (function scheduleParade() {
-    spawnParade();
-    // Occasionally spawn a second creature right after for density
-    if (Math.random() < 0.3) setTimeout(spawnParade, 400 + Math.random() * 600);
-    setTimeout(scheduleParade, 1200 + Math.random() * 2000);
-  })();
+  startParade();
 
   // ── Falling confetti ────────────────────────────────────────────────────────
   function spawnConfetti() {
@@ -10301,11 +10345,15 @@ async function claimHalloweenGift() {
     setTimeout(() => el.remove(), (dur + 2) * 1000);
   }
 
-  (function scheduleConfetti() {
-    const burst = 1 + (Math.random() < 0.2 ? 2 : 0); // occasional burst of 3
-    for (let i = 0; i < burst; i++) setTimeout(spawnConfetti, i * 80);
-    setTimeout(scheduleConfetti, 220 + Math.random() * 350);
-  })();
+  function startConfetti() {
+    (function loop() {
+      if (hwPaused || !hwConfetti) return;
+      const burst = 1 + (Math.random() < 0.2 ? 2 : 0);
+      for (let i = 0; i < burst; i++) setTimeout(spawnConfetti, i * 80);
+      confettiLoopId = setTimeout(loop, 220 + Math.random() * 350);
+    })();
+  }
+  startConfetti();
 
   // ── Occasional crimson screen flash ─────────────────────────────────────────
   function hwBloodFlash() {

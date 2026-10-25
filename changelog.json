@@ -1,5 +1,31 @@
 [
   {
+    "id": "v336-halloween-fixes",
+    "version": "v336",
+    "date": "Oct 2026",
+    "title": "🎃 Halloween Fixes & Pricing Polish",
+    "subtitle": "Confetti toggle actually stops confetti now, pricing badges visible, coin savings shown.",
+    "fixed": [
+      "Confetti toggle now fully stops the parade — turning it off immediately clears all floating pumpkins, ghosts, and confetti from the screen",
+      "Halloween 40% off badge is now visible above pricing cards — was being clipped behind the toggle bar",
+      "Annual billing button correctly shows '🎃 70% off' during the Halloween sale instead of the old '50% off' label",
+      "Coin savings line added to pricing cards — shows your plan's full price crossed out and the effective price after applying your coin balance"
+    ]
+  },
+  {
+    "id": "v335-halloween-sale",
+    "version": "v335",
+    "date": "Oct 2026",
+    "title": "🎃 Halloween Sale — 40% Off All Plans",
+    "subtitle": "Limited-time 40% discount on every plan through November 1st.",
+    "added": [
+      "40% Halloween discount applied to all subscription plans (Advanced, X20, X50, X100, X200) — monthly and annual",
+      "Annual plans stack the Halloween discount on top of the annual savings — up to 70% off combined",
+      "Countdown to sale end shown on the pricing page",
+      "Halloween gift: bonus coins automatically awarded during the Halloween season"
+    ]
+  },
+  {
     "id": "halloween-2026-jumpscare",
     "version": "v334",
     "date": "Oct 2026",
