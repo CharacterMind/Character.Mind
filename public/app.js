@@ -10690,7 +10690,7 @@ async function claimHalloweenGift() {
 
   function hwDisableAll() {
     document.body.classList.remove('halloween');
-    clearTimeout(confettiLoopId); confettiLoopId = null;
+    clearInterval(confettiLoopId); confettiLoopId = null;
     clearTimeout(paradeLoopId); paradeLoopId = null;
     hwStage.innerHTML = ''; hwStage.style.display = 'none';
     document.querySelectorAll('.halloween-web').forEach(el => el.remove());
@@ -10751,7 +10751,7 @@ async function claimHalloweenGift() {
     localStorage.setItem('hw_conf_on', hwConfetti ? '1' : '0');
     togConf.textContent = hwConfetti ? 'On' : 'Off';
     hwSetTog(togConf, hwConfetti);
-    clearTimeout(confettiLoopId);
+    clearInterval(confettiLoopId);
     confettiLoopId = null;
     if (!hwConfetti) {
       hwSyncStage();
@@ -10831,15 +10831,10 @@ async function claimHalloweenGift() {
   }
 
   function startConfetti() {
-    (function loop() {
-      if (!hwConfetti) return;
-      const burst = 2 + (Math.random() < 0.4 ? 2 : 0);
-      for (let i = 0; i < burst; i++) setTimeout(spawnConfetti, i * 60);
-      confettiLoopId = setTimeout(loop, 120 + Math.random() * 180);
-    })();
+    confettiLoopId = setInterval(spawnConfetti, 60);
   }
   if (_hwMasterOn && hwConfetti) {
-    for (let i = 0; i < 12; i++) setTimeout(spawnConfetti, i * 100);
+    for (let i = 0; i < 20; i++) setTimeout(spawnConfetti, i * 50);
     startConfetti();
   }
 
