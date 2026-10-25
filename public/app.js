@@ -10094,16 +10094,15 @@ function launchTicTacToe(savedState) {
 }
 
 // ── Halloween 2026 gift ────────────────────────────────────────────────────────
-async function checkHalloweenGift() {
+function checkHalloweenGift() {
   if (!currentUser) return;
-  try {
-    const r = await fetch('/api/halloween/status');
-    if (!r.ok) return;
-    const d = await r.json();
-    if (!d.available || d.claimed) return;
-    const banner = document.getElementById('halloweenGiftBanner');
-    if (banner) banner.style.display = 'flex';
-  } catch (_) {}
+  const now = Date.now();
+  const HALLOWEEN_START = new Date('2026-10-01T00:00:00Z').getTime();
+  const HALLOWEEN_END   = new Date('2026-11-01T00:00:00Z').getTime();
+  if (now < HALLOWEEN_START || now >= HALLOWEEN_END) return;
+  if (currentUser.halloweenGift2026) return;
+  const banner = document.getElementById('halloweenGiftBanner');
+  if (banner) banner.style.display = 'flex';
 }
 
 async function claimHalloweenGift() {
@@ -10119,6 +10118,7 @@ async function claimHalloweenGift() {
       }
       updateSettingsCoinDisplay(d.coins, lastKnownUsage?.coinsEarnedToday || 0, lastKnownUsage?.coinDailyLimit || 100, lastKnownUsage?.coinsMonthlyReset);
       updateNavCoinDisplay(lastKnownUsage);
+      if (currentUser) currentUser.halloweenGift2026 = true;
       const banner = document.getElementById('halloweenGiftBanner');
       if (banner) {
         banner.querySelector('.hw-gift-text').textContent = '🎃 Done! All your limits have been reset. Enjoy Halloween!';
@@ -10192,6 +10192,7 @@ async function claimHalloweenGift() {
   let paradeLoopId   = null;
   let hwCallVoice = localStorage.getItem('hw_call_voice')  === 'demon';
   let hwFreq      = Math.max(0, Math.min(100, parseInt(localStorage.getItem('hw_scare_freq') || '50')));
+  let hwVol       = Math.max(0, Math.min(100, parseInt(localStorage.getItem('hw_scare_vol')  || '70')));
 
   // Call voice: store original and switch to gravelly Gemini voice if demon mode is on
   const _origGeminiVoice = (typeof geminiVoiceName !== 'undefined') ? geminiVoiceName : 'Aoede';
@@ -10233,6 +10234,14 @@ async function claimHalloweenGift() {
           <span class="hw-freq-lbl">Rare</span>
           <input type="range" id="hwFreqSlider" min="0" max="100" value="${hwFreq}" class="hw-freq-slider">
           <span class="hw-freq-lbl">Often</span>
+        </div>
+      </div>
+      <div class="hw-panel-row hw-panel-freq">
+        <span>Scare Volume</span>
+        <div class="hw-freq-wrap">
+          <span class="hw-freq-lbl">🔇</span>
+          <input type="range" id="hwVolSlider" min="0" max="100" value="${hwVol}" class="hw-freq-slider">
+          <span class="hw-freq-lbl">🔊</span>
         </div>
       </div>
     </div>`;
@@ -10319,6 +10328,11 @@ async function claimHalloweenGift() {
   freqSlider.addEventListener('input', () => {
     hwFreq = parseInt(freqSlider.value);
     localStorage.setItem('hw_scare_freq', hwFreq);
+  });
+  const volSlider = document.getElementById('hwVolSlider');
+  if (volSlider) volSlider.addEventListener('input', () => {
+    hwVol = parseInt(volSlider.value);
+    localStorage.setItem('hw_scare_vol', hwVol);
   });
 
   // ── Flying parade ───────────────────────────────────────────────────────────
@@ -10439,7 +10453,7 @@ async function claimHalloweenGift() {
       limiter.ratio.value = 20; limiter.attack.value = 0.001; limiter.release.value = 0.08;
       limiter.connect(ctx.destination);
       const master = ctx.createGain();
-      master.gain.value = 2.0;
+      master.gain.value = 2.0 * (hwVol / 100);
       master.connect(limiter);
 
       // 1. INSTANT CRACK — white noise burst, sounds like electricity / jump impact
@@ -10722,7 +10736,7 @@ async function claimHalloweenGift() {
       const utt = new SpeechSynthesisUtterance(text);
       utt.pitch  = 0;      // floor — browser clamps above 0 internally
       utt.rate   = 0.35;   // extremely slow, drawn out
-      utt.volume = 0.85;
+      utt.volume = 0.85 * (hwVol / 100);
       const voices = window.speechSynthesis.getVoices();
       // Prefer the deepest available male voice
       const deep = voices.find(v => /male|david|alex|daniel|fred|ralph|microsoft david/i.test(v.name) && /en/i.test(v.lang))
@@ -10739,7 +10753,7 @@ async function claimHalloweenGift() {
       const t = ctx.currentTime;
       const dur = 4.5; // duration matching slow speech
       const master = ctx.createGain();
-      master.gain.value = 1.4;
+      master.gain.value = 1.4 * (hwVol / 100);
       const comp = ctx.createDynamicsCompressor();
       comp.threshold.value = -6; comp.ratio.value = 8; comp.attack.value = 0.005;
       master.connect(comp); comp.connect(ctx.destination);

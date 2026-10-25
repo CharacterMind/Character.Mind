@@ -699,7 +699,8 @@ app.get('/auth/me', (req, res) => {
   if (!req.user) return res.json(null);
   const showWelcome = req.session.showWelcome || false;
   if (showWelcome) req.session.showWelcome = false;
-  res.json({ name: req.user.name, email: req.user.email, picture: req.user.picture, googleId: req.user.googleId, showWelcome });
+  const limMe = getLimits(req.user.googleId);
+  res.json({ name: req.user.name, email: req.user.email, picture: req.user.picture, googleId: req.user.googleId, showWelcome, halloweenGift2026: !!limMe.halloweenGift2026 });
 });
 app.post('/auth/logout', (req, res) => {
   req.logout(() => {
