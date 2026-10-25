@@ -10400,8 +10400,10 @@ async function claimHalloweenGift() {
       paradeLoopId = setTimeout(loop, 1200 + Math.random() * 2000);
     })();
   }
-  for (let i = 0; i < 5; i++) setTimeout(spawnParade, i * 600);
-  startParade();
+  if (hwConfetti && !hwPaused) {
+    for (let i = 0; i < 5; i++) setTimeout(spawnParade, i * 600);
+    startParade();
+  }
 
   // ── Falling confetti ────────────────────────────────────────────────────────
   function spawnConfetti() {
@@ -10428,7 +10430,7 @@ async function claimHalloweenGift() {
       confettiLoopId = setTimeout(loop, 220 + Math.random() * 350);
     })();
   }
-  startConfetti();
+  if (hwConfetti && !hwPaused) startConfetti();
 
   // ── Occasional crimson screen flash ─────────────────────────────────────────
   function hwBloodFlash() {

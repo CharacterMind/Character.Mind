@@ -1,5 +1,16 @@
 [
   {
+    "id": "v341-confetti-toggle-init-fix",
+    "version": "v341",
+    "date": "Oct 2026",
+    "title": "🎃 Confetti Toggle Off Now Works on Page Load",
+    "subtitle": "Halloween elements no longer appear when Confetti is set to Off — even immediately after the page loads.",
+    "fixed": [
+      "Parade and confetti elements no longer spawn on page load when the Confetti toggle is Off",
+      "Turning Confetti Off while elements are on screen now immediately clears all ghosts, bats, and pumpkins"
+    ]
+  },
+  {
     "id": "v340-checkout-price-coin-fix",
     "version": "v340",
     "date": "Oct 2026",
