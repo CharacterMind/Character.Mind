@@ -941,7 +941,7 @@ function saveLimitsToDB(userId) {
 }
 
 const LIMITS = {
-  SESSION_COOLDOWN_MS: 8 * 60 * 60 * 1000,
+  SESSION_COOLDOWN_MS: 2 * 60 * 60 * 1000,
   WEEKLY_MS: 7 * 24 * 60 * 60 * 1000,
   REGEN_FREE: 10, // kept for reference — actual limits use TIER_REGEN_LIMITS below
   CALL_DAILY: 3

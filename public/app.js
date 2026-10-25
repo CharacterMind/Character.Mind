@@ -5611,10 +5611,9 @@ function formatCountdown(ms) {
   const total = Math.max(0, Math.ceil(ms / 1000));
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  if (h > 0) return `${h}h ${m}m ${s}s`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m`;
+  return '< 1m';
 }
 
 function generateUsageHeadline(u) {
@@ -5856,7 +5855,7 @@ function updateUsageModal(u) {
       if (pctEl) pctEl.textContent = '∞';
       if (bar) { bar.style.width = '0%'; bar.className = 'usage-fill-modal green'; }
     } else {
-      if (pctEl) pctEl.textContent = pct + '% used';
+      if (pctEl) pctEl.textContent = pct + '%';
       if (bar) { bar.style.width = pct + '%'; bar.className = 'usage-fill-modal ' + usageFillClass(pct); }
     }
     if (subEl && subText !== undefined) subEl.textContent = subText;
@@ -5867,28 +5866,28 @@ function updateUsageModal(u) {
   const callsLimit = u.callsLimit || 6;
   const callsPct = callsLimit > 0 ? Math.min(100, Math.round(callsToday / callsLimit * 100)) : 0;
   setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct,
-    `${callsToday} of ${callsLimit} used today · Up to ${callsLimit} calls per day · Each call counts toward your session token limit`, false);
+    `Up to ${callsLimit} calls · burns faster with heavier models (e.g. Opys 5) or longer replies`, false);
 
   // Memos
   const memosToday = u.memosToday || 0;
   const memosLimit = u.memosLimit || 50;
   const memosPct = memosLimit > 0 ? Math.min(100, Math.round(memosToday / memosLimit * 100)) : 0;
   setBar('usageMemosBar', 'usageMemosPct', 'usageMemosSub', memosPct,
-    `${memosToday} of ${memosLimit} used today · Up to ${memosLimit} memos per day · Each memo counts toward your session token limit`, false);
+    `Up to ${memosLimit} memos · token cost scales with memo length and model tier`, false);
 
   // Images
   const imagesDay = u.imagesDay || 0;
   const imageLimit = u.imageLimit || 3;
   const imagesPct = imageLimit > 0 ? Math.min(100, Math.round(imagesDay / imageLimit * 100)) : 0;
   setBar('usageImagesBar', 'usageImagesPct', 'usageImagesSub', imagesPct,
-    `${imagesDay} of ${imageLimit} used today · Up to ${imageLimit} image uploads per day · Each image counts toward your session token limit`, false);
+    `Up to ${imageLimit} image uploads · larger or higher-resolution images use more tokens`, false);
 
   // Regenerations
   const regenToday = u.regenCount || 0;
   const regenLimit = u.regenLimit || 10;
   const regenPct = regenLimit > 0 ? Math.min(100, Math.round(regenToday / regenLimit * 100)) : 0;
   setBar('usageRegenBar', 'usageRegenPct', 'usageRegenSub', regenPct,
-    `${regenToday} / ${regenLimit} today (up to ${regenLimit})`, false);
+    `Up to ${regenLimit} regenerations · each regen costs tokens — heavier models and longer replies cost more`, false);
 
   // Daily resets subtitle
   const dailyResetsEl = document.getElementById('usageDailyResetsSub');
