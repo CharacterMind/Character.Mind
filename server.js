@@ -6964,14 +6964,15 @@ app.post('/api/coins/redeem', requireAuth, async (req, res) => {
     const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
     const base = (u.coinTier === tier && (u.coinTierExpires || 0) > now) ? u.coinTierExpires : now;
     const newExpires = base + ONE_MONTH_MS;
-    u.cmCoins -= cost;
+    const r = await db.query(
+      'UPDATE users SET cm_coins = cm_coins - $1, coin_tier = $2, coin_tier_expires = $3 WHERE google_id = $4 AND cm_coins >= $1 RETURNING cm_coins',
+      [cost, tier, newExpires, uid]
+    );
+    if (!r.rowCount) return res.status(400).json({ error: 'Not enough coins', balance: u.cmCoins || 0, cost });
+    u.cmCoins = r.rows[0].cm_coins;
     u.coinTier = tier;
     u.coinTierExpires = newExpires;
     u.subscriptionTier = effectiveTier(u);
-    await db.query(
-      'UPDATE users SET cm_coins=$1, coin_tier=$2, coin_tier_expires=$3 WHERE google_id=$4',
-      [u.cmCoins, tier, newExpires, uid]
-    );
     res.json({ ok: true, balance: u.cmCoins, coinTier: tier, coinTierExpires: newExpires, effectiveTier: u.subscriptionTier });
   } catch (e) { console.error('[coins/redeem]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
 });
@@ -7117,8 +7118,13 @@ app.post('/api/coins/gamble', requireAuth, async (req, res) => {
     else                                   { multiplier = 10; reels = ['💎','💎','💎']; }
 
     const winnings = Math.floor(bet * multiplier);
-    u.cmTokens = (u.cmTokens || 0) - bet + winnings;
-    if (db) await db.query('UPDATE users SET cm_tokens=$1 WHERE google_id=$2', [u.cmTokens, uid]);
+    const delta = winnings - bet; // negative on loss, zero on pair, positive on big win
+    const r = await db.query(
+      'UPDATE users SET cm_tokens = GREATEST(0, cm_tokens + $1) WHERE google_id = $2 AND cm_tokens >= $3 RETURNING cm_tokens',
+      [delta, uid, bet]
+    );
+    if (!r.rowCount) return res.status(400).json({ error: 'Not enough tokens', balance: u.cmTokens || 0 });
+    u.cmTokens = r.rows[0].cm_tokens;
     if (multiplier > 0) trackMissionProgress(uid, 'gamble_win').catch(() => {});
     res.json({ reels, multiplier, win: winnings - bet, newBalance: u.cmTokens, coinBalance: u.cmCoins || 0 });
   } catch (e) { console.error('[coins/gamble]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
@@ -7134,9 +7140,13 @@ app.post('/api/tokens/buy', requireAuth, async (req, res) => {
     const uid = req.user.googleId;
     const u = getLimits(uid);
     if ((u.cmCoins || 0) < amount) return res.status(400).json({ error: 'Not enough coins', coinBalance: u.cmCoins || 0 });
-    u.cmCoins -= amount;
-    u.cmTokens = (u.cmTokens || 0) + amount;
-    await db.query('UPDATE users SET cm_coins=$1, cm_tokens=$2 WHERE google_id=$3', [u.cmCoins, u.cmTokens, uid]);
+    const r = await db.query(
+      'UPDATE users SET cm_coins = cm_coins - $1, cm_tokens = cm_tokens + $1 WHERE google_id = $2 AND cm_coins >= $1 RETURNING cm_coins, cm_tokens',
+      [amount, uid]
+    );
+    if (!r.rowCount) return res.status(400).json({ error: 'Not enough coins', coinBalance: u.cmCoins || 0 });
+    u.cmCoins = r.rows[0].cm_coins;
+    u.cmTokens = r.rows[0].cm_tokens;
     res.json({ ok: true, coinBalance: u.cmCoins, tokenBalance: u.cmTokens });
   } catch (e) { console.error('[tokens/buy]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
 });
@@ -7155,9 +7165,13 @@ app.post('/api/tokens/sell', requireAuth, async (req, res) => {
     if (actualAmount < TOKEN_SELL_RATE) return res.status(400).json({ error: `Need at least ${TOKEN_SELL_RATE} tokens to sell`, tokenBalance: u.cmTokens || 0 });
     const coinsEarned = Math.floor(actualAmount / TOKEN_SELL_RATE);
     const tokensSpent = coinsEarned * TOKEN_SELL_RATE;
-    u.cmTokens = (u.cmTokens || 0) - tokensSpent;
-    u.cmCoins = (u.cmCoins || 0) + coinsEarned;
-    await db.query('UPDATE users SET cm_coins=$1, cm_tokens=$2 WHERE google_id=$3', [u.cmCoins, u.cmTokens, uid]);
+    const r = await db.query(
+      'UPDATE users SET cm_tokens = cm_tokens - $1, cm_coins = cm_coins + $2 WHERE google_id = $3 AND cm_tokens >= $1 RETURNING cm_tokens, cm_coins',
+      [tokensSpent, coinsEarned, uid]
+    );
+    if (!r.rowCount) return res.status(400).json({ error: 'Not enough tokens', tokenBalance: u.cmTokens || 0 });
+    u.cmTokens = r.rows[0].cm_tokens;
+    u.cmCoins = r.rows[0].cm_coins;
     res.json({ ok: true, coinsEarned, tokensSpent, coinBalance: u.cmCoins, tokenBalance: u.cmTokens });
   } catch (e) { console.error('[tokens/sell]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
 });

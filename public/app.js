@@ -10278,14 +10278,15 @@ async function claimHalloweenGift() {
 
   // ── Occasional crimson screen flash ─────────────────────────────────────────
   function hwBloodFlash() {
-    if (hwPaused) return;
-    const el = document.createElement('div');
-    el.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9998;background:rgba(120,0,0,0.22);opacity:1;transition:opacity 0.8s ease-out;';
-    document.body.appendChild(el);
-    requestAnimationFrame(() => {
-      el.style.opacity = '0';
-      setTimeout(() => el.remove(), 900);
-    });
+    if (!hwPaused) {
+      const el = document.createElement('div');
+      el.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9998;background:rgba(120,0,0,0.22);opacity:1;transition:opacity 0.8s ease-out;';
+      document.body.appendChild(el);
+      requestAnimationFrame(() => {
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 900);
+      });
+    }
     setTimeout(hwBloodFlash, (8 + Math.random() * 12) * 60 * 1000);
   }
   setTimeout(hwBloodFlash, (3 + Math.random() * 4) * 60 * 1000);
