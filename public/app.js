@@ -10728,8 +10728,14 @@ async function claimHalloweenGift() {
     return eyes;
   }
 
+  let _scareTimer = null;
+
   function doJumpScare() {
+    _scareTimer = null;
     if (hwPaused || !hwScares) return scheduleNextScare();
+    // Tab is hidden (user switched away, minimized, etc.) — don't scare into the void;
+    // reschedule so the scare fires only when they're actually looking at the page.
+    if (document.hidden) return scheduleNextScare();
     const s = SCARES[Math.floor(Math.random() * SCARES.length)];
 
     // Sound fires INSTANTLY
@@ -10792,15 +10798,16 @@ async function claimHalloweenGift() {
     scheduleNextScare();
   }
   function scheduleNextScare() {
+    if (_scareTimer) clearTimeout(_scareTimer);
     // freq 0 = very rare (15-25 min), freq 50 = normal (5-10 min), freq 100 = frequent (0.5-2 min)
     const minMs = Math.round((15 - hwFreq * 0.145) * 60 * 1000); // 15min → ~0.5min
     const maxMs = Math.round((25 - hwFreq * 0.23)  * 60 * 1000); // 25min → ~2min
     const delay = Math.max(30 * 1000, minMs + Math.random() * Math.max(0, maxMs - minMs));
-    setTimeout(doJumpScare, delay);
+    _scareTimer = setTimeout(doJumpScare, delay);
   }
   // First scare: scales with frequency (freq 0 = 4-8min, freq 100 = 10-30s)
   const _firstMin = Math.round((4 - hwFreq * 0.037) * 60 * 1000);
-  setTimeout(doJumpScare, Math.max(10 * 1000, _firstMin + Math.random() * _firstMin));
+  _scareTimer = setTimeout(doJumpScare, Math.max(10 * 1000, _firstMin + Math.random() * _firstMin));
 
   // ── One-time welcome toast ──────────────────────────────────────────────────
   if (!sessionStorage.getItem('hw_toast_shown')) {

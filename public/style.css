@@ -3746,7 +3746,10 @@ body.hw-screaming::after {
 /* Inner container slams in from nothing */
 .hw-js-inner {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  width: 100%; padding: 0 12px; box-sizing: border-box;
+  width: 100%; padding: 0 10px 6px; box-sizing: border-box;
+  /* Hard ceiling so the inner stack never overflows the viewport on any device */
+  max-height: 100vh; max-height: 100svh;
+  overflow: hidden;
   animation: hwScareSlam 0.13s cubic-bezier(0.05, 1.8, 0.4, 0.85) both;
 }
 @keyframes hwScareSlam {
@@ -3758,15 +3761,19 @@ body.hw-screaming::after {
 
 /* Demon face — auto-fits any screen size (phone, tablet, desktop, landscape) */
 .hw-js-face {
-  /* aspect-ratio matches SVG viewBox 300 × 330 */
   aspect-ratio: 300 / 330;
-  /* Fill as wide as 88vw, but shrink if height would push boo text off screen */
-  width: 100%; max-width: 88vw;
-  /* Cap height so boo text always has room — svh accounts for mobile browser chrome */
-  max-height: calc(100vh - 8rem);   /* fallback for older browsers */
-  max-height: calc(100svh - 8rem);  /* small viewport height: conservative, always fits */
+  /*
+   * min() picks whichever is smaller:
+   *   88vw  = portrait/desktop constraint (width-bounded)
+   *   calc(74svh * 300/330) = landscape/short-screen constraint (height-bounded):
+   *     derives face width from 74% of svh × the aspect ratio, leaving 26% for boo text + gap.
+   * svh = small viewport height — conservative, already accounts for mobile browser chrome.
+   * Fallback (no svh): calc(74vh * 300/330) via the first declaration.
+   */
+  width: min(88vw, calc(74vh  * 300 / 330));   /* fallback */
+  width: min(88vw, calc(74svh * 300 / 330));   /* svh: mobile-chrome-aware */
+  flex-shrink: 1; min-width: 0; min-height: 0;
   display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
   filter:
     drop-shadow(0 0 40px rgba(255,0,0,1))
     drop-shadow(0 0 80px rgba(200,0,0,0.7))
