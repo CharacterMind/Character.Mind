@@ -5903,7 +5903,7 @@ function updateUsageModal(u) {
     const _hwStart = new Date('2026-10-01T00:00:00Z').getTime();
     const _hwEnd   = new Date('2026-11-01T00:00:00Z').getTime();
     const _hwActive = _now >= _hwStart && _now < _hwEnd;
-    hwGiftUsageRow.style.display = (_hwActive && !(currentUser && currentUser.halloweenGift2026)) ? '' : 'none';
+    hwGiftUsageRow.style.display = (_hwActive && currentUser) ? '' : 'none';
   }
 
   // Game cooldown bar — fills green when ready, drains to orange/yellow while waiting
@@ -6243,7 +6243,8 @@ function _showHwGiftRow() {
   if (!row) return;
   const now = Date.now();
   const active = now >= new Date('2026-10-01T00:00:00Z').getTime() && now < new Date('2026-11-01T00:00:00Z').getTime();
-  row.style.display = (active && !(currentUser && currentUser.halloweenGift2026)) ? '' : 'none';
+  // Show to all logged-in users during October — server handles the limits reset for everyone
+  row.style.display = (active && currentUser) ? '' : 'none';
 }
 
 async function openUsageModal() {
@@ -10156,9 +10157,13 @@ async function claimHalloweenGift() {
       const hwUsageRow = document.getElementById('hwGiftUsageRow');
       if (hwUsageRow) {
         const txt = hwUsageRow.querySelector('span');
-        if (txt) txt.textContent = '🎃 Done! Limits reset. Enjoy Halloween!';
-        const claimBtn = hwUsageRow.querySelector('button');
-        if (claimBtn) claimBtn.style.display = 'none';
+        if (txt) txt.textContent = '🎃 Done! All limits reset — Enjoy Halloween!';
+        const usageBtn = document.getElementById('hwGiftUsageBtn');
+        if (usageBtn) { usageBtn.textContent = '✓'; usageBtn.style.background = '#16a34a'; }
+        setTimeout(() => {
+          if (txt) txt.innerHTML = '🎃 <strong>Halloween Gift</strong> — reset all limits free';
+          if (usageBtn) { usageBtn.textContent = '🎁 Claim'; usageBtn.style.background = ''; usageBtn.disabled = false; }
+        }, 3000);
       }
       await loadUsage();
       if (lastKnownUsage) updateUsageModal(lastKnownUsage);

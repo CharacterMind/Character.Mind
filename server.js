@@ -6669,14 +6669,15 @@ app.post('/api/halloween/claim', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Halloween gift is not available right now.' });
   const uid = req.user.googleId;
   const u = getLimits(uid);
-  // Fast in-memory check (avoids a DB round-trip when clearly already claimed)
-  if (u.halloweenGift2026) return res.status(400).json({ error: 'Already claimed!' });
+  const alreadyClaimed = !!u.halloweenGift2026;
+  // Always reset limits during Halloween — coins only awarded on first claim
   if (!db) {
-    // No DB — in-memory fallback (still guards against double-claim within this server lifetime)
-    u.halloweenGift2026 = true;
-    u.cmCoins  = (u.cmCoins  || 0) + HALLOWEEN_GIFT_COINS;
-    u.cmTokens = (u.cmTokens || 0) + HALLOWEEN_GIFT_TOKENS;
-    u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + HALLOWEEN_GIFT_COINS;
+    if (!alreadyClaimed) {
+      u.halloweenGift2026 = true;
+      u.cmCoins  = (u.cmCoins  || 0) + HALLOWEEN_GIFT_COINS;
+      u.cmTokens = (u.cmTokens || 0) + HALLOWEEN_GIFT_TOKENS;
+      u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + HALLOWEEN_GIFT_COINS;
+    }
     u.sessionTokens = 0; u.sessionStartedAt = null; u.cooldownUntil = null;
     u.weeklyTokens = 0; u.weeklyStart = null; u.warned = {};
     u.callsToday = 0; u.callDayStart = null;
@@ -6684,23 +6685,21 @@ app.post('/api/halloween/claim', requireAuth, async (req, res) => {
     u.imagesDay = 0; u.imageDayStart = null; u.imageFirstUsedAt = null;
     return res.json({ ok: true, reset: true, coins: u.cmCoins, tokens: u.cmTokens });
   }
-  // Atomic: only awards if halloween_gift_2026 is still FALSE in the DB — survives server restarts
-  const claimResult = await db.query(
-    `UPDATE users
-       SET halloween_gift_2026 = TRUE,
-           cm_coins = cm_coins + $1,
-           cm_tokens = cm_tokens + $2,
-           coins_earned_all_time = COALESCE(coins_earned_all_time, 0) + $1
-     WHERE google_id = $3 AND halloween_gift_2026 = FALSE`,
-    [HALLOWEEN_GIFT_COINS, HALLOWEEN_GIFT_TOKENS, uid]
-  ).catch(e => { console.error('[halloween-claim]', e.message); return { rowCount: 0 }; });
-  if (!claimResult.rowCount) {
-    u.halloweenGift2026 = true; // sync memory so fast-path blocks future attempts
-    return res.status(400).json({ error: 'Already claimed!' });
+  if (!alreadyClaimed) {
+    // First claim: mark as claimed and award coins
+    await db.query(
+      `UPDATE users
+         SET halloween_gift_2026 = TRUE,
+             cm_coins = cm_coins + $1,
+             cm_tokens = cm_tokens + $2,
+             coins_earned_all_time = COALESCE(coins_earned_all_time, 0) + $1
+       WHERE google_id = $3 AND halloween_gift_2026 = FALSE`,
+      [HALLOWEEN_GIFT_COINS, HALLOWEEN_GIFT_TOKENS, uid]
+    ).catch(e => console.error('[halloween-claim]', e.message));
+    u.halloweenGift2026 = true;
+    u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + HALLOWEEN_GIFT_COINS;
   }
-  u.halloweenGift2026 = true;
-  u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + HALLOWEEN_GIFT_COINS;
-  // Full limits reset — wipe session, weekly, daily calls/memos/images
+  // Always reset limits regardless of prior claim
   u.sessionTokens = 0; u.sessionStartedAt = null; u.cooldownUntil = null;
   u.weeklyTokens = 0; u.weeklyStart = null; u.warned = {};
   u.callsToday = 0; u.callDayStart = null;
@@ -6708,8 +6707,8 @@ app.post('/api/halloween/claim', requireAuth, async (req, res) => {
   u.imagesDay = 0; u.imageDayStart = null; u.imageFirstUsedAt = null;
   saveLimitsToDB(uid);
   const r = await db.query('SELECT cm_coins, cm_tokens FROM users WHERE google_id=$1', [uid]).catch(() => null);
-  u.cmCoins  = r?.rows[0]?.cm_coins  ?? (u.cmCoins  + HALLOWEEN_GIFT_COINS);
-  u.cmTokens = r?.rows[0]?.cm_tokens ?? (u.cmTokens + HALLOWEEN_GIFT_TOKENS);
+  u.cmCoins  = r?.rows[0]?.cm_coins  ?? u.cmCoins;
+  u.cmTokens = r?.rows[0]?.cm_tokens ?? u.cmTokens;
   return res.json({ ok: true, reset: true, coins: u.cmCoins, tokens: u.cmTokens });
 });
 
