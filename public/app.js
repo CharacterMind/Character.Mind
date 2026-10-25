@@ -5866,7 +5866,7 @@ function updateUsageModal(u) {
   const callsLimit = u.callsLimit || 6;
   const callsPct = callsLimit > 0 ? Math.min(100, Math.round(callsToday / callsLimit * 100)) : 0;
   setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct,
-    `Up to ${callsLimit} calls · burns faster with heavier models (e.g. Opys 5) or longer replies`, false);
+    `Up to ${callsLimit} voice calls · each call counts as 1 regardless of length`, false);
 
   // Memos
   const memosToday = u.memosToday || 0;

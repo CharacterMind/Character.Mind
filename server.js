@@ -3595,10 +3595,7 @@ app.get('/api/exchange-rates', charReadLimiter, async (req, res) => {
 
 app.post('/api/call/start', requireAuth, (req, res) => {
   const userId = req.user.googleId;
-  const sessionCheck = checkLimits(userId);
-  if (sessionCheck.blocked) {
-    return res.status(429).json({ allowed: false, type: sessionCheck.type, cooldownUntil: sessionCheck.cooldownUntil });
-  }
+  // Voice calls have their own daily count limit; they don't share the session token pool with chat.
   const u = getLimits(userId);
   const callLimit = getCallLimitForUser(userId);
   if ((u.callsToday || 0) >= callLimit) {
@@ -3620,12 +3617,12 @@ app.post('/api/call/end', requireAuth, (req, res) => {
     saveLimitsToDB(userId);
     return res.json({ ok: true, refunded: true });
   }
-  const callTokenCost = Math.max(CALL_TOKEN_MIN, Math.min(CALL_TOKEN_MAX, Math.ceil(duration * CALL_TOKENS_PER_SECOND)));
-  const usage = addTokens(userId, callTokenCost);
+  // Voice calls do NOT consume session tokens — they are limited by the daily call count instead.
   // Deduct user coins for call duration (variable — 1 coin per minute)
   const durOpts = { durationSecs: duration };
   if (!getLimits(userId).skipCoinDeduct) deductCoinsSync(userId, calcCost('user', 'call_duration', durOpts));
   trackMissionProgress(userId, 'call').catch(() => {});
+  const usage = { warnings: [], ...buildUsagePayload(getLimits(userId), userId) };
   res.json({ ok: true, ...usage });
 });
 

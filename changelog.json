@@ -1,5 +1,17 @@
 [
   {
+    "id": "v342-calls-no-longer-eat-session-tokens",
+    "version": "v342",
+    "date": "Oct 2026",
+    "title": "📞 Voice Calls No Longer Eat Your Session Budget",
+    "subtitle": "Voice calls now have their own daily limit only — making calls won't drain the session bar used for chat.",
+    "fixed": [
+      "Voice calls no longer consume session tokens, so chatting and calling use separate independent limits",
+      "The session-limit block was removed from call start — you can now make all 18 daily calls even after heavy chatting",
+      "Corrected the misleading 'burns faster with heavier models' tooltip on the Calls usage bar"
+    ]
+  },
+  {
     "id": "v341-confetti-toggle-init-fix",
     "version": "v341",
     "date": "Oct 2026",
