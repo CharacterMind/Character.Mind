@@ -10511,7 +10511,8 @@ async function claimHalloweenGift() {
 
 // ── Halloween Theme (October 1-31) ────────────────────────────────────────────
 (function initHalloween() {
-  if (new Date().getMonth() !== 9) return;
+  return; // disabled — re-adding features one at a time
+  if (new Date().getMonth() !== 9) return; // eslint-disable-line no-unreachable
   document.body.classList.add('halloween');
 
   // Update annual toggle label to reflect combined savings during Halloween sale
