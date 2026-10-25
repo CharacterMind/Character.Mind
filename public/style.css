@@ -2920,6 +2920,10 @@ html, body {
   font-size: 11px; background: rgba(34,197,94,.18); color: #4ade80;
   padding: 2px 7px; border-radius: 10px; font-weight: 600;
 }
+.pt-soon-note {
+  display: block; font-size: 10px; color: var(--text3); font-weight: 400;
+  margin-top: 2px; letter-spacing: 0;
+}
 .pricing-cards {
   display: grid; grid-template-columns: repeat(4,1fr); gap: 14px;
 }
@@ -3374,8 +3378,7 @@ html, body {
 
 .chat-loading { text-align: center; padding: 40px 0; font-size: 13px; color: var(--text3); }
 
-/* The Monthly/Annual toggle shows only when yearly PayPal plans are set up on the server (body gets the yearly-on class) */
-body:not(.yearly-on) .pricing-toggle { display: none; }
+/* Annual toggle always visible; checkout falls back to monthly when yearly plan IDs not configured */
 
 /* History panel: "13 days ago" as the heading, with a snippet of the last message (like Character.AI) */
 .past-chat-date { font-size: 15px; font-weight: 600; color: var(--text1, var(--text)); }
@@ -3671,22 +3674,107 @@ body:not(.yearly-on) .pricing-toggle { display: none; }
 .halloween-web.web-left  { left: 0; }
 .halloween-web.web-right { right: 0; transform: scaleX(-1); transform-origin: right top; }
 
-/* ── Jump scare ── */
+/* ── Screen shake when jump scare fires ── */
+@keyframes hwBodyShake {
+  0%   { transform: translate(0,0) rotate(0deg); }
+  5%   { transform: translate(-14px,-8px) rotate(-1.2deg); }
+  10%  { transform: translate(16px,10px) rotate(1.5deg); }
+  15%  { transform: translate(-18px,6px) rotate(-2deg); }
+  20%  { transform: translate(12px,-14px) rotate(1deg); }
+  25%  { transform: translate(-10px,12px) rotate(-1.5deg); }
+  30%  { transform: translate(18px,-8px) rotate(2deg); }
+  35%  { transform: translate(-16px,10px) rotate(-1deg); }
+  40%  { transform: translate(10px,-12px) rotate(1.2deg); }
+  50%  { transform: translate(-8px,8px) rotate(-0.8deg); }
+  60%  { transform: translate(6px,-6px) rotate(0.5deg); }
+  75%  { transform: translate(-4px,4px) rotate(-0.3deg); }
+  100% { transform: translate(0,0) rotate(0deg); }
+}
+body.hw-screaming {
+  animation: hwBodyShake 0.55s ease-out both;
+  filter: saturate(2.5) hue-rotate(-15deg) brightness(1.1);
+  transition: filter 0.05s;
+}
+body.hw-screaming::after {
+  content: '';
+  position: fixed; inset: 0; z-index: 99990; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(140,0,0,0.55) 100%);
+  mix-blend-mode: multiply;
+}
+
+/* ── Static/glitch overlay ── */
+.hw-glitch-overlay {
+  position: fixed; inset: 0; z-index: 99991; pointer-events: none;
+  opacity: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255,0,0,0.06) 2px,
+    rgba(255,0,0,0.06) 4px
+  );
+  background-size: 100% 4px;
+  mix-blend-mode: screen;
+}
+
+/* ── Floating eyes on edges ── */
+.hw-scare-eye {
+  position: fixed; font-size: 44px; z-index: 99992; pointer-events: none;
+  animation: hwEyeAppear 0.12s ease-out both;
+  filter: drop-shadow(0 0 12px rgba(255,60,0,0.9)) drop-shadow(0 0 3px #fff);
+  transition: opacity 0.4s ease-in;
+}
+@keyframes hwEyeAppear {
+  from { transform: scale(0) rotate(-30deg); opacity: 0; }
+  to   { transform: scale(1) rotate(0deg);   opacity: 1; }
+}
+
+/* ── Jump scare overlay ── */
 .hw-jump-scare {
   position: fixed; inset: 0; z-index: 99999;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: rgba(60,0,0,0.55); backdrop-filter: blur(2px);
+  background: radial-gradient(ellipse at 50% 40%, rgba(100,0,0,0.75) 0%, rgba(0,0,0,0.92) 100%);
+  backdrop-filter: blur(1px) saturate(2);
   pointer-events: none;
-  opacity: 0; transform: scale(1.12);
-  transition: opacity 0.07s ease-out, transform 0.07s ease-out;
+  opacity: 0;
+  transform: scale(1.3) var(--hw-js-corner, translate(0,0));
+  transition: opacity 0.06s ease-out, transform 0.06s cubic-bezier(0.22,1,0.36,1);
 }
-.hw-jump-scare[style*="opacity: 1"] { transition: opacity 0.07s, transform 0.07s; }
-.hw-jump-scare[style*="opacity: 0"] { transition: opacity 0.5s ease-in; }
-.hw-js-emoji { font-size: min(52vw, 52vh); line-height: 1; filter: drop-shadow(0 0 40px rgba(255,100,0,0.8)); }
+.hw-jump-scare[style*="opacity: 1"] {
+  transition: opacity 0.06s, transform 0.1s cubic-bezier(0.22,1,0.36,1);
+}
+.hw-jump-scare[style*="opacity: 0"] {
+  transition: opacity 0.45s ease-in, transform 0.45s ease-in;
+}
+.hw-js-emoji {
+  font-size: min(68vw, 68vh);
+  line-height: 1;
+  filter: drop-shadow(0 0 60px rgba(255,60,0,1)) drop-shadow(0 0 120px rgba(200,0,0,0.6));
+  animation: hwEmojiPulse 0.18s ease-out both;
+}
+@keyframes hwEmojiPulse {
+  0%   { transform: scale(0.4) rotate(-8deg); }
+  60%  { transform: scale(1.08) rotate(3deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
 .hw-js-boo {
-  font-size: clamp(28px, 6vw, 72px); font-weight: 900; letter-spacing: .1em;
-  color: #ff4400; text-shadow: 0 0 30px rgba(255,68,0,0.9), 0 0 60px rgba(255,68,0,0.5);
-  margin-top: 0.3em;
+  font-size: clamp(36px, 8vw, 96px);
+  font-weight: 900;
+  letter-spacing: .12em;
+  color: #fff;
+  text-shadow:
+    0 0 0 #ff0000,
+    0 0 20px #ff2200,
+    0 0 40px rgba(255,34,0,0.9),
+    0 0 80px rgba(255,0,0,0.6),
+    0 4px 0 #800000;
+  margin-top: 0.2em;
+  animation: hwBooSlam 0.12s ease-out both;
+}
+@keyframes hwBooSlam {
+  0%   { transform: scaleX(2.5) scaleY(0.3); opacity: 0; }
+  70%  { transform: scaleX(0.95) scaleY(1.05); }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 /* ── Motion toggle button ── */

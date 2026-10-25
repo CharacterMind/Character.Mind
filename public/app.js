@@ -411,15 +411,26 @@ function closePricingModal() {
   if (m) m.style.display = 'none';
 }
 function setPricingPeriod(period) {
-  // Yearly prices are only shown when yearly PayPal plans really exist (otherwise the person would be charged the monthly price).
-  if (!yearlyAvailable) period = 'monthly';
   pricingPeriod = period;
   document.getElementById('pricingBtnMonthly')?.classList.toggle('pt-active', period === 'monthly');
   document.getElementById('pricingBtnAnnual')?.classList.toggle('pt-active', period === 'annual');
+  // Show "coming soon" note on annual toggle when yearly PayPal plans aren't live yet
+  const annualBtn = document.getElementById('pricingBtnAnnual');
+  if (annualBtn) {
+    const note = annualBtn.querySelector('.pt-soon-note');
+    if (!yearlyAvailable && period === 'annual') {
+      if (!note) {
+        const n = document.createElement('span');
+        n.className = 'pt-soon-note';
+        n.textContent = '(checkout at monthly rate for now)';
+        annualBtn.appendChild(n);
+      }
+    } else if (note) note.remove();
+  }
   renderPricingCards();
 }
 
-const ACTIVE_PLANS = ['advanced', 'x20'];
+const ACTIVE_PLANS = ['advanced', 'x20', 'x50'];
 
 // Update this URL to your Ko-fi / Buy Me a Coffee / PayPal.me donation link
 const DONATION_URL = 'https://ko-fi.com/charactermind';
@@ -10094,140 +10105,225 @@ function launchTicTacToe(savedState) {
 
   // ── Jump scares ─────────────────────────────────────────────────────────────
   const SCARES = [
-    { emoji: '👻', boo: 'BOO!',               speak: 'BOO' },
-    { emoji: '💀', boo: 'YOU\'RE DEAD.',       speak: 'You are dead' },
-    { emoji: '🎃', boo: 'MUAHAHAHA!',          speak: 'Muahahaha' },
-    { emoji: '🧟', boo: 'BRAINSSS...',         speak: 'Braaains' },
-    { emoji: '🧛', boo: 'I VANT YOUR SOUL.',   speak: 'I vant your soul' },
-    { emoji: '🕷️', boo: 'EIGHT LEGS. ONE YOU.', speak: 'Eight legs. One you.' },
-    { emoji: '👁️', boo: 'I SEE YOU.',          speak: 'I see you' },
-    { emoji: '😈', boo: 'WELCOME TO HELL.',    speak: 'Welcome to hell' },
-    { emoji: '⚰️', boo: 'YOUR TIME IS UP.',    speak: 'Your time is up' },
-    { emoji: '🩸', boo: 'RUN.',                speak: 'Run' },
+    { emoji: '👻', boo: 'BOO!',                  speak: 'BOO' },
+    { emoji: '💀', boo: 'YOU\'RE DEAD.',          speak: 'You are dead' },
+    { emoji: '🎃', boo: 'MUAHAHAHA!',             speak: 'Muahahaha' },
+    { emoji: '🧟', boo: 'BRAINSSS...',            speak: 'Braaains' },
+    { emoji: '🧛', boo: 'I VANT YOUR SOUL.',      speak: 'I vant your soul' },
+    { emoji: '🕷️', boo: 'EIGHT LEGS. ONE YOU.',   speak: 'Eight legs. One you.' },
+    { emoji: '👁️', boo: 'I SEE YOU.',             speak: 'I see you' },
+    { emoji: '😈', boo: 'WELCOME TO HELL.',       speak: 'Welcome to hell' },
+    { emoji: '⚰️', boo: 'YOUR TIME IS UP.',       speak: 'Your time is up' },
+    { emoji: '🩸', boo: 'RUN.',                   speak: 'Run' },
+    { emoji: '🗡️', boo: 'NO ESCAPE.',             speak: 'No escape' },
+    { emoji: '🌑', boo: 'THE DARK HAS COME.',     speak: 'The dark has come' },
   ];
 
-  // Extremely terrifying synthesized sound: sub-bass impact + resonant shriek + distorted growl + noise
+  // ── ABSURDLY terrifying sound: 7 simultaneous horror layers ──────────────────
   function hwScareSound() {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const t = ctx.currentTime;
+      const master = ctx.createGain();
+      master.gain.value = 1.0;
+      master.connect(ctx.destination);
 
-      // ── Sub-bass BOOM ──
+      // 1. Sub-bass CANNON — physical speaker impact
       const sub = ctx.createOscillator();
       const subG = ctx.createGain();
       sub.type = 'sine';
-      sub.frequency.setValueAtTime(80, t);
-      sub.frequency.exponentialRampToValueAtTime(18, t + 0.6);
+      sub.frequency.setValueAtTime(60, t);
+      sub.frequency.exponentialRampToValueAtTime(14, t + 0.7);
       subG.gain.setValueAtTime(0, t);
-      subG.gain.linearRampToValueAtTime(1.2, t + 0.02);
-      subG.gain.exponentialRampToValueAtTime(0.001, t + 0.65);
-      sub.connect(subG); subG.connect(ctx.destination);
-      sub.start(t); sub.stop(t + 0.7);
+      subG.gain.linearRampToValueAtTime(1.4, t + 0.015);
+      subG.gain.exponentialRampToValueAtTime(0.001, t + 0.75);
+      sub.connect(subG); subG.connect(master);
+      sub.start(t); sub.stop(t + 0.8);
 
-      // ── Distorted sawtooth growl ──
-      const saw = ctx.createOscillator();
-      const sawDist = ctx.createWaveShaper();
-      const sawG = ctx.createGain();
-      const sawCurve = new Float32Array(512);
-      for (let i = 0; i < 512; i++) { const x = (i * 2) / 512 - 1; sawCurve[i] = Math.tanh(x * 8); }
-      sawDist.curve = sawCurve; sawDist.oversample = '4x';
-      saw.type = 'sawtooth';
-      saw.frequency.setValueAtTime(55, t);
-      saw.frequency.setValueAtTime(110, t + 0.08);
-      saw.frequency.linearRampToValueAtTime(40, t + 0.5);
-      sawG.gain.setValueAtTime(0.7, t);
-      sawG.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
-      saw.connect(sawDist); sawDist.connect(sawG); sawG.connect(ctx.destination);
-      saw.start(t); saw.stop(t + 0.6);
+      // 2. Second boom 90ms later — double-impact punch
+      const sub2 = ctx.createOscillator();
+      const sub2G = ctx.createGain();
+      sub2.type = 'sine';
+      sub2.frequency.setValueAtTime(45, t + 0.09);
+      sub2.frequency.exponentialRampToValueAtTime(10, t + 0.55);
+      sub2G.gain.setValueAtTime(0, t + 0.09);
+      sub2G.gain.linearRampToValueAtTime(0.9, t + 0.105);
+      sub2G.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+      sub2.connect(sub2G); sub2G.connect(master);
+      sub2.start(t + 0.09); sub2.stop(t + 0.65);
 
-      // ── Piercing banshee shriek (freq glide 3000→200) ──
-      const shriek = ctx.createOscillator();
-      const shriekFilter = ctx.createBiquadFilter();
-      const shriekG = ctx.createGain();
-      shriek.type = 'sawtooth';
-      shriek.frequency.setValueAtTime(3200, t + 0.04);
-      shriek.frequency.exponentialRampToValueAtTime(180, t + 0.5);
-      shriekFilter.type = 'bandpass';
-      shriekFilter.frequency.setValueAtTime(2400, t + 0.04);
-      shriekFilter.frequency.exponentialRampToValueAtTime(200, t + 0.5);
-      shriekFilter.Q.value = 4;
-      shriekG.gain.setValueAtTime(0, t);
-      shriekG.gain.linearRampToValueAtTime(0.9, t + 0.06);
-      shriekG.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
-      shriek.connect(shriekFilter); shriekFilter.connect(shriekG); shriekG.connect(ctx.destination);
-      shriek.start(t + 0.04); shriek.stop(t + 0.6);
+      // 3. Brutal distorted demon growl
+      const growl = ctx.createOscillator();
+      const growlDist = ctx.createWaveShaper();
+      const growlG = ctx.createGain();
+      const gc = new Float32Array(1024);
+      for (let i = 0; i < 1024; i++) { const x = (i * 2) / 1024 - 1; gc[i] = Math.sign(x) * (1 - Math.exp(-Math.abs(x) * 14)); }
+      growlDist.curve = gc; growlDist.oversample = '4x';
+      growl.type = 'sawtooth';
+      growl.frequency.setValueAtTime(42, t);
+      growl.frequency.setValueAtTime(85, t + 0.06);
+      growl.frequency.exponentialRampToValueAtTime(28, t + 0.7);
+      growlG.gain.setValueAtTime(0.9, t);
+      growlG.gain.exponentialRampToValueAtTime(0.001, t + 0.75);
+      growl.connect(growlDist); growlDist.connect(growlG); growlG.connect(master);
+      growl.start(t); growl.stop(t + 0.8);
 
-      // ── Long haunting undertone (eerie whale-like moan) ──
-      const moan = ctx.createOscillator();
-      const moanG = ctx.createGain();
-      moan.type = 'sine';
-      moan.frequency.setValueAtTime(140, t + 0.1);
-      moan.frequency.linearRampToValueAtTime(90, t + 1.8);
-      moanG.gain.setValueAtTime(0, t + 0.1);
-      moanG.gain.linearRampToValueAtTime(0.35, t + 0.25);
-      moanG.gain.setValueAtTime(0.35, t + 1.2);
-      moanG.gain.exponentialRampToValueAtTime(0.001, t + 1.9);
-      moan.connect(moanG); moanG.connect(ctx.destination);
-      moan.start(t + 0.1); moan.stop(t + 2.0);
+      // 4. Banshee scream — triple-pitch layered shriek
+      [3400, 2200, 1600].forEach((startHz, i) => {
+        const sc = ctx.createOscillator();
+        const sf = ctx.createBiquadFilter();
+        const sg = ctx.createGain();
+        const delay = i * 0.025;
+        sc.type = i === 0 ? 'sawtooth' : 'square';
+        sc.frequency.setValueAtTime(startHz, t + delay);
+        sc.frequency.exponentialRampToValueAtTime(80 + i * 30, t + delay + 0.55);
+        sf.type = 'bandpass'; sf.frequency.value = startHz * 0.6; sf.Q.value = 5;
+        sg.gain.setValueAtTime(0, t + delay);
+        sg.gain.linearRampToValueAtTime(0.65 - i * 0.1, t + delay + 0.04);
+        sg.gain.exponentialRampToValueAtTime(0.001, t + delay + 0.6);
+        sc.connect(sf); sf.connect(sg); sg.connect(master);
+        sc.start(t + delay); sc.stop(t + delay + 0.65);
+      });
 
-      // ── Noise burst (white → filtered dark) ──
+      // 5. Ring-modulated alien/demon texture
+      const carrier = ctx.createOscillator();
+      const modulator = ctx.createOscillator();
+      const ringGain = ctx.createGain();
+      const ringOut = ctx.createGain();
+      carrier.type = 'sawtooth'; carrier.frequency.setValueAtTime(220, t); carrier.frequency.linearRampToValueAtTime(55, t + 1.2);
+      modulator.type = 'sine'; modulator.frequency.setValueAtTime(37, t); modulator.frequency.linearRampToValueAtTime(19, t + 1.2);
+      ringGain.gain.value = 0; // modulator controls gain of carrier
+      modulator.connect(ringGain.gain);
+      carrier.connect(ringGain);
+      ringOut.gain.setValueAtTime(0, t); ringOut.gain.linearRampToValueAtTime(0.45, t + 0.12); ringOut.gain.exponentialRampToValueAtTime(0.001, t + 1.25);
+      ringGain.connect(ringOut); ringOut.connect(master);
+      carrier.start(t); carrier.stop(t + 1.3);
+      modulator.start(t); modulator.stop(t + 1.3);
+
+      // 6. Demonic choir — three detuned sine tones
+      [65, 87, 52].forEach((hz, i) => {
+        const ch = ctx.createOscillator();
+        const chG = ctx.createGain();
+        ch.type = 'sine'; ch.frequency.setValueAtTime(hz, t + 0.15); ch.frequency.linearRampToValueAtTime(hz * 0.7, t + 2.2);
+        chG.gain.setValueAtTime(0, t + 0.15); chG.gain.linearRampToValueAtTime(0.28, t + 0.4); chG.gain.exponentialRampToValueAtTime(0.001, t + 2.3);
+        ch.connect(chG); chG.connect(master);
+        ch.start(t + 0.15); ch.stop(t + 2.4);
+      });
+
+      // 7. Backward-ramp noise scrape (rising chaos)
       const sr = ctx.sampleRate;
-      const noiseBuf = ctx.createBuffer(1, sr * 0.4, sr);
-      const nd = noiseBuf.getChannelData(0);
-      for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
-      const noiseSrc = ctx.createBufferSource();
-      const noiseFilter = ctx.createBiquadFilter();
-      const noiseG = ctx.createGain();
-      noiseSrc.buffer = noiseBuf;
-      noiseFilter.type = 'lowpass'; noiseFilter.frequency.value = 800;
-      noiseG.gain.setValueAtTime(0.55, t);
-      noiseG.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-      noiseSrc.connect(noiseFilter); noiseFilter.connect(noiseG); noiseG.connect(ctx.destination);
-      noiseSrc.start(t); noiseSrc.stop(t + 0.4);
+      const nLen = Math.floor(sr * 0.5);
+      const nBuf = ctx.createBuffer(1, nLen, sr);
+      const nd = nBuf.getChannelData(0);
+      for (let i = 0; i < nLen; i++) {
+        const env = i / nLen; // rises from silence — sounds like "something coming"
+        nd[i] = (Math.random() * 2 - 1) * env * 0.7;
+      }
+      const nSrc = ctx.createBufferSource();
+      const nFilt = ctx.createBiquadFilter();
+      const nG = ctx.createGain();
+      nSrc.buffer = nBuf;
+      nFilt.type = 'bandpass'; nFilt.frequency.value = 1200; nFilt.Q.value = 2;
+      nG.gain.setValueAtTime(0.7, t); nG.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+      nSrc.connect(nFilt); nFilt.connect(nG); nG.connect(master);
+      nSrc.start(t); nSrc.stop(t + 0.5);
 
-      setTimeout(() => { try { ctx.close(); } catch(_){} }, 2500);
+      setTimeout(() => { try { ctx.close(); } catch(_){} }, 3000);
     } catch(_) {}
   }
 
-  // Demonic speech synthesis using Web Speech API at extreme pitch/rate
+  // Demonic speech: minimum pitch, slow rate, deepest available voice
   function hwDemonSpeak(text) {
     try {
       if (!window.speechSynthesis) return;
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      u.pitch = 0.01;  // as low as browsers allow — demon floor
-      u.rate  = 0.55;  // slow and menacing
+      u.pitch = 0.01;
+      u.rate  = 0.45;
       u.volume = 1;
-      // Prefer a deep male voice if available
       const voices = window.speechSynthesis.getVoices();
-      const deep = voices.find(v => /male|david|alex|daniel|fred|ralph/i.test(v.name) && /en/i.test(v.lang));
+      const deep = voices.find(v => /male|david|alex|daniel|fred|ralph|microsoft david/i.test(v.name) && /en/i.test(v.lang));
       if (deep) u.voice = deep;
       window.speechSynthesis.speak(u);
     } catch(_) {}
   }
 
+  // Spawn floating eyes around the screen edges during scare
+  function hwSpawnEyes() {
+    const positions = [
+      [2, 8], [92, 5], [1, 55], [96, 48], [15, 92], [80, 88], [48, 3], [55, 95]
+    ];
+    const eyes = [];
+    positions.forEach(([l, t]) => {
+      const e = document.createElement('div');
+      e.className = 'hw-scare-eye';
+      e.textContent = '👁️';
+      e.style.cssText = `left:${l}%;top:${t}%;animation-delay:${Math.random() * 0.15}s`;
+      document.body.appendChild(e);
+      eyes.push(e);
+    });
+    return eyes;
+  }
+
   function doJumpScare() {
     if (hwPaused) return scheduleNextScare();
     const s = SCARES[Math.floor(Math.random() * SCARES.length)];
+
+    // Sound: fire immediately
     hwScareSound();
-    // Speak slightly after the initial BOOM so voice cuts through
+    // Demonic voice 80ms after initial BOOM hits
     setTimeout(() => hwDemonSpeak(s.speak), 80);
+
+    // Visual: shake the body, add glitch overlay, spawn eyes
+    document.body.classList.add('hw-screaming');
+    const eyes = hwSpawnEyes();
+
+    // Static/glitch flicker overlay
+    const glitch = document.createElement('div');
+    glitch.className = 'hw-glitch-overlay';
+    document.body.appendChild(glitch);
+
+    // Main jump scare element — appears from a random screen corner
+    const corners = [
+      'translate(-30%, -30%)', 'translate(30%, -30%)',
+      'translate(-30%, 30%)',  'translate(30%, 30%)',
+    ];
+    const corner = corners[Math.floor(Math.random() * corners.length)];
     const el = document.createElement('div');
     el.className = 'hw-jump-scare';
     el.innerHTML = `<div class="hw-js-emoji">${s.emoji}</div><div class="hw-js-boo">${s.boo}</div>`;
+    el.style.setProperty('--hw-js-corner', corner);
     document.body.appendChild(el);
+
     requestAnimationFrame(() => {
       el.style.opacity = '1';
-      el.style.transform = 'scale(1)';
+      el.style.transform = 'scale(1) translate(0,0)';
+
+      // Glitch flickers
+      let flickers = 0;
+      const flickerInterval = setInterval(() => {
+        glitch.style.opacity = Math.random() > 0.4 ? String(0.1 + Math.random() * 0.35) : '0';
+        if (++flickers > 14) clearInterval(flickerInterval);
+      }, 60);
+
       setTimeout(() => {
         el.style.opacity = '0';
-        setTimeout(() => { el.remove(); window.speechSynthesis?.cancel(); }, 500);
-      }, 1400); // slightly longer to let demon voice finish
+        el.style.transform = `scale(1.4) ${corner}`;
+        glitch.style.opacity = '0';
+        document.body.classList.remove('hw-screaming');
+        eyes.forEach(e => { e.style.opacity = '0'; setTimeout(() => e.remove(), 400); });
+        setTimeout(() => {
+          el.remove();
+          glitch.remove();
+          window.speechSynthesis?.cancel();
+        }, 500);
+      }, 1600);
     });
+
     scheduleNextScare();
   }
   function scheduleNextScare() {
-    const delay = (5 + Math.random() * 10) * 60 * 1000; // 5-15 min
+    const delay = (5 + Math.random() * 10) * 60 * 1000;
     setTimeout(doJumpScare, delay);
   }
   // First scare 2-4 min after load
