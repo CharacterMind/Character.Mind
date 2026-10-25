@@ -10569,7 +10569,7 @@ async function claimHalloweenGift() {
 
   // ── Settings state ──────────────────────────────────────────────────────────
   let hwPaused     = false; // kept for jump-scare / blood-flash guards; no longer toggled
-  let hwAnimations = localStorage.getItem('hw_anim_on')    === '1'; // horizontal parade, default OFF
+  let hwAnimations = localStorage.getItem('hw_anim_on')    !== '0'; // horizontal parade, default ON
   let hwScares     = localStorage.getItem('hw_scares_on')  === '1'; // default OFF
   let hwConfetti   = localStorage.getItem('hw_conf_on')    !== '0'; // falling emoji, default ON
   let confettiLoopId = null;
@@ -10780,7 +10780,7 @@ async function claimHalloweenGift() {
   // ── Flying parade ───────────────────────────────────────────────────────────
   function spawnParade() {
     if (!hwAnimations) return;
-    if (hwStage.querySelectorAll('.hw-flyer').length >= 4) return;
+    if (hwStage.querySelectorAll('.hw-flyer').length >= 8) return;
     const [emoji, minS, maxS, minSpd, maxSpd, minT, maxT] = PARADE[Math.floor(Math.random() * PARADE.length)];
     const fromRight = Math.random() > 0.5;
     const el = document.createElement('div');
@@ -10798,19 +10798,19 @@ async function claimHalloweenGift() {
     (function loop() {
       if (!hwAnimations) return;
       spawnParade();
-      if (Math.random() < 0.3) setTimeout(spawnParade, 400 + Math.random() * 600);
-      paradeLoopId = setTimeout(loop, 1200 + Math.random() * 2000);
+      if (Math.random() < 0.5) setTimeout(spawnParade, 300 + Math.random() * 500);
+      paradeLoopId = setTimeout(loop, 600 + Math.random() * 1000);
     })();
   }
   if (_hwMasterOn && hwAnimations) {
-    for (let i = 0; i < 5; i++) setTimeout(spawnParade, i * 600);
+    for (let i = 0; i < 12; i++) setTimeout(spawnParade, i * 400);
     startParade();
   }
 
   // ── Falling confetti ────────────────────────────────────────────────────────
   function spawnConfetti() {
     if (!hwConfetti) return;
-    if (hwStage.querySelectorAll('.hw-confetti').length >= 10) return;
+    if (hwStage.querySelectorAll('.hw-confetti').length >= 30) return;
     const el = document.createElement('div');
     el.className = 'hw-confetti';
     el.textContent = CONFETTI[Math.floor(Math.random() * CONFETTI.length)];
@@ -10827,12 +10827,15 @@ async function claimHalloweenGift() {
   function startConfetti() {
     (function loop() {
       if (!hwConfetti) return;
-      const burst = 1 + (Math.random() < 0.2 ? 2 : 0);
-      for (let i = 0; i < burst; i++) setTimeout(spawnConfetti, i * 80);
-      confettiLoopId = setTimeout(loop, 220 + Math.random() * 350);
+      const burst = 2 + (Math.random() < 0.4 ? 2 : 0);
+      for (let i = 0; i < burst; i++) setTimeout(spawnConfetti, i * 60);
+      confettiLoopId = setTimeout(loop, 120 + Math.random() * 180);
     })();
   }
-  if (_hwMasterOn && hwConfetti) startConfetti();
+  if (_hwMasterOn && hwConfetti) {
+    for (let i = 0; i < 12; i++) setTimeout(spawnConfetti, i * 100);
+    startConfetti();
+  }
 
   // Periodic guard: remove stray items if flags went false (catches any timing edge cases)
   setInterval(hwSyncStage, 1000);
