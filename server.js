@@ -6229,7 +6229,7 @@ const PAYPAL_PLAN_IDS_HALLOWEEN_YEARLY = {
   x100:     process.env.PAYPAL_PLAN_X100_HALLOWEEN_YEARLY,
   x200:     process.env.PAYPAL_PLAN_X200_HALLOWEEN_YEARLY,
 };
-const HALLOWEEN_SALE_ENDS = new Date('2026-11-01T06:00:00Z');
+const HALLOWEEN_SALE_ENDS = new Date('2026-11-05T00:00:00Z');
 function halloweenSaleActive() { const n = new Date(); return n < HALLOWEEN_SALE_ENDS && n.getMonth() === 9; }
 // Yearly is offered once the first three yearly plans exist; X100/X200 are sold only when their own plan ids are set (planIds.x100 / planIds.x200)
 const yearlyAvailable = () => ['advanced', 'x20', 'x50'].every(k => PAYPAL_PLAN_IDS_YEARLY[k]);
@@ -6660,7 +6660,7 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
 const HALLOWEEN_GIFT_COINS  = 100;
 const HALLOWEEN_GIFT_TOKENS = 200;
 const HALLOWEEN_GIFT_START  = new Date('2026-10-01T00:00:00Z').getTime();
-const HALLOWEEN_GIFT_END    = new Date('2026-11-01T00:00:00Z').getTime();
+const HALLOWEEN_GIFT_END    = new Date('2026-11-05T00:00:00Z').getTime();
 
 app.get('/api/halloween/status', requireAuth, (req, res) => {
   const now = Date.now();

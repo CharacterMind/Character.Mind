@@ -6050,7 +6050,7 @@ function updateUsageModal(u) {
   if (hwGiftUsageRow) {
     const _now = Date.now();
     const _hwStart = new Date('2026-10-01T00:00:00Z').getTime();
-    const _hwEnd   = new Date('2026-11-01T00:00:00Z').getTime();
+    const _hwEnd   = new Date('2026-11-05T00:00:00Z').getTime();
     const _hwActive = _now >= _hwStart && _now < _hwEnd;
     hwGiftUsageRow.style.display = (_hwActive && currentUser) ? '' : 'none';
   }
@@ -6391,7 +6391,7 @@ function _showHwGiftRow() {
   const row = document.getElementById('hwGiftUsageRow');
   if (!row) return;
   const now = Date.now();
-  const active = now >= new Date('2026-10-01T00:00:00Z').getTime() && now < new Date('2026-11-01T00:00:00Z').getTime();
+  const active = now >= new Date('2026-10-01T00:00:00Z').getTime() && now < new Date('2026-11-05T00:00:00Z').getTime();
   // Show to all logged-in users during October — server handles the limits reset for everyone
   row.style.display = (active && currentUser) ? '' : 'none';
 }
@@ -10283,14 +10283,7 @@ function launchTicTacToe(savedState) {
 
 // ── Halloween 2026 gift ────────────────────────────────────────────────────────
 function checkHalloweenGift() {
-  if (!currentUser) return;
-  const now = Date.now();
-  const HALLOWEEN_START = new Date('2026-10-01T00:00:00Z').getTime();
-  const HALLOWEEN_END   = new Date('2026-11-01T00:00:00Z').getTime();
-  if (now < HALLOWEEN_START || now >= HALLOWEEN_END) return;
-  if (currentUser.halloweenGift2026) return;
-  const banner = document.getElementById('halloweenGiftBanner');
-  if (banner) banner.style.display = 'flex';
+  // Banner removed — gift only shown in usage modal
 }
 
 async function claimHalloweenGift() {
