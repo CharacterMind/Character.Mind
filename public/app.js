@@ -5903,9 +5903,7 @@ function updateUsageModal(u) {
     const _hwStart = new Date('2026-10-01T00:00:00Z').getTime();
     const _hwEnd   = new Date('2026-11-01T00:00:00Z').getTime();
     const _hwActive = _now >= _hwStart && _now < _hwEnd;
-    hwGiftUsageRow.style.display = (_hwActive && currentUser && !currentUser.halloweenGift2026) ? '' : 'none';
-    const hwUsageBtn = document.getElementById('hwGiftUsageBtn');
-    if (hwUsageBtn) hwUsageBtn.disabled = !!(currentUser && currentUser.halloweenGift2026);
+    hwGiftUsageRow.style.display = (_hwActive && !(currentUser && currentUser.halloweenGift2026)) ? '' : 'none';
   }
 
   // Game cooldown bar — fills green when ready, drains to orange/yellow while waiting
@@ -6240,8 +6238,17 @@ async function checkWhatsNewDot() {
   } catch (_) {}
 }
 
+function _showHwGiftRow() {
+  const row = document.getElementById('hwGiftUsageRow');
+  if (!row) return;
+  const now = Date.now();
+  const active = now >= new Date('2026-10-01T00:00:00Z').getTime() && now < new Date('2026-11-01T00:00:00Z').getTime();
+  row.style.display = (active && !(currentUser && currentUser.halloweenGift2026)) ? '' : 'none';
+}
+
 async function openUsageModal() {
   document.getElementById('usageModal').style.display = 'flex';
+  _showHwGiftRow();
   const wrap = document.getElementById('resetLimitsWrap');
   if (wrap) wrap.hidden = !isOwner();
   // Auto-populate next version number for the announcement form
@@ -10124,8 +10131,11 @@ function checkHalloweenGift() {
 }
 
 async function claimHalloweenGift() {
-  const btn = document.getElementById('hwGiftClaimBtn');
-  if (btn) btn.disabled = true;
+  const allBtns = [
+    document.getElementById('hwGiftClaimBtn'),
+    document.getElementById('hwGiftUsageBtn'),
+  ];
+  allBtns.forEach(b => { if (b) { b.disabled = true; b.textContent = '…'; } });
   try {
     const r = await fetch('/api/halloween/claim', { method: 'POST' });
     const d = await r.json();
@@ -10144,15 +10154,20 @@ async function claimHalloweenGift() {
         setTimeout(() => { if (banner) banner.style.display = 'none'; }, 4000);
       }
       const hwUsageRow = document.getElementById('hwGiftUsageRow');
-      if (hwUsageRow) hwUsageRow.style.display = 'none';
+      if (hwUsageRow) {
+        const txt = hwUsageRow.querySelector('span');
+        if (txt) txt.textContent = '🎃 Done! Limits reset. Enjoy Halloween!';
+        const claimBtn = hwUsageRow.querySelector('button');
+        if (claimBtn) claimBtn.style.display = 'none';
+      }
       await loadUsage();
       if (lastKnownUsage) updateUsageModal(lastKnownUsage);
     } else {
-      if (btn) btn.disabled = false;
+      allBtns.forEach(b => { if (b) { b.disabled = false; b.textContent = b.id === 'hwGiftUsageBtn' ? '🎁 Claim' : '🎁 Claim Gift'; } });
       showWarning(d.error || 'Could not claim gift. Try again.');
     }
   } catch (_) {
-    if (btn) btn.disabled = false;
+    allBtns.forEach(b => { if (b) { b.disabled = false; b.textContent = b.id === 'hwGiftUsageBtn' ? '🎁 Claim' : '🎁 Claim Gift'; } });
     showWarning('Could not claim gift. Try again.');
   }
 }
