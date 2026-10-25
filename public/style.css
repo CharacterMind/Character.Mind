@@ -38,6 +38,7 @@ html, body {
   background: var(--bg); color: var(--text);
   overflow: hidden; -webkit-font-smoothing: antialiased;
   font-size: 18px;
+  max-width: 100vw;
 }
 
 /* ── API Modal ──────────────────────────────────────────────────────────── */
@@ -314,7 +315,7 @@ html, body {
 
 /* ── Main / Views ────────────────────────────────────────────────────────── */
 .main { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
-.view { flex: 1; overflow-y: auto; padding: 28px 28px 40px; height: 100%; }
+.view { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 28px 28px 40px; height: 100%; }
 .view.hidden { display: none; }
 .view::-webkit-scrollbar { width: 5px; }
 .view::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 4px; }
@@ -2563,6 +2564,7 @@ html, body {
     align-items: center;
     gap: 10px;
     padding: 10px 14px;
+    padding-top: calc(10px + env(safe-area-inset-top, 0px));
     background: var(--bg2);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
@@ -2634,7 +2636,7 @@ html, body {
   .stream-stats { font-size: 11px; gap: 5px; }
 
   /* Input area */
-  .chat-footer { padding: 8px 10px 12px; }
+  .chat-footer { padding: 8px 10px calc(12px + env(safe-area-inset-bottom, 0px)); }
   .input-wrap { padding: 8px 14px; border-radius: 20px; }
   .input-wrap textarea { font-size: 16px; max-height: 120px; }
 
@@ -2676,10 +2678,13 @@ html, body {
 
 /* Very small screens (≤400px) */
 @media (max-width: 400px) {
-  .bubble { font-size: 19px; padding: 12px 14px; }
+  .bubble { font-size: 18px; padding: 12px 14px; }
   .msg.user .bubble { max-width: 93%; }
   .input-wrap textarea { font-size: 16px; }
   .chat-body { padding: 16px 8px 10px; }
+  .view { padding: 10px 10px 20px; }
+  .model-bar-zone { padding: 2px 4px; }
+  .mb-model-btn, .mb-effort-btn { font-size: 11px; padding: 2px 4px; }
 }
 
 /* ── Model / Effort bar & picker ─────────────────────────────────────────── */
@@ -2711,7 +2716,7 @@ html, body {
   left: 50%; transform: translateX(-50%);
   background: var(--bg2); border: 1px solid var(--border2);
   border-radius: 12px; padding: 5px;
-  min-width: 260px;
+  min-width: 260px; max-width: calc(100vw - 24px);
   box-shadow: 0 8px 32px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.04);
   z-index: 200;
   animation: picker-in .15s ease;
@@ -2781,7 +2786,7 @@ html, body {
   left: 50%; transform: translateX(-50%);
   background: var(--bg2); border: 1px solid var(--border2);
   border-radius: 12px; padding: 12px 12px 6px;
-  min-width: 240px;
+  min-width: 240px; max-width: calc(100vw - 24px);
   box-shadow: 0 8px 32px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.04);
   z-index: 200;
   animation: picker-in .15s ease;

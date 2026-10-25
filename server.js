@@ -6937,14 +6937,20 @@ app.post('/api/coins/award', requireAuth, async (req, res) => {
       return res.json({ awarded: 0, balance: u.cmCoins || 0, earnedToday: u.coinsEarnedToday, dailyCap: COIN_DAILY_CAP, capped: true });
     }
     const toAward = Math.min(earnPerWin, COIN_DAILY_CAP - (u.coinsEarnedToday || 0));
-    console.log(`[coins/award] uid=${uid} tier=${tier} award=${toAward} balance=${(u.cmCoins||0)+toAward}`);
-    u.cmCoins = (u.cmCoins || 0) + toAward;
-    u.coinsEarnedToday = (u.coinsEarnedToday || 0) + toAward;
+    console.log(`[coins/award] uid=${uid} tier=${tier} award=${toAward}`);
     u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + toAward;
-    await db.query(
-      'UPDATE users SET cm_coins=$1, coins_earned_today=$2, coins_day_reset=$3, coins_earned_all_time=COALESCE(coins_earned_all_time,0)+$5 WHERE google_id=$4',
-      [u.cmCoins, u.coinsEarnedToday, dayStart, uid, toAward]
+    const awardResult = await db.query(
+      `UPDATE users
+         SET cm_coins           = cm_coins + $1,
+             coins_earned_today = CASE WHEN coins_day_reset < $2 THEN $1 ELSE coins_earned_today + $1 END,
+             coins_day_reset    = GREATEST(COALESCE(coins_day_reset, 0), $2),
+             coins_earned_all_time = COALESCE(coins_earned_all_time, 0) + $1
+       WHERE google_id = $3
+       RETURNING cm_coins, coins_earned_today`,
+      [toAward, dayStart, uid]
     );
+    u.cmCoins = awardResult.rows[0].cm_coins;
+    u.coinsEarnedToday = awardResult.rows[0].coins_earned_today;
     res.json({ awarded: toAward, balance: u.cmCoins, earnedToday: u.coinsEarnedToday, dailyCap: COIN_DAILY_CAP, capped: false });
   } catch (e) { console.error('[coins/award]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
 });

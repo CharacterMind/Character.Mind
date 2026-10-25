@@ -10214,7 +10214,7 @@ async function claimHalloweenGift() {
     localStorage.setItem('hw_conf_off', hwConfetti ? '0' : '1');
     togConf.textContent = hwConfetti ? 'On' : 'Off';
     hwSetTog(togConf, hwConfetti);
-    if (!hwConfetti) hwStage.querySelectorAll('.hw-confetti').forEach(e => e.remove());
+    if (!hwConfetti) hwStage.querySelectorAll('.hw-confetti,.hw-flyer').forEach(e => e.remove());
   });
   togVoice.addEventListener('click', () => {
     hwCallVoice = !hwCallVoice;
@@ -10232,7 +10232,7 @@ async function claimHalloweenGift() {
 
   // ── Flying parade ───────────────────────────────────────────────────────────
   function spawnParade() {
-    if (hwPaused) return;
+    if (hwPaused || !hwConfetti) return;
     const [emoji, minS, maxS, minSpd, maxSpd, minT, maxT] = PARADE[Math.floor(Math.random() * PARADE.length)];
     const fromRight = Math.random() > 0.5;
     const el = document.createElement('div');
