@@ -5717,14 +5717,28 @@ function updateUsageModal(u) {
   const sPctEl = document.getElementById('usageSessionPct');
   if (sPctEl) sPctEl.textContent = sPct + '% used';
 
-  const sSubEl = document.getElementById('usageSessionSub');
-  if (sSubEl) {
-    const sResetSrc = (u.cooldownUntil && Date.now() < u.cooldownUntil) ? u.cooldownUntil : (u.sessionTokens > 0 ? u.sessionExpiresAt : null);
-    if (sResetSrc && Date.now() < sResetSrc) {
-      sSubEl.textContent = 'Resets in ' + formatCountdown(sResetSrc - Date.now());
+  const sResetSrc = (u.cooldownUntil && Date.now() < u.cooldownUntil) ? u.cooldownUntil : (u.sessionTokens > 0 ? u.sessionExpiresAt : null);
+  _sessionCountdownUntil = sResetSrc || null;
+  (function tickSessionCountdown() {
+    const sSubEl = document.getElementById('usageSessionSub');
+    if (!sSubEl) return;
+    if (_sessionCountdownUntil && Date.now() < _sessionCountdownUntil) {
+      sSubEl.textContent = 'Resets in ' + formatCountdown(_sessionCountdownUntil - Date.now());
     } else {
       sSubEl.textContent = 'Starts fresh when you send your first message';
     }
+  })();
+  if (!_sessionCountdownTimer && sResetSrc) {
+    _sessionCountdownTimer = setInterval(() => {
+      const sSubEl = document.getElementById('usageSessionSub');
+      if (!sSubEl) return;
+      if (_sessionCountdownUntil && Date.now() < _sessionCountdownUntil) {
+        sSubEl.textContent = 'Resets in ' + formatCountdown(_sessionCountdownUntil - Date.now());
+      } else {
+        sSubEl.textContent = 'Starts fresh when you send your first message';
+        clearInterval(_sessionCountdownTimer); _sessionCountdownTimer = null;
+      }
+    }, 1000);
   }
 
   const wBar = document.getElementById('usageWeeklyBar');
@@ -5772,14 +5786,6 @@ function updateUsageModal(u) {
   const imagesPct = imageLimit > 0 ? Math.min(100, Math.round(imagesDay / imageLimit * 100)) : 0;
   setBar('usageImagesBar', 'usageImagesPct', 'usageImagesSub', imagesPct,
     `${imagesDay} of ${imageLimit} used today · Up to ${imageLimit} image uploads per day · Each image counts toward your session token limit`, false);
-
-  // Messages (estimated from session tokens)
-  const AVG_MSG_TOKENS = 3600;
-  const msgsUsed = Math.floor((u.sessionTokens || 0) / AVG_MSG_TOKENS);
-  const msgsMax  = Math.max(1, Math.floor((u.sessionLimit || 25000) / AVG_MSG_TOKENS));
-  const msgsPct  = Math.min(100, Math.round(msgsUsed / msgsMax * 100));
-  setBar('usageMsgBar', 'usageMsgPct', 'usageMsgSub', msgsPct,
-    `~${msgsUsed} used · up to ~${msgsMax} this session`, false);
 
   // Regenerations
   const regenToday = u.regenCount || 0;
@@ -7945,6 +7951,8 @@ function getCharCallColors(char) {
 }
 
 let _callLimitTimer = null;
+let _sessionCountdownTimer = null;
+let _sessionCountdownUntil = null;
 const CALL_LIMIT_MESSAGES = [
   // Doll witness collection
   "*looks at Candy, then back at you, then at Candy again* She knew. She told me before you even started. I told her to be kind about it. She's choosing not to.",
