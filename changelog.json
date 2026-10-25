@@ -1,5 +1,24 @@
 [
   {
+    "id": "v358-nav-quiz-halloween",
+    "version": "v358",
+    "date": "Oct 2026",
+    "title": "🎃 Halloween Returns & Quiz in Sidebar",
+    "subtitle": "Orange theme, spooky logo, and event banner are back with a particle toggle. Quiz moved out of Settings and into the sidebar.",
+    "added": [
+      "Quiz button moved into the sidebar nav-grid as a full-width fifth button — always one tap away without opening Settings",
+      "Particle toggle pill — a small persistent button bottom-right that turns Halloween floating emoji on or off any time; preference saved across reloads",
+      "Quick 🎊/✨ toggle in the Halloween event banner for instant particle control while the banner is visible"
+    ],
+    "changed": [
+      "Halloween orange accent color, spooky logo, and event banner re-enabled for Oct 25+ (floating emoji also back on by default)",
+      "Quiz button removed from the coins card in Settings — lives in the sidebar grid now"
+    ],
+    "fixed": [
+      "Safety resources panel on mobile now dismisses the sidebar before opening — backdrop no longer sits behind the panel on touch devices"
+    ]
+  },
+  {
     "id": "v357-wordle-back",
     "version": "v357",
     "date": "Oct 2026",
