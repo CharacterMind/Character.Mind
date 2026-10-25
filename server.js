@@ -252,6 +252,25 @@ if (db) {
       .catch(err => console.error('Miss Delight sync error:', err));
   }
 
+  // Seed/sync Bron — insert as official if missing, update template fields if present
+  {
+    const tpl = matchCharacterTemplate('bron');
+    if (tpl) db.query(
+      `INSERT INTO characters (id, name, tagline, description, system_prompt, greeting, greeting_mode, color, tags, creator_name, device_id)
+       SELECT 'bron', $1, $2, $2, $3, $4, $5, $6, $7, 'Character Mind Playtime Co', u.google_id
+       FROM (SELECT google_id FROM users WHERE email = 'support.charactermind@gmail.com' LIMIT 1) u
+       ON CONFLICT (id) DO UPDATE SET
+         system_prompt = EXCLUDED.system_prompt,
+         tagline       = EXCLUDED.tagline,
+         greeting      = EXCLUDED.greeting,
+         greeting_mode = EXCLUDED.greeting_mode,
+         color         = EXCLUDED.color,
+         tags          = EXCLUDED.tags`,
+      [tpl.name, tpl.tagline, tpl.systemPrompt, tpl.greeting, tpl.greetingMode, tpl.color, JSON.stringify(tpl.tags)]
+    ).then(r => { if (r && r.rowCount > 0) console.log('[SEED] Bron upserted'); })
+      .catch(err => console.error('Bron seed error:', err));
+  }
+
   // Fetch Miss Delight's image on startup if missing
   (async () => {
     try {
