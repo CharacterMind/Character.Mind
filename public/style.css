@@ -3433,7 +3433,8 @@ html, body {
 .game-card-label { flex: 1; font-weight: 600; font-size: .85rem; color: var(--text1, #fff); }
 .game-card-btn { padding: 5px 14px; border-radius: 6px; border: none; background: #7c3aed; color: #fff; font-size: .8rem; font-weight: 700; cursor: pointer; transition: opacity .15s; white-space: nowrap; }
 .game-card-btn:hover { opacity: .82; }
-.game-card-frame iframe { display: block; width: 100%; height: 520px; border: none; background: #fff; }
+.game-card-frame { position: relative; z-index: 9; } /* above #hw-stage z-index:8 so confetti doesn't overlay the game */
+.game-card-frame iframe { display: block; width: 100%; height: 680px; border: none; background: #fff; }
 .game-result-banner { display: none; padding: 10px 14px; font-size: .87rem; color: var(--text1, #fff); background: rgba(255,255,255,.05); border-top: 1px solid rgba(255,255,255,.1); }
 .game-result-banner.shown { display: block; }
 

@@ -7363,6 +7363,22 @@ function maybeRenderGame(bubble, charColor) {
   }
 }
 
+function postprocessGameHtml(html) {
+  // Inject an on-screen keyboard into old Wordle-style games that don't have one
+  const hasWordleGrid = (/class="cell"/.test(html) && /class="row"/.test(html))
+    || (/class="tile"/.test(html) && /class.*board/.test(html))
+    || /wordle/i.test(html.slice(0, 2000));
+  const hasKeyboard = /id="kb"/.test(html) || /id='kb'/.test(html) || /id="_injkb"/.test(html) || /bkb\(/.test(html)
+    || /id="keyboard"/.test(html) || /class="keyboard"/.test(html) || /class="key-row"/.test(html);
+  if (!hasWordleGrid || hasKeyboard) return html;
+  const kbStyle = `<style>#_injkb{display:flex;flex-direction:column;gap:4px;align-items:center;margin:6px auto 0}._ikr{display:flex;gap:3px}._ik{height:42px;padding:0 5px;min-width:30px;background:#818384;border:none;border-radius:4px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;user-select:none;transition:background .15s}._ik:active{opacity:.75}</style>`;
+  const kbHtml = `<div id="_injkb"></div>`;
+  const kbScript = `<script>(function(){var rows=["QWERTYUIOP","ASDFGHJKL","⌫ZXCVBNM↵"],kb=document.getElementById("_injkb");if(!kb)return;rows.forEach(function(row){var d=document.createElement("div");d.className="_ikr";[...row].forEach(function(k){var b=document.createElement("button");b.className="_ik";b.textContent=k;b.addEventListener("mousedown",function(e){e.preventDefault();var kn=k==="⌫"?"Backspace":k==="↵"?"Enter":k;var ev=new KeyboardEvent("keydown",{key:kn,code:kn.length===1?"Key"+kn.toUpperCase():"",bubbles:true,cancelable:true});document.dispatchEvent(ev);window.dispatchEvent(ev);});d.appendChild(b);});kb.appendChild(d);});})();<\/script>`;
+  if (html.includes('</head>')) html = html.replace('</head>', kbStyle + '</head>');
+  if (html.includes('</body>')) html = html.replace('</body>', kbHtml + kbScript + '</body>');
+  return html;
+}
+
 function createGameCard(htmlContent, accentColor) {
   const card = document.createElement('div');
   card.className = 'game-card';
@@ -7403,7 +7419,7 @@ function createGameCard(htmlContent, accentColor) {
     if (!open) resultBanner.classList.remove('shown');
     if (open && !loaded) {
       loaded = true;
-      iframe.srcdoc = htmlContent;
+      iframe.srcdoc = postprocessGameHtml(htmlContent);
     }
   });
   return card;
@@ -9830,6 +9846,7 @@ async function launchHangman(savedState) {
       if (gameOver) clearActiveGame(currentChar.id);
       else saveActiveGame(currentChar.id, { type: 'hangman', word, guessed: [...guessed], wrongCount });
     }
+    if (gameOver) delete window[_hgKey];
   }
 
   window[_hgKey] = function(btn, letter) {
@@ -9901,6 +9918,7 @@ function launchTicTacToe(savedState) {
       if (winData) clearActiveGame(currentChar.id);
       else saveActiveGame(currentChar.id, { type: 'ttt', board: [...board], waiting });
     }
+    if (winData) delete window[_tttKey];
   }
 
   window[_tttKey] = async function(idx) {
@@ -9919,6 +9937,7 @@ function launchTicTacToe(savedState) {
       });
       const d = await r.json();
       if (r.status === 429 && (d.type === 'session' || d.type === 'weekly')) {
+        delete window[_tttKey];
         msgEl.remove();
         if (d.type === 'session') startCooldown(d.cooldownUntil, 'session', true);
         else startCooldown(d.resetsAt, 'weekly', true);
@@ -9927,7 +9946,9 @@ function launchTicTacToe(savedState) {
       if (r.status === 429 && d.gameNextAvailableAt) {
         const secsLeft = Math.ceil((d.gameNextAvailableAt - Date.now()) / 1000);
         const minsLeft = Math.ceil(secsLeft / 60);
-        msgEl.innerHTML = `<div class="game-widget"><div class="game-loading">⏳ Game cooldown — come back in ${minsLeft} minute${minsLeft !== 1 ? 's' : ''}.</div></div>`;
+        waiting = false;
+        delete window[_tttKey];
+        msgEl.innerHTML = `<div class="game-loading">⏳ Game cooldown — come back in ${minsLeft} minute${minsLeft !== 1 ? 's' : ''}.</div>`;
         scrollToBottom();
         return;
       }
