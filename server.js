@@ -775,7 +775,7 @@ async function ensureTierLoaded(user) {
   if (u.skipCoinDeduct) SKIP_COIN_DEDUCT_IDS.add(user.googleId);
   // Prevent concurrent requests from each running a full DB load and overwriting in-memory coin state.
   // The second caller awaits the first load's promise and returns once done.
-  if (u._tierLoadPromise) { await u._tierLoadPromise; return; }
+  if (u._tierLoadPromise) { await u._tierLoadPromise; if (!u.tierLoaded) throw new Error('Tier load failed'); return; }
   let _resolve;
   u._tierLoadPromise = new Promise(r => { _resolve = r; });
   try {
@@ -6961,8 +6961,8 @@ app.post('/api/coins/award', requireAuth, async (req, res) => {
     await ensureTierLoaded(req.user);
     const uid = req.user.googleId;
 
-    // Validate game token — must have started a real Hangman session
-    const { gameId } = req.body || {};
+    // Validate game token — must have started a real game session
+    const { gameId, gameToken } = req.body || {};
     let serverWordLen = null;
     if (gameId) {
       const session = hangmanGameTokens.get(gameId);
@@ -6971,6 +6971,14 @@ app.post('/api/coins/award', requireAuth, async (req, res) => {
       }
       serverWordLen = session.wordLen;
       hangmanGameTokens.delete(gameId); // consume token — can't award twice for same game
+    } else if (gameToken) {
+      const session = gameSessionTokens.get(gameToken);
+      if (!session || session.uid !== uid) {
+        return res.status(403).json({ error: 'Invalid game session' });
+      }
+      gameSessionTokens.delete(gameToken); // consume token — one win per session
+    } else {
+      return res.status(403).json({ error: 'Game session token required' });
     }
 
     const u = getLimits(uid);
@@ -6989,7 +6997,6 @@ app.post('/api/coins/award', requireAuth, async (req, res) => {
     }
     const toAward = Math.min(earnPerWin, COIN_DAILY_CAP - (u.coinsEarnedToday || 0));
     console.log(`[coins/award] uid=${uid} tier=${tier} award=${toAward}`);
-    u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + toAward;
     const awardResult = await db.query(
       `UPDATE users
          SET cm_coins           = cm_coins + $1,
@@ -7000,8 +7007,9 @@ app.post('/api/coins/award', requireAuth, async (req, res) => {
        RETURNING cm_coins, coins_earned_today`,
       [toAward, dayStart, uid]
     );
-    u.cmCoins = awardResult.rows[0].cm_coins;
-    u.coinsEarnedToday = awardResult.rows[0].coins_earned_today;
+    u.cmCoins = awardResult.rows[0]?.cm_coins ?? u.cmCoins;
+    u.coinsEarnedToday = awardResult.rows[0]?.coins_earned_today ?? u.coinsEarnedToday;
+    u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + toAward;
     res.json({ awarded: toAward, balance: u.cmCoins, earnedToday: u.coinsEarnedToday, dailyCap: COIN_DAILY_CAP, capped: false });
   } catch (e) { console.error('[coins/award]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
 });
@@ -7360,10 +7368,18 @@ app.post('/api/missions/claim', requireAuth, async (req, res) => {
 
 // Server-side game tokens — maps gameId -> { uid, wordLen, issued } so /api/coins/award can't be called without a real game session
 const hangmanGameTokens = new Map(); // gameId -> { uid, wordLen }
+const gameSessionTokens = new Map(); // token -> { uid, issued } for AI-generated iframe games
 setInterval(() => {
   const cutoff = Date.now() - 30 * 60 * 1000; // expire after 30 min
   for (const [id, v] of hangmanGameTokens) { if (v.issued < cutoff) hangmanGameTokens.delete(id); }
+  for (const [id, v] of gameSessionTokens) { if (v.issued < cutoff) gameSessionTokens.delete(id); }
 }, 5 * 60 * 1000);
+
+app.post('/api/game/session/start', requireAuth, (req, res) => {
+  const token = crypto.randomBytes(16).toString('hex');
+  gameSessionTokens.set(token, { uid: req.user.googleId, issued: Date.now() });
+  res.json({ gameToken: token });
+});
 
 app.get('/api/game/hangman/word', requireAuthGame, (req, res) => {
   const userId = req.user.googleId;
@@ -7475,11 +7491,21 @@ const QUIZ_BANK = {
 };
 const QUIZ_ALL_CATS = Object.keys(QUIZ_BANK);
 
-const quizSessions = new Map(); // quizId -> { uid, qs, issued }
+const quizSessions = new Map();   // quizId -> { uid, qs, issued }
+const quizCooldowns = new Map();  // `${uid}:${cat}` -> timestamp (separate Map so 30-min purge can't clear it)
 setInterval(() => {
   const cutoff = Date.now() - 60 * 60 * 1000;
   for (const [id, v] of quizSessions) { if (v.issued < cutoff) quizSessions.delete(id); }
 }, 10 * 60 * 1000);
+
+function fisherYates(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
 app.post('/api/quiz/start', requireAuth, (req, res) => {
   const uid = req.user.googleId;
@@ -7487,18 +7513,18 @@ app.post('/api/quiz/start', requireAuth, (req, res) => {
   const cat = ((req.body || {}).category || 'mixed').toLowerCase();
   if (cat !== 'mixed' && !QUIZ_BANK[cat]) return res.status(400).json({ error: 'Unknown category' });
 
-  const cooldownKey = `quizCd_${cat}`;
-  const left = Math.max(0, QUIZ_COOLDOWN_MS - (Date.now() - (u[cooldownKey] || 0)));
+  const cooldownKey = `${uid}:${cat}`;
+  const left = Math.max(0, QUIZ_COOLDOWN_MS - (Date.now() - (quizCooldowns.get(cooldownKey) || 0)));
   if (left > 0) return res.json({ cooldown: true, cooldownMs: left });
 
   const pool = cat === 'mixed' ? QUIZ_ALL_CATS.flatMap(k => QUIZ_BANK[k]) : QUIZ_BANK[cat];
-  const shuffled = pool.slice().sort(() => Math.random() - 0.5);
+  const shuffled = fisherYates(pool);
   const count = 5 + Math.floor(Math.random() * 6); // 5–10
   const qs = shuffled.slice(0, count);
 
   const quizId = crypto.randomBytes(16).toString('hex');
   quizSessions.set(quizId, { uid, qs, issued: Date.now() });
-  u[cooldownKey] = Date.now();
+  quizCooldowns.set(cooldownKey, Date.now());
 
   res.json({
     quizId,
@@ -7518,11 +7544,12 @@ app.post('/api/quiz/submit', requireAuth, async (req, res) => {
   quizSessions.delete(quizId);
 
   const { qs } = session;
+  if (answers.length > 15) return res.status(400).json({ error: 'Too many answers' });
   if (answers.length !== qs.length) return res.status(400).json({ error: 'Answer count mismatch' });
 
   let rawCoins = 0;
   const breakdown = qs.map((q, i) => {
-    const correct = answers[i] === q.a;
+    const correct = Number(answers[i]) === q.a;
     const coins = correct ? (QUIZ_COINS_PER_D[q.d] || 0) : 0;
     rawCoins += coins;
     return { q: q.q, correct, coins, correctAnswer: q.opts[q.a] };

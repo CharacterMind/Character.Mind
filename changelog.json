@@ -1,5 +1,27 @@
 [
   {
+    "id": "v346-bug-sweep",
+    "version": "v346",
+    "date": "Oct 2026",
+    "title": "🐛 Comprehensive Bug Sweep",
+    "subtitle": "Fixed 13 bugs across the quiz, Halloween animations, coin award, and security systems.",
+    "fixed": [
+      "Blood flash (crimson screen) now correctly obeys the Jump Scares toggle instead of always firing",
+      "Quiz Next button no longer gets permanently stuck disabled after submitting",
+      "Quiz category buttons no longer stay disabled when reopening the quiz modal mid-quiz",
+      "Opening quiz modal now resets stale quiz state to prevent answer-race issues",
+      "Quiz result breakdown now safely escapes question/answer text",
+      "Iframe game coin awards now require a server-issued session token — prevents farming without playing",
+      "Fixed quiz answers type mismatch — string answers from the client now correctly match numeric server values",
+      "Replaced biased quiz shuffle with proper Fisher-Yates algorithm",
+      "Quiz cooldowns moved to a dedicated Map that survives the 30-minute session purge",
+      "Fixed potential crash if coins/award DB row missing (null-safe optional chaining)",
+      "coinsEarnedAllTime in-memory counter now updated only after successful DB write",
+      "Concurrent tier-load requests now throw if the first load failed instead of silently returning",
+      "Added server-side answer count guard (max 15) in quiz submit"
+    ]
+  },
+  {
     "id": "v345-halloween-toggles-split",
     "version": "v345",
     "date": "Oct 2026",

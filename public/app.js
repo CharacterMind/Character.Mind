@@ -1049,6 +1049,8 @@ let _quizAnswered = false;
 
 function openQuizModal() {
   if (!currentUser) { showWarning('Sign in to take a quiz.'); return; }
+  _quizId = null;
+  document.querySelectorAll('.quiz-cat-btn').forEach(b => b.disabled = false);
   _quizShowScreen('cat');
   document.getElementById('quizCooldownMsg').textContent = '';
   document.getElementById('quizOverlay').style.display = 'flex';
@@ -1089,6 +1091,7 @@ async function startQuiz(category) {
   }
 }
 function _quizRenderQuestion() {
+  document.getElementById('quizNextBtn').disabled = false;
   const q = _quizQuestions[_quizCurrent];
   const total = _quizQuestions.length;
   const idx = _quizCurrent;
@@ -1171,7 +1174,7 @@ function _quizShowResult(d) {
   (d.breakdown || []).forEach((b, i) => {
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--border2)';
-    row.innerHTML = `<span style="font-size:16px;flex-shrink:0">${b.correct ? '✅' : '❌'}</span><div style="flex:1"><div style="font-weight:500;color:var(--text1)">${b.q}</div>${!b.correct ? `<div style="color:var(--text3);font-size:12px;margin-top:2px">Answer: ${b.correctAnswer}</div>` : ''}</div>${b.correct ? `<span style="color:#4ade80;font-weight:700;flex-shrink:0">+${b.coins}</span>` : ''}`;
+    row.innerHTML = `<span style="font-size:16px;flex-shrink:0">${b.correct ? '✅' : '❌'}</span><div style="flex:1"><div style="font-weight:500;color:var(--text1)">${escHtml(b.q)}</div>${!b.correct ? `<div style="color:var(--text3);font-size:12px;margin-top:2px">Answer: ${escHtml(b.correctAnswer)}</div>` : ''}</div>${b.correct ? `<span style="color:#4ade80;font-weight:700;flex-shrink:0">+${b.coins}</span>` : ''}`;
     bEl.appendChild(row);
   });
 
@@ -7689,6 +7692,11 @@ function createGameCard(htmlContent, accentColor) {
     if (open && !loaded) {
       loaded = true;
       iframe.srcdoc = postprocessGameHtml(htmlContent);
+      // Obtain a one-use server token so the win award can't be farmed
+      fetch('/api/game/session/start', { method: 'POST' })
+        .then(r => r.json())
+        .then(d => { if (d.gameToken) card.dataset.gameToken = d.gameToken; })
+        .catch(() => {});
     }
   });
   return card;
@@ -7751,7 +7759,14 @@ window.addEventListener('message', function(ev) {
       .catch(() => {});
     // Award coins if the human won
     if (winner === 'human') {
-      fetch('/api/coins/award', { method: 'POST' })
+      const gameToken = gameCard && gameCard.dataset.gameToken;
+      if (!gameToken) return; // no token means this game can't award coins
+      delete gameCard.dataset.gameToken;
+      fetch('/api/coins/award', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameToken }),
+      })
         .then(r => r.json())
         .then(d => {
           if (d && typeof d.balance === 'number') {
@@ -10590,7 +10605,7 @@ async function claimHalloweenGift() {
 
   // ── Occasional crimson screen flash ─────────────────────────────────────────
   function hwBloodFlash() {
-    if (!hwPaused) {
+    if (hwScares) {
       const el = document.createElement('div');
       el.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9998;background:rgba(120,0,0,0.22);opacity:1;transition:opacity 0.8s ease-out;';
       document.body.appendChild(el);
