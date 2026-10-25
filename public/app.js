@@ -2082,7 +2082,6 @@ function renderHome() {
 
   view.innerHTML = homeTopbar() + `
     <div id="homeSearchResults" class="home-search-results" style="display:none"></div>
-    <div id="hw-gift-banner" style="display:none"></div>
     <div id="homeSections">
       <div class="home-section">
         <div class="home-section-head">
@@ -2100,56 +2099,6 @@ function renderHome() {
       </div>
     </div>
   `;
-}
-
-async function checkHalloweenGift() {
-  const banner = document.getElementById('hw-gift-banner');
-  if (!banner) return;
-  try {
-    const res = await fetch('/api/halloween/status');
-    if (!res.ok) return;
-    const { available, claimed } = await res.json();
-    if (!available || claimed) return;
-    banner.style.display = '';
-    banner.innerHTML = `
-      <div class="hw-gift-bar">
-        <span class="hw-gift-icon">🎃</span>
-        <div class="hw-gift-text">
-          <strong>Halloween Gift</strong> — one-time free reset of all your limits (calls, sessions, images, everything).
-        </div>
-        <button class="hw-gift-btn" onclick="claimHalloweenGift(this)">Claim Reset</button>
-      </div>`;
-  } catch (_) {}
-}
-
-async function claimHalloweenGift(btn) {
-  btn.disabled = true;
-  btn.textContent = 'Claiming…';
-  try {
-    const res = await fetch('/api/halloween/claim', { method: 'POST' });
-    const data = await res.json();
-    const banner = document.getElementById('hw-gift-banner');
-    if (data.ok && data.reset) {
-      banner.innerHTML = `
-        <div class="hw-gift-bar hw-gift-bar--done">
-          <span class="hw-gift-icon">✅</span>
-          <div class="hw-gift-text">All limits reset! Enjoy the rest of Halloween. 🎃</div>
-          <button class="hw-gift-dismiss" onclick="this.closest('#hw-gift-banner').style.display='none'">✕</button>
-        </div>`;
-      // Refresh usage display if it's visible
-      if (typeof renderLimitBar === 'function') renderLimitBar();
-    } else {
-      banner.innerHTML = `
-        <div class="hw-gift-bar hw-gift-bar--done">
-          <span class="hw-gift-icon">👻</span>
-          <div class="hw-gift-text">${data.error || 'Already claimed!'}</div>
-          <button class="hw-gift-dismiss" onclick="this.closest('#hw-gift-banner').style.display='none'">✕</button>
-        </div>`;
-    }
-  } catch (_) {
-    btn.disabled = false;
-    btn.textContent = 'Claim Reset';
-  }
 }
 
 function safeColor(c) {
@@ -10158,7 +10107,7 @@ async function claimHalloweenGift() {
       updateNavCoinDisplay(lastKnownUsage);
       const banner = document.getElementById('halloweenGiftBanner');
       if (banner) {
-        banner.querySelector('.hw-gift-text').textContent = '🎃 Claimed! +100 coins & +200 tokens added to your account!';
+        banner.querySelector('.hw-gift-text').textContent = '🎃 Done! All your limits have been reset. Enjoy Halloween!';
         banner.querySelector('.hw-gift-btn-row').style.display = 'none';
         setTimeout(() => { if (banner) banner.style.display = 'none'; }, 4000);
       }
