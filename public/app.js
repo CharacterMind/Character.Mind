@@ -7307,6 +7307,7 @@ function previewVoiceURI(voiceURI, e) {
 let _cachedGpsCoords = null; // reuse within session — GPS permission only asked once
 
 function openResourcesPanel() {
+  closeSidebarMobile();
   const overlay = document.getElementById('resourcesPanelOverlay');
   if (!overlay) return;
   overlay.style.display = 'flex';
