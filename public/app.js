@@ -13300,6 +13300,15 @@ async function claimHalloweenGift() {
 
     var mult = (typeof window._farmBoostMult !== 'undefined') ? window._farmBoostMult : 1;
     if (ratePillEl) ratePillEl.textContent = _fmtRate(_st.ratePerSec * mult) + (mult > 1 ? ' ⚡' : '');
+
+    // Live balance display: base coins + farm fraction ticking
+    if (_st.initialized) {
+      var baseCoins  = typeof lastKnownUsage !== 'undefined' && lastKnownUsage ? (lastKnownUsage.cmCoins || 0) : 0;
+      var totalWhole = Math.floor(baseCoins) + Math.floor(accum);
+      var totalFrac  = frac;
+      var balEl = document.getElementById('settingsCoinBalance');
+      if (balEl) balEl.innerHTML = totalWhole.toLocaleString() + '<span class="farm-frac">' + totalFrac + '</span>';
+    }
     if (badge)      badge.textContent = 'LV ' + _st.level;
     if (tierNameEl) tierNameEl.textContent = _st.tierName;
 
@@ -13381,7 +13390,8 @@ async function claimHalloweenGift() {
       var res = await fetch('/api/coins/farm');
       if (!res.ok) return;
       var d = await res.json();
-      _applyState(d);
+      if (!_st.initialized) _applyState(d);  // don't overwrite if user already clicked Start
+      else _st.nextTier = d.nextTier || _st.nextTier;
       _updateCard();
       _startTick();
       if (d.initialized && d.canCollect && Math.floor(d.accumulated) >= 1) {
@@ -13568,7 +13578,7 @@ async function claimHalloweenGift() {
     if (sub)  sub.textContent = _boosting ? ('GPU active · ' + BOOST_MULT + '× rate') : (BOOST_MULT + '× rate while active');
     if (hint) hint.textContent = _boosting ? (BOOST_MULT + '× boost active · GPU running') : 'coins/sec · max 8 hrs offline';
     window._farmBoostMult = _boosting ? BOOST_MULT : 1;
-    if (_boosting) _startGLLoop(); else _stopGLLoop();
+    // GL loop always runs for animation; boost just changes the shader uniform
   };
 
   window._farmBoostMult = 1;

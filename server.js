@@ -3819,7 +3819,8 @@ app.post('/api/coins/farm', requireAuth, async (req, res) => {
       await db.query('UPDATE users SET last_afk_collect = $1 WHERE google_id = $2', [now, uid]);
       u.lastAfkCollect = now;
       return res.json({
-        awarded: 0, balance: u.cmCoins || 0, nextCollect: now + AFK_FARM_MIN_MS,
+        awarded: 0, balance: u.cmCoins || 0,
+        lastCollect: now, nextCollect: now + AFK_FARM_MIN_MS,
         ratePerSec, level, tierName: FARM_TIERS[level].name, nextTier,
         accumulated: 0, initialized: true, maxLevel: FARM_TIERS.length - 1,
       });
