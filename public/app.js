@@ -408,7 +408,7 @@ function openPricingModal() {
   m.style.display = 'flex';
   renderPricingCards();
   // Load geo + exchange rates; re-render when both land so local currency shows correctly
-  Promise.all([ensurePricingCountry(), loadExchangeRates()]).then(() => renderPricingCards()).catch(() => {});
+  Promise.all([ensurePricingCountry(), loadExchangeRates(), loadPaypalConfig()]).then(() => renderPricingCards()).catch(() => {});
 }
 function closePricingModal() {
   const m = document.getElementById('pricingModal');
@@ -577,7 +577,6 @@ function loadPaypalConfig() {
       if (cfg && cfg.planIds) Object.assign(PAYPAL_PLAN_IDS, cfg.planIds);
       if (cfg && cfg.yearlyPlanIds) Object.assign(PAYPAL_PLAN_IDS_YEARLY, cfg.yearlyPlanIds);
       yearlyAvailable = !!(cfg && cfg.yearlyAvailable);
-      if (!yearlyAvailable) pricingPeriod = 'monthly';
       document.body.classList.toggle('yearly-on', yearlyAvailable);
       return cfg;
     }).catch(() => { paypalConfigLoaded = null; return null; });
@@ -729,6 +728,10 @@ async function openPaypalCheckout(planKey, period) {
       paypalSdkLoaded = true;
       paypalSdkLoading = false;
       document.getElementById('paypal-checkout-status').textContent = '';
+      // If modal is still open (user didn't close it while SDK was loading), render now
+      if (document.getElementById('paypalCheckoutModal')?.style.display !== 'none') {
+        initPayPalWidgets(currentCheckoutPlan || planKey);
+      }
     } catch (err) {
       document.getElementById('paypal-checkout-status').textContent = 'Failed to load payment system. Please refresh and try again.';
       paypalSdkLoading = false;
@@ -736,7 +739,6 @@ async function openPaypalCheckout(planKey, period) {
     }
   }
 
-  // Use currentCheckoutPlan in case the user switched plans while SDK was loading
   if (paypalSdkLoaded) initPayPalWidgets(currentCheckoutPlan || planKey);
 }
 
@@ -13250,10 +13252,11 @@ void main(){
     accumulated: 0, canCollect: false, maxLevel: 5,
     nextTier: { name: 'Seeds', rate: 0.0003, cost: 150, level: 1 },
   };
-  var _displayAccum = 0;   // shown on screen; jumps every 5s
-  var _timerTickId  = null; // 1s: timer countdown + button state
-  var _coinTickId   = null; // 5s: counter jump + delta flash
-  var _toastEl      = null;
+  var _displayAccum  = 0;    // shown on screen; smooth 100ms increments
+  var _timerTickId   = null; // 1s: timer countdown + auto-collect check
+  var _smoothTickId  = null; // 100ms: smooth counter animation
+  var _collectingNow = false;
+  var _toastEl       = null;
 
   function _fmtRate(r) {
     if (r < 0.0001) return r.toFixed(12).replace(/0+$/, '').replace(/\.$/, '') + '/sec';
@@ -13327,13 +13330,26 @@ void main(){
     setTimeout(function() { if (el.parentNode) el.remove(); }, 1300);
   }
 
-  function _coinTick() {
+  function _smoothTick() {
     if (!_st.initialized) return;
-    var mult  = (typeof window._farmBoostMult !== 'undefined') ? window._farmBoostMult : 1;
-    var delta = 5 * _st.ratePerSec * mult;
-    _displayAccum += delta;
+    var mult = (typeof window._farmBoostMult !== 'undefined') ? window._farmBoostMult : 1;
+    _displayAccum += 0.1 * _st.ratePerSec * mult;
     _renderCounter();
-    _flashDelta(delta);
+  }
+
+  async function _autoCollect() {
+    if (_collectingNow) return;
+    _collectingNow = true;
+    try {
+      var res = await fetch('/api/coins/farm', { method: 'POST' });
+      if (!res.ok) { _collectingNow = false; return; }
+      var d = await res.json();
+      _applyState(d);
+      if (d.awarded > 0) { _refreshCoinsUI(d); _showAwayToast(d.awarded); }
+      _renderCounter();
+      _timerTick();
+    } catch (e) {}
+    _collectingNow = false;
   }
 
   function _timerTick() {
@@ -13362,16 +13378,18 @@ void main(){
     if (progressFill) progressFill.style.width = pct + '%';
 
     var canNow = _st.initialized && msUntil <= 0;
+    if (canNow && !_collectingNow) _autoCollect();
     if (timerEl) {
-      if (!_st.initialized)   timerEl.textContent = 'Tap Start to begin farming';
-      else if (canNow)        timerEl.textContent = 'Ready to collect!';
-      else                    timerEl.textContent = 'Next collect in ' + _msStr(msUntil);
+      if (!_st.initialized)    timerEl.textContent = 'Tap Start to begin farming';
+      else if (_collectingNow) timerEl.textContent = 'Collecting…';
+      else if (canNow)         timerEl.textContent = 'Collecting…';
+      else                     timerEl.textContent = 'Next collect in ' + _msStr(msUntil);
     }
     if (collectBtn) {
-      if (!_st.initialized) { collectBtn.textContent = 'Start'; collectBtn.disabled = false; }
-      else { collectBtn.textContent = 'Collect'; collectBtn.disabled = !canNow; }
+      if (!_st.initialized) { collectBtn.textContent = 'Start'; collectBtn.disabled = false; collectBtn.style.display = ''; }
+      else collectBtn.style.display = 'none';
     }
-    if (badge) badge.className = canNow ? 'farm-badge farm-badge-ready' : 'farm-badge';
+    if (badge) badge.className = (canNow || _collectingNow) ? 'farm-badge farm-badge-ready' : 'farm-badge';
 
     if (upgradeRow) {
       if (_st.nextTier && _st.level < _st.maxLevel) {
@@ -13393,8 +13411,8 @@ void main(){
 
   function _startTick() {
     if (_timerTickId) return;
-    _timerTickId = setInterval(_timerTick, 1000);
-    _coinTickId  = setInterval(_coinTick,  5000);
+    _timerTickId  = setInterval(_timerTick, 1000);
+    _smoothTickId = setInterval(_smoothTick, 100);
   }
 
   function _showAwayToast(coins) {
