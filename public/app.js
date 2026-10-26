@@ -675,16 +675,11 @@ async function openPaypalCheckout(planKey, period) {
   document.getElementById('paypal-checkout-status').style.color = '';
   currentCheckoutEffective = effective;
 
-  // When coins fully cover the price — hide payment tabs, show coin confirmation
-  const payTabs = document.getElementById('co-pay-tabs');
   const payPanelPaypal = document.getElementById('payment-panel-paypal');
-  const payPanelCard = document.getElementById('payment-panel-card');
   const payBtn = document.getElementById('co-pay-btn');
   const footer = document.getElementById('co-footer-text');
   if (effective === 0) {
-    if (payTabs) payTabs.style.display = 'none';
     if (payPanelPaypal) payPanelPaypal.style.display = 'none';
-    if (payPanelCard) payPanelCard.style.display = 'none';
     if (footer) footer.textContent = 'Secured by C.M. Coins · Cancel anytime · No hidden fees';
     if (payBtn) {
       payBtn.textContent = 'Confirm & Use Coins';
@@ -692,10 +687,8 @@ async function openPaypalCheckout(planKey, period) {
       payBtn.onclick = () => handleCoinCheckout(planKey);
     }
   } else {
-    if (payTabs) payTabs.style.display = '';
     if (footer) footer.textContent = 'Secured by PayPal · Cancel anytime · No hidden fees';
     if (payBtn) { payBtn.style.display = 'none'; payBtn.onclick = null; }
-    switchPayTab('paypal');
   }
 
   document.getElementById('paypalCheckoutModal').style.display = 'flex';
@@ -720,7 +713,7 @@ async function openPaypalCheckout(planKey, period) {
       }
       await new Promise((resolve, reject) => {
         const s = document.createElement('script');
-        s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(cfg.clientId)}&vault=true&intent=subscription&components=buttons&disable-funding=card,credit,paylater`;
+        s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(cfg.clientId)}&vault=true&components=buttons`;
         s.onload = resolve;
         s.onerror = reject;
         document.head.appendChild(s);
@@ -800,16 +793,10 @@ function closePaypalCheckout() {
   document.getElementById('paypalCheckoutModal').style.display = 'none';
   currentCheckoutPlan = null;
   currentCheckoutEffective = 0;
-  // Reset state so next open is clean
-  const payTabs = document.getElementById('co-pay-tabs');
   const payPanelPaypal = document.getElementById('payment-panel-paypal');
-  const payPanelCard = document.getElementById('payment-panel-card');
   const payBtn = document.getElementById('co-pay-btn');
-  if (payTabs) payTabs.style.display = '';
   if (payPanelPaypal) payPanelPaypal.style.display = '';
-  if (payPanelCard) payPanelCard.style.display = 'none';
   if (payBtn) { payBtn.style.display = 'none'; payBtn.disabled = false; payBtn.textContent = 'Pay'; payBtn.onclick = null; }
-  destroyStripeElements();
 }
 
 async function handleCoinCheckout(planKey) {
@@ -841,149 +828,6 @@ async function handleCoinCheckout(planKey) {
     if (statusEl) statusEl.textContent = 'Network error. Please contact support.';
     if (payBtn) { payBtn.disabled = false; payBtn.textContent = 'Confirm & Use Coins'; }
     console.error('[coin checkout]', err);
-  }
-}
-
-// ── Stripe card payment ────────────────────────────────────────────────────────
-let stripeInstance = null;
-let stripeElements = null;
-let stripeCardNumber = null;
-let stripeCardExpiry = null;
-let stripeCardCvc = null;
-let stripeConfigLoaded = null;
-let activePayTab = 'paypal';
-
-async function loadStripeConfig() {
-  if (!stripeConfigLoaded) {
-    stripeConfigLoaded = fetch('/api/stripe/config').then(r => r.json()).catch(() => ({ available: false }));
-  }
-  return stripeConfigLoaded;
-}
-
-function switchPayTab(tab) {
-  activePayTab = tab;
-  document.getElementById('co-tab-paypal').classList.toggle('active', tab === 'paypal');
-  document.getElementById('co-tab-card').classList.toggle('active', tab === 'card');
-  document.getElementById('payment-panel-paypal').style.display = tab === 'paypal' ? '' : 'none';
-  document.getElementById('payment-panel-card').style.display = tab === 'card' ? '' : 'none';
-  const footer = document.getElementById('co-footer-text');
-  if (footer) footer.textContent = tab === 'card' ? 'Secured by Stripe · Cancel anytime · No hidden fees' : 'Secured by PayPal · Cancel anytime · No hidden fees';
-  if (tab === 'card') mountStripeElements();
-}
-
-async function mountStripeElements() {
-  const cfg = await loadStripeConfig();
-  const unavailableEl = document.getElementById('stripe-unavailable');
-  const payBtn = document.getElementById('stripe-pay-btn');
-  if (!cfg.available || !cfg.publishableKey) {
-    if (unavailableEl) unavailableEl.style.display = '';
-    if (payBtn) payBtn.style.display = 'none';
-    return;
-  }
-  if (unavailableEl) unavailableEl.style.display = 'none';
-  if (payBtn) payBtn.style.display = '';
-
-  if (!stripeInstance) stripeInstance = Stripe(cfg.publishableKey);
-  if (stripeCardNumber) return; // already mounted
-
-  const appearance = {
-    variables: {
-      colorPrimary: '#8b5cf6',
-      colorBackground: 'var(--bg3, #1e1b2e)',
-      colorText: 'var(--text1, #e8e3ff)',
-      colorDanger: '#f87171',
-      fontFamily: 'system-ui, sans-serif',
-      borderRadius: '8px',
-    }
-  };
-  stripeElements = stripeInstance.elements({ appearance });
-
-  const style = {
-    base: { color: '#e8e3ff', fontFamily: 'system-ui, sans-serif', fontSize: '14px', '::placeholder': { color: '#6b6590' } },
-    invalid: { color: '#f87171' }
-  };
-  stripeCardNumber = stripeElements.create('cardNumber', { style });
-  stripeCardExpiry = stripeElements.create('cardExpiry', { style });
-  stripeCardCvc    = stripeElements.create('cardCvc',    { style });
-
-  stripeCardNumber.mount('#stripe-card-number');
-  stripeCardExpiry.mount('#stripe-card-expiry');
-  stripeCardCvc.mount('#stripe-card-cvc');
-
-  const errorEl = document.getElementById('stripe-card-error');
-  [stripeCardNumber, stripeCardExpiry, stripeCardCvc].forEach(el => {
-    el.on('change', (ev) => {
-      if (errorEl) { if (ev.error) { errorEl.textContent = ev.error.message; errorEl.style.display = ''; } else errorEl.style.display = 'none'; }
-    });
-  });
-}
-
-function destroyStripeElements() {
-  if (stripeCardNumber) { try { stripeCardNumber.destroy(); } catch (_) {} stripeCardNumber = null; }
-  if (stripeCardExpiry) { try { stripeCardExpiry.destroy(); } catch (_) {} stripeCardExpiry = null; }
-  if (stripeCardCvc)    { try { stripeCardCvc.destroy(); }    catch (_) {} stripeCardCvc = null; }
-  stripeElements = null;
-  // Reset tab back to PayPal for next open
-  activePayTab = 'paypal';
-  const tabPaypal = document.getElementById('co-tab-paypal');
-  const tabCard   = document.getElementById('co-tab-card');
-  const panelPaypal = document.getElementById('payment-panel-paypal');
-  const panelCard   = document.getElementById('payment-panel-card');
-  if (tabPaypal) tabPaypal.classList.add('active');
-  if (tabCard)   tabCard.classList.remove('active');
-  if (panelPaypal) panelPaypal.style.display = '';
-  if (panelCard)   panelCard.style.display = 'none';
-  const footer = document.getElementById('co-footer-text');
-  if (footer) footer.textContent = 'Secured by PayPal · Cancel anytime · No hidden fees';
-}
-
-async function submitStripePayment() {
-  if (!stripeInstance || !stripeCardNumber) return;
-  const btn = document.getElementById('stripe-pay-btn');
-  const label = document.getElementById('stripe-pay-label');
-  const errorEl = document.getElementById('stripe-card-error');
-  const statusEl = document.getElementById('paypal-checkout-status');
-  if (btn) btn.disabled = true;
-  if (label) label.textContent = 'Processing…';
-  if (errorEl) errorEl.style.display = 'none';
-  if (statusEl) { statusEl.textContent = ''; statusEl.style.color = ''; }
-
-  try {
-    const { paymentMethod, error } = await stripeInstance.createPaymentMethod({
-      type: 'card',
-      card: stripeCardNumber,
-    });
-    if (error) throw new Error(error.message);
-
-    const period = currentCheckoutPeriod === 'annual' ? 'annual' : 'monthly';
-    const r = await fetch('/api/stripe/subscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ planKey: currentCheckoutPlan, period, paymentMethodId: paymentMethod.id })
-    });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error || 'Payment failed.');
-
-    if (data.requiresAction) {
-      // 3D Secure confirmation required
-      const { error: confirmError } = await stripeInstance.confirmCardPayment(data.clientSecret);
-      if (confirmError) throw new Error(confirmError.message);
-      // Brief wait for Stripe webhook to process, then sync plan server-side
-      await new Promise(r => setTimeout(r, 2000));
-      await fetch('/api/stripe/sync', { method: 'POST' }).catch(() => {});
-    }
-
-    // Success
-    if (statusEl) { statusEl.textContent = ''; }
-    closePaypalCheckout();
-    await loadUsage();
-    showNotification('Subscription activated! Welcome to ' + currentCheckoutPlan.toUpperCase() + ' plan.', 'success');
-
-  } catch (e) {
-    if (errorEl) { errorEl.textContent = e.message; errorEl.style.display = ''; }
-    if (statusEl) { statusEl.textContent = e.message; statusEl.style.color = '#f87171'; }
-    if (btn) btn.disabled = false;
-    if (label) label.textContent = 'Try again';
   }
 }
 
@@ -1196,26 +1040,33 @@ async function selectCoinPack(pack) {
   const btnWrap = document.getElementById('coinShopPaypalBtn');
   btnWrap.innerHTML = '';
 
-  if (!coinOrderSdkLoaded && !coinOrderSdkLoading) {
+  // Reuse the shared PayPal SDK (same instance as subscription checkout)
+  if (paypalSdkLoaded) {
+    coinOrderSdkLoaded = true;
+  } else if (!coinOrderSdkLoaded && !paypalSdkLoading) {
+    paypalSdkLoading = true;
     coinOrderSdkLoading = true;
     document.getElementById('coinShopStatus').textContent = 'Loading payment system…';
     try {
-      const cfg = await fetch('/api/paypal/config').then(r => r.json());
+      const cfg = await loadPaypalConfig();
+      if (!cfg || !cfg.clientId) throw new Error('No config');
       await new Promise((resolve, reject) => {
         const s = document.createElement('script');
-        s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(cfg.clientId)}&intent=capture&components=buttons&disable-funding=card,credit,paylater&data-namespace=paypalOrder`;
-        s.dataset.namespace = 'paypalOrder';
-        s.onload = resolve;
-        s.onerror = reject;
+        s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(cfg.clientId)}&vault=true&components=buttons`;
+        s.onload = resolve; s.onerror = reject;
         document.head.appendChild(s);
       });
+      paypalSdkLoaded = true;
       coinOrderSdkLoaded = true;
       document.getElementById('coinShopStatus').textContent = '';
     } catch (_) {
       document.getElementById('coinShopStatus').textContent = 'Failed to load payment system. Refresh and try again.';
+      paypalSdkLoading = false;
       coinOrderSdkLoading = false;
       return;
     }
+    paypalSdkLoading = false;
+    coinOrderSdkLoading = false;
   }
 
   if (coinOrderSdkLoaded) renderCoinPaypalButton(pack);
@@ -1224,10 +1075,10 @@ async function selectCoinPack(pack) {
 function renderCoinPaypalButton(pack) {
   const btnWrap = document.getElementById('coinShopPaypalBtn');
   btnWrap.innerHTML = '';
-  if (typeof paypalOrder === 'undefined') return;
+  if (typeof paypal === 'undefined') return;
   try {
-    paypalOrder.Buttons({
-      fundingSource: paypalOrder.FUNDING.PAYPAL,
+    paypal.Buttons({
+      fundingSource: paypal.FUNDING.PAYPAL,
       style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'pay' },
       async createOrder() {
         const d = await fetch('/api/paypal/create-coin-order', {
