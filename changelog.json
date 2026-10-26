@@ -1,5 +1,21 @@
 [
   {
+    "id": "v360-paypal-card-farm",
+    "version": "v360",
+    "date": "Oct 2026",
+    "title": "💳 Credit Card Back + Real-Time Farm",
+    "subtitle": "Pay by card through PayPal, coins tick up live, and Opys models are visible in the picker.",
+    "added": [
+      "Credit Card tab is back at checkout — powered by PayPal's hosted card form, so your card is charged through PayPal with no extra account needed",
+      "Farm coins now tick up in real-time like a jackpot counter — no collect button, coins arrive automatically when the timer hits zero"
+    ],
+    "fixed": [
+      "Opys, Opys 5, and Opys 6 models now show correctly in the model picker instead of appearing blank",
+      "Yearly billing tab no longer resets to Monthly on first click",
+      "Coin shop payment no longer shows 'Failed to load payment system' — now shares the same PayPal session as checkout"
+    ]
+  },
+  {
     "id": "v359-bron",
     "version": "v359",
     "date": "Oct 2026",
