@@ -12456,6 +12456,12 @@ async function claimHalloweenGift() {
   let _wthUnit   = localStorage.getItem('wth_unit')  || 'F';
   let _wthHotF   = parseInt(localStorage.getItem('wth_hot_f')   || '90', 10);
   let _wthFrostF = parseInt(localStorage.getItem('wth_frost_f') || '32', 10);
+  // Per-effect preferences (each default ON)
+  let _wthRainOn    = localStorage.getItem('wth_rain_on')    !== '0';
+  let _wthSnowOn    = localStorage.getItem('wth_snow_on')    !== '0';
+  let _wthCloudsOn  = localStorage.getItem('wth_clouds_on')  !== '0';
+  let _wthThunderOn = localStorage.getItem('wth_thunder_on') !== '0';
+  let _wthFloodOn   = localStorage.getItem('wth_flood_on')   !== '0';
 
   // â”€â”€ Runtime state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let _wthData = null;
@@ -12463,6 +12469,9 @@ async function claimHalloweenGift() {
   let _rainTids = [], _snowTids = [];
   let _puddleEl = null, _puddleTid = null, _puddleH = 0;
   let _snowGroundEl = null, _snowGroundTid = null, _snowGroundH = 0;
+  let _cloudEl = null;
+  let _thunderActive = false, _thunderTids = [];
+  let _floodEl = null, _floodTid = null, _floodH = 0, _floodDraining = false;
   let _heatStage = null, _heatOverlay = null;
   let _frostEl = null, _iciclesEl = null;
 
@@ -12472,6 +12481,94 @@ async function claimHalloweenGift() {
   _widget.className = 'wth-widget';
   document.body.appendChild(_widget);
   if (!_wthOn) _widget.classList.add('wth-hidden');
+
+  // ── Weather options panel ──────────────────────────────────────────────────
+  const _wthPanel = document.createElement('div');
+  _wthPanel.id = 'wthOptionsPanel';
+  _wthPanel.innerHTML =
+    '<div class=”wth-opt-hd”>' +
+      '<span>Weather Effects</span>' +
+      '<button class=”wth-opt-close” id=”wthOptClose” aria-label=”Close”>×</button>' +
+    '</div>' +
+    '<div class=”wth-opt-rows”>' +
+      '<label class=”wth-opt-row”><span>☁️ Clouds</span>' +
+        '<button class=”wth-opt-tog” id=”wthTogClouds” data-pref=”wth_clouds_on”></button></label>' +
+      '<label class=”wth-opt-row”><span>🌧️ Rain</span>' +
+        '<button class=”wth-opt-tog” id=”wthTogRain” data-pref=”wth_rain_on”></button></label>' +
+      '<label class=”wth-opt-row”><span>❄️ Snow</span>' +
+        '<button class=”wth-opt-tog” id=”wthTogSnow” data-pref=”wth_snow_on”></button></label>' +
+      '<label class=”wth-opt-row”>' +
+        '<span>⚡ Thunder &amp; Lightning</span>' +
+        '<button class=”wth-opt-tog” id=”wthTogThunder” data-pref=”wth_thunder_on”></button></label>' +
+      '<div class=”wth-opt-epilepsy”>⚠️ Contains flashing lights</div>' +
+      '<label class=”wth-opt-row”><span>🌊 Flood</span>' +
+        '<button class=”wth-opt-tog” id=”wthTogFlood” data-pref=”wth_flood_on”></button></label>' +
+    '</div>';
+  document.body.appendChild(_wthPanel);
+
+  function _wthPanelSetTog(id, on) {
+    var btn = document.getElementById(id);
+    if (!btn) return;
+    btn.textContent = on ? 'ON' : 'OFF';
+    btn.classList.toggle('wth-tog-on', !!on);
+  }
+
+  function _wthPanelRefresh() {
+    _wthPanelSetTog('wthTogClouds',  _wthCloudsOn);
+    _wthPanelSetTog('wthTogRain',    _wthRainOn);
+    _wthPanelSetTog('wthTogSnow',    _wthSnowOn);
+    _wthPanelSetTog('wthTogThunder', _wthThunderOn);
+    _wthPanelSetTog('wthTogFlood',   _wthFloodOn);
+  }
+
+  _widget.addEventListener('click', function(e) {
+    e.stopPropagation();
+    _wthPanel.classList.toggle('wth-opt-open');
+    if (_wthPanel.classList.contains('wth-opt-open')) _wthPanelRefresh();
+  });
+
+  document.getElementById('wthOptClose').addEventListener('click', function(e) {
+    e.stopPropagation();
+    _wthPanel.classList.remove('wth-opt-open');
+  });
+
+  document.addEventListener('click', function(e) {
+    if (!_wthPanel.contains(e.target) && e.target !== _widget) {
+      _wthPanel.classList.remove('wth-opt-open');
+    }
+  });
+
+  _wthPanel.addEventListener('click', function(e) {
+    var btn = e.target.closest('.wth-opt-tog');
+    if (!btn) return;
+    var pref = btn.dataset.pref;
+    var on;
+    if (pref === 'wth_clouds_on') {
+      _wthCloudsOn = !_wthCloudsOn; on = _wthCloudsOn;
+      localStorage.setItem(pref, on ? '1' : '0');
+      if (on && (_rainActive || _snowActive)) _startClouds(_rainActive);
+      else if (!on) _stopClouds();
+    } else if (pref === 'wth_rain_on') {
+      _wthRainOn = !_wthRainOn; on = _wthRainOn;
+      localStorage.setItem(pref, on ? '1' : '0');
+      if (_wthData) _applyEffects();
+    } else if (pref === 'wth_snow_on') {
+      _wthSnowOn = !_wthSnowOn; on = _wthSnowOn;
+      localStorage.setItem(pref, on ? '1' : '0');
+      if (_wthData) _applyEffects();
+    } else if (pref === 'wth_thunder_on') {
+      _wthThunderOn = !_wthThunderOn; on = _wthThunderOn;
+      localStorage.setItem(pref, on ? '1' : '0');
+      if (on && _rainActive) _startThunder();
+      else if (!on) _stopThunder();
+    } else if (pref === 'wth_flood_on') {
+      _wthFloodOn = !_wthFloodOn; on = _wthFloodOn;
+      localStorage.setItem(pref, on ? '1' : '0');
+      if (on && _rainActive) _startFlood();
+      else if (!on) _stopFlood();
+    }
+    _wthPanelSetTog(btn.id, on);
+  });
 
   // â”€â”€ Clock â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const _DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -12586,8 +12683,11 @@ async function claimHalloweenGift() {
     if (_rainActive) return;
     _rainActive = true;
     document.body.classList.add('wth-raining');
-    for (var i = 0; i < 32; i++) _spawnDrop();
+    for (var i = 0; i < 40; i++) _spawnDrop();
     _startPuddle();
+    if (_wthCloudsOn) _startClouds(true);
+    if (_wthThunderOn) _startThunder();
+    if (_wthFloodOn) _startFlood();
   }
 
   function _stopRain() {
@@ -12596,6 +12696,9 @@ async function claimHalloweenGift() {
     _rainTids.forEach(function(t) { clearTimeout(t); }); _rainTids = [];
     document.querySelectorAll('.wth-drop,.wth-splash').forEach(function(el) { el.remove(); });
     _stopPuddle();
+    _stopFlood();
+    if (!_snowActive) _stopClouds();
+    _stopThunder();
   }
 
   function _startPuddle() {
@@ -12653,6 +12756,7 @@ async function claimHalloweenGift() {
     for (var i = 0; i < 26; i++) _spawnFlake();
     _startFrost();
     _startSnowGround();
+    if (_wthCloudsOn) _startClouds(false);
   }
 
   function _stopSnow() {
@@ -12661,6 +12765,7 @@ async function claimHalloweenGift() {
     _snowTids.forEach(function(t) { clearTimeout(t); }); _snowTids = [];
     document.querySelectorAll('.wth-flake').forEach(function(el) { el.remove(); });
     _stopSnowGround();
+    if (!_rainActive) _stopClouds();
   }
 
   function _startSnowGround() {
@@ -12717,6 +12822,133 @@ async function claimHalloweenGift() {
     if (_iciclesEl) { _iciclesEl.remove(); _iciclesEl = null; }
   }
 
+  // ── Clouds ──────────────────────────────────────────────────────────────────
+  var _CLOUD_DEFS = [
+    { w:380, h:100, top:5,  blur:26, op:0.68, dur:72, delay:0   },
+    { w:260, h:75,  top:22, blur:20, op:0.55, dur:55, delay:-22 },
+    { w:440, h:120, top:0,  blur:32, op:0.75, dur:90, delay:-45 },
+    { w:200, h:65,  top:38, blur:16, op:0.48, dur:48, delay:-14 },
+    { w:310, h:90,  top:14, blur:22, op:0.62, dur:68, delay:-60 },
+  ];
+
+  function _startClouds(dark) {
+    if (_cloudEl) { if (dark) _cloudEl.classList.add('wth-clouds-dark'); return; }
+    _cloudEl = document.createElement('div');
+    _cloudEl.id = 'wthClouds';
+    if (dark) _cloudEl.classList.add('wth-clouds-dark');
+    _CLOUD_DEFS.forEach(function(d) {
+      var c = document.createElement('div');
+      c.className = 'wth-cloud';
+      var darkMul = dark ? 0.9 : 1;
+      var r = dark ? 35 : 130, g = dark ? 38 : 135, b = dark ? 55 : 160;
+      c.style.cssText = 'width:' + d.w + 'px;height:' + d.h + 'px;top:' + d.top + 'px;' +
+        'background:rgba(' + r + ',' + g + ',' + b + ',' + (d.op * darkMul) + ');' +
+        'filter:blur(' + d.blur + 'px);' +
+        'animation-duration:' + d.dur + 's;animation-delay:' + d.delay + 's;';
+      _cloudEl.appendChild(c);
+    });
+    document.body.appendChild(_cloudEl);
+  }
+
+  function _stopClouds() {
+    if (_cloudEl) { _cloudEl.style.opacity = '0'; _cloudEl.style.transition = 'opacity 4s';
+      var _ce = _cloudEl; _cloudEl = null;
+      setTimeout(function() { _ce.remove(); }, 4100); }
+  }
+
+  // ── Thunder & Lightning ──────────────────────────────────────────────────────
+  function _startThunder() {
+    if (_thunderActive) return;
+    _thunderActive = true;
+    _scheduleNextThunder();
+  }
+
+  function _stopThunder() {
+    _thunderActive = false;
+    _thunderTids.forEach(function(t) { clearTimeout(t); }); _thunderTids = [];
+  }
+
+  function _scheduleNextThunder() {
+    if (!_thunderActive) return;
+    var delay = (10 + Math.random() * 30) * 1000;
+    var tid = setTimeout(function() {
+      _doLightningFlash();
+      setTimeout(_doThunderSound, 300 + Math.random() * 800);
+      _scheduleNextThunder();
+    }, delay);
+    _thunderTids.push(tid);
+  }
+
+  function _doLightningFlash() {
+    var el = document.getElementById('wthLightningFlash');
+    if (!el) { el = document.createElement('div'); el.id = 'wthLightningFlash'; document.body.appendChild(el); }
+    el.style.opacity = '0.14';
+    setTimeout(function() { el.style.opacity = '0'; }, 70);
+    setTimeout(function() { el.style.opacity = '0.22'; }, 145);
+    setTimeout(function() { el.style.opacity = '0'; }, 270);
+  }
+
+  function _doThunderSound() {
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      var sr = ctx.sampleRate;
+      var len = sr * 2.8;
+      var buf = ctx.createBuffer(1, len, sr);
+      var data = buf.getChannelData(0);
+      for (var i = 0; i < len; i++) {
+        var env = i < sr * 0.04 ? i / (sr * 0.04) : Math.pow(1 - (i - sr * 0.04) / (len - sr * 0.04), 1.8);
+        data[i] = (Math.random() * 2 - 1) * env;
+      }
+      var src = ctx.createBufferSource(); src.buffer = buf;
+      var lpf = ctx.createBiquadFilter(); lpf.type = 'lowpass'; lpf.frequency.value = 180; lpf.Q.value = 3;
+      var gain = ctx.createGain(); gain.gain.value = 0.55;
+      src.connect(lpf); lpf.connect(gain); gain.connect(ctx.destination);
+      src.start(); src.stop(ctx.currentTime + 3);
+      setTimeout(function() { try { ctx.close(); } catch(e){} }, 3500);
+    } catch(e) {}
+  }
+
+  // ── Flood ────────────────────────────────────────────────────────────────────
+  function _startFlood() {
+    if (!_wthFloodOn) return;
+    if (!_floodEl) {
+      _floodEl = document.createElement('div');
+      _floodEl.id = 'wthFlood';
+      document.body.appendChild(_floodEl);
+      _floodH = 0;
+    }
+    _floodDraining = false;
+    clearTimeout(_floodTid);
+    _floodRiseStep();
+  }
+
+  function _floodRiseStep() {
+    if (!_floodEl || _floodDraining) return;
+    _floodH = Math.min(_floodH + 1.8, 48);
+    _floodEl.style.height = _floodH + 'vh';
+    if (_floodH < 48) _floodTid = setTimeout(_floodRiseStep, 16000);
+  }
+
+  function _stopFlood() {
+    clearTimeout(_floodTid);
+    if (!_floodEl) return;
+    _floodDraining = true;
+    _floodDrainStep();
+  }
+
+  function _floodDrainStep() {
+    if (!_floodEl) return;
+    _floodH = Math.max(_floodH - 0.4, 0);
+    _floodEl.style.height = _floodH + 'vh';
+    if (_floodH > 0) {
+      _floodTid = setTimeout(_floodDrainStep, 22000);
+    } else {
+      var _fe = _floodEl; _floodEl = null; _floodDraining = false;
+      _fe.style.opacity = '0'; _fe.style.transition = 'opacity 5s';
+      setTimeout(function() { _fe.remove(); }, 5100);
+    }
+  }
+
   // â”€â”€ Heat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function _startHeat() {
     if (_heatActive) return;
@@ -12754,14 +12986,14 @@ async function claimHalloweenGift() {
   // â”€â”€ Apply effects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function _applyEffects() {
     if (!_wthOn || !_wthData) {
-      _stopRain(); _stopSnow(); _stopFrost(); _stopHeat(); return;
+      _stopRain(); _stopSnow(); _stopFrost(); _stopHeat(); _stopClouds(); _stopThunder(); _stopFlood(); return;
     }
     var temp_f = _wthData.temp_f;
     var code   = _wthData.code;
 
-    if (_isRain(code)) _startRain(); else _stopRain();
+    if (_isRain(code) && _wthRainOn) _startRain(); else _stopRain();
 
-    if (_isSnow(code)) {
+    if (_isSnow(code) && _wthSnowOn) {
       _startSnow();
     } else {
       _stopSnow();
@@ -12783,7 +13015,9 @@ async function claimHalloweenGift() {
     setTimeout(function() {
       if (_wthOn && !_rainActive && !_snowActive) {
         var doSnow = Math.random() < 0.35;
-        if (doSnow) _startSnow(); else _startRain();
+        if (doSnow && _wthSnowOn) _startSnow();
+        else if (!doSnow && _wthRainOn) _startRain();
+        else { _scheduleRandomWeather(); return; }
         var dur = (3 + Math.random() * 6) * 60 * 1000; // 3-9 min event
         setTimeout(function() {
           var needsRain = _wthData && _isRain(_wthData.code);
@@ -12827,12 +13061,14 @@ async function claimHalloweenGift() {
     },
     forceEffect: function(mode) {
       // Stop everything first
-      _stopRain(); _stopSnow(); _stopFrost(); _stopHeat();
-      if (mode === 'rain')  { _startRain(); }
-      if (mode === 'snow')  { _startSnow(); }
-      if (mode === 'frost') { _startFrost(); }
-      if (mode === 'heat')  { _startHeat(); }
-      if (mode === 'clear') { /* already stopped */ }
+      _stopRain(); _stopSnow(); _stopFrost(); _stopHeat(); _stopClouds(); _stopThunder(); _stopFlood();
+      if (mode === 'rain')    { _startRain(); }
+      if (mode === 'snow')    { _startSnow(); }
+      if (mode === 'frost')   { _startFrost(); }
+      if (mode === 'heat')    { _startHeat(); }
+      if (mode === 'thunder') { _startClouds(true); _startThunder(); }
+      if (mode === 'flood')   { _startFlood(); }
+      if (mode === 'clear')   { /* already stopped */ }
       // Update preview button states
       document.querySelectorAll('.wth-test-btn').forEach(function(b) {
         b.classList.toggle('wth-test-active', b.dataset.mode === mode);
