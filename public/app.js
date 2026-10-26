@@ -12125,6 +12125,19 @@ async function claimHalloweenGift() {
     },
     getState: function() {
       return { on: _wthOn, unit: _wthUnit, hotF: _wthHotF, frostF: _wthFrostF };
+    },
+    forceEffect: function(mode) {
+      // Stop everything first
+      _stopRain(); _stopSnow(); _stopFrost(); _stopHeat();
+      if (mode === 'rain')  { _startRain(); }
+      if (mode === 'snow')  { _startSnow(); }
+      if (mode === 'frost') { _startFrost(); }
+      if (mode === 'heat')  { _startHeat(); }
+      if (mode === 'clear') { /* already stopped */ }
+      // Update preview button states
+      document.querySelectorAll('.wth-test-btn').forEach(function(b) {
+        b.classList.toggle('wth-test-active', b.dataset.mode === mode);
+      });
     }
   };
 })();
