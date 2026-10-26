@@ -675,11 +675,15 @@ async function openPaypalCheckout(planKey, period) {
   document.getElementById('paypal-checkout-status').style.color = '';
   currentCheckoutEffective = effective;
 
+  const payTabs      = document.getElementById('co-pay-tabs');
   const payPanelPaypal = document.getElementById('payment-panel-paypal');
+  const payPanelCard   = document.getElementById('payment-panel-card');
   const payBtn = document.getElementById('co-pay-btn');
   const footer = document.getElementById('co-footer-text');
   if (effective === 0) {
+    if (payTabs) payTabs.style.display = 'none';
     if (payPanelPaypal) payPanelPaypal.style.display = 'none';
+    if (payPanelCard)   payPanelCard.style.display = 'none';
     if (footer) footer.textContent = 'Secured by C.M. Coins · Cancel anytime · No hidden fees';
     if (payBtn) {
       payBtn.textContent = 'Confirm & Use Coins';
@@ -687,9 +691,10 @@ async function openPaypalCheckout(planKey, period) {
       payBtn.onclick = () => handleCoinCheckout(planKey);
     }
   } else {
-    if (payPanelPaypal) payPanelPaypal.style.display = '';
+    if (payTabs) payTabs.style.display = '';
     if (footer) footer.textContent = 'Secured by PayPal · Cancel anytime · No hidden fees';
     if (payBtn) { payBtn.style.display = 'none'; payBtn.onclick = null; }
+    switchPayTab('paypal');
   }
 
   document.getElementById('paypalCheckoutModal').style.display = 'flex';
@@ -740,12 +745,12 @@ function initPayPalWidgets(planKey) {
   const planId = (currentCheckoutPeriod === 'annual' ? PAYPAL_PLAN_IDS_YEARLY : PAYPAL_PLAN_IDS)[planKey];
   if (!planId || typeof paypal === 'undefined') return;
 
-  // Render all eligible payment buttons — PayPal automatically includes
-  // "Debit or Credit Card" below the wallet button in this layout
+  // PayPal wallet button (PayPal tab)
   try {
     const ppContainer = document.getElementById('paypal-button-container');
     if (ppContainer) ppContainer.innerHTML = '';
     paypal.Buttons({
+      fundingSource: paypal.FUNDING.PAYPAL,
       style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'subscribe' },
       createSubscription(data, actions) {
         if (!currentUser) throw new Error('Session expired — please refresh and sign in again');
@@ -758,6 +763,9 @@ function initPayPalWidgets(planKey) {
       }
     }).render('#paypal-button-container');
   } catch (err) { console.error('PayPal button render error:', err); }
+
+  // Credit Card tab — PayPal Hosted Fields (embedded card form)
+  initCardHostedFields(planId, planKey).catch(e => console.error('Card fields init error:', e));
 
 }
 
@@ -794,10 +802,16 @@ function closePaypalCheckout() {
   document.getElementById('paypalCheckoutModal').style.display = 'none';
   currentCheckoutPlan = null;
   currentCheckoutEffective = 0;
+  if (_hostedFieldsInstance) { try { _hostedFieldsInstance.teardown(); } catch (_) {} _hostedFieldsInstance = null; }
+  const payTabs    = document.getElementById('co-pay-tabs');
   const payPanelPaypal = document.getElementById('payment-panel-paypal');
+  const payPanelCard   = document.getElementById('payment-panel-card');
   const payBtn = document.getElementById('co-pay-btn');
+  if (payTabs) payTabs.style.display = '';
   if (payPanelPaypal) payPanelPaypal.style.display = '';
+  if (payPanelCard)   payPanelCard.style.display = 'none';
   if (payBtn) { payBtn.style.display = 'none'; payBtn.disabled = false; payBtn.textContent = 'Pay'; payBtn.onclick = null; }
+  switchPayTab('paypal');
 }
 
 async function handleCoinCheckout(planKey) {
@@ -829,6 +843,79 @@ async function handleCoinCheckout(planKey) {
     if (statusEl) statusEl.textContent = 'Network error. Please contact support.';
     if (payBtn) { payBtn.disabled = false; payBtn.textContent = 'Confirm & Use Coins'; }
     console.error('[coin checkout]', err);
+  }
+}
+
+function switchPayTab(tab) {
+  document.getElementById('payment-panel-paypal').style.display = tab === 'paypal' ? '' : 'none';
+  document.getElementById('payment-panel-card').style.display   = tab === 'card'   ? '' : 'none';
+  document.getElementById('co-tab-paypal').classList.toggle('active', tab === 'paypal');
+  document.getElementById('co-tab-card').classList.toggle('active',   tab === 'card');
+  const footer = document.getElementById('co-footer-text');
+  if (footer) footer.textContent = 'Secured by PayPal · Cancel anytime · No hidden fees';
+}
+
+let _hostedFieldsInstance = null;
+
+async function initCardHostedFields(planId, planKey) {
+  const form       = document.querySelector('.co-card-form');
+  const unavail    = document.getElementById('co-card-unavail');
+  const submitBtn  = document.getElementById('co-card-submit-btn');
+  const errEl      = document.getElementById('co-card-error');
+
+  if (!paypal.HostedFields?.isEligible()) {
+    if (form) form.style.display = 'none';
+    if (unavail) unavail.style.display = '';
+    return;
+  }
+  if (form) form.style.display = '';
+  if (unavail) unavail.style.display = 'none';
+  if (_hostedFieldsInstance) { try { _hostedFieldsInstance.teardown(); } catch (_) {} _hostedFieldsInstance = null; }
+
+  try {
+    _hostedFieldsInstance = await paypal.HostedFields.render({
+      createSubscription(data, actions) {
+        if (!currentUser) throw new Error('Session expired — please refresh and sign in again');
+        return actions.subscription.create({ plan_id: planId, custom_id: String(currentUser.googleId) });
+      },
+      styles: {
+        'input': { 'font-size': '14px', 'color': '#e8e3ff', 'font-family': 'system-ui, sans-serif' },
+        ':focus': { 'color': '#e8e3ff' },
+        '.valid': { 'color': '#4ade80' },
+        '.invalid': { 'color': '#f87171' },
+        '::placeholder': { 'color': '#6b6590' }
+      },
+      fields: {
+        number:         { selector: '#co-card-number', placeholder: '1234 1234 1234 1234' },
+        expirationDate: { selector: '#co-card-expiry', placeholder: 'MM / YY' },
+        cvv:            { selector: '#co-card-cvv',    placeholder: 'CVC' }
+      }
+    });
+    if (submitBtn) submitBtn.disabled = false;
+  } catch (err) {
+    if (errEl) { errEl.textContent = 'Failed to load card form. Please use the PayPal tab.'; errEl.style.display = ''; }
+    console.error('HostedFields render error:', err);
+  }
+}
+
+async function submitHostedCardPayment() {
+  const hf = _hostedFieldsInstance;
+  if (!hf) return;
+  const btn   = document.getElementById('co-card-submit-btn');
+  const errEl = document.getElementById('co-card-error');
+  const statusEl = document.getElementById('paypal-checkout-status');
+  if (btn) { btn.disabled = true; btn.textContent = 'Processing…'; }
+  if (errEl) errEl.style.display = 'none';
+  if (statusEl) { statusEl.textContent = ''; statusEl.style.color = ''; }
+  try {
+    const result = await hf.submit({ contingencies: ['3D_SECURE'] });
+    const subId  = result.subscriptionID || result.orderID;
+    if (!subId) throw new Error('No subscription ID returned from PayPal.');
+    await verifyAndActivateSubscription(subId, currentCheckoutPlan);
+  } catch (e) {
+    const msg = e.message || 'Card payment failed. Please try again.';
+    if (errEl) { errEl.textContent = msg; errEl.style.display = ''; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Subscribe with Card'; }
   }
 }
 

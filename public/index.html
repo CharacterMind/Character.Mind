@@ -1777,16 +1777,44 @@
         <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
 
-      <!-- Payment panel — PayPal renders PayPal + card options automatically -->
+      <!-- Payment method tabs -->
+      <div id="co-pay-tabs" class="co-pay-tabs">
+        <button id="co-tab-paypal" class="co-pay-tab active" onclick="switchPayTab('paypal')">PayPal</button>
+        <button id="co-tab-card"   class="co-pay-tab"        onclick="switchPayTab('card')">Credit Card</button>
+      </div>
+
+      <!-- PayPal panel -->
       <div id="payment-panel-paypal">
         <div class="co-express-wrap">
-          <div class="co-express-label">PayPal · Debit or Credit Card</div>
+          <div class="co-express-label">Pay with PayPal</div>
           <div id="paypal-button-container" class="co-express-btns"></div>
         </div>
       </div>
-      <!-- dummy IDs kept so any stale JS refs don't throw -->
-      <div id="co-pay-tabs" style="display:none"></div>
-      <div id="payment-panel-card" style="display:none"></div>
+
+      <!-- Card panel — PayPal Hosted Fields -->
+      <div id="payment-panel-card" style="display:none">
+        <div class="co-card-form">
+          <div class="co-card-field-wrap">
+            <label class="co-card-label">Card number</label>
+            <div id="co-card-number" class="co-hosted-field"></div>
+          </div>
+          <div class="co-card-row">
+            <div class="co-card-field-wrap">
+              <label class="co-card-label">Expiration date</label>
+              <div id="co-card-expiry" class="co-hosted-field"></div>
+            </div>
+            <div class="co-card-field-wrap">
+              <label class="co-card-label">Security code</label>
+              <div id="co-card-cvv" class="co-hosted-field"></div>
+            </div>
+          </div>
+          <div id="co-card-error" class="stripe-error-msg" style="display:none"></div>
+          <button id="co-card-submit-btn" class="co-card-submit-btn" onclick="submitHostedCardPayment()">Subscribe with Card</button>
+        </div>
+        <div id="co-card-unavail" style="display:none;font-size:13px;color:var(--text3);text-align:center;padding:10px 0">
+          Card payments aren't available yet on this account.<br>Please use the PayPal tab — PayPal accepts all major cards.
+        </div>
+      </div>
       <div id="card-button-container" style="display:none"></div>
 
       <div id="paypal-checkout-status" class="paypal-checkout-status"></div>
@@ -1876,6 +1904,26 @@
   font-size: 13px; color: #f87171; background: rgba(248,113,113,.1);
   border: 1px solid rgba(248,113,113,.3); border-radius: 6px; padding: 8px 12px;
 }
+
+/* Hosted card fields */
+.co-card-form { display: flex; flex-direction: column; gap: 14px; }
+.co-card-label { font-size: 12px; font-weight: 600; color: var(--text3); margin-bottom: 6px; display: block; }
+.co-hosted-field {
+  background: var(--bg3); border: 1.5px solid var(--border2); border-radius: 8px;
+  height: 42px; padding: 0 12px; display: flex; align-items: center;
+  transition: border-color .15s;
+}
+.co-hosted-field.braintree-hosted-fields-focused { border-color: var(--accent); }
+.co-hosted-field.braintree-hosted-fields-invalid { border-color: #f87171; }
+.co-card-row { display: flex; gap: 12px; }
+.co-card-field-wrap { flex: 1; display: flex; flex-direction: column; }
+.co-card-submit-btn {
+  width: 100%; padding: 13px; background: var(--accent); color: #fff; border: none;
+  border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;
+  transition: opacity .15s; margin-top: 4px;
+}
+.co-card-submit-btn:hover:not(:disabled) { opacity: .88; }
+.co-card-submit-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 /* Express checkout */
 .co-express-wrap { display: flex; flex-direction: column; gap: 10px; }
