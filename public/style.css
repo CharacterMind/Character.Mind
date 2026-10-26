@@ -4723,3 +4723,85 @@ body.wth-hot {
   padding: 0 2px;
   line-height: 1;
 }
+/* Farm idle-game additions */
+.farm-counter {
+  font-size: 1.55rem;
+  font-weight: 700;
+  color: var(--text-primary, #e2e8f0);
+  letter-spacing: -.01em;
+  line-height: 1.1;
+  padding: 8px 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+.farm-frac {
+  font-size: .72rem;
+  font-weight: 400;
+  color: var(--text-muted, #718096);
+  letter-spacing: 0;
+}
+.farm-rate-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.farm-rate-pill {
+  display: inline-block;
+  background: rgba(134,239,172,.12);
+  color: #86efac;
+  border: 1px solid rgba(134,239,172,.22);
+  border-radius: 99px;
+  font-size: .68rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  font-variant-numeric: tabular-nums;
+}
+.farm-rate-hint {
+  font-size: .67rem;
+  color: var(--text-muted, #718096);
+}
+.farm-upgrade-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,.07);
+}
+.farm-upgrade-info { flex: 1; min-width: 0; }
+.farm-upgrade-name {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+}
+.farm-upgrade-rate {
+  font-size: .68rem;
+  color: #86efac;
+  margin-top: 2px;
+}
+.farm-upgrade-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(134,239,172,.15);
+  border: 1px solid rgba(134,239,172,.3);
+  border-radius: 8px;
+  color: #86efac;
+  font-size: .75rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, opacity .15s;
+}
+.farm-upgrade-btn:hover:not(:disabled) { background: rgba(134,239,172,.25); }
+.farm-upgrade-btn:disabled,
+.farm-upgrade-btn.disabled {
+  opacity: .38;
+  cursor: default;
+}
+.farm-upgrade-arrow {
+  font-size: .85rem;
+  line-height: 1;
+}

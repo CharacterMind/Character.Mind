@@ -1474,19 +1474,33 @@
             <span class="farm-card-icon">🌾</span>
             <div class="farm-card-info">
               <div class="farm-card-title">Coin Farm</div>
-              <div class="farm-card-sub" id="farmRateSub">Start farming to earn coins while away</div>
+              <div class="farm-card-sub" id="farmTierName">Bare dirt</div>
             </div>
-            <div class="farm-badge" id="farmBadge">AFK</div>
+            <div class="farm-badge" id="farmBadge">LV 0</div>
+          </div>
+          <div class="farm-counter" id="farmCounter">0<span class="farm-frac">.000000000</span></div>
+          <div class="farm-rate-row">
+            <div class="farm-rate-pill" id="farmRatePill">0.000000012/sec</div>
+            <div class="farm-rate-hint">coins/sec · max 8 hrs offline</div>
           </div>
           <div class="farm-progress-row">
             <div class="farm-progress-track">
               <div class="farm-progress-fill" id="farmProgressFill" style="width:0%"></div>
             </div>
-            <div class="farm-accumulated" id="farmAccumulated">+0</div>
           </div>
           <div class="farm-footer">
-            <div class="farm-timer" id="farmTimer">Open your farm to start earning</div>
-            <button class="farm-collect-btn" id="farmCollectBtn" onclick="farmCollect()" disabled>Collect</button>
+            <div class="farm-timer" id="farmTimer">Tap Start to begin farming</div>
+            <button class="farm-collect-btn" id="farmCollectBtn" onclick="farmCollect()">Start</button>
+          </div>
+          <div class="farm-upgrade-row" id="farmUpgradeRow">
+            <div class="farm-upgrade-info">
+              <div class="farm-upgrade-name" id="farmUpgradeName">Seeds</div>
+              <div class="farm-upgrade-rate" id="farmUpgradeRate">0.0003/sec</div>
+            </div>
+            <button class="farm-upgrade-btn" id="farmUpgradeBtn" onclick="farmUpgrade()" disabled>
+              <span id="farmUpgradeCost">150 coins</span>
+              <span class="farm-upgrade-arrow">↑</span>
+            </button>
           </div>
         </div>
         <div id="settingsTiersSection" class="settings-tiers-section"></div>

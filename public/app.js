@@ -13077,15 +13077,26 @@ async function claimHalloweenGift() {
   };
 })();
 
-
-// â”€â”€ AFK Coin Farm â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- AFK Coin Farm --
 (function initFarm() {
-  var _state = { initialized: false, lastCollect: 0, nextCollect: 0, ratePerMin: 1, accumulated: 0, canCollect: false };
+  var _st = {
+    initialized: false, lastCollect: 0, nextCollect: 0,
+    ratePerSec: 0.000000012, level: 0, tierName: 'Bare dirt',
+    accumulated: 0, canCollect: false, maxLevel: 5,
+    nextTier: { name: 'Seeds', rate: 0.0003, cost: 150, level: 1 },
+  };
   var _tickId = null;
   var _toastEl = null;
+  var _syncedAt = 0;
 
-  // â”€â”€ UI helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  function _ms(ms) {
+  function _fmtRate(r) {
+    if (r < 0.0001) return r.toFixed(12).replace(/0+$/, '').replace(/\.$/, '') + '/sec';
+    if (r < 0.001)  return r.toFixed(6) + '/sec';
+    if (r < 0.01)   return r.toFixed(4) + '/sec';
+    return r.toFixed(3) + '/sec';
+  }
+
+  function _msStr(ms) {
     if (ms <= 0) return 'Ready!';
     var s = Math.ceil(ms / 1000);
     if (s < 60) return s + 's';
@@ -13093,61 +13104,102 @@ async function claimHalloweenGift() {
     return m + 'm ' + (sr < 10 ? '0' : '') + sr + 's';
   }
 
+  function _applyState(d) {
+    if (!d) return;
+    _st.initialized = !!d.initialized;
+    _st.lastCollect = d.lastCollect  || 0;
+    _st.nextCollect = d.nextCollect  || 0;
+    _st.ratePerSec  = d.ratePerSec   || 0.000000012;
+    _st.level       = d.level        || 0;
+    _st.tierName    = d.tierName     || 'Bare dirt';
+    _st.accumulated = d.accumulated  || 0;
+    _st.canCollect  = d.canCollect   || false;
+    _st.maxLevel    = d.maxLevel     || 5;
+    _st.nextTier    = d.nextTier     || null;
+    _syncedAt = Date.now();
+  }
+
+  function _liveAccum() {
+    if (!_st.initialized || !_syncedAt) return _st.accumulated;
+    var elSec = Math.min((Date.now() - _syncedAt) / 1000, 8 * 3600);
+    return _st.accumulated + elSec * _st.ratePerSec;
+  }
+
   function _updateCard() {
-    var fillEl      = document.getElementById('farmProgressFill');
-    var accumEl     = document.getElementById('farmAccumulated');
-    var timerEl     = document.getElementById('farmTimer');
-    var collectBtn  = document.getElementById('farmCollectBtn');
-    var rateSub     = document.getElementById('farmRateSub');
-    var badge       = document.getElementById('farmBadge');
-    if (!fillEl) return;
+    var counterEl    = document.getElementById('farmCounter');
+    var ratePillEl   = document.getElementById('farmRatePill');
+    var timerEl      = document.getElementById('farmTimer');
+    var collectBtn   = document.getElementById('farmCollectBtn');
+    var progressFill = document.getElementById('farmProgressFill');
+    var badge        = document.getElementById('farmBadge');
+    var tierNameEl   = document.getElementById('farmTierName');
+    var upgradeRow   = document.getElementById('farmUpgradeRow');
+    var upgradeName  = document.getElementById('farmUpgradeName');
+    var upgradeRate  = document.getElementById('farmUpgradeRate');
+    var upgradeBtn   = document.getElementById('farmUpgradeBtn');
+    var upgradeCost  = document.getElementById('farmUpgradeCost');
+    if (!counterEl) return;
 
-    var now = Date.now();
-    if (!_state.initialized) {
-      if (rateSub) rateSub.textContent = 'Tap Collect to start your farm';
-      if (timerEl) timerEl.textContent = 'Not started yet';
-      if (collectBtn) { collectBtn.disabled = false; collectBtn.textContent = 'Start Farm'; }
-      if (badge) { badge.className = 'farm-badge'; badge.textContent = 'AFK'; }
-      if (accumEl) accumEl.textContent = '+0';
-      if (fillEl) fillEl.style.width = '0%';
-      return;
+    var now   = Date.now();
+    var accum = _liveAccum();
+    var whole = Math.floor(accum);
+    var frac  = (accum - whole).toFixed(9).slice(1);
+    counterEl.innerHTML = whole.toLocaleString() + '<span class="farm-frac">' + frac + '</span>';
+
+    if (ratePillEl) ratePillEl.textContent = _fmtRate(_st.ratePerSec);
+    if (badge)      badge.textContent = 'LV ' + _st.level;
+    if (tierNameEl) tierNameEl.textContent = _st.tierName;
+
+    var msUntil = Math.max(0, _st.nextCollect - now);
+    var pct     = _st.lastCollect ? Math.min(100, (now - _st.lastCollect) / (5 * 60 * 1000) * 100) : 0;
+    if (progressFill) progressFill.style.width = pct + '%';
+
+    var canNow = _st.initialized && msUntil <= 0 && whole >= 1;
+    if (timerEl) {
+      if (!_st.initialized)   timerEl.textContent = 'Tap Start to begin farming';
+      else if (canNow)        timerEl.textContent = 'Ready to collect!';
+      else                    timerEl.textContent = 'Next collect in ' + _msStr(msUntil);
     }
+    if (collectBtn) {
+      if (!_st.initialized) { collectBtn.textContent = 'Start'; collectBtn.disabled = false; }
+      else { collectBtn.textContent = 'Collect'; collectBtn.disabled = !canNow; }
+    }
+    if (badge) badge.className = (canNow ? 'farm-badge farm-badge-ready' : 'farm-badge');
 
-    // Recalculate live accumulated (client-side approximation)
-    var elapsedMs = Math.min(now - _state.lastCollect, 8 * 3600 * 1000);
-    var liveAccum = Math.floor(elapsedMs / 60000 * _state.ratePerMin);
-    var msUntil   = Math.max(0, _state.nextCollect - now);
-    var pct       = Math.min(100, ((elapsedMs) / (5 * 60 * 1000)) * 100);
-    var canNow    = msUntil <= 0 && liveAccum >= 1;
-
-    if (fillEl) fillEl.style.width = pct + '%';
-    if (accumEl) accumEl.textContent = '+' + liveAccum;
-    if (rateSub) rateSub.textContent = _state.ratePerMin.toFixed(1).replace('.0','') + ' coin/min Â· max 8 hrs offline';
-    if (timerEl) timerEl.textContent = canNow ? 'Ready to collect!' : 'Next collect in ' + _ms(msUntil);
-    if (collectBtn) { collectBtn.disabled = !canNow; collectBtn.textContent = 'Collect'; }
-    if (badge) {
-      if (canNow) { badge.className = 'farm-badge farm-badge-ready'; badge.textContent = 'READY'; }
-      else        { badge.className = 'farm-badge'; badge.textContent = 'AFK'; }
+    if (upgradeRow) {
+      if (_st.nextTier && _st.level < _st.maxLevel) {
+        upgradeRow.style.display = '';
+        if (upgradeName) upgradeName.textContent = _st.nextTier.name;
+        if (upgradeRate) upgradeRate.textContent  = _fmtRate(_st.nextTier.rate);
+        if (upgradeCost) upgradeCost.textContent  = _st.nextTier.cost.toLocaleString() + ' coins';
+        var bal      = typeof lastKnownUsage !== 'undefined' && lastKnownUsage ? (lastKnownUsage.cmCoins || 0) : 0;
+        var canAfford = bal >= _st.nextTier.cost;
+        if (upgradeBtn) {
+          upgradeBtn.disabled = !canAfford;
+          upgradeBtn.className = canAfford ? 'farm-upgrade-btn' : 'farm-upgrade-btn disabled';
+        }
+      } else {
+        upgradeRow.style.display = 'none';
+      }
     }
   }
 
   function _startTick() {
     if (_tickId) return;
-    _tickId = setInterval(_updateCard, 1000);
+    _tickId = setInterval(_updateCard, 200);
   }
 
-  // â”€â”€ "While you were away" toast â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function _showAwayToast(coins) {
     if (_toastEl) { _toastEl.remove(); _toastEl = null; }
     var el = document.createElement('div');
     el.className = 'farm-away-toast';
     el.innerHTML =
-      '<span class="farm-toast-icon">ðŸŒ¾</span>' +
+      '<span class="farm-toast-icon">🌾</span>' +
       '<div class="farm-toast-body">' +
-        '<div class="farm-toast-title">+' + coins.toLocaleString() + ' coins while away!</div>' +
-        '<div class="farm-toast-sub">Your farm kept working. Added to your balance.</div>' +
+        '<div class="farm-toast-title">+' + coins.toLocaleString() + ' coins from your farm!</div>' +
+        '<div class="farm-toast-sub">Collected while you were away.</div>' +
       '</div>' +
-      '<button class="farm-toast-close" onclick="this.closest(\'.farm-away-toast\').remove()">âœ•</button>';
+      '<button class="farm-toast-close" onclick="this.closest(\'.farm-away-toast\').remove()">×</button>';
     document.body.appendChild(el);
     _toastEl = el;
     setTimeout(function() {
@@ -13158,77 +13210,96 @@ async function claimHalloweenGift() {
     }, 5000);
   }
 
-  // â”€â”€ Load state and maybe auto-collect on page load â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  function _refreshCoinsUI(d) {
+    if (typeof lastKnownUsage !== 'undefined' && lastKnownUsage && d.balance != null) {
+      lastKnownUsage.cmCoins = d.balance;
+      if (d.earnedToday != null) lastKnownUsage.coinsEarnedToday = d.earnedToday;
+    }
+    if (typeof updateNavCoinDisplay === 'function') updateNavCoinDisplay(lastKnownUsage);
+    if (typeof updateSettingsCoinDisplay === 'function')
+      updateSettingsCoinDisplay(d.balance || 0, d.earnedToday || 0, d.dailyCap || 2000,
+        typeof lastKnownUsage !== 'undefined' && lastKnownUsage ? lastKnownUsage.coinsMonthlyReset : null);
+    if (typeof updateSlotBalances === 'function')
+      updateSlotBalances(d.balance || 0, typeof lastKnownUsage !== 'undefined' && lastKnownUsage ? lastKnownUsage.cmTokens : 0);
+  }
+
   async function _init() {
     try {
       var res = await fetch('/api/coins/farm');
       if (!res.ok) return;
       var d = await res.json();
-      _state.initialized = d.initialized;
-      _state.lastCollect  = d.lastCollect  || 0;
-      _state.nextCollect  = d.nextCollect  || 0;
-      _state.ratePerMin   = d.ratePerMin   || 1;
-      _state.accumulated  = d.accumulated  || 0;
-      _state.canCollect   = d.canCollect   || false;
+      _applyState(d);
       _updateCard();
       _startTick();
-
-      // Auto-collect on page load if the farm has ready coins (user was away)
-      if (d.initialized && d.canCollect && d.accumulated >= 1) {
+      if (d.initialized && d.canCollect && Math.floor(d.accumulated) >= 1) {
         try {
           var cr = await fetch('/api/coins/farm', { method: 'POST' });
           var cd = await cr.json();
           if (cd.awarded > 0) {
-            _state.lastCollect = Date.now();
-            _state.nextCollect = Date.now() + 5 * 60 * 1000;
+            _applyState(cd);
             _showAwayToast(cd.awarded);
-            if (typeof lastKnownUsage !== 'undefined' && lastKnownUsage) {
-              lastKnownUsage.cmCoins = cd.balance;
-              if (cd.earnedToday != null) lastKnownUsage.coinsEarnedToday = cd.earnedToday;
-            }
-            if (typeof updateNavCoinDisplay === 'function') updateNavCoinDisplay(lastKnownUsage);
-            if (typeof updateSettingsCoinDisplay === 'function')
-              updateSettingsCoinDisplay(cd.balance, cd.earnedToday || 0, cd.dailyCap || 2000, lastKnownUsage && lastKnownUsage.coinsMonthlyReset);
+            _refreshCoinsUI(cd);
             _updateCard();
           }
-        } catch (_) {}
+        } catch (e2) {}
       }
-    } catch (_) {}
+    } catch (e) {}
   }
 
-  // â”€â”€ Public collect (button click) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   window.farmCollect = async function() {
     var btn = document.getElementById('farmCollectBtn');
     if (btn) btn.disabled = true;
     try {
       var res = await fetch('/api/coins/farm', { method: 'POST' });
-      var d = await res.json();
-      _state.initialized = true;
-      _state.lastCollect  = Date.now();
-      _state.nextCollect  = d.nextCollect || (Date.now() + 5 * 60 * 1000);
-      _state.ratePerMin   = d.ratePerMin  || _state.ratePerMin;
+      var d   = await res.json();
+      _applyState(d);
       if (d.awarded > 0) {
-        if (typeof lastKnownUsage !== 'undefined' && lastKnownUsage) {
-          lastKnownUsage.cmCoins = d.balance;
-          if (d.earnedToday != null) lastKnownUsage.coinsEarnedToday = d.earnedToday;
-        }
-        if (typeof updateNavCoinDisplay === 'function') updateNavCoinDisplay(lastKnownUsage);
-        if (typeof updateSettingsCoinDisplay === 'function')
-          updateSettingsCoinDisplay(d.balance, d.earnedToday || 0, d.dailyCap || 2000, lastKnownUsage && lastKnownUsage.coinsMonthlyReset);
-        if (typeof updateSlotBalances === 'function') updateSlotBalances(d.balance, lastKnownUsage && lastKnownUsage.cmTokens);
+        _refreshCoinsUI(d);
         var timerEl = document.getElementById('farmTimer');
         if (timerEl) timerEl.textContent = 'Collected +' + d.awarded + ' coins!';
-      } else if (d.initialized) {
+      }
+      if (d.initialized && !d.awarded) {
         var timerEl2 = document.getElementById('farmTimer');
-        if (timerEl2) timerEl2.textContent = 'Farm started! Come back in 5 min.';
+        if (timerEl2 && !_st.lastCollect) timerEl2.textContent = 'Farm started! Come back in 5 min.';
       }
       _updateCard();
       _startTick();
-    } catch (_) {
+    } catch (e) {
       if (btn) btn.disabled = false;
     }
   };
 
-  // Kick off after a short delay so the rest of the page initializes first
+  window.farmUpgrade = async function() {
+    var btn = document.getElementById('farmUpgradeBtn');
+    if (btn) btn.disabled = true;
+    try {
+      var res = await fetch('/api/coins/farm/upgrade', { method: 'POST' });
+      var d   = await res.json();
+      if (d.ok) {
+        _st.level      = d.level;
+        _st.tierName   = d.tierName;
+        _st.ratePerSec = d.ratePerSec;
+        _st.nextTier   = d.nextTier  || null;
+        _st.maxLevel   = d.maxLevel  || 5;
+        _st.accumulated = 0;
+        _syncedAt = Date.now();
+        if (typeof lastKnownUsage !== 'undefined' && lastKnownUsage && d.balance != null)
+          lastKnownUsage.cmCoins = d.balance;
+        if (typeof updateNavCoinDisplay === 'function') updateNavCoinDisplay(lastKnownUsage);
+        if (typeof updateSettingsCoinDisplay === 'function')
+          updateSettingsCoinDisplay(d.balance || 0,
+            typeof lastKnownUsage !== 'undefined' && lastKnownUsage ? lastKnownUsage.coinsEarnedToday || 0 : 0,
+            typeof lastKnownUsage !== 'undefined' && lastKnownUsage ? lastKnownUsage.coinDailyLimit || 2000 : 2000,
+            typeof lastKnownUsage !== 'undefined' && lastKnownUsage ? lastKnownUsage.coinsMonthlyReset : null);
+        _updateCard();
+      } else {
+        if (btn) btn.disabled = false;
+      }
+    } catch (e) {
+      if (btn) btn.disabled = false;
+    }
+  };
+
   setTimeout(_init, 1200);
 })();
+
