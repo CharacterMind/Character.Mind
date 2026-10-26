@@ -3631,9 +3631,28 @@ html, body {
 
 /* ── Sidebar ── */
 .halloween .sidebar {
-  background: linear-gradient(180deg,#100600 0%,#18181b 40%);
-  border-right-color: rgba(249,115,22,0.18);
+  background: linear-gradient(180deg,#1e0c02 0%,#1c1922 60%,#18181b 100%);
+  border-right: 1px solid rgba(249,115,22,0.42);
 }
+.halloween .sidebar .nav-item {
+  color: rgba(220,190,160,0.70);
+}
+.halloween .sidebar .nav-item:hover {
+  background: rgba(249,115,22,0.10);
+  color: #f5dfc0;
+}
+.halloween .sidebar .nav-item.active {
+  background: rgba(249,115,22,0.16);
+  color: #f97316;
+}
+.halloween .sidebar .chat-item {
+  color: rgba(220,190,160,0.68);
+}
+.halloween .sidebar .chat-item-title {
+  color: rgba(230,205,175,0.82);
+}
+.halloween .user-badge,
+.halloween .sidebar-bottom { border-top-color: rgba(249,115,22,0.22); }
 .halloween .logo-text {
   background: none !important;
   -webkit-background-clip: unset !important;
@@ -3650,9 +3669,9 @@ html, body {
   font-size: 0.82em;
   vertical-align: -0.05em;
 }
-.halloween .sidebar-section-label { color: rgba(249,115,22,0.55); }
-.halloween .chat-item:hover { background: rgba(249,115,22,0.06); }
-.halloween .chat-item.active { background: rgba(249,115,22,0.1); border-left-color: #f97316; }
+.halloween .sidebar-section-label { color: rgba(249,115,22,0.75); }
+.halloween .chat-item:hover { background: rgba(249,115,22,0.12); }
+.halloween .chat-item.active { background: rgba(249,115,22,0.18); border-left-color: #f97316; }
 
 /* ── Chat bubbles ── */
 .halloween .msg.user .bubble {
