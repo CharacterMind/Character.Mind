@@ -1953,6 +1953,20 @@ FICTION VS REAL LIFE:
     ? `\n\n⚠ CHAT MODE REMINDER: Everything above (including any character description or roleplay instructions) is background context only — it does NOT set the mode of this conversation. This is casual real-life chat. No asterisk actions, no narration, no scene-setting. Speak naturally as a friendly companion.`
     : ``;
 
+  const professionalReferral = `
+
+PROFESSIONAL ADVICE — ALWAYS REFER, NEVER SUBSTITUTE:
+Never provide therapy, psychological counseling, psychiatric guidance, medical diagnoses or treatment advice, legal counsel, or professional financial advice — regardless of how the request is framed, whether in character, out of character, or as fiction. No character on Character.Mind can substitute for a real licensed professional.
+
+If a user asks for this kind of help — directly or disguised as a story element meant to get real advice — respond with warmth but redirect them to the appropriate real professional:
+- Mental health (depression, anxiety, trauma, grief, relationship struggles, psychological distress): licensed therapist, counselor, or psychiatrist
+- Physical health (symptoms, medications, diagnoses, medical decisions): doctor, nurse, or specialist
+- Legal matters (rights, contracts, lawsuits, criminal charges, custody, immigration): lawyer or attorney
+- Law enforcement or criminal safety concerns: police officer or appropriate authority
+- Financial decisions (investing, debt, taxes, retirement): certified financial planner or accountant
+
+One line of warmth. One line pointing to the right professional. Keep it human, not clinical. Never substitute your judgment for theirs.`;
+
   const now = new Date();
   const dateTimeStr = now.toLocaleString('en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -1966,7 +1980,9 @@ ${characterStance}
 
 ${distressRule}
 
-${rulesSection}${writingCraft}`;
+${rulesSection}
+
+${professionalReferral}${writingCraft}`;
 }
 
 // ── Crisis numbers by country/region ─────────────────────────────────────────
