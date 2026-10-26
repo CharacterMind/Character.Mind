@@ -4327,6 +4327,36 @@ body.hw-screaming::after {
   display: block;
 }
 
+/* Post-flood wet overlay */
+#wthPostFloodOverlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 99888;
+  background: linear-gradient(180deg,
+    rgba(70,130,195,0.06) 0%,
+    rgba(55,112,178,0.10) 45%,
+    rgba(40,95,160,0.07) 100%);
+  opacity: 1;
+  transition: opacity 10s ease-in-out;
+}
+
+/* Wet-surface tint on UI elements after flood */
+body.wth-post-flood {
+  background-color: var(--bg, #0d0f1a);
+}
+body.wth-post-flood::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 99887;
+  background: radial-gradient(ellipse 80% 60% at 50% 100%,
+    rgba(50,110,180,0.08) 0%,
+    rgba(30,80,150,0.04) 60%,
+    transparent 100%);
+}
+
 /* Rain canvas (replaces DOM drops) */
 #wthRainCanvas {
   position: fixed;

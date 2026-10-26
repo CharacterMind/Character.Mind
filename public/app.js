@@ -12198,6 +12198,9 @@ async function claimHalloweenGift() {
   let _thunderActive = false, _thunderTids = [];
   let _wthManual = null, _wthManualThunder = null, _wthManualLightning = null;
   let _floodEl = null, _floodTid = null, _floodH = 0, _floodDraining = false;
+  let _postFloodCanvas = null, _postFloodCtx = null, _postFloodAnimId = null;
+  let _postFloodDrips = [], _postFloodStreams = [], _postFloodActive = false;
+  let _postFloodStartTime = 0, _postFloodDurMs = 0, _postFloodOverlayEl = null;
   let _floodGl = null, _floodProg = null, _floodGlAnimId = null, _floodT0 = 0, _floodUL = null;
   let _heatStage = null, _heatOverlay = null;
   let _frostEl = null, _iciclesEl = null;
@@ -13042,10 +13045,174 @@ void main(){
       var _fe = _floodEl; _floodEl = null; _floodDraining = false;
       _fe.style.opacity = '0'; _fe.style.transition = 'opacity 5s';
       setTimeout(function() { _fe.remove(); }, 5100);
+      _startPostFloodDrip();
     }
   }
 
   // â"€â"€ Heat â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+  // ── Post-flood surface drip ──────────────────────────────────────────────
+  function _postFloodDurFromTemp() {
+    var tf = _wthData && _wthData.temp_f != null ? _wthData.temp_f : 68;
+    if (tf >= 95) return  1 * 60000;
+    if (tf >= 82) return  2 * 60000;
+    if (tf >= 68) return  3.5 * 60000;
+    if (tf >= 50) return  5 * 60000;
+    if (tf >= 32) return  7 * 60000;
+    return 10 * 60000;
+  }
+
+  function _makeUIdrip(W, H) {
+    var band = Math.random();
+    var y;
+    if (band < 0.20)      y = Math.random() * H * 0.12;
+    else if (band < 0.55) y = H * 0.12 + Math.random() * H * 0.38;
+    else if (band < 0.85) y = H * 0.50 + Math.random() * H * 0.30;
+    else                  y = H * 0.80 + Math.random() * H * 0.18;
+    return {
+      x:     Math.random() * W,
+      y:     y,
+      r:     3.5 + Math.random() * 6.0,
+      speed: 0.18 + Math.random() * 0.75,
+      alpha: 0.50 + Math.random() * 0.40,
+      trail: Math.random() * 70,
+      pause: Math.floor(50 + Math.random() * 260),
+      age:   Math.floor(Math.random() * 200),
+    };
+  }
+
+  function _makeUIstream(W, H) {
+    return {
+      x:     Math.random() * W,
+      y:     Math.random() * H * 0.6 - H * 0.05,
+      w:     0.6 + Math.random() * 2.8,
+      h:     40  + Math.random() * 130,
+      speed: 1.0 + Math.random() * 3.0,
+      alpha: 0.12 + Math.random() * 0.28,
+    };
+  }
+
+  function _postFloodFrame() {
+    if (!_postFloodCanvas || !_postFloodCtx || !_postFloodActive) return;
+    var W = _postFloodCanvas.width, H = _postFloodCanvas.height;
+    var elapsed = Date.now() - _postFloodStartTime;
+    var frac = Math.min(1, elapsed / _postFloodDurMs);
+    var opacity = frac < 0.72 ? 1 : Math.max(0, 1 - (frac - 0.72) / 0.28);
+    if (frac >= 1) { _stopPostFloodDrip(); return; }
+    _postFloodCtx.clearRect(0, 0, W, H);
+
+    // Water streams (sheets flowing down surfaces)
+    var maxStr = Math.floor(22 * (1 - frac * 0.9));
+    if (_postFloodStreams.length < maxStr && Math.random() < 0.4) {
+      _postFloodStreams.push(_makeUIstream(W, H));
+    }
+    for (var s = _postFloodStreams.length - 1; s >= 0; s--) {
+      var st = _postFloodStreams[s];
+      st.y += st.speed;
+      if (st.y > H + st.h) { _postFloodStreams.splice(s, 1); continue; }
+      var sa = st.alpha * opacity;
+      var sg = _postFloodCtx.createLinearGradient(st.x, st.y, st.x, st.y + st.h);
+      sg.addColorStop(0,    'rgba(165,215,250,0)');
+      sg.addColorStop(0.18, 'rgba(168,218,252,' + sa + ')');
+      sg.addColorStop(0.82, 'rgba(148,198,242,' + (sa * 0.72) + ')');
+      sg.addColorStop(1,    'rgba(138,188,238,0)');
+      _postFloodCtx.fillStyle = sg;
+      _postFloodCtx.fillRect(st.x - st.w / 2, st.y, st.w, st.h);
+    }
+
+    // Bead drips (large water drops clinging to surfaces)
+    var maxDrips = Math.floor(80 * (1 - frac * 0.88));
+    if (_postFloodDrips.length < maxDrips && Math.random() < 0.18) {
+      _postFloodDrips.push(_makeUIdrip(W, H));
+    }
+    for (var i = _postFloodDrips.length - 1; i >= 0; i--) {
+      var d = _postFloodDrips[i];
+      d.age++;
+      if (d.age > d.pause) { d.y += d.speed; d.trail += d.speed; }
+      if (d.y > H + d.r + 5) { _postFloodDrips.splice(i, 1); continue; }
+      var a = d.alpha * opacity;
+      if (a <= 0.01) continue;
+      var topY = d.y - d.trail;
+      if (d.trail > 1) {
+        var tg = _postFloodCtx.createLinearGradient(d.x, topY, d.x, d.y - d.r);
+        tg.addColorStop(0,    'rgba(130,188,238,0)');
+        tg.addColorStop(0.15, 'rgba(140,195,242,' + (a * 0.22) + ')');
+        tg.addColorStop(1,    'rgba(155,208,250,' + (a * 0.44) + ')');
+        _postFloodCtx.beginPath();
+        _postFloodCtx.strokeStyle = tg;
+        _postFloodCtx.lineWidth = Math.max(1.0, d.r * 0.48);
+        _postFloodCtx.moveTo(d.x, topY);
+        _postFloodCtx.lineTo(d.x, d.y - d.r);
+        _postFloodCtx.stroke();
+      }
+      var rg = _postFloodCtx.createRadialGradient(
+        d.x - d.r * 0.32, d.y - d.r * 0.32, d.r * 0.06,
+        d.x, d.y, d.r);
+      rg.addColorStop(0,    'rgba(230,248,255,' + (a * 0.92) + ')');
+      rg.addColorStop(0.36, 'rgba(175,222,250,' + (a * 0.74) + ')');
+      rg.addColorStop(0.76, 'rgba(112,172,228,' + (a * 0.48) + ')');
+      rg.addColorStop(1,    'rgba(78,138,208,'  + (a * 0.22) + ')');
+      _postFloodCtx.beginPath();
+      _postFloodCtx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+      _postFloodCtx.fillStyle = rg;
+      _postFloodCtx.fill();
+      _postFloodCtx.beginPath();
+      _postFloodCtx.arc(d.x - d.r * 0.30, d.y - d.r * 0.30, d.r * 0.25, 0, Math.PI * 2);
+      _postFloodCtx.fillStyle = 'rgba(255,255,255,' + (a * 0.84) + ')';
+      _postFloodCtx.fill();
+    }
+    _postFloodAnimId = requestAnimationFrame(_postFloodFrame);
+  }
+
+  function _startPostFloodDrip() {
+    if (_postFloodActive) return;
+    _postFloodActive = true;
+    _postFloodStartTime = Date.now();
+    _postFloodDurMs = _postFloodDurFromTemp();
+    var W = window.innerWidth, H = window.innerHeight;
+
+    // Wet blue-tint overlay
+    _postFloodOverlayEl = document.createElement('div');
+    _postFloodOverlayEl.id = 'wthPostFloodOverlay';
+    document.body.appendChild(_postFloodOverlayEl);
+    document.body.classList.add('wth-post-flood');
+    var fadeDelay = Math.max(0, _postFloodDurMs - 10000);
+    setTimeout(function() {
+      if (_postFloodOverlayEl) _postFloodOverlayEl.style.opacity = '0';
+    }, fadeDelay);
+
+    // Drip canvas
+    _postFloodCanvas = document.createElement('canvas');
+    _postFloodCanvas.id = 'wthPostFloodCanvas';
+    _postFloodCanvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:99889;';
+    document.body.appendChild(_postFloodCanvas);
+    _postFloodCanvas.width = W; _postFloodCanvas.height = H;
+    _postFloodCtx = _postFloodCanvas.getContext('2d');
+    _postFloodCtx.lineCap = 'round';
+
+    // Pre-populate: UI looks immediately soaked the moment flood drains
+    _postFloodDrips = []; _postFloodStreams = [];
+    for (var i = 0; i < 70; i++) {
+      var d = _makeUIdrip(W, H);
+      d.y = Math.random() * H; d.trail = Math.random() * 150; d.age = d.pause;
+      _postFloodDrips.push(d);
+    }
+    for (var j = 0; j < 18; j++) {
+      var st = _makeUIstream(W, H);
+      st.y = Math.random() * H * 0.8 - st.h;
+      _postFloodStreams.push(st);
+    }
+    _postFloodAnimId = requestAnimationFrame(_postFloodFrame);
+  }
+
+  function _stopPostFloodDrip() {
+    _postFloodActive = false;
+    if (_postFloodAnimId) { cancelAnimationFrame(_postFloodAnimId); _postFloodAnimId = null; }
+    if (_postFloodCanvas) { _postFloodCanvas.remove(); _postFloodCanvas = null; _postFloodCtx = null; }
+    if (_postFloodOverlayEl) { _postFloodOverlayEl.remove(); _postFloodOverlayEl = null; }
+    document.body.classList.remove('wth-post-flood');
+    _postFloodDrips = []; _postFloodStreams = [];
+  }
+
   function _startHeat() {
     if (_heatActive) return;
     _heatActive = true;
