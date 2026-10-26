@@ -10815,7 +10815,7 @@ async function claimHalloweenGift() {
   // ── Falling confetti ────────────────────────────────────────────────────────
   function spawnConfetti() {
     if (!hwConfetti) return;
-    if (hwStage.querySelectorAll('.hw-confetti').length >= 50) return;
+    if (hwStage.querySelectorAll('.hw-confetti').length >= 100) return;
     const el = document.createElement('div');
     el.className = 'hw-confetti';
     el.textContent = CONFETTI[Math.floor(Math.random() * CONFETTI.length)];
@@ -10826,7 +10826,7 @@ async function claimHalloweenGift() {
     const rot  = ((Math.random() - 0.5) * 480).toFixed(0) + 'deg';
     el.style.cssText = `font-size:${size}px;left:${left}%;animation-duration:${dur}s;animation-delay:${(Math.random()*0.8).toFixed(2)}s;--hw-sway:${sway}px;--hw-rot:${rot};`;
     hwStage.appendChild(el);
-    setTimeout(() => el.remove(), (dur + 2) * 1000);
+    setTimeout(() => el.remove(), dur * 1000);
   }
 
   function startConfetti() {
