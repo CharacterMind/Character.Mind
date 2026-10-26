@@ -434,7 +434,7 @@ function setPricingPeriod(period) {
   renderPricingCards();
 }
 
-const ACTIVE_PLANS = ['advanced', 'x20', 'x50'];
+const ACTIVE_PLANS = ['advanced'];
 
 // Update this URL to your Ko-fi / Buy Me a Coffee / PayPal.me donation link
 const DONATION_URL = 'https://ko-fi.com/charactermind';
