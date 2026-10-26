@@ -5421,6 +5421,30 @@ async function adminSendCoinsToEmail() {
   if (btn) { btn.textContent = 'Send Gift 🎁'; btn.disabled = false; }
 }
 
+async function adminResetAccountByEmail() {
+  if (!isOwner()) return;
+  const email = (document.getElementById('sendToEmail')?.value || '').trim();
+  const info = document.getElementById('sendToEmailResult');
+  if (!email) { if (info) info.textContent = 'Enter an email address.'; return; }
+  if (!confirm(`Reset EVERYTHING for ${email}?\nCoins → 0, farm → unstarted, all chat history deleted.\nThis cannot be undone.`)) return;
+  const btn = document.getElementById('resetAccountByEmailBtn');
+  if (btn) { btn.textContent = 'Resetting…'; btn.disabled = true; }
+  if (info) info.textContent = '';
+  try {
+    const d = await fetch('/api/admin/reset-account-by-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    }).then(r => r.json());
+    if (d.ok) {
+      if (info) info.textContent = `✓ Full reset done for ${d.name || email}`;
+    } else {
+      if (info) info.textContent = d.error || 'Reset failed.';
+    }
+  } catch (_) { if (info) info.textContent = 'Request failed.'; }
+  if (btn) { btn.textContent = 'Reset Account ↺'; btn.disabled = false; }
+}
+
 async function adminClearUserBalance() {
   if (!isOwner()) return;
   const email = (document.getElementById('sendToEmail')?.value || '').trim();

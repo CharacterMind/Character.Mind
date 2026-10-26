@@ -4505,6 +4505,44 @@ app.post('/api/admin/reset-account', requireAuth, async (req, res) => {
   }
 });
 
+// Owner-only: full account reset for any user by email
+app.post('/api/admin/reset-account-by-email', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  if (!db) return res.status(503).json({ error: 'No database' });
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  if (!email) return res.status(400).json({ error: 'Email required' });
+  try {
+    const { rows } = await db.query('SELECT google_id, name FROM users WHERE LOWER(email) = $1 LIMIT 1', [email]);
+    if (!rows.length) return res.status(404).json({ error: 'User not found' });
+    const { google_id: uid, name } = rows[0];
+    await db.query(
+      `UPDATE users SET
+         cm_coins              = 0,
+         coins_earned_today    = 0,
+         coins_day_reset       = 0,
+         coins_earned_all_time = 0,
+         last_afk_collect      = 0,
+         farm_level            = 0,
+         farm_frac             = 0,
+         recent_chats          = '{}'
+       WHERE google_id = $1`,
+      [uid]
+    );
+    await db.query('DELETE FROM chat_current    WHERE user_id = $1', [uid]);
+    await db.query('DELETE FROM chat_archives   WHERE user_id = $1', [uid]);
+    await db.query('DELETE FROM story_summaries WHERE user_id = $1', [uid]);
+    const prefix = uid + ':';
+    for (const k of Object.keys(conversations)) { if (k.startsWith(prefix)) delete conversations[k]; }
+    for (const k of [...convLoaded]) { if (k.startsWith(prefix)) convLoaded.delete(k); }
+    delete userLimits[uid];
+    console.log(`[admin] full account reset for ${email} (${uid}) by owner`);
+    res.json({ ok: true, name, email });
+  } catch (e) {
+    console.error('[admin/reset-account-by-email]', e.message);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
 // Owner-only: reset another user's limits by email — no secret required
 app.post('/api/admin/reset-by-email', requireAuth, async (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
