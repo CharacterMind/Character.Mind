@@ -762,9 +762,30 @@
               <span class="md-upgrade-btn" onclick="event.stopPropagation();openPricingModal()">Upgrade</span>
               <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-            <button class="md-item" id="optOpys" style="display:none" disabled></button>
-            <button class="md-item" id="optOpys5" style="display:none" disabled></button>
-            <button class="md-item" id="optOpys6" style="display:none" disabled></button>
+            <button class="md-item" id="optOpys" onclick="selectOrUpgrade('opys')">
+              <div class="md-item-body">
+                <div class="md-item-name">Opys <span class="md-item-plan-tag">X50+</span></div>
+                <div class="md-item-sub">Plans the scene before it writes it — tension beats, pacing, full arcs</div>
+              </div>
+              <span class="md-upgrade-btn" onclick="event.stopPropagation();openPricingModal()">Upgrade</span>
+              <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="md-item" id="optOpys5" onclick="selectOrUpgrade('opys5')">
+              <div class="md-item-body">
+                <div class="md-item-name">Opys 5 <span class="md-item-plan-tag">X100+</span></div>
+                <div class="md-item-sub">The flagship — multi-pass refinement, rewrites itself until it's right</div>
+              </div>
+              <span class="md-upgrade-btn" onclick="event.stopPropagation();openPricingModal()">Upgrade</span>
+              <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="md-item" id="optOpys6" onclick="selectOrUpgrade('opys6')">
+              <div class="md-item-body">
+                <div class="md-item-name">Opys 6 <span class="md-item-plan-tag">X200</span></div>
+                <div class="md-item-sub">Next-generation, exclusive — cinematic depth nothing else comes close to</div>
+              </div>
+              <span class="md-upgrade-btn" onclick="event.stopPropagation();openPricingModal()">Upgrade</span>
+              <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
           </div>
           <!-- Effort picker panel -->
           <div class="effort-panel-popup" id="effortPanelPopup" style="display:none">
