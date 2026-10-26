@@ -2013,6 +2013,32 @@ function showSettingsTab(tab) {
   document.querySelectorAll('.settings-tab-content').forEach(p => p.classList.add('hidden'));
   const activePane = document.getElementById(`stab-content-${tab}`);
   if (activePane) activePane.classList.remove('hidden');
+  if (tab === 'weather') initWthSettingsPanel();
+}
+
+function initWthSettingsPanel() {
+  if (!window.wthSettings) return;
+  const s = wthSettings.getState();
+  const tog = document.getElementById('wthOnToggle');
+  const lbl = document.getElementById('wthOnLabel');
+  const unit = document.getElementById('wthUnitSelect');
+  const hotSlider = document.getElementById('wthHotSlider');
+  const hotLbl    = document.getElementById('wthHotLabel');
+  const frostSlider = document.getElementById('wthFrostSlider');
+  const frostLbl    = document.getElementById('wthFrostLabel');
+  if (tog)  { tog.checked = s.on; }
+  if (lbl)  { lbl.textContent = s.on ? 'On' : 'Off'; }
+  if (unit) { unit.value = s.unit; }
+  if (hotSlider) { hotSlider.value = s.hotF; }
+  if (hotLbl)    { hotLbl.textContent = s.hotF + '°F'; }
+  if (frostSlider) { frostSlider.value = s.frostF; }
+  if (frostLbl)    { frostLbl.textContent = s.frostF + '°F'; }
+}
+
+function wthToggle(on) {
+  const lbl = document.getElementById('wthOnLabel');
+  if (lbl) lbl.textContent = on ? 'On' : 'Off';
+  if (window.wthSettings) wthSettings.toggle(on);
 }
 
 // ── Wellness Check-in Settings ────────────────────────────────────────────────
@@ -11803,3 +11829,303 @@ async function claimHalloweenGift() {
     setTimeout(() => toast.remove(), 6200);
   }
 })();
+
+// â”€â”€ Weather Effects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+(function initWeather() {
+  // â”€â”€ Persisted settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  let _wthOn     = localStorage.getItem('wth_on')    !== '0'; // default ON
+  let _wthUnit   = localStorage.getItem('wth_unit')  || 'F';
+  let _wthHotF   = parseInt(localStorage.getItem('wth_hot_f')   || '90', 10);
+  let _wthFrostF = parseInt(localStorage.getItem('wth_frost_f') || '32', 10);
+
+  // â”€â”€ Runtime state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  let _wthData = null;
+  let _rainActive = false, _snowActive = false, _heatActive = false;
+  let _rainTids = [], _snowTids = [];
+  let _heatStage = null, _heatOverlay = null;
+  let _frostEl = null, _iciclesEl = null;
+
+  // â”€â”€ Widget element â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const _widget = document.createElement('div');
+  _widget.id = 'wthWidget';
+  _widget.className = 'wth-widget';
+  document.body.appendChild(_widget);
+  if (!_wthOn) _widget.classList.add('wth-hidden');
+
+  // â”€â”€ Clock â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  function _tick() {
+    const now  = new Date();
+    const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const date = now.toLocaleDateString([], {
+      weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
+    });
+    const tEl = document.getElementById('_wthTime');
+    const dEl = document.getElementById('_wthDate');
+    if (tEl) tEl.textContent = time;
+    if (dEl) dEl.textContent = date;
+  }
+
+  // â”€â”€ Widget render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  function _render() {
+    let weatherRow = '<div class="wth-locating">Detectingâ€¦</div>';
+    if (_wthData) {
+      const t = _wthUnit === 'C'
+        ? Math.round((_wthData.temp_f - 32) * 5 / 9) + 'Â°C'
+        : Math.round(_wthData.temp_f) + 'Â°F';
+      weatherRow = '<div class="wth-weather-row">' +
+        '<span class="wth-emoji">' + _wthData.emoji + '</span>' +
+        '<span class="wth-temp">' + t + '</span>' +
+        '<span class="wth-desc">' + _wthData.desc + '</span>' +
+        '</div>';
+    }
+    _widget.innerHTML =
+      '<div class="wth-time-row">' +
+        '<span class="wth-time" id="_wthTime">--:--</span>' +
+        '<span class="wth-date" id="_wthDate"></span>' +
+      '</div>' +
+      weatherRow;
+    _tick();
+  }
+
+  // â”€â”€ WMO code helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  function _wmoInfo(c) {
+    if (c === 0)  return { desc: 'Clear sky',     emoji: 'â˜€ï¸' };
+    if (c <= 3)   return { desc: 'Partly cloudy', emoji: 'â›…' };
+    if (c <= 49)  return { desc: 'Foggy',         emoji: 'ðŸŒ«ï¸' };
+    if (c <= 57)  return { desc: 'Drizzle',       emoji: 'ðŸŒ¦ï¸' };
+    if (c <= 67)  return { desc: 'Rainy',         emoji: 'ðŸŒ§ï¸' };
+    if (c <= 77)  return { desc: 'Snowing',       emoji: 'â„ï¸' };
+    if (c <= 82)  return { desc: 'Rain showers',  emoji: 'ðŸŒ§ï¸' };
+    if (c <= 86)  return { desc: 'Snow showers',  emoji: 'ðŸŒ¨ï¸' };
+    if (c <= 99)  return { desc: 'Thunderstorm',  emoji: 'â›ˆï¸' };
+    return { desc: 'Unknown', emoji: 'ðŸŒ¡ï¸' };
+  }
+  function _isRain(c) { return (c >= 51 && c <= 67) || (c >= 80 && c <= 82) || c >= 95; }
+  function _isSnow(c) { return (c >= 71 && c <= 77) || (c >= 85 && c <= 86); }
+
+  // â”€â”€ Open-Meteo fetch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  async function _fetchWeather(lat, lon) {
+    try {
+      const res = await fetch(
+        'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
+        '&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=auto',
+        { signal: AbortSignal.timeout(8000) }
+      );
+      const d = await res.json();
+      const temp_f = d.current && d.current.temperature_2m != null ? d.current.temperature_2m : null;
+      const code   = d.current ? (d.current.weather_code || 0) : 0;
+      if (temp_f == null) return;
+      _wthData = Object.assign({ temp_f: temp_f, code: code }, _wmoInfo(code));
+      _render();
+      _applyEffects();
+    } catch (_) {}
+  }
+
+  function _locate() {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      function(p) { _fetchWeather(p.coords.latitude, p.coords.longitude); },
+      function() {}
+    );
+  }
+
+  // â”€â”€ Rain â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  function _spawnDrop() {
+    if (!_rainActive) return;
+    var drop = document.createElement('div');
+    drop.className = 'wth-drop';
+    var x   = Math.random() * 100;
+    var w   = 2 + Math.random() * 7;
+    var h   = w * (3.5 + Math.random() * 3.5);
+    var dur = 0.55 + Math.random() * 1.1;
+    var del = Math.random() * 1.8;
+    drop.style.cssText = 'left:' + x + '%;width:' + w + 'px;height:' + h + 'px;' +
+      'animation-duration:' + dur + 's;animation-delay:' + del + 's';
+    document.body.appendChild(drop);
+    var tid = setTimeout(function() {
+      _spawnSplash(x, w);
+      drop.remove();
+      if (_rainActive) _spawnDrop();
+    }, (dur + del) * 1000);
+    _rainTids.push(tid);
+  }
+
+  function _spawnSplash(xPct, size) {
+    var s = document.createElement('div');
+    s.className = 'wth-splash';
+    s.style.cssText = 'left:' + xPct + '%;width:' + (size * 3.5) + 'px;height:' + (size * 1.5) + 'px;bottom:' + (Math.random() * 15) + '%';
+    document.body.appendChild(s);
+    setTimeout(function() { s.remove(); }, 650);
+  }
+
+  function _startRain() {
+    if (_rainActive) return;
+    _rainActive = true;
+    document.body.classList.add('wth-raining');
+    for (var i = 0; i < 32; i++) _spawnDrop();
+  }
+
+  function _stopRain() {
+    _rainActive = false;
+    document.body.classList.remove('wth-raining');
+    _rainTids.forEach(function(t) { clearTimeout(t); }); _rainTids = [];
+    document.querySelectorAll('.wth-drop,.wth-splash').forEach(function(el) { el.remove(); });
+  }
+
+  // â”€â”€ Snow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  var _FLAKES = ['â„','â…','â†','*','Â·'];
+
+  function _spawnFlake() {
+    if (!_snowActive) return;
+    var f = document.createElement('div');
+    f.className = 'wth-flake';
+    var x     = Math.random() * 100;
+    var size  = 10 + Math.random() * 16;
+    var dur   = 5 + Math.random() * 8;
+    var del   = Math.random() * 5;
+    var drift = (Math.random() - 0.5) * 90;
+    f.textContent = _FLAKES[Math.floor(Math.random() * _FLAKES.length)];
+    f.style.cssText = 'left:' + x + '%;font-size:' + size + 'px;' +
+      'animation-duration:' + dur + 's;animation-delay:' + del + 's;--wth-drift:' + drift + 'px';
+    document.body.appendChild(f);
+    var tid = setTimeout(function() {
+      f.remove();
+      if (_snowActive) _spawnFlake();
+    }, (dur + del) * 1000);
+    _snowTids.push(tid);
+  }
+
+  function _startSnow() {
+    if (_snowActive) return;
+    _snowActive = true;
+    document.body.classList.add('wth-snowing');
+    for (var i = 0; i < 26; i++) _spawnFlake();
+    _startFrost();
+  }
+
+  function _stopSnow() {
+    _snowActive = false;
+    document.body.classList.remove('wth-snowing');
+    _snowTids.forEach(function(t) { clearTimeout(t); }); _snowTids = [];
+    document.querySelectorAll('.wth-flake').forEach(function(el) { el.remove(); });
+  }
+
+  // â”€â”€ Frost â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  function _startFrost() {
+    if (_frostEl) return;
+    document.body.classList.add('wth-frost');
+    _frostEl = document.createElement('div');
+    _frostEl.id = 'wthFrost';
+    document.body.appendChild(_frostEl);
+
+    _iciclesEl = document.createElement('div');
+    _iciclesEl.id = 'wthIcicles';
+    var cols = Math.floor(window.innerWidth / 38) + 3;
+    for (var i = 0; i < cols; i++) {
+      var ic = document.createElement('div');
+      ic.className = 'wth-icicle';
+      var h = 28 + Math.random() * 82;
+      var w = 6  + Math.random() * 10;
+      ic.style.cssText = 'height:' + h + 'px;width:' + w + 'px;animation-delay:' + (Math.random() * 3) + 's';
+      _iciclesEl.appendChild(ic);
+    }
+    document.body.appendChild(_iciclesEl);
+  }
+
+  function _stopFrost() {
+    if (!_frostEl) return;
+    document.body.classList.remove('wth-frost');
+    _frostEl.remove(); _frostEl = null;
+    if (_iciclesEl) { _iciclesEl.remove(); _iciclesEl = null; }
+  }
+
+  // â”€â”€ Heat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  function _startHeat() {
+    if (_heatActive) return;
+    _heatActive = true;
+    document.body.classList.add('wth-hot');
+
+    _heatStage = document.createElement('div');
+    _heatStage.id = 'wthHeatStage';
+    for (var i = 0; i < 14; i++) {
+      var wv = document.createElement('div');
+      wv.className = 'wth-heat-wave';
+      var dur = 1.4 + Math.random() * 2;
+      var del = Math.random() * 3;
+      var x   = Math.random() * 90;
+      var pw  = 70 + Math.random() * 200;
+      wv.style.cssText = 'left:' + x + '%;width:' + pw + 'px;' +
+        'animation-duration:' + dur + 's;animation-delay:' + del + 's';
+      _heatStage.appendChild(wv);
+    }
+    document.body.appendChild(_heatStage);
+
+    _heatOverlay = document.createElement('div');
+    _heatOverlay.className = 'wth-heat-overlay';
+    document.body.appendChild(_heatOverlay);
+  }
+
+  function _stopHeat() {
+    if (!_heatActive) return;
+    _heatActive = false;
+    document.body.classList.remove('wth-hot');
+    if (_heatStage)   { _heatStage.remove();   _heatStage = null; }
+    if (_heatOverlay) { _heatOverlay.remove();  _heatOverlay = null; }
+  }
+
+  // â”€â”€ Apply effects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  function _applyEffects() {
+    if (!_wthOn || !_wthData) {
+      _stopRain(); _stopSnow(); _stopFrost(); _stopHeat(); return;
+    }
+    var temp_f = _wthData.temp_f;
+    var code   = _wthData.code;
+
+    if (_isRain(code)) _startRain(); else _stopRain();
+
+    if (_isSnow(code)) {
+      _startSnow();
+    } else {
+      _stopSnow();
+      if (temp_f <= _wthFrostF) _startFrost(); else _stopFrost();
+    }
+
+    if (temp_f >= _wthHotF) _startHeat(); else _stopHeat();
+  }
+
+  // â”€â”€ Init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  _render();
+  setInterval(_tick, 15000);
+  if (_wthOn) _locate();
+  setInterval(function() { if (_wthOn) _locate(); }, 30 * 60 * 1000);
+
+  // â”€â”€ Public API for settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  window.wthSettings = {
+    toggle: function(on) {
+      _wthOn = on;
+      localStorage.setItem('wth_on', on ? '1' : '0');
+      _widget.classList.toggle('wth-hidden', !on);
+      if (on) { _locate(); }
+      else { _stopRain(); _stopSnow(); _stopFrost(); _stopHeat(); }
+    },
+    setUnit: function(u) {
+      _wthUnit = u;
+      localStorage.setItem('wth_unit', u);
+      _render();
+    },
+    setHotF: function(v) {
+      _wthHotF = v;
+      localStorage.setItem('wth_hot_f', v);
+      if (_wthData) _applyEffects();
+    },
+    setFrostF: function(v) {
+      _wthFrostF = v;
+      localStorage.setItem('wth_frost_f', v);
+      if (_wthData) _applyEffects();
+    },
+    getState: function() {
+      return { on: _wthOn, unit: _wthUnit, hotF: _wthHotF, frostF: _wthFrostF };
+    }
+  };
+})();
+
