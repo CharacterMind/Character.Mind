@@ -9702,7 +9702,6 @@ function checkSeasonalEvent() {
     return;
   }
 
-  if (event.accent) setAccentOverride(event.accent);
   setTimeout(() => transformLogoForEvent(event.name), 500);
   setTimeout(() => showEventBanner(event.banner, event.name), 1200);
 }
