@@ -4378,6 +4378,39 @@ body.hw-screaming::after {
   color: #aaccff;
 }
 
+/* Simulate preset grid */
+.wth-sim-hd {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: rgba(160,200,255,0.50);
+  padding: 10px 14px 5px;
+}
+.wth-sim-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 5px; padding: 0 10px 8px;
+}
+.wth-sim-btn {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(100,160,255,0.18);
+  border-radius: 9px; color: rgba(180,210,255,0.70);
+  font-size: 11px; padding: 6px 3px; cursor: pointer;
+  text-align: center; line-height: 1.35; white-space: nowrap;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.wth-sim-btn:hover {
+  background: rgba(100,160,255,0.12);
+  border-color: rgba(100,160,255,0.35);
+  color: rgba(200,230,255,0.90);
+}
+.wth-sim-btn.wth-sim-active {
+  background: rgba(50,120,255,0.22);
+  border-color: rgba(100,170,255,0.65);
+  color: #9bd0ff; font-weight: 700;
+}
+.wth-sim-sep {
+  height: 1px; margin: 0 10px 4px;
+  background: rgba(100,160,255,0.15);
+}
+
 /* Rain intensity row */
 .wth-opt-intensity {
   display: flex; gap: 5px;

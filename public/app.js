@@ -12311,6 +12311,7 @@ async function claimHalloweenGift() {
   let _snowGroundEl = null, _snowGroundTid = null, _snowGroundH = 0;
   let _cloudEl = null;
   let _thunderActive = false, _thunderTids = [];
+  let _wthManual = null, _wthManualThunder = null, _wthManualLightning = null;
   let _floodEl = null, _floodTid = null, _floodH = 0, _floodDraining = false;
   let _floodGl = null, _floodProg = null, _floodGlAnimId = null, _floodT0 = 0, _floodUL = null;
   let _heatStage = null, _heatOverlay = null;
@@ -12331,6 +12332,22 @@ async function claimHalloweenGift() {
       '<span>Weather Effects</span>' +
       '<button class="wth-opt-close" id="wthOptClose" aria-label="Close">×</button>' +
     '</div>' +
+    '<div class="wth-sim-hd">Simulate</div>' +
+    '<div class="wth-sim-grid">' +
+      '<button class="wth-sim-btn" data-preset="auto">🔄 Auto</button>' +
+      '<button class="wth-sim-btn" data-preset="clear">☀️ Clear</button>' +
+      '<button class="wth-sim-btn" data-preset="rain">🌧️ Rain</button>' +
+      '<button class="wth-sim-btn" data-preset="downpour">🌊 Downpour</button>' +
+      '<button class="wth-sim-btn" data-preset="thunder-rain">🔊 T+Rain</button>' +
+      '<button class="wth-sim-btn" data-preset="storm">⛈️ Thunderstorm</button>' +
+      '<button class="wth-sim-btn" data-preset="thunder">🔊 Thunder</button>' +
+      '<button class="wth-sim-btn" data-preset="lightning">⚡ Lightning</button>' +
+      '<button class="wth-sim-btn" data-preset="thunder-lightning">🌩️ T+Lightning</button>' +
+      '<button class="wth-sim-btn" data-preset="snow">❄️ Snow</button>' +
+      '<button class="wth-sim-btn" data-preset="flood">🌊 Flood</button>' +
+      '<button class="wth-sim-btn" data-preset="random">🎲 Random</button>' +
+    '</div>' +
+    '<div class="wth-sim-sep"></div>' +
     '<div class="wth-opt-rows">' +
       '<label class="wth-opt-row"><span>☁️ Clouds</span>' +
         '<button class="wth-opt-tog" id="wthTogClouds" data-pref="wth_clouds_on"></button></label>' +
@@ -12360,6 +12377,13 @@ async function claimHalloweenGift() {
     btn.classList.toggle('wth-tog-on', !!on);
   }
 
+  function _wthPanelRefreshPresets() {
+    var active = _wthManual || 'auto';
+    _wthPanel.querySelectorAll('.wth-sim-btn').forEach(function(b) {
+      b.classList.toggle('wth-sim-active', b.dataset.preset === active);
+    });
+  }
+
   function _wthPanelRefresh() {
     _wthPanelSetTog('wthTogClouds',    _wthCloudsOn);
     _wthPanelSetTog('wthTogRain',      _wthRainOn);
@@ -12371,6 +12395,7 @@ async function claimHalloweenGift() {
     if (row) row.querySelectorAll('.wth-opt-int-btn').forEach(function(b) {
       b.classList.toggle('wth-int-active', b.dataset.intensity === _wthRainIntensity);
     });
+    _wthPanelRefreshPresets();
   }
 
   _widget.addEventListener('click', function(e) {
@@ -12392,6 +12417,10 @@ async function claimHalloweenGift() {
   });
 
   _wthPanel.addEventListener('click', function(e) {
+    // Simulate preset buttons
+    var simBtn = e.target.closest('.wth-sim-btn');
+    if (simBtn) { _applyPreset(simBtn.dataset.preset); return; }
+
     // Intensity buttons
     var intBtn = e.target.closest('.wth-opt-int-btn');
     if (intBtn) {
@@ -12863,7 +12892,8 @@ void main(){
   }
 
   function _doLightningFlash() {
-    if (!_wthLightningOn) return;
+    var show = _wthManualLightning !== null ? _wthManualLightning : _wthLightningOn;
+    if (!show) return;
     var el = document.getElementById('wthLightningFlash');
     if (!el) { el = document.createElement('div'); el.id = 'wthLightningFlash'; document.body.appendChild(el); }
     el.style.opacity = '0.14';
@@ -12873,7 +12903,8 @@ void main(){
   }
 
   function _doThunderSound() {
-    if (!_thunderActive || !_wthThunderOn) return;
+    var play = _wthManualThunder !== null ? _wthManualThunder : (_thunderActive && _wthThunderOn);
+    if (!play) return;
     try {
       var ctx = new (window.AudioContext || window.webkitAudioContext)();
       var sr = ctx.sampleRate;
@@ -13051,8 +13082,8 @@ void main(){
     _floodGlAnimId = requestAnimationFrame(_renderFloodGL);
   }
 
-  function _startFlood() {
-    if (!_wthFloodOn) return;
+  function _startFlood(force) {
+    if (!force && !_wthFloodOn) return;
     if (!_floodEl) {
       var canvas = document.createElement('canvas');
       canvas.id = 'wthFlood';
@@ -13136,7 +13167,85 @@ void main(){
   }
 
   // â"€â"€ Apply effects â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+  function _stopAllForPreset() {
+    if (_rainActive)    _stopRain();   // also stops thunder, flood, clouds
+    if (_snowActive)    _stopSnow();
+    if (_heatActive)    _stopHeat();
+    if (_frostEl)       _stopFrost();
+    if (_thunderActive) { _thunderActive = false; _thunderTids.forEach(clearTimeout); _thunderTids = []; }
+    if (_cloudEl)       _stopClouds();
+    if (_floodEl)       _stopFlood();
+    _wthManualThunder  = null;
+    _wthManualLightning = null;
+  }
+
+  function _applyPreset(name) {
+    _stopAllForPreset();
+
+    if (name === 'auto') {
+      _wthManual = null;
+      if (_wthData) _applyEffects();
+      _wthPanelRefreshPresets();
+      return;
+    }
+
+    if (name === 'random') {
+      var opts = ['rain','downpour','storm','thunder-rain','thunder','lightning','thunder-lightning','snow','flood'];
+      _applyPreset(opts[Math.floor(Math.random() * opts.length)]);
+      return;
+    }
+
+    _wthManual = name;
+
+    if (name === 'clear') {
+      /* all already stopped */
+    } else if (name === 'rain') {
+      _wthRainIntensity = 'medium';
+      _startRain();
+    } else if (name === 'downpour') {
+      _wthRainIntensity = 'heavy';
+      _startRain();
+      _startFlood(true);
+    } else if (name === 'storm') {
+      _wthRainIntensity = 'heavy';
+      _wthManualThunder  = true;
+      _wthManualLightning = true;
+      _startRain();
+      if (!_thunderActive) _startThunder();
+      _startFlood(true);
+    } else if (name === 'thunder-rain') {
+      _wthRainIntensity = 'medium';
+      _wthManualThunder  = true;
+      _wthManualLightning = false;
+      _startRain();
+      if (!_thunderActive) _startThunder();
+    } else if (name === 'thunder') {
+      _wthManualThunder  = true;
+      _wthManualLightning = false;
+      _startClouds(true);
+      _startThunder();
+    } else if (name === 'lightning') {
+      _wthManualThunder  = false;
+      _wthManualLightning = true;
+      _startClouds(true);
+      _startThunder();
+    } else if (name === 'thunder-lightning') {
+      _wthManualThunder  = true;
+      _wthManualLightning = true;
+      _startClouds(true);
+      _startThunder();
+    } else if (name === 'snow') {
+      _startClouds(false);
+      _startSnow();
+    } else if (name === 'flood') {
+      _startFlood(true);
+    }
+
+    _wthPanelRefreshPresets();
+  }
+
   function _applyEffects() {
+    if (_wthManual !== null) return;
     if (!_wthOn || !_wthData) {
       _stopRain(); _stopSnow(); _stopFrost(); _stopHeat(); _stopClouds(); _stopThunder(); _stopFlood(); return;
     }
