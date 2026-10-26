@@ -12149,6 +12149,7 @@ async function claimHalloweenGift() {
   let _rainCanvas = null, _rainCtx = null, _rainAnimId = null;
   let _rainDrops = [], _rainStreaks = [];
   let _rainGl = null, _rainGlProg = null, _rainGlT0 = 0, _rainGlUL = null, _rainGlIntens = 2.0;
+  let _dripsCanvas = null, _dripsCtx = null, _dripsAnimId = null, _drips = [];
   let _puddleEl = null, _puddleTid = null, _puddleH = 0;
   let _snowGroundEl = null, _snowGroundTid = null, _snowGroundH = 0;
   let _cloudEl = null;
@@ -12387,154 +12388,182 @@ async function claimHalloweenGift() {
     );
   }
 
-  // ── Rain (WebGL hyper-realistic) ─────────────────────────────────────────
-  var _RAIN_VS = `attribute vec2 aPos;void main(){gl_Position=vec4(aPos,0.0,1.0);}`;
+  // ── Rain (Canvas 2D + glass drips) ──────────────────────────────────────
+  var _RAIN_CFG = {
+    light:  { count: 220, spd: [9,  16], len: [28,  58], w: [0.5, 1.2], a: [0.38, 0.68], ang: 0.11 },
+    medium: { count: 480, spd: [14, 25], len: [42,  85], w: [0.5, 1.6], a: [0.48, 0.82], ang: 0.13 },
+    heavy:  { count: 880, spd: [20, 35], len: [65, 120], w: [0.6, 2.0], a: [0.58, 0.94], ang: 0.15 },
+  };
 
-  var _RAIN_FS = `
-precision highp float;
-uniform float uTime;
-uniform vec2  uRes;
-uniform float uIntens;
-
-float h21(vec2 p){p=fract(p*vec2(234.34,435.345));p+=dot(p,p+34.23);return fract(p.x*p.y);}
-
-float streak(vec2 uv,float sc,float spd,float wind,float seed,float t){
-  float asp=uRes.x/uRes.y;
-  vec2 p=vec2(uv.x*asp+uv.y*wind,uv.y)*sc+vec2(seed*137.1,0.0);
-  vec2 c=floor(p);
-  vec2 f=fract(p);
-  float r1=h21(c+vec2(seed*13.7,0.0));
-  float phase=h21(c+vec2(seed*97.3,0.0));
-  float dropT=fract(t*spd+phase);
-  float headY=1.0-dropT;
-  float cx=0.5+(r1-0.5)*0.35;
-  float tail=0.28+r1*0.16;
-  float dy=f.y-headY;
-  float inD=0.0;
-  if(dy>=0.0&&dy<=tail) inD=pow(1.0-dy/tail,1.5);
-  float dyW=f.y+(1.0-headY);
-  if(dyW>=0.0&&dyW<=tail) inD=max(inD,pow(1.0-dyW/tail,1.5));
-  float xW=clamp(1.6/sc,0.004,0.030);
-  float xB=max(0.0,1.0-abs(f.x-cx)/xW);
-  xB=xB*xB;
-  return xB*inD*(0.65+0.35*r1);
-}
-
-void main(){
-  vec2 uv=gl_FragCoord.xy/uRes;
-  float t=uTime;
-  float I=uIntens;
-
-  // Slow organic wind gust
-  float gust=sin(t*0.07)*0.4+sin(t*0.19+1.5)*0.25;
-  float w=0.11+gust*0.035;
-
-  float r=0.0;
-  // Background: fine, fast, many
-  r+=streak(uv,88.0,2.1,w*1.2,0.0,t)*0.22;
-  r+=streak(uv,66.0,1.9,w*1.1,4.3,t)*0.28;
-  r+=streak(uv,50.0,1.7,w*1.0,9.1,t)*0.36;
-  r+=streak(uv,36.0,1.5,w*0.9,14.7,t)*0.46;
-
-  // Mid layers (medium+heavy)
-  if(I>=2.0){
-    r+=streak(uv,26.0,1.3,w*0.85,20.3,t)*0.58;
-    r+=streak(uv,19.0,1.15,w*0.80,26.8,t)*0.68;
+  function _makeRainDrop(cfg, W, H) {
+    return {
+      x:     Math.random() * (W + 100) - 50,
+      y:     Math.random() * (H + cfg.len[1]) - cfg.len[1],
+      speed: cfg.spd[0] + Math.random() * (cfg.spd[1] - cfg.spd[0]),
+      len:   cfg.len[0] + Math.random() * (cfg.len[1] - cfg.len[0]),
+      w:     cfg.w[0]   + Math.random() * (cfg.w[1]   - cfg.w[0]),
+      alpha: cfg.a[0]   + Math.random() * (cfg.a[1]   - cfg.a[0]),
+      ang:   cfg.ang    + (Math.random() - 0.5) * 0.04,
+    };
   }
 
-  // Heavy extra layers
-  if(I>=3.0){
-    r+=streak(uv,13.0,0.95,w*0.75,33.4,t)*0.78;
-    r+=streak(uv, 9.0,0.80,w*0.70,40.1,t)*0.88;
-  }
-
-  // Foreground: slower, bigger, most visible
-  r+=streak(uv,15.0,1.0,w*0.75,47.8,t)*(0.50+0.42*(I/3.0));
-  r+=streak(uv, 8.0,0.72,w*0.65,54.2,t)*(0.70+0.28*(I/3.0));
-
-  r=clamp(r*(0.55+0.45*I/3.0),0.0,1.0);
-
-  vec3 dropC=vec3(0.78,0.90,1.00);
-
-  // Rain mist at the bottom
-  float mist=smoothstep(0.48,0.0,uv.y)*0.08*I;
-
-  // Atmospheric darkening + blue cast
-  float dark=0.03*I;
-
-  vec3 col=dropC*r+vec3(0.62,0.79,0.97)*mist+vec3(0.06,0.09,0.18)*dark;
-  float a=r*0.80+mist*0.88+dark;
-  gl_FragColor=vec4(col,clamp(a,0.0,0.90));
-}`;
-
-  function _initRainGL(canvas) {
-    var gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: false });
-    if (!gl) return false;
-    function _c(type, src) { var s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s); return s; }
-    var prog = gl.createProgram();
-    gl.attachShader(prog, _c(gl.VERTEX_SHADER, _RAIN_VS));
-    gl.attachShader(prog, _c(gl.FRAGMENT_SHADER, _RAIN_FS));
-    gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return false;
-    gl.useProgram(prog);
-    var buf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
-    var aL = gl.getAttribLocation(prog, 'aPos');
-    gl.enableVertexAttribArray(aL);
-    gl.vertexAttribPointer(aL, 2, gl.FLOAT, false, 0, 0);
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    _rainGl = gl;
-    _rainGlProg = prog;
-    _rainGlUL = { uTime: gl.getUniformLocation(prog,'uTime'), uRes: gl.getUniformLocation(prog,'uRes'), uIntens: gl.getUniformLocation(prog,'uIntens') };
-    _rainGlT0 = performance.now();
-    return true;
-  }
-
-  function _renderRainGL() {
-    var gl = _rainGl;
-    if (!gl || !_rainActive) return;
-    var canvas = gl.canvas;
-    var w = canvas.offsetWidth | 0, h = canvas.offsetHeight | 0;
-    if (!w || !h) { _rainAnimId = requestAnimationFrame(_renderRainGL); return; }
-    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
-    gl.viewport(0, 0, w, h);
-    gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.uniform1f(_rainGlUL.uTime, (performance.now() - _rainGlT0) / 1000);
-    gl.uniform2f(_rainGlUL.uRes, w, h);
-    gl.uniform1f(_rainGlUL.uIntens, _rainGlIntens);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    _rainAnimId = requestAnimationFrame(_renderRainGL);
+  function _rainFrame() {
+    if (!_rainCanvas || !_rainCtx || !_rainActive) return;
+    var W = _rainCanvas.width, H = _rainCanvas.height;
+    var cfg = _RAIN_CFG[_wthRainIntensity];
+    _rainCtx.clearRect(0, 0, W, H);
+    var iHeavy = _wthRainIntensity === 'heavy', iLight = _wthRainIntensity === 'light';
+    var atmosA = iHeavy ? 0.065 : iLight ? 0.02 : 0.04;
+    _rainCtx.fillStyle = 'rgba(8,12,28,' + atmosA + ')';
+    _rainCtx.fillRect(0, 0, W, H);
+    var mist = _rainCtx.createLinearGradient(0, H * 0.55, 0, H);
+    mist.addColorStop(0, 'rgba(170,205,240,0)');
+    mist.addColorStop(1, 'rgba(155,195,235,' + (atmosA * 1.8) + ')');
+    _rainCtx.fillStyle = mist;
+    _rainCtx.fillRect(0, H * 0.55, W, H * 0.45);
+    for (var i = 0; i < _rainDrops.length; i++) {
+      var d = _rainDrops[i];
+      var dx = d.speed * d.ang;
+      d.y += d.speed; d.x += dx;
+      if (d.y > H + d.len) {
+        d.x = Math.random() * (W + 100) - 50;
+        d.y = -d.len - Math.random() * H * 0.08;
+        d.alpha = cfg.a[0] + Math.random() * (cfg.a[1] - cfg.a[0]);
+      }
+      var tx = d.x - dx * (d.len / d.speed);
+      var ty = d.y - d.len;
+      var g = _rainCtx.createLinearGradient(tx, ty, d.x, d.y);
+      g.addColorStop(0,    'rgba(200,225,255,0)');
+      g.addColorStop(0.25, 'rgba(205,228,255,' + (d.alpha * 0.12) + ')');
+      g.addColorStop(0.65, 'rgba(215,236,255,' + (d.alpha * 0.52) + ')');
+      g.addColorStop(0.88, 'rgba(225,242,255,' + (d.alpha * 0.88) + ')');
+      g.addColorStop(1,    'rgba(235,248,255,' + d.alpha + ')');
+      _rainCtx.beginPath();
+      _rainCtx.strokeStyle = g;
+      _rainCtx.lineWidth = d.w;
+      _rainCtx.moveTo(tx, ty);
+      _rainCtx.lineTo(d.x, d.y);
+      _rainCtx.stroke();
+    }
+    _rainAnimId = requestAnimationFrame(_rainFrame);
   }
 
   function _resizeRainCanvas() {
     if (!_rainCanvas) return;
-    /* GL canvas resizes via offsetWidth/Height in _renderRainGL */
+    _rainCanvas.width  = window.innerWidth;
+    _rainCanvas.height = window.innerHeight;
+    _rainCtx = _rainCanvas.getContext('2d');
+    _rainCtx.lineCap = 'round';
+    if (_dripsCanvas) {
+      _dripsCanvas.width  = window.innerWidth;
+      _dripsCanvas.height = window.innerHeight;
+    }
   }
 
   function _rebuildRainParticles() {
-    _rainGlIntens = _wthRainIntensity === 'light' ? 1.0 : _wthRainIntensity === 'heavy' ? 3.0 : 2.0;
+    var cfg = _RAIN_CFG[_wthRainIntensity];
+    var W = _rainCanvas ? _rainCanvas.width  : window.innerWidth;
+    var H = _rainCanvas ? _rainCanvas.height : window.innerHeight;
+    _rainDrops = [];
+    for (var i = 0; i < cfg.count; i++) _rainDrops.push(_makeRainDrop(cfg, W, H));
+    if (_dripsCanvas) {
+      var n = _wthRainIntensity === 'heavy' ? 34 : _wthRainIntensity === 'medium' ? 20 : 10;
+      while (_drips.length < n) _drips.push(_makeDrip(W, H, false));
+      while (_drips.length > n) _drips.pop();
+    }
+  }
+
+  // ── Glass drip effect ────────────────────────────────────────────────────
+  function _makeDrip(W, H, init) {
+    return {
+      x:     Math.random() * W,
+      y:     init ? Math.random() * H * 0.8 : -Math.random() * 20,
+      r:     2.5 + Math.random() * 4.5,
+      speed: 0.25 + Math.random() * 1.1,
+      alpha: 0.50 + Math.random() * 0.38,
+      trail: init ? Math.random() * 80 : 0,
+      pause: Math.floor(40 + Math.random() * 140),
+      age:   init ? 9999 : 0,
+    };
+  }
+
+  function _dripsFrame() {
+    if (!_dripsCanvas || !_dripsCtx) return;
+    var W = _dripsCanvas.width, H = _dripsCanvas.height;
+    _dripsCtx.clearRect(0, 0, W, H);
+    for (var i = 0; i < _drips.length; i++) {
+      var d = _drips[i];
+      d.age++;
+      if (d.age > d.pause) { d.y += d.speed; d.trail += d.speed; }
+      if (d.y > H + d.r + 5) { _drips[i] = _makeDrip(W, H, false); continue; }
+      var topY = d.y - d.trail;
+      if (d.trail > 1) {
+        var tg = _dripsCtx.createLinearGradient(d.x, topY, d.x, d.y - d.r);
+        tg.addColorStop(0,   'rgba(140,185,230,0)');
+        tg.addColorStop(0.2, 'rgba(148,192,238,' + (d.alpha * 0.18) + ')');
+        tg.addColorStop(1,   'rgba(158,200,245,' + (d.alpha * 0.38) + ')');
+        _dripsCtx.beginPath();
+        _dripsCtx.strokeStyle = tg;
+        _dripsCtx.lineWidth = Math.max(0.8, d.r * 0.45);
+        _dripsCtx.moveTo(d.x, topY);
+        _dripsCtx.lineTo(d.x, d.y - d.r);
+        _dripsCtx.stroke();
+      }
+      var rg = _dripsCtx.createRadialGradient(
+        d.x - d.r * 0.30, d.y - d.r * 0.30, d.r * 0.05,
+        d.x, d.y, d.r);
+      rg.addColorStop(0,    'rgba(235,248,255,' + (d.alpha * 0.90) + ')');
+      rg.addColorStop(0.35, 'rgba(185,220,250,' + (d.alpha * 0.72) + ')');
+      rg.addColorStop(0.75, 'rgba(130,175,225,' + (d.alpha * 0.48) + ')');
+      rg.addColorStop(1,    'rgba(90,140,200,'  + (d.alpha * 0.20) + ')');
+      _dripsCtx.beginPath();
+      _dripsCtx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+      _dripsCtx.fillStyle = rg;
+      _dripsCtx.fill();
+      _dripsCtx.beginPath();
+      _dripsCtx.arc(d.x - d.r * 0.28, d.y - d.r * 0.28, d.r * 0.22, 0, Math.PI * 2);
+      _dripsCtx.fillStyle = 'rgba(255,255,255,' + (d.alpha * 0.80) + ')';
+      _dripsCtx.fill();
+    }
+    _dripsAnimId = requestAnimationFrame(_dripsFrame);
+  }
+
+  function _startDrips() {
+    if (_dripsCanvas) return;
+    var W = window.innerWidth, H = window.innerHeight;
+    _dripsCanvas = document.createElement('canvas');
+    _dripsCanvas.id = 'wthDripsCanvas';
+    _dripsCanvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:99992;';
+    document.body.appendChild(_dripsCanvas);
+    _dripsCanvas.width = W; _dripsCanvas.height = H;
+    _dripsCtx = _dripsCanvas.getContext('2d');
+    var n = _wthRainIntensity === 'heavy' ? 34 : _wthRainIntensity === 'medium' ? 20 : 10;
+    _drips = [];
+    for (var i = 0; i < n; i++) _drips.push(_makeDrip(W, H, true));
+    _dripsAnimId = requestAnimationFrame(_dripsFrame);
+  }
+
+  function _stopDrips() {
+    if (_dripsAnimId) { cancelAnimationFrame(_dripsAnimId); _dripsAnimId = null; }
+    if (_dripsCanvas) { _dripsCanvas.remove(); _dripsCanvas = null; _dripsCtx = null; }
+    _drips = [];
   }
 
   function _startRain() {
     if (_rainActive) return;
     _rainActive = true;
     document.body.classList.add('wth-raining');
-    _rebuildRainParticles();
     if (!_rainCanvas) {
       _rainCanvas = document.createElement('canvas');
       _rainCanvas.id = 'wthRainCanvas';
       _rainCanvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:99990;';
       document.body.appendChild(_rainCanvas);
-      if (!_initRainGL(_rainCanvas)) {
-        /* WebGL unavailable: plain blue overlay fallback */
-        _rainCanvas.style.background = 'rgba(10,20,50,0.18)';
-        return;
-      }
+      _resizeRainCanvas();
+      window.addEventListener('resize', _resizeRainCanvas);
     }
-    _rainAnimId = requestAnimationFrame(_renderRainGL);
+    _rebuildRainParticles();
+    _rainAnimId = requestAnimationFrame(_rainFrame);
+    _startDrips();
     _startPuddle();
     if (_wthCloudsOn) _startClouds(true);
     if (_wthThunderOn) _startThunder();
@@ -12546,9 +12575,9 @@ void main(){
     document.body.classList.remove('wth-raining');
     cancelAnimationFrame(_rainAnimId); _rainAnimId = null;
     _rainDrops = []; _rainStreaks = [];
-    _rainGl = null; _rainGlProg = null; _rainGlUL = null;
     if (_rainCanvas) { _rainCanvas.remove(); _rainCanvas = null; _rainCtx = null; }
     _rainTids.forEach(function(t) { clearTimeout(t); }); _rainTids = [];
+    _stopDrips();
     _stopPuddle();
     _stopFlood();
     if (!_snowActive) _stopClouds();
