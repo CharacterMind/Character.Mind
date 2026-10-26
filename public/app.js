@@ -880,15 +880,6 @@ async function mountStripeElements() {
     if (payBtn) payBtn.style.display = 'none';
     return;
   }
-
-  // Check if price is set up for this plan
-  const period = currentCheckoutPeriod === 'annual' ? 'annual' : 'monthly';
-  const priceKey = `${currentCheckoutPlan}_${period}`;
-  if (!cfg.prices?.[priceKey]) {
-    if (unavailableEl) unavailableEl.style.display = '';
-    if (payBtn) payBtn.style.display = 'none';
-    return;
-  }
   if (unavailableEl) unavailableEl.style.display = 'none';
   if (payBtn) payBtn.style.display = '';
 

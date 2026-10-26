@@ -6404,20 +6404,17 @@ const COIN_USD_VALUE = 0.01; // 1 C.M. Coin = $0.01 USD
 const PLAN_MONTHLY_USD = { advanced: 9.99, x20: 39.99, x50: 79.99, x100: 159.99, x200: 399.99 };
 
 // Stripe price IDs — set these env vars on Render after creating products/prices in your Stripe dashboard
-const STRIPE_PRICES = {
-  advanced_monthly: process.env.STRIPE_PRICE_ADVANCED_MONTHLY || null,
-  advanced_annual:  process.env.STRIPE_PRICE_ADVANCED_ANNUAL  || null,
-  x20_monthly:      process.env.STRIPE_PRICE_X20_MONTHLY      || null,
-  x20_annual:       process.env.STRIPE_PRICE_X20_ANNUAL       || null,
-  x50_monthly:      process.env.STRIPE_PRICE_X50_MONTHLY      || null,
-  x50_annual:       process.env.STRIPE_PRICE_X50_ANNUAL       || null,
-  x100_monthly:     process.env.STRIPE_PRICE_X100_MONTHLY     || null,
-  x100_annual:      process.env.STRIPE_PRICE_X100_ANNUAL      || null,
-  x200_monthly:     process.env.STRIPE_PRICE_X200_MONTHLY     || null,
-  x200_annual:      process.env.STRIPE_PRICE_X200_ANNUAL      || null,
+// Plan prices in USD — must stay in sync with PLAN_DATA in public/app.js
+const PLAN_PRICES = {
+  advanced_monthly: 9.99,  advanced_annual: 59.99,
+  x20_monthly:      39.99, x20_annual:      239.99,
+  x50_monthly:      79.99, x50_annual:      479.99,
+  x100_monthly:     159.99, x100_annual:    959.99,
+  x200_monthly:     399.99, x200_annual:    2399.99,
 };
-function getPlanKeyFromStripePrice(priceId) {
-  for (const [k, v] of Object.entries(STRIPE_PRICES)) if (v && v === priceId) return k.split('_')[0];
+function getPlanKeyFromStripeSub(sub) {
+  // Prefer metadata written at subscription-create time
+  if (sub?.metadata?.planKey) return sub.metadata.planKey;
   return null;
 }
 
@@ -6747,9 +6744,7 @@ app.post('/api/webhooks/paypal', async (req, res) => {
 
 app.get('/api/stripe/config', requireAuth, (req, res) => {
   if (!stripe || !process.env.STRIPE_PUBLISHABLE_KEY) return res.json({ available: false });
-  const prices = {};
-  for (const [k, v] of Object.entries(STRIPE_PRICES)) prices[k] = !!v;
-  res.json({ available: true, publishableKey: process.env.STRIPE_PUBLISHABLE_KEY, prices });
+  res.json({ available: true, publishableKey: process.env.STRIPE_PUBLISHABLE_KEY });
 });
 
 app.post('/api/stripe/subscribe', requireAuth, async (req, res) => {
@@ -6760,8 +6755,8 @@ app.post('/api/stripe/subscribe', requireAuth, async (req, res) => {
   if (!['monthly','annual'].includes(period)) return res.status(400).json({ error: 'Invalid period.' });
   if (typeof paymentMethodId !== 'string' || !paymentMethodId.startsWith('pm_')) return res.status(400).json({ error: 'Invalid payment method.' });
 
-  const priceId = STRIPE_PRICES[`${planKey}_${period}`];
-  if (!priceId) return res.status(400).json({ error: 'This plan/period is not yet available via card. Please use PayPal.' });
+  const unitDollars = PLAN_PRICES[`${planKey}_${period}`];
+  if (!unitDollars) return res.status(400).json({ error: 'Invalid plan/period combination.' });
 
   const userId = req.user.googleId;
   const userEmail = req.user.email;
@@ -6785,10 +6780,18 @@ app.post('/api/stripe/subscribe', requireAuth, async (req, res) => {
     // Cancel any previous Stripe subscription
     if (oldSubId) { try { await stripe.subscriptions.cancel(oldSubId); } catch (_) {} }
 
-    // Create subscription
+    // Create subscription with inline price (no pre-configured price IDs needed)
     const sub = await stripe.subscriptions.create({
       customer: customerId,
-      items: [{ price: priceId }],
+      items: [{
+        price_data: {
+          currency: 'usd',
+          product_data: { name: `Character.Mind ${planKey.toUpperCase()} Plan` },
+          unit_amount: Math.round(unitDollars * 100),
+          recurring: { interval: period === 'annual' ? 'year' : 'month' },
+        },
+      }],
+      metadata: { planKey, period },
       payment_settings: { payment_method_types: ['card'], save_default_payment_method: 'on_subscription' },
       expand: ['latest_invoice.payment_intent'],
     });
@@ -6842,7 +6845,7 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
 
   if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.created') {
     if (sub.status === 'active' || sub.status === 'trialing') {
-      const planKey = getPlanKeyFromStripePrice(sub.items?.data?.[0]?.price?.id);
+      const planKey = getPlanKeyFromStripeSub(sub);
       if (planKey) {
         const row = await db.query('SELECT google_id FROM users WHERE stripe_customer_id=$1', [sub.customer]).catch(() => null);
         if (row?.rows?.[0]) {
@@ -6954,7 +6957,7 @@ app.post('/api/stripe/sync', requireAuth, async (req, res) => {
     if (!subId) return res.json({ synced: false });
     const sub = await stripe.subscriptions.retrieve(subId);
     if (sub.status === 'active' || sub.status === 'trialing') {
-      const planKey = getPlanKeyFromStripePrice(sub.items?.data?.[0]?.price?.id);
+      const planKey = getPlanKeyFromStripeSub(sub);
       if (planKey) {
         await db.query('UPDATE users SET subscription_tier=$1 WHERE google_id=$2', [planKey, userId]);
         const lim = getLimits(userId);
