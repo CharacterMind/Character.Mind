@@ -4583,28 +4583,72 @@ body.wth-hot {
   box-shadow: 0 1px 4px rgba(0,0,0,0.4);
 }
 
-/* Weather test/preview buttons */
-.wth-test-row {
+/* Weather effect toggle grid */
+.wth-effect-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--accent-l, #a78bfa);
+  padding: 10px 0 6px;
+  border-bottom: 1px solid var(--border, #26262c);
+}
+.wth-effect-row {
   display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  margin-top: 6px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 0;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
 }
-.wth-test-btn {
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 8px;
-  color: var(--c-text, #e2e2f0);
-  font-size: 13px;
-  padding: 6px 12px;
+.wth-effect-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wth-effect-info > span { font-size: 18px; flex-shrink: 0; }
+.wth-effect-name { font-size: 13.5px; font-weight: 600; color: var(--text, #faf9f5); }
+.wth-effect-sub  { font-size: 11px; color: var(--text3, #52525b); margin-top: 1px; }
+.wth-intensity-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0 10px 28px;
+}
+.wth-int-label { font-size: 11px; color: var(--text3, #52525b); margin-right: 2px; white-space: nowrap; }
+.wth-int-pill {
+  padding: 3px 12px;
+  border: 1px solid var(--border2, #303036);
+  border-radius: 20px;
+  background: var(--bg3, #202024);
+  color: var(--text2, #a1a1aa);
+  font-size: 11px; font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: all .15s;
 }
-.wth-test-btn:hover { background: rgba(255,255,255,0.11); }
-.wth-test-btn.wth-test-active {
+.wth-int-pill:hover { border-color: var(--accent, #8b5cf6); color: var(--accent-l, #a78bfa); }
+.wth-int-pill.wth-int-sel {
   background: var(--accent-dim, rgba(139,92,246,0.18));
   border-color: var(--accent, #8b5cf6);
   color: var(--accent-l, #a78bfa);
+}
+.wth-clear-all-btn {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 9px;
+  border: 1px solid var(--border2, #303036);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text3, #52525b);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+  font-family: inherit;
+}
+.wth-clear-all-btn:hover {
+  border-color: rgba(249,115,22,0.45);
+  color: var(--text2, #a1a1aa);
 }
 
 /* ── AFK Coin Farm ───────────────────────────────────────────────────────── */

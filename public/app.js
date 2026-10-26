@@ -2041,6 +2041,29 @@ function wthToggle(on) {
   if (window.wthSettings) wthSettings.toggle(on);
 }
 
+function wthPreviewToggle(effect, on) {
+  const key = effect.charAt(0).toUpperCase() + effect.slice(1);
+  const lbl = document.getElementById('wthPrev' + key + 'Lbl');
+  if (lbl) lbl.textContent = on ? 'On' : 'Off';
+  if (window.wthSettings) wthSettings.setPreview(effect, on);
+}
+
+function wthPreviewIntensity(level, btn) {
+  document.querySelectorAll('.wth-int-pill').forEach(function(b) { b.classList.remove('wth-int-sel'); });
+  if (btn) btn.classList.add('wth-int-sel');
+  if (window.wthSettings) wthSettings.setRainIntensity(level);
+}
+
+function wthPreviewClearAll() {
+  ['Rain','Snow','Frost','Heat','Clouds','Thunder','Lightning','Flood'].forEach(function(e) {
+    const cb  = document.getElementById('wthPrev' + e);
+    const lbl = document.getElementById('wthPrev' + e + 'Lbl');
+    if (cb)  cb.checked = false;
+    if (lbl) lbl.textContent = 'Off';
+  });
+  if (window.wthSettings) wthSettings.forceEffect('clear');
+}
+
 // ── Wellness Check-in Settings ────────────────────────────────────────────────
 
 async function loadCheckinSettings() {
@@ -13171,8 +13194,28 @@ async function claimHalloweenGift() {
     getState: function() {
       return { on: _wthOn, unit: _wthUnit, hotF: _wthHotF, frostF: _wthFrostF };
     },
+    setPreview: function(effect, on) {
+      if (effect === 'rain')      { if (on) _startRain();     else _stopRain(); }
+      if (effect === 'snow')      { if (on) _startSnow();     else _stopSnow(); }
+      if (effect === 'frost')     { if (on) _startFrost();    else _stopFrost(); }
+      if (effect === 'heat')      { if (on) _startHeat();     else _stopHeat(); }
+      if (effect === 'clouds')    { if (on) _startClouds(_rainActive); else _stopClouds(); }
+      if (effect === 'thunder')   {
+        if (on) { if (!_cloudEl) _startClouds(true); _startThunder(); }
+        else _stopThunder();
+      }
+      if (effect === 'lightning') {
+        _wthLightningOn = on;
+        localStorage.setItem('wth_lightning_on', on ? '1' : '0');
+      }
+      if (effect === 'flood')     { if (on) _startFlood(); else _stopFlood(); }
+    },
+    setRainIntensity: function(level) {
+      _wthRainIntensity = level;
+      localStorage.setItem('wth_rain_intensity', level);
+      if (_rainActive) _rebuildRainParticles();
+    },
     forceEffect: function(mode) {
-      // Stop everything first
       _stopRain(); _stopSnow(); _stopFrost(); _stopHeat(); _stopClouds(); _stopThunder(); _stopFlood();
       if (mode === 'rain')    { _startRain(); }
       if (mode === 'snow')    { _startSnow(); }
@@ -13180,11 +13223,6 @@ async function claimHalloweenGift() {
       if (mode === 'heat')    { _startHeat(); }
       if (mode === 'thunder') { _startClouds(true); _startThunder(); }
       if (mode === 'flood')   { _startFlood(); }
-      if (mode === 'clear')   { /* already stopped */ }
-      // Update preview button states
-      document.querySelectorAll('.wth-test-btn').forEach(function(b) {
-        b.classList.toggle('wth-test-active', b.dataset.mode === mode);
-      });
     }
   };
 })();

@@ -1433,15 +1433,120 @@
           </div>
 
           <div class="settings-field">
-            <label class="settings-label">Preview effects</label>
-            <p class="settings-field-sub">Force an effect on so you can see what it looks like — independent of real weather.</p>
-            <div class="wth-test-row">
-              <button class="wth-test-btn" data-mode="rain"  onclick="wthSettings && wthSettings.forceEffect(this.dataset.mode)">🌧️ Rain</button>
-              <button class="wth-test-btn" data-mode="snow"  onclick="wthSettings && wthSettings.forceEffect(this.dataset.mode)">❄️ Snow</button>
-              <button class="wth-test-btn" data-mode="frost" onclick="wthSettings && wthSettings.forceEffect(this.dataset.mode)">🧊 Frost</button>
-              <button class="wth-test-btn" data-mode="heat"  onclick="wthSettings && wthSettings.forceEffect(this.dataset.mode)">🔥 Heat</button>
-              <button class="wth-test-btn" data-mode="clear" onclick="wthSettings && wthSettings.forceEffect(this.dataset.mode)">✕ Clear</button>
+            <label class="settings-label">Effect toggles</label>
+            <p class="settings-field-sub">Preview individual effects — active independent of real weather until cleared.</p>
+
+            <div class="wth-effect-section-label">Precipitation</div>
+
+            <div class="wth-effect-row">
+              <div class="wth-effect-info">
+                <span>🌧️</span>
+                <div><div class="wth-effect-name">Rain</div><div class="wth-effect-sub">Visible drops and drizzle streaks</div></div>
+              </div>
+              <label class="settings-toggle-row">
+                <input type="checkbox" id="wthPrevRain" onchange="wthPreviewToggle('rain',this.checked)">
+                <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+                <span class="settings-toggle-label" id="wthPrevRainLbl">Off</span>
+              </label>
             </div>
+            <div class="wth-intensity-pills">
+              <span class="wth-int-label">Intensity</span>
+              <button class="wth-int-pill" data-int="light"  onclick="wthPreviewIntensity('light',this)">Light</button>
+              <button class="wth-int-pill wth-int-sel" data-int="medium" onclick="wthPreviewIntensity('medium',this)">Medium</button>
+              <button class="wth-int-pill" data-int="heavy"  onclick="wthPreviewIntensity('heavy',this)">Heavy</button>
+            </div>
+
+            <div class="wth-effect-row">
+              <div class="wth-effect-info">
+                <span>❄️</span>
+                <div><div class="wth-effect-name">Snow</div><div class="wth-effect-sub">Snowflakes, ground accumulation, and frost</div></div>
+              </div>
+              <label class="settings-toggle-row">
+                <input type="checkbox" id="wthPrevSnow" onchange="wthPreviewToggle('snow',this.checked)">
+                <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+                <span class="settings-toggle-label" id="wthPrevSnowLbl">Off</span>
+              </label>
+            </div>
+
+            <div class="wth-effect-section-label" style="margin-top:10px">Temperature</div>
+
+            <div class="wth-effect-row">
+              <div class="wth-effect-info">
+                <span>🧊</span>
+                <div><div class="wth-effect-name">Frost</div><div class="wth-effect-sub">Icicles and frost border overlay</div></div>
+              </div>
+              <label class="settings-toggle-row">
+                <input type="checkbox" id="wthPrevFrost" onchange="wthPreviewToggle('frost',this.checked)">
+                <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+                <span class="settings-toggle-label" id="wthPrevFrostLbl">Off</span>
+              </label>
+            </div>
+
+            <div class="wth-effect-row">
+              <div class="wth-effect-info">
+                <span>🔥</span>
+                <div><div class="wth-effect-name">Heat</div><div class="wth-effect-sub">Screen shimmer and red tint</div></div>
+              </div>
+              <label class="settings-toggle-row">
+                <input type="checkbox" id="wthPrevHeat" onchange="wthPreviewToggle('heat',this.checked)">
+                <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+                <span class="settings-toggle-label" id="wthPrevHeatLbl">Off</span>
+              </label>
+            </div>
+
+            <div class="wth-effect-section-label" style="margin-top:10px">Atmosphere</div>
+
+            <div class="wth-effect-row">
+              <div class="wth-effect-info">
+                <span>☁️</span>
+                <div><div class="wth-effect-name">Clouds</div><div class="wth-effect-sub">Animated cloud layer across the top</div></div>
+              </div>
+              <label class="settings-toggle-row">
+                <input type="checkbox" id="wthPrevClouds" onchange="wthPreviewToggle('clouds',this.checked)">
+                <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+                <span class="settings-toggle-label" id="wthPrevCloudsLbl">Off</span>
+              </label>
+            </div>
+
+            <div class="wth-effect-row">
+              <div class="wth-effect-info">
+                <span>🔊</span>
+                <div><div class="wth-effect-name">Thunder</div><div class="wth-effect-sub">Deep rumble sound with cloud cover</div></div>
+              </div>
+              <label class="settings-toggle-row">
+                <input type="checkbox" id="wthPrevThunder" onchange="wthPreviewToggle('thunder',this.checked)">
+                <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+                <span class="settings-toggle-label" id="wthPrevThunderLbl">Off</span>
+              </label>
+            </div>
+
+            <div class="wth-effect-row">
+              <div class="wth-effect-info">
+                <span>⚡</span>
+                <div><div class="wth-effect-name">Lightning</div><div class="wth-effect-sub">Screen flash &mdash; <em>⚠️ contains flashing lights</em></div></div>
+              </div>
+              <label class="settings-toggle-row">
+                <input type="checkbox" id="wthPrevLightning" onchange="wthPreviewToggle('lightning',this.checked)">
+                <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+                <span class="settings-toggle-label" id="wthPrevLightningLbl">Off</span>
+              </label>
+            </div>
+
+            <div class="wth-effect-section-label" style="margin-top:10px">Ground</div>
+
+            <div class="wth-effect-row" style="border-bottom:none">
+              <div class="wth-effect-info">
+                <span>🌊</span>
+                <div><div class="wth-effect-name">Flood</div><div class="wth-effect-sub">Water rises from the bottom, drains slowly</div></div>
+              </div>
+              <label class="settings-toggle-row">
+                <input type="checkbox" id="wthPrevFlood" onchange="wthPreviewToggle('flood',this.checked)">
+                <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+                <span class="settings-toggle-label" id="wthPrevFloodLbl">Off</span>
+              </label>
+            </div>
+
+            <button class="wth-clear-all-btn" onclick="wthPreviewClearAll()">&times; Clear all effects</button>
           </div>
         </div>
       </div>
