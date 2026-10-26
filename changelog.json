@@ -1,5 +1,22 @@
 [
   {
+    "id": "v361-simplify",
+    "version": "v361",
+    "date": "Oct 2026",
+    "title": "🌿 Simplified",
+    "subtitle": "Less is more — one plan, cleaner chat, Wordle stays.",
+    "changed": [
+      "Subscription picker now shows only the Advanced plan ($9.99/mo) — other tiers are still available but hidden until the app is ready for them",
+      "Voice call button is now hidden from the chat toolbar",
+      "Hangman and Tic-Tac-Toe have been removed — Wordle is the featured game, with word search and crossword coming in a future update"
+    ],
+    "fixed": [
+      "Revoking a subscription now correctly handles coin-purchased tiers, not just PayPal billing",
+      "What's New now always shows the latest version instead of a cached older one",
+      "Admin panel can now reset any account by email address"
+    ]
+  },
+  {
     "id": "v360-paypal-card-farm",
     "version": "v360",
     "date": "Oct 2026",
