@@ -4152,8 +4152,9 @@ body.hw-screaming::after {
 /* Widget */
 .wth-widget {
   position: fixed;
-  bottom: 16px;
-  left: 16px;
+  bottom: 62px;
+  right: 16px;
+  left: auto;
   background: rgba(15, 15, 22, 0.78);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
