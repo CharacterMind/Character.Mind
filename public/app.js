@@ -1,4 +1,4 @@
-// ── State ─────────────────────────────────────────────────────────────────────
+﻿// ── State ─────────────────────────────────────────────────────────────────────
 let knownTemplateAliases = [];
 let templatesLoaded = false;
 let currentUser = null;
@@ -11042,7 +11042,73 @@ async function claimHalloweenGift() {
     // ── VHS static materialising figure (The Ring) ────────────────────────
     { type: 'ring', boo: 'SEVEN DAYS.',   speak: 'Seven days' },
     { type: 'ring', boo: 'COME CLOSER.',  speak: 'Come closer' },
+    // ── Mirror reflection demon ────────────────────────────────────────────
+    { type: 'mirror',    boo: 'THAT IS NOT YOUR REFLECTION.', speak: 'That is not your reflection' },
+    { type: 'mirror',    boo: 'IT HAS BEEN WATCHING YOU.',    speak: 'It has been watching you' },
+    { type: 'mirror',    boo: 'IT NEVER LEAVES.',             speak: 'It never leaves' },
+    // ── Incoming call from hell ────────────────────────────────────────────
+    { type: 'phone',     boo: 'THEY KNOW WHERE YOU LIVE.',    speak: 'They know where you live' },
+    { type: 'phone',     boo: 'DO NOT HANG UP.',              speak: 'Do not hang up' },
+    { type: 'phone',     boo: 'ANSWER THE CALL.',             speak: 'Answer the call' },
+    // ── Hands reaching through the screen ─────────────────────────────────
+    { type: 'hands',     boo: 'COME WITH US.',                speak: 'Come with us' },
+    { type: 'hands',     boo: 'YOU CANNOT CLOSE YOUR EYES.', speak: 'You cannot close your eyes' },
+    { type: 'hands',     boo: 'WE HAVE YOU NOW.',             speak: 'We have you now' },
+    // ── Single eye opens in void ───────────────────────────────────────────
+    { type: 'void',      boo: 'I AM ALWAYS HERE.',            speak: 'I am always here' },
+    { type: 'void',      boo: 'YOU NOTICED.',                 speak: 'You noticed' },
+    { type: 'void',      boo: 'IT WAS ALWAYS WATCHING.',      speak: 'It was always watching' },
+    // ── Countdown to doom ─────────────────────────────────────────────────
+    { type: 'countdown', boo: 'YOUR TIME IS ENDING.',         speak: 'Your time is ending' },
+    { type: 'countdown', boo: 'THERE IS NO ESCAPE.',          speak: 'There is no escape' },
+    { type: 'countdown', boo: 'IT BEGINS NOW.',               speak: 'It begins now' },
+    // ── Blood spreads across screen ────────────────────────────────────────
+    { type: 'blood',     boo: 'I LEFT A MARK.',               speak: 'I left a mark' },
+    { type: 'blood',     boo: 'IT IS ALL OVER YOU.',          speak: 'It is all over you' },
+    { type: 'blood',     boo: 'YOU CANNOT WASH IT OFF.',      speak: 'You cannot wash it off' },
+    // ── Asylum patient rushing at screen ──────────────────────────────────
+    { type: 'asylum',    boo: 'THEY CAME FOR YOU TOO.',       speak: 'They came for you too' },
+    { type: 'asylum',    boo: 'THE DOCTOR IS IN.',            speak: 'The doctor is in' },
+    { type: 'asylum',    boo: 'YOU NEVER LEFT.',              speak: 'You never left' },
+    // ── Clown materializes from darkness ──────────────────────────────────
+    { type: 'clown',     boo: 'WE ALL FLOAT DOWN HERE.',      speak: 'We all float down here' },
+    { type: 'clown',     boo: 'SMILE FOR ME.',                speak: 'Smile for me' },
+    { type: 'clown',     boo: 'IT IS PLAYTIME.',              speak: 'It is playtime' },
+    // ── Rising from the grave ─────────────────────────────────────────────
+    { type: 'grave',     boo: 'THEY SAVED A SPOT FOR YOU.',   speak: 'They saved a spot for you' },
+    { type: 'grave',     boo: 'IT IS TIME TO REST.',          speak: 'It is time to rest' },
+    { type: 'grave',     boo: 'REST IN PIECES.',              speak: 'Rest in pieces' },
+    // ── Words appear one by one ───────────────────────────────────────────
+    { type: 'whisper',   boo: 'I KNOW YOUR NAME.',            speak: 'I know your name' },
+    { type: 'whisper',   boo: 'I KNOW WHERE YOU SLEEP.',      speak: 'I know where you sleep' },
+    { type: 'whisper',   boo: 'YOU CANNOT HIDE FROM ME.',     speak: 'You cannot hide from me' },
+    // ── Figure crawls across ceiling ──────────────────────────────────────
+    { type: 'ceiling',   boo: 'ABOVE YOU.',                   speak: 'Above you' },
+    { type: 'ceiling',   boo: 'LOOK UP.',                     speak: 'Look up' },
+    { type: 'ceiling',   boo: 'IT NEVER TOUCHES THE FLOOR.',  speak: 'It never touches the floor' },
+    // ── Hospital horror ───────────────────────────────────────────────────
+    { type: 'hospital',  boo: 'PATIENT ZERO.',                speak: 'Patient zero' },
+    { type: 'hospital',  boo: 'CODE BLACK.',                  speak: 'Code black' },
+    { type: 'hospital',  boo: 'DO NOT RESUSCITATE.',          speak: 'Do not resuscitate' },
   ];
+
+  // ── Spoken subtitle shown during every scare ────────────────────────────────
+  function hwSubtitle(text, dur) {
+    const el = document.createElement('div');
+    el.style.cssText = [
+      'position:fixed;bottom:7%;left:50%;transform:translateX(-50%);z-index:100001;',
+      'font-family:"Courier New",Courier,monospace;font-size:min(2.8vw,18px);',
+      'color:#fff;background:rgba(0,0,0,.78);padding:7px 20px;border-radius:4px;',
+      'text-shadow:1px 1px 2px #000,0 0 12px rgba(200,0,0,0.55);letter-spacing:.06em;',
+      'pointer-events:none;opacity:0;transition:opacity .18s;',
+      'max-width:80vw;text-align:center;white-space:normal;',
+      'border:1px solid rgba(180,0,0,.35);box-shadow:0 0 18px rgba(150,0,0,.25);',
+    ].join('');
+    el.textContent = text;
+    document.body.appendChild(el);
+    setTimeout(() => { el.style.opacity = '1'; }, 120);
+    setTimeout(() => { el.style.opacity = '0'; setTimeout(() => { try { el.remove(); } catch(_){} }, 300); }, Math.max(400, dur - 350));
+  }
 
   // ── HORROR SOUND — sustained screech + bone-crushing bass + demon roar ────────
   function hwScareSound() {
@@ -11051,13 +11117,13 @@ async function claimHalloweenGift() {
       const t = ctx.currentTime;
       const sr = ctx.sampleRate;
 
-      // Limiter ceiling capped at -18 dBFS so even max volume isn't jarring
+      // Limiter — hard ceiling so it's still safe at max but significantly louder
       const limiter = ctx.createDynamicsCompressor();
-      limiter.threshold.value = -18; limiter.knee.value = 3;
-      limiter.ratio.value = 20; limiter.attack.value = 0.001; limiter.release.value = 0.08;
+      limiter.threshold.value = -10; limiter.knee.value = 4;
+      limiter.ratio.value = 18; limiter.attack.value = 0.001; limiter.release.value = 0.08;
       limiter.connect(ctx.destination);
       const master = ctx.createGain();
-      master.gain.value = 0.3 * (hwVol / 100);
+      master.gain.value = 0.62 * (hwVol / 100);
       master.connect(limiter);
 
       // 1. INSTANT CRACK — white noise burst, sounds like electricity / jump impact
@@ -11457,6 +11523,7 @@ async function claimHalloweenGift() {
 
     hwScareSound();
     setTimeout(() => hwDemonSpeak(s.speak), 100);
+    hwSubtitle(s.speak, 2800);
 
     function flashScreen(count) {
       if (count <= 0) return;
@@ -11480,6 +11547,18 @@ async function claimHalloweenGift() {
     else if (type === 'security')   _scareSecurity(s);
     else if (type === 'found')      _scareFound(s);
     else if (type === 'ring')       _scareRing(s);
+    else if (type === 'mirror')     _scareMirror(s);
+    else if (type === 'phone')      _scarePhone(s);
+    else if (type === 'hands')      _scareHands(s);
+    else if (type === 'void')       _scareVoid(s);
+    else if (type === 'countdown')  _scareCountdown(s);
+    else if (type === 'blood')      _scareBlood(s);
+    else if (type === 'asylum')     _scareAsylum(s);
+    else if (type === 'clown')      _scareClown(s);
+    else if (type === 'grave')      _scareGrave(s);
+    else if (type === 'whisper')    _scareWhisper(s);
+    else if (type === 'ceiling')    _scareCeiling(s);
+    else if (type === 'hospital')   _scareHospital(s);
     else                            _scareFace(s);
 
     scheduleNextScare();
@@ -11699,8 +11778,10 @@ async function claimHalloweenGift() {
       },110);
       setTimeout(() => {
         clearInterval(fi);
-        document.body.style.transition='filter .4s'; document.body.style.filter=savedFilter||'';
         document.body.classList.remove('hw-screaming');
+        document.body.style.transition = 'filter .35s';
+        document.body.style.filter = savedFilter || 'none';
+        setTimeout(() => { document.body.style.filter = ''; document.body.style.transition = ''; }, 400);
         el.style.transition='opacity .3s'; el.style.opacity='0';
         setTimeout(() => { el.remove(); window.speechSynthesis?.cancel(); }, 500);
       }, 2100);
@@ -11879,6 +11960,469 @@ async function claimHalloweenGift() {
         setTimeout(()=>{ wrap.remove(); window.speechSynthesis?.cancel(); },400);
       },3000);
     }
+
+    // ── Renderer: mirror shows demon reflection ───────────────────────────────
+    function _scareMirror(s) {
+      hwSubtitle(s.speak, 2900);
+      flashScreen(2);
+      document.body.classList.add('hw-screaming');
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#000;display:flex;align-items:center;justify-content:center;flex-direction:column;pointer-events:none;';
+      const frame = document.createElement('div');
+      frame.style.cssText = 'position:relative;width:min(50vw,48vh);height:min(70vw,68vh);border:8px solid #8B6914;border-radius:50% 50% 4px 4px/30% 30% 4px 4px;box-shadow:0 0 0 4px #5a3d00,0 0 50px rgba(139,105,20,0.4),inset 0 0 40px #000;background:#050505;overflow:hidden;transition:box-shadow .3s;';
+      const faceWrap = document.createElement('div');
+      faceWrap.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;transform:scale(0.05);opacity:0;transition:transform .8s cubic-bezier(.1,.9,.3,1),opacity .15s;';
+      faceWrap.innerHTML = `<div style="width:100%">${hwDemonFaceSVG()}</div>`;
+      const crackSvg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+      crackSvg.setAttribute('viewBox','0 0 200 300');
+      crackSvg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity .08s;pointer-events:none;';
+      crackSvg.innerHTML = '<line x1="100" y1="150" x2="15" y2="20" stroke="rgba(255,255,255,0.85)" stroke-width="1.5"/><line x1="100" y1="150" x2="190" y2="30" stroke="rgba(255,255,255,0.75)" stroke-width="1.2"/><line x1="100" y1="150" x2="5" y2="230" stroke="rgba(255,255,255,0.8)" stroke-width="1.5"/><line x1="100" y1="150" x2="198" y2="240" stroke="rgba(255,255,255,0.7)" stroke-width="1"/><line x1="100" y1="150" x2="110" y2="305" stroke="rgba(255,255,255,0.6)" stroke-width="1"/>';
+      frame.append(faceWrap, crackSvg);
+      const boo = document.createElement('div');
+      boo.style.cssText = 'margin-top:20px;font-family:Impact,Arial Black,sans-serif;font-size:min(6vw,5vh);color:#f00;text-shadow:0 0 20px #f00;letter-spacing:.08em;opacity:0;transition:opacity .25s;text-align:center;';
+      boo.textContent = s.boo;
+      wrap.append(frame, boo);
+      document.body.appendChild(wrap);
+      requestAnimationFrame(() => {
+        faceWrap.style.transform = 'scale(1)';
+        faceWrap.style.opacity = '1';
+        setTimeout(() => {
+          crackSvg.style.opacity = '1';
+          frame.style.boxShadow = '0 0 0 4px #5a3d00,0 0 60px rgba(200,0,0,0.6),inset 0 0 40px #000';
+          boo.style.opacity = '1';
+        }, 800);
+      });
+      setTimeout(() => {
+        wrap.style.transition = 'opacity .4s'; wrap.style.opacity = '0';
+        document.body.classList.remove('hw-screaming');
+        setTimeout(() => { wrap.remove(); window.speechSynthesis?.cancel(); }, 500);
+      }, 2900);
+    }
+
+    // ── Renderer: video call from hell ────────────────────────────────────────
+    function _scarePhone(s) {
+      hwSubtitle(s.speak, 2800);
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;pointer-events:none;';
+      const card = document.createElement('div');
+      card.style.cssText = 'border-radius:20px;background:#0f0f0f;border:3px solid #1a1a1a;width:min(52vw,280px);overflow:hidden;box-shadow:0 0 40px rgba(0,180,0,.12);';
+      const header = document.createElement('div');
+      header.style.cssText = 'background:#0a0a0a;padding:16px 12px;text-align:center;border-bottom:1px solid #1a1a1a;';
+      header.innerHTML = '<div style="color:#0f0;font-family:monospace;font-size:min(2.8vw,13px);letter-spacing:.12em">INCOMING CALL</div><div style="font-size:min(15vw,64px);margin:8px 0;filter:drop-shadow(0 0 12px #f00);line-height:1">☠️</div><div style="color:#ccc;font-family:monospace;font-size:min(3.5vw,16px)">Unknown</div><div style="color:#555;font-family:monospace;font-size:min(2.5vw,11px);margin-top:3px">+1 (000) 666-0000</div>';
+      const vidArea = document.createElement('div');
+      vidArea.style.cssText = 'position:relative;background:#000;height:min(32vw,170px);display:flex;align-items:center;justify-content:center;overflow:hidden;';
+      const connecting = document.createElement('div');
+      connecting.style.cssText = 'color:#333;font-family:monospace;font-size:min(2vw,10px);letter-spacing:.1em;transition:opacity .2s;';
+      connecting.textContent = 'CONNECTING...';
+      const vidFace = document.createElement('div');
+      vidFace.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;transform:scale(0.05);opacity:0;transition:transform .3s ease-out,opacity .1s;';
+      vidFace.innerHTML = `<div style="width:100%">${hwDemonFaceSVG()}</div>`;
+      const booCaption = document.createElement('div');
+      booCaption.style.cssText = 'position:absolute;bottom:4px;left:0;right:0;text-align:center;font-family:monospace;font-size:min(3.5vw,14px);color:#f00;text-shadow:0 0 10px #f00;opacity:0;transition:opacity .15s;';
+      booCaption.textContent = s.boo;
+      vidArea.append(connecting, vidFace, booCaption);
+      const footer = document.createElement('div');
+      footer.style.cssText = 'background:#0a0a0a;padding:10px;text-align:center;font-family:monospace;font-size:min(2vw,10px);color:#333;letter-spacing:.1em;';
+      footer.textContent = 'ANSWER          DECLINE';
+      card.append(header, vidArea, footer);
+      wrap.appendChild(card);
+      document.body.appendChild(wrap);
+      setTimeout(() => {
+        connecting.style.opacity = '0';
+        vidFace.style.transform = 'scale(1.15)';
+        vidFace.style.opacity = '1';
+        booCaption.style.opacity = '1';
+        flashScreen(2);
+        document.body.classList.add('hw-screaming');
+      }, 1000);
+      setTimeout(() => {
+        wrap.style.transition = 'opacity .35s'; wrap.style.opacity = '0';
+        document.body.classList.remove('hw-screaming');
+        setTimeout(() => { wrap.remove(); window.speechSynthesis?.cancel(); }, 450);
+      }, 2800);
+    }
+
+    // ── Renderer: hands reaching in from all edges ────────────────────────────
+    function _scareHands(s) {
+      hwSubtitle(s.speak, 2600);
+      flashScreen(3);
+      document.body.classList.add('hw-screaming');
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.8);overflow:hidden;pointer-events:none;';
+      const HANDS = [
+        { style: 'top:0;left:10%;transform:translateY(-120%) rotate(0deg)',   inStyle: 'top:0;left:10%;transform:translateY(0) rotate(0deg)',    e:'🖐' },
+        { style: 'top:0;right:12%;transform:translateY(-120%) rotate(10deg)', inStyle: 'top:0;right:12%;transform:translateY(0) rotate(10deg)',   e:'🤚' },
+        { style: 'bottom:0;left:8%;transform:translateY(120%) rotate(180deg)', inStyle: 'bottom:0;left:8%;transform:translateY(0) rotate(180deg)', e:'🖐' },
+        { style: 'bottom:0;right:14%;transform:translateY(120%) rotate(170deg)', inStyle: 'bottom:0;right:14%;transform:translateY(0) rotate(170deg)', e:'🤚' },
+        { style: 'left:0;top:18%;transform:translateX(-120%) rotate(90deg)',  inStyle: 'left:0;top:18%;transform:translateX(0) rotate(90deg)',   e:'🖐' },
+        { style: 'left:0;top:55%;transform:translateX(-120%) rotate(90deg)',  inStyle: 'left:0;top:55%;transform:translateX(0) rotate(90deg)',   e:'🤚' },
+        { style: 'right:0;top:22%;transform:translateX(120%) rotate(270deg)', inStyle: 'right:0;top:22%;transform:translateX(0) rotate(270deg)', e:'🖐' },
+        { style: 'right:0;top:60%;transform:translateX(120%) rotate(270deg)', inStyle: 'right:0;top:60%;transform:translateX(0) rotate(270deg)', e:'🤚' },
+      ];
+      const handEls = HANDS.map((h, i) => {
+        const el = document.createElement('div');
+        el.style.cssText = `position:absolute;font-size:min(22vw,22vh);line-height:1;${h.style};filter:brightness(.35) drop-shadow(0 0 18px rgba(200,0,0,.65));transition:transform ${.48+i*.035}s cubic-bezier(.1,.9,.3,1) ${i*30}ms, top ${.48+i*.035}s cubic-bezier(.1,.9,.3,1) ${i*30}ms, bottom ${.48+i*.035}s cubic-bezier(.1,.9,.3,1) ${i*30}ms, left ${.48+i*.035}s cubic-bezier(.1,.9,.3,1) ${i*30}ms, right ${.48+i*.035}s cubic-bezier(.1,.9,.3,1) ${i*30}ms;`;
+        el.textContent = h.e;
+        wrap.appendChild(el);
+        return { el, inStyle: h.inStyle };
+      });
+      const boo = document.createElement('div');
+      boo.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:Impact,Arial Black,sans-serif;font-size:min(9vw,8vh);color:#f00;text-shadow:0 0 30px #f00,0 0 60px #900;text-align:center;opacity:0;transition:opacity .25s;z-index:1;white-space:nowrap;';
+      boo.textContent = s.boo;
+      wrap.appendChild(boo);
+      document.body.appendChild(wrap);
+      setTimeout(() => {
+        handEls.forEach(({ el, inStyle }) => {
+          const parts = inStyle.split(';').filter(Boolean);
+          parts.forEach(p => {
+            const [k, ...v] = p.split(':');
+            el.style[k.trim().replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = v.join(':').trim();
+          });
+        });
+        setTimeout(() => { boo.style.opacity = '1'; }, 550);
+      }, 80);
+      setTimeout(() => {
+        wrap.style.transition = 'opacity .4s'; wrap.style.opacity = '0';
+        document.body.classList.remove('hw-screaming');
+        setTimeout(() => { wrap.remove(); window.speechSynthesis?.cancel(); }, 500);
+      }, 2600);
+    }
+
+    // ── Renderer: single massive eye opening in void ──────────────────────────
+    function _scareVoid(s) {
+      hwSubtitle(s.speak, 3200);
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#000;display:flex;align-items:center;justify-content:center;flex-direction:column;pointer-events:none;';
+      const eye = document.createElement('div');
+      eye.style.cssText = 'font-size:0;line-height:1;transition:font-size 1.5s cubic-bezier(.2,.9,.3,1);filter:drop-shadow(0 0 40px #f00) drop-shadow(0 0 80px rgba(255,0,0,.6));';
+      eye.textContent = '👁️';
+      const boo = document.createElement('div');
+      boo.style.cssText = 'font-family:Impact,Arial Black,sans-serif;font-size:min(7vw,6vh);color:#8b0000;text-shadow:0 0 25px #f00;letter-spacing:.15em;margin-top:24px;opacity:0;transition:opacity .5s;text-align:center;';
+      boo.textContent = s.boo;
+      wrap.append(eye, boo);
+      document.body.appendChild(wrap);
+      setTimeout(() => {
+        eye.style.fontSize = 'min(50vw,50vh)';
+        setTimeout(() => {
+          boo.style.opacity = '1';
+          let p = 0;
+          const pulse = setInterval(() => {
+            p++;
+            eye.style.filter = p % 2 === 0
+              ? 'drop-shadow(0 0 40px #f00) drop-shadow(0 0 80px rgba(255,0,0,.6))'
+              : 'drop-shadow(0 0 80px #f00) drop-shadow(0 0 120px rgba(255,0,0,.9)) drop-shadow(0 0 20px #fff)';
+            if (p >= 4) clearInterval(pulse);
+          }, 500);
+        }, 1500);
+      }, 200);
+      setTimeout(() => {
+        wrap.style.transition = 'opacity .5s'; wrap.style.opacity = '0';
+        setTimeout(() => { wrap.remove(); window.speechSynthesis?.cancel(); }, 600);
+      }, 3200);
+    }
+
+    // ── Renderer: countdown 5→0 then demon explosion ─────────────────────────
+    function _scareCountdown(s) {
+      hwSubtitle(s.speak, 3200);
+      document.body.classList.add('hw-screaming');
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#000;display:flex;align-items:center;justify-content:center;flex-direction:column;overflow:hidden;pointer-events:none;';
+      const numEl = document.createElement('div');
+      numEl.style.cssText = 'font-family:Impact,Arial Black,sans-serif;font-size:min(38vw,42vh);color:#c0000a;text-shadow:0 0 50px #f00,0 0 100px #900;font-weight:900;line-height:1;transition:transform .08s;';
+      numEl.textContent = '5';
+      wrap.appendChild(numEl);
+      document.body.appendChild(wrap);
+      let count = 5;
+      const ci = setInterval(() => {
+        count--;
+        if (count <= 0) {
+          clearInterval(ci);
+          flashScreen(5);
+          wrap.innerHTML = '';
+          const faceDiv = document.createElement('div');
+          faceDiv.style.cssText = 'width:min(75vw,72vh);transform:scale(0.08);transition:transform .12s cubic-bezier(.05,1.8,.4,.9);';
+          faceDiv.innerHTML = hwDemonFaceSVG();
+          const booEl = document.createElement('div');
+          booEl.style.cssText = 'position:absolute;bottom:8%;left:0;right:0;text-align:center;font-family:Impact,Arial Black,sans-serif;font-size:min(9vw,8vh);color:#f00;text-shadow:0 0 30px #f00;letter-spacing:.1em;animation:hwBooFlash .1s step-end 8;';
+          booEl.textContent = s.boo;
+          wrap.append(faceDiv, booEl);
+          requestAnimationFrame(() => requestAnimationFrame(() => { faceDiv.style.transform = 'scale(1)'; }));
+        } else {
+          numEl.textContent = String(count);
+          numEl.style.transform = 'scale(1.35)';
+          setTimeout(() => { numEl.style.transform = 'scale(1)'; }, 80);
+        }
+      }, 380);
+      setTimeout(() => {
+        wrap.style.transition = 'opacity .4s'; wrap.style.opacity = '0';
+        document.body.classList.remove('hw-screaming');
+        setTimeout(() => { wrap.remove(); window.speechSynthesis?.cancel(); }, 500);
+      }, 3200);
+    }
+
+    // ── Renderer: blood spreading across screen ───────────────────────────────
+    function _scareBlood(s) {
+      hwSubtitle(s.speak, 3000);
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;pointer-events:none;overflow:hidden;';
+      const pool = document.createElement('div');
+      pool.style.cssText = 'position:absolute;top:-80%;right:-80%;width:200%;height:200%;background:radial-gradient(ellipse at 80% 5%,rgba(120,0,0,.96) 0%,rgba(80,0,0,.72) 40%,transparent 65%);transform:scale(0);transition:transform 1.3s cubic-bezier(.2,.8,.2,1);transform-origin:80% 5%;';
+      const drips = ['3% 0%','18% 0%','31% 0%','55% 0%','72% 0%','88% 0%','96% 0%'].map((pos, i) => {
+        const d = document.createElement('div');
+        const [l, t] = pos.split(' ');
+        d.style.cssText = `position:absolute;left:${l};top:${t};font-size:min(${8+i%3*4}vw,${7+i%3*4}vh);opacity:0;transition:opacity .2s;filter:drop-shadow(0 4px 6px rgba(100,0,0,.6));`;
+        d.textContent = '🩸';
+        return d;
+      });
+      const hand = document.createElement('div');
+      hand.style.cssText = 'position:absolute;top:3%;right:5%;font-size:min(24vw,24vh);opacity:0;transition:opacity .25s;filter:drop-shadow(0 0 14px rgba(150,0,0,.8));';
+      hand.textContent = '🩸';
+      const boo = document.createElement('div');
+      boo.style.cssText = 'position:absolute;bottom:12%;left:50%;transform:translateX(-50%);font-family:Impact,Arial Black,sans-serif;font-size:min(8vw,7vh);color:#fff;text-shadow:3px 3px 0 #8b0000,0 0 25px #f00;letter-spacing:.1em;opacity:0;transition:opacity .3s;white-space:nowrap;';
+      boo.textContent = s.boo;
+      wrap.append(pool, ...drips, hand, boo);
+      document.body.appendChild(wrap);
+      setTimeout(() => {
+        pool.style.transform = 'scale(1)';
+        setTimeout(() => {
+          hand.style.opacity = '1';
+          drips.forEach((d, i) => setTimeout(() => { d.style.opacity = '1'; }, i * 80));
+          setTimeout(() => { boo.style.opacity = '1'; }, 200);
+        }, 650);
+      }, 80);
+      setTimeout(() => {
+        wrap.style.transition = 'opacity .5s'; wrap.style.opacity = '0';
+        setTimeout(() => { wrap.remove(); window.speechSynthesis?.cancel(); }, 600);
+      }, 3000);
+    }
+
+    // ── Renderer: asylum corridor patient rush ────────────────────────────────
+    function _scareAsylum(s) {
+      hwSubtitle(s.speak, 2700);
+      flashScreen(2);
+      document.body.classList.add('hw-screaming');
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#060405;overflow:hidden;pointer-events:none;';
+      const ceiling = document.createElement('div');
+      ceiling.style.cssText = 'position:absolute;top:0;left:0;right:0;height:34%;background:linear-gradient(to bottom,#111,#0a0a0a);border-bottom:1px solid #1a1a1a;';
+      const floor = document.createElement('div');
+      floor.style.cssText = 'position:absolute;bottom:0;left:0;right:0;height:30%;background:linear-gradient(to top,#0f0e0c,#080808);border-top:1px solid #191917;';
+      const corr = document.createElementNS('http://www.w3.org/2000/svg','svg');
+      corr.setAttribute('viewBox','0 0 800 500');
+      corr.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;opacity:.18;';
+      corr.innerHTML = '<line x1="0" y1="0" x2="400" y2="250" stroke="#333" stroke-width="1"/><line x1="800" y1="0" x2="400" y2="250" stroke="#333" stroke-width="1"/><line x1="0" y1="500" x2="400" y2="250" stroke="#333" stroke-width="1"/><line x1="800" y1="500" x2="400" y2="250" stroke="#333" stroke-width="1"/>';
+      const light = document.createElement('div');
+      light.style.cssText = 'position:absolute;top:33%;left:0;right:0;height:3px;background:rgba(180,230,180,.07);box-shadow:0 0 20px rgba(180,230,180,.06);transition:opacity .04s;';
+      let flkCount = 0;
+      const flicker = setInterval(() => {
+        light.style.opacity = flkCount % 2 === 0 ? '1' : '0';
+        if (++flkCount > 5) { clearInterval(flicker); light.style.opacity = '0.4'; }
+      }, 100);
+      const fig = document.createElement('div');
+      fig.style.cssText = 'position:absolute;top:8%;left:50%;transform:translateX(-50%) scale(.04);font-size:min(100vw,100vh);line-height:1;filter:brightness(.15) saturate(0) blur(1.5px);opacity:0;transition:transform .45s cubic-bezier(.05,.85,.2,1),filter .4s,opacity .08s;';
+      fig.textContent = '🧍';
+      const boo = document.createElement('div');
+      boo.style.cssText = 'position:absolute;bottom:7%;left:0;right:0;text-align:center;font-family:Impact,Arial Black,sans-serif;font-size:min(7vw,6.5vh);color:#e0dcd0;text-shadow:0 0 20px rgba(255,255,255,.4),3px 3px 0 #000;letter-spacing:.1em;opacity:0;transition:opacity .3s;';
+      boo.textContent = s.boo;
+      wrap.append(ceiling, floor, corr, light, fig, boo);
+      document.body.appendChild(wrap);
+      setTimeout(() => {
+        fig.style.opacity = '.9';
+        fig.style.transform = 'translateX(-50%) scale(2)';
+        fig.style.filter = 'brightness(.42) saturate(.1) blur(0)';
+        setTimeout(() => { boo.style.opacity = '1'; }, 380);
+      }, 480);
+      setTimeout(() => {
+        wrap.style.transition = 'opacity .35s'; wrap.style.opacity = '0';
+        document.body.classList.remove('hw-screaming');
+        setTimeout(() => { wrap.remove(); window.speechSynthesis?.cancel(); }, 450);
+      }, 2700);
+    }
+
+    // ── Renderer: clown materialises from darkness ────────────────────────────
+    function _scareClown(s) {
+      hwSubtitle(s.speak, 2900);
+      flashScreen(2);
+      document.body.classList.add('hw-screaming');
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#030003;display:flex;align-items:center;justify-content:center;flex-direction:column;pointer-events:none;transition:background .05s;';
+      const clown = document.createElement('div');
+      clown.style.cssText = 'font-size:0;line-height:1;filter:drop-shadow(0 0 40px rgba(255,50,50,.9)) drop-shadow(0 0 80px rgba(200,0,0,.6));transition:font-size .4s cubic-bezier(.15,1.6,.3,1);';
+      clown.textContent = '🤡';
+      const boo = document.createElement('div');
+      boo.style.cssText = 'font-family:Impact,Arial Black,sans-serif;font-size:min(7vw,6vh);color:#c0000a;text-shadow:0 0 20px #f00;letter-spacing:.1em;margin-top:14px;opacity:0;transition:opacity .25s;';
+      boo.textContent = s.boo;
+      wrap.append(clown, boo);
+      document.body.appendChild(wrap);
+      let fl = 0;
+      const fi = setInterval(() => {
+        fl++;
+        wrap.style.background = fl % 2 === 0 ? '#030003' : '#000';
+        if (fl >= 5) { clearInterval(fi); wrap.style.background = '#030003'; }
+      }, 115);
+      setTimeout(() => {
+        clown.style.fontSize = 'min(55vw,58vh)';
+        setTimeout(() => { boo.style.opacity = '1'; }, 550);
+      }, 320);
+      setTimeout(() => {
+        wrap.style.transition = 'opacity .4s'; wrap.style.opacity = '0';
+        document.body.classList.remove('hw-screaming');
+        setTimeout(() => { wrap.remove(); window.speechSynthesis?.cancel(); }, 500);
+      }, 2900);
+    }
+
+    // ── Renderer: rising from the grave ──────────────────────────────────────
+    function _scareGrave(s) {
+      hwSubtitle(s.speak, 3100);
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#060308;overflow:hidden;pointer-events:none;';
+      const sky = document.createElement('div');
+      sky.style.cssText = 'position:absolute;inset:0;background:radial-gradient(ellipse at 60% 15%,rgba(30,25,60,.8) 0%,transparent 65%);';
+      const moon = document.createElement('div');
+      moon.style.cssText = 'position:absolute;top:6%;right:14%;font-size:min(13vw,12vh);opacity:.55;filter:drop-shadow(0 0 18px rgba(200,200,100,.3));';
+      moon.textContent = '🌕';
+      const ground = document.createElement('div');
+      ground.style.cssText = 'position:absolute;bottom:0;left:0;right:0;height:38%;background:linear-gradient(to top,#0d0b05,#121009);';
+      const stone = document.createElement('div');
+      stone.style.cssText = 'position:absolute;bottom:35%;left:50%;transform:translateX(-55%);font-size:min(18vw,18vh);filter:drop-shadow(0 0 8px rgba(100,85,50,.25));';
+      stone.textContent = '🪦';
+      const hand1 = document.createElement('div');
+      hand1.style.cssText = 'position:absolute;bottom:-22%;left:48%;transform:translateX(-50%) rotate(-10deg);font-size:min(18vw,18vh);filter:drop-shadow(0 0 14px rgba(180,0,0,.5));transition:bottom .6s cubic-bezier(.1,.85,.3,1);';
+      hand1.textContent = '🤚';
+      const hand2 = document.createElement('div');
+      hand2.style.cssText = 'position:absolute;bottom:-24%;left:60%;transform:translateX(-50%) rotate(20deg);font-size:min(13vw,13vh);filter:drop-shadow(0 0 10px rgba(150,0,0,.4));transition:bottom .65s cubic-bezier(.1,.85,.3,1) 80ms;';
+      hand2.textContent = '🖐';
+      const boo = document.createElement('div');
+      boo.style.cssText = 'position:absolute;top:28%;left:50%;transform:translateX(-50%);font-family:Impact,Arial Black,sans-serif;font-size:min(7vw,6.5vh);color:#b8860b;text-shadow:0 0 20px rgba(200,140,30,.8),2px 2px 0 #000;letter-spacing:.1em;opacity:0;transition:opacity .3s;white-space:nowrap;text-align:center;';
+      boo.textContent = s.boo;
+      wrap.append(sky, moon, ground, stone, hand1, hand2, boo);
+      document.body.appendChild(wrap);
+      setTimeout(() => {
+        flashScreen(1);
+        hand1.style.bottom = '22%';
+        hand2.style.bottom = '19%';
+        setTimeout(() => { boo.style.opacity = '1'; }, 750);
+      }, 650);
+      setTimeout(() => {
+        wrap.style.transition = 'opacity .5s'; wrap.style.opacity = '0';
+        setTimeout(() => { wrap.remove(); window.speechSynthesis?.cancel(); }, 600);
+      }, 3100);
+    }
+
+    // ── Renderer: words appear one by one then face explodes ─────────────────
+    function _scareWhisper(s) {
+      const words = s.boo.split(' ');
+      const totalDur = 300 + words.length * 320 + 400 + 1200;
+      hwSubtitle(s.speak, totalDur);
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#000;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;overflow:hidden;pointer-events:none;';
+      const wordEls = words.map(w => {
+        const el = document.createElement('div');
+        el.style.cssText = 'font-family:"Courier New",monospace;font-size:min(8vw,7vh);color:#8b0000;text-shadow:0 0 12px rgba(200,0,0,.5);opacity:0;transition:opacity .18s,color .1s;letter-spacing:.12em;';
+        el.textContent = w;
+        wrap.appendChild(el);
+        return el;
+      });
+      const faceDiv = document.createElement('div');
+      faceDiv.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .06s;';
+      faceDiv.innerHTML = `<div style="width:min(80vw,80vh)">${hwDemonFaceSVG()}</div>`;
+      wrap.appendChild(faceDiv);
+      document.body.appendChild(wrap);
+      wordEls.forEach((el, i) => {
+        setTimeout(() => {
+          el.style.opacity = '1';
+          if (i === wordEls.length - 1) el.style.color = '#f00';
+        }, 300 + i * 320);
+      });
+      const explodeAt = 300 + words.length * 320 + 400;
+      setTimeout(() => {
+        flashScreen(4);
+        document.body.classList.add('hw-screaming');
+        wordEls.forEach(el => { el.style.opacity = '0'; });
+        faceDiv.style.opacity = '1';
+        setTimeout(() => {
+          faceDiv.style.opacity = '0';
+          document.body.classList.remove('hw-screaming');
+        }, 1000);
+      }, explodeAt);
+      setTimeout(() => {
+        wrap.style.transition = 'opacity .4s'; wrap.style.opacity = '0';
+        setTimeout(() => { wrap.remove(); window.speechSynthesis?.cancel(); }, 500);
+      }, totalDur);
+    }
+
+    // ── Renderer: figure crawling across ceiling ──────────────────────────────
+    function _scareCeiling(s) {
+      hwSubtitle(s.speak, 2700);
+      flashScreen(2);
+      document.body.classList.add('hw-screaming');
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(3,0,3,.96);overflow:hidden;pointer-events:none;';
+      const ceilBar = document.createElement('div');
+      ceilBar.style.cssText = 'position:absolute;top:0;left:0;right:0;height:32%;background:linear-gradient(to bottom,#111,#0a0a0a);border-bottom:2px solid #1a1a1a;';
+      const floorBar = document.createElement('div');
+      floorBar.style.cssText = 'position:absolute;bottom:0;left:0;right:0;height:28%;background:linear-gradient(to top,#0f0d0f,#080708);border-top:1px solid #161416;';
+      const fig = document.createElement('div');
+      fig.style.cssText = 'position:absolute;top:1%;left:-30%;font-size:min(22vw,24vh);line-height:1;transform:rotate(180deg) scaleX(-1);filter:brightness(.25) saturate(0);transition:left 1.55s cubic-bezier(.3,.8,.5,1),filter 1.4s;';
+      fig.textContent = '🧟';
+      const dustParent = document.createElement('div');
+      dustParent.style.cssText = 'position:absolute;top:30%;left:0;right:0;height:15%;pointer-events:none;';
+      for (let i = 0; i < 10; i++) {
+        const dot = document.createElement('div');
+        const lp = 15 + Math.random() * 70;
+        dot.style.cssText = `position:absolute;left:${lp}%;top:0;width:2px;height:${4+Math.random()*6}px;background:rgba(180,160,140,${.15+Math.random()*.2});opacity:0;transition:top ${.6+Math.random()*.5}s ease-in,opacity .1s;transition-delay:${200+i*80}ms;`;
+        dustParent.appendChild(dot);
+        setTimeout(() => { dot.style.opacity = '1'; dot.style.top = `${60+Math.random()*40}px`; }, 400 + i * 50);
+      }
+      const boo = document.createElement('div');
+      boo.style.cssText = 'position:absolute;bottom:8%;left:0;right:0;text-align:center;font-family:Impact,Arial Black,sans-serif;font-size:min(8vw,7vh);color:#f00;text-shadow:0 0 25px #f00;letter-spacing:.1em;opacity:0;transition:opacity .3s;';
+      boo.textContent = s.boo;
+      wrap.append(ceilBar, floorBar, dustParent, fig, boo);
+      document.body.appendChild(wrap);
+      setTimeout(() => {
+        fig.style.left = '130%';
+        fig.style.filter = 'brightness(.55) saturate(.15)';
+        setTimeout(() => { boo.style.opacity = '1'; }, 550);
+      }, 200);
+      setTimeout(() => {
+        wrap.style.transition = 'opacity .4s'; wrap.style.opacity = '0';
+        document.body.classList.remove('hw-screaming');
+        setTimeout(() => { wrap.remove(); window.speechSynthesis?.cancel(); }, 500);
+      }, 2700);
+    }
+
+    // ── Renderer: hospital emergency ─────────────────────────────────────────
+    function _scareHospital(s) {
+      hwSubtitle(s.speak, 2800);
+      flashScreen(1);
+      document.body.classList.add('hw-screaming');
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#020a0a;overflow:hidden;pointer-events:none;';
+      const tint = document.createElement('div');
+      tint.style.cssText = 'position:absolute;inset:0;background:rgba(0,25,15,.45);';
+      const monitor = document.createElement('div');
+      monitor.style.cssText = 'position:absolute;top:7%;left:50%;transform:translateX(-50%);font-family:monospace;background:#000;border:2px solid #0f0;padding:8px 18px;border-radius:4px;box-shadow:0 0 18px rgba(0,255,0,.25);text-align:center;';
+      monitor.innerHTML = '<div style="color:#0f0;font-size:min(2vw,11px);letter-spacing:.1em">VITAL SIGNS</div><div style="color:#f00;font-size:min(3.5vw,16px);font-weight:bold;letter-spacing:4px;margin-top:4px;animation:hwBooFlash .22s step-end 10">● CRITICAL ●</div>';
+      const fig = document.createElement('div');
+      fig.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(.03);font-size:min(90vw,90vh);line-height:1;filter:brightness(.2) saturate(.15) blur(1.5px);opacity:0;transition:transform .45s ease-out,filter .4s,opacity .08s;';
+      fig.textContent = '🧟';
+      const boo = document.createElement('div');
+      boo.style.cssText = 'position:absolute;bottom:8%;left:0;right:0;text-align:center;font-family:monospace;font-size:min(7vw,6vh);color:#f00;text-shadow:0 0 18px #f00;letter-spacing:.14em;opacity:0;transition:opacity .3s;';
+      boo.textContent = s.boo;
+      wrap.append(tint, monitor, fig, boo);
+      document.body.appendChild(wrap);
+      setTimeout(() => {
+        fig.style.transform = 'translate(-50%,-50%) scale(1.8)';
+        fig.style.opacity = '.88';
+        fig.style.filter = 'brightness(.4) saturate(.3) blur(0)';
+        setTimeout(() => { boo.style.opacity = '1'; }, 420);
+      }, 520);
+      setTimeout(() => {
+        wrap.style.transition = 'opacity .35s'; wrap.style.opacity = '0';
+        document.body.classList.remove('hw-screaming');
+        setTimeout(() => { wrap.remove(); window.speechSynthesis?.cancel(); }, 450);
+      }, 2800);
+    }
   }
   function scheduleNextScare() {
     if (_scareTimer) clearTimeout(_scareTimer);
@@ -11942,11 +12486,11 @@ async function claimHalloweenGift() {
 
   // â”€â”€ Widget render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function _render() {
-    let weatherRow = '<div class="wth-locating">Detectingâ€¦</div>';
+    let weatherRow = '<div class="wth-locating">Detecting…</div>';
     if (_wthData) {
       const t = _wthUnit === 'C'
-        ? Math.round((_wthData.temp_f - 32) * 5 / 9) + 'Â°C'
-        : Math.round(_wthData.temp_f) + 'Â°F';
+        ? Math.round((_wthData.temp_f - 32) * 5 / 9) + '°C'
+        : Math.round(_wthData.temp_f) + '°F';
       weatherRow = '<div class="wth-weather-row">' +
         '<span class="wth-emoji">' + _wthData.emoji + '</span>' +
         '<span class="wth-temp">' + t + '</span>' +
