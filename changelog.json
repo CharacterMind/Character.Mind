@@ -1,5 +1,18 @@
 [
   {
+    "id": "v362-voice-off",
+    "version": "v362",
+    "date": "Oct 2026",
+    "title": "🔇 Back to Basics",
+    "subtitle": "Text RP, clean and simple. Voice is coming soon.",
+    "changed": [
+      "Read-aloud button removed from chat messages",
+      "Voice option in the menu now shows 'Coming soon' instead of opening a panel",
+      "Voice tile removed from the upgrade prompt",
+      "Usage modal now shows only Session and Weekly limits — activity bars hidden"
+    ]
+  },
+  {
     "id": "v361-simplify",
     "version": "v361",
     "date": "Oct 2026",
