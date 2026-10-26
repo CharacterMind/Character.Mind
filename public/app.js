@@ -12239,6 +12239,7 @@ async function claimHalloweenGift() {
   let _rainDrops = [], _rainStreaks = [];
   let _rainGl = null, _rainGlProg = null, _rainGlT0 = 0, _rainGlUL = null, _rainGlIntens = 2.0;
   let _dripsCanvas = null, _dripsCtx = null, _dripsAnimId = null, _drips = [];
+  let _dripZones = [];
   let _puddleEl = null, _puddleTid = null, _puddleH = 0;
   let _snowGroundEl = null, _snowGroundTid = null, _snowGroundH = 0;
   let _cloudEl = null;
@@ -12534,23 +12535,55 @@ async function claimHalloweenGift() {
     _rainDrops = [];
     for (var i = 0; i < cfg.count; i++) _rainDrops.push(_makeRainDrop(cfg, W, H));
     if (_dripsCanvas) {
-      var n = _wthRainIntensity === 'heavy' ? 34 : _wthRainIntensity === 'medium' ? 20 : 10;
+      var n = _wthRainIntensity === 'heavy' ? 72 : _wthRainIntensity === 'medium' ? 36 : 16;
       while (_drips.length < n) _drips.push(_makeDrip(W, H, false));
       while (_drips.length > n) _drips.pop();
     }
   }
 
   // ── Glass drip effect ────────────────────────────────────────────────────
+
+  // Scan visible UI element bottom edges so drops appear to drip FROM them
+  function _buildDripZones(W, H) {
+    var zones = [];
+    var seen = {};
+    var xStep = 48;
+    for (var xi = xStep; xi < W - xStep / 2; xi += xStep) {
+      var prevEl = null;
+      for (var yi = 6; yi < Math.min(H * 0.90, 920); yi += 5) {
+        var el = document.elementFromPoint(xi, yi);
+        if (el !== prevEl) {
+          if (prevEl && prevEl !== document.body && prevEl !== document.documentElement && prevEl.tagName !== 'HTML') {
+            var r = prevEl.getBoundingClientRect();
+            if (r.width > 55 && r.width < W * 0.98 && r.height > 18) {
+              var key = (Math.round(xi / 48) * 48) + '_' + (Math.round(yi / 8) * 8);
+              if (!seen[key]) {
+                seen[key] = true;
+                zones.push({ x: xi, y: yi, w: r.width, el: prevEl });
+              }
+            }
+          }
+          prevEl = el;
+        }
+      }
+    }
+    return zones;
+  }
+
   function _makeDrip(W, H, init) {
-    var pMin = _wthRainIntensity === 'heavy' ? 8 : _wthRainIntensity === 'medium' ? 40 : 80;
-    var pRng = _wthRainIntensity === 'heavy' ? 35 : _wthRainIntensity === 'medium' ? 100 : 160;
+    var pMin = _wthRainIntensity === 'heavy' ? 6 : _wthRainIntensity === 'medium' ? 38 : 75;
+    var pRng = _wthRainIntensity === 'heavy' ? 30 : _wthRainIntensity === 'medium' ? 90 : 150;
+    var useZone = _dripZones.length > 0 && Math.random() < 0.72;
+    var zone = useZone ? _dripZones[Math.floor(Math.random() * _dripZones.length)] : null;
+    var r = 2.8 + Math.random() * 5.0;
     return {
-      x:     Math.random() * W,
-      y:     init ? Math.random() * H * 0.8 : -Math.random() * 20,
-      r:     2.5 + Math.random() * 4.5,
-      speed: 0.25 + Math.random() * 1.1,
-      alpha: 0.50 + Math.random() * 0.38,
-      trail: init ? Math.random() * 80 : 0,
+      x:     zone ? (zone.x + (Math.random() - 0.5) * 18) : Math.random() * W,
+      y:     init ? (zone ? zone.y + Math.random() * 50 : Math.random() * H * 0.78)
+                  : (zone ? zone.y - r : -Math.random() * 25),
+      r:     r,
+      speed: (_wthRainIntensity === 'heavy' ? 0.45 : 0.22) + Math.random() * (_wthRainIntensity === 'heavy' ? 1.9 : 1.0),
+      alpha: 0.58 + Math.random() * 0.32,
+      trail: init ? Math.random() * 55 : 0,
       pause: Math.floor(pMin + Math.random() * pRng),
       age:   init ? 9999 : 0,
     };
@@ -12558,41 +12591,74 @@ async function claimHalloweenGift() {
 
   function _dripsFrame() {
     if (!_dripsCanvas || !_dripsCtx) return;
+    var ctx = _dripsCtx;
     var W = _dripsCanvas.width, H = _dripsCanvas.height;
-    _dripsCtx.clearRect(0, 0, W, H);
+    ctx.clearRect(0, 0, W, H);
     for (var i = 0; i < _drips.length; i++) {
       var d = _drips[i];
       d.age++;
-      if (d.age > d.pause) { d.y += d.speed; d.trail += d.speed; }
-      if (d.y > H + d.r + 5) { _drips[i] = _makeDrip(W, H, false); continue; }
+      var moving = d.age > d.pause;
+      if (moving) { d.y += d.speed; d.trail += d.speed; }
+      if (d.y > H + d.r + 6) { _drips[i] = _makeDrip(W, H, false); continue; }
+
+      // Ellipse radii — stretch vertically when sliding
+      var rx = d.r;
+      var ry = moving ? d.r * 1.55 : d.r * 1.08;
       var topY = d.y - d.trail;
-      if (d.trail > 1) {
-        var tg = _dripsCtx.createLinearGradient(d.x, topY, d.x, d.y - d.r);
-        tg.addColorStop(0,   'rgba(140,185,230,0)');
-        tg.addColorStop(0.2, 'rgba(148,192,238,' + (d.alpha * 0.18) + ')');
-        tg.addColorStop(1,   'rgba(158,200,245,' + (d.alpha * 0.38) + ')');
-        _dripsCtx.beginPath();
-        _dripsCtx.strokeStyle = tg;
-        _dripsCtx.lineWidth = Math.max(0.8, d.r * 0.45);
-        _dripsCtx.moveTo(d.x, topY);
-        _dripsCtx.lineTo(d.x, d.y - d.r);
-        _dripsCtx.stroke();
+
+      // Tapered wet streak above drop
+      if (d.trail > 2) {
+        var tw = Math.max(0.7, rx * 0.52);
+        var tg = ctx.createLinearGradient(d.x, topY, d.x, d.y - ry * 0.85);
+        tg.addColorStop(0,    'rgba(148,205,255,0)');
+        tg.addColorStop(0.12, 'rgba(155,212,255,' + (d.alpha * 0.12) + ')');
+        tg.addColorStop(0.55, 'rgba(160,218,255,' + (d.alpha * 0.30) + ')');
+        tg.addColorStop(1,    'rgba(165,222,255,' + (d.alpha * 0.52) + ')');
+        ctx.beginPath();
+        // Tapered polygon: hairline at top, tw wide at base
+        var len = d.y - ry * 0.85 - topY;
+        if (len > 0) {
+          ctx.moveTo(d.x, topY);
+          ctx.lineTo(d.x - tw * 0.5, d.y - ry * 0.85);
+          ctx.lineTo(d.x + tw * 0.5, d.y - ry * 0.85);
+          ctx.closePath();
+          ctx.fillStyle = tg;
+          ctx.fill();
+        }
       }
-      var rg = _dripsCtx.createRadialGradient(
-        d.x - d.r * 0.30, d.y - d.r * 0.30, d.r * 0.05,
-        d.x, d.y, d.r);
-      rg.addColorStop(0,    'rgba(235,248,255,' + (d.alpha * 0.90) + ')');
-      rg.addColorStop(0.35, 'rgba(185,220,250,' + (d.alpha * 0.72) + ')');
-      rg.addColorStop(0.75, 'rgba(130,175,225,' + (d.alpha * 0.48) + ')');
-      rg.addColorStop(1,    'rgba(90,140,200,'  + (d.alpha * 0.20) + ')');
-      _dripsCtx.beginPath();
-      _dripsCtx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
-      _dripsCtx.fillStyle = rg;
-      _dripsCtx.fill();
-      _dripsCtx.beginPath();
-      _dripsCtx.arc(d.x - d.r * 0.28, d.y - d.r * 0.28, d.r * 0.22, 0, Math.PI * 2);
-      _dripsCtx.fillStyle = 'rgba(255,255,255,' + (d.alpha * 0.80) + ')';
-      _dripsCtx.fill();
+
+      // Soft glow halo
+      ctx.save();
+      ctx.shadowColor = 'rgba(130,200,255,0.40)';
+      ctx.shadowBlur  = rx * 2.2;
+
+      // Main teardrop / water-bead body
+      var hx = d.x - rx * 0.30, hy = d.y - ry * 0.35;
+      var rg = ctx.createRadialGradient(hx, hy, rx * 0.02, d.x, d.y, Math.max(rx, ry) * 1.05);
+      rg.addColorStop(0,    'rgba(255,255,255,' + (d.alpha * 0.98) + ')');
+      rg.addColorStop(0.10, 'rgba(242,254,255,' + (d.alpha * 0.85) + ')');
+      rg.addColorStop(0.28, 'rgba(195,238,255,' + (d.alpha * 0.60) + ')');
+      rg.addColorStop(0.55, 'rgba(148,205,252,' + (d.alpha * 0.38) + ')');
+      rg.addColorStop(0.80, 'rgba(110,175,240,' + (d.alpha * 0.18) + ')');
+      rg.addColorStop(1,    'rgba(80,150,228,'  + (d.alpha * 0.04) + ')');
+
+      ctx.beginPath();
+      ctx.ellipse(d.x, d.y, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fillStyle = rg;
+      ctx.fill();
+      ctx.restore();
+
+      // Bright lens-flare highlight (upper-left)
+      ctx.beginPath();
+      ctx.ellipse(d.x - rx * 0.32, d.y - ry * 0.32, rx * 0.28, ry * 0.18, -0.35, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,' + (d.alpha * 0.92) + ')';
+      ctx.fill();
+
+      // Tiny secondary catch-light
+      ctx.beginPath();
+      ctx.arc(d.x - rx * 0.08, d.y - ry * 0.52, rx * 0.10, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,' + (d.alpha * 0.60) + ')';
+      ctx.fill();
     }
     _dripsAnimId = requestAnimationFrame(_dripsFrame);
   }
@@ -12606,7 +12672,8 @@ async function claimHalloweenGift() {
     document.body.appendChild(_dripsCanvas);
     _dripsCanvas.width = W; _dripsCanvas.height = H;
     _dripsCtx = _dripsCanvas.getContext('2d');
-    var n = _wthRainIntensity === 'heavy' ? 34 : _wthRainIntensity === 'medium' ? 20 : 10;
+    _dripZones = _buildDripZones(W, H);
+    var n = _wthRainIntensity === 'heavy' ? 72 : _wthRainIntensity === 'medium' ? 36 : 16;
     _drips = [];
     for (var i = 0; i < n; i++) _drips.push(_makeDrip(W, H, true));
     _dripsAnimId = requestAnimationFrame(_dripsFrame);
@@ -12615,7 +12682,7 @@ async function claimHalloweenGift() {
   function _stopDrips() {
     if (_dripsAnimId) { cancelAnimationFrame(_dripsAnimId); _dripsAnimId = null; }
     if (_dripsCanvas) { _dripsCanvas.remove(); _dripsCanvas = null; _dripsCtx = null; }
-    _drips = [];
+    _drips = []; _dripZones = [];
   }
 
   function _startRain() {
