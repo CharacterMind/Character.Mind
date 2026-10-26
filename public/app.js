@@ -13252,25 +13252,33 @@ async function claimHalloweenGift() {
 
   window.farmCollect = async function() {
     var btn = document.getElementById('farmCollectBtn');
+    var timerEl = document.getElementById('farmTimer');
     if (btn) btn.disabled = true;
     try {
       var res = await fetch('/api/coins/farm', { method: 'POST' });
-      var d   = await res.json();
+      if (!res.ok) {
+        var errData = {}; try { errData = await res.json(); } catch (_) {}
+        console.error('[Farm] POST failed', res.status, errData);
+        if (timerEl) timerEl.textContent = 'Error: ' + (errData.error || res.status);
+        if (btn) btn.disabled = false;
+        return;
+      }
+      var d = await res.json();
       _applyState(d);
       if (d.awarded > 0) {
         _refreshCoinsUI(d);
-        var timerEl = document.getElementById('farmTimer');
         if (timerEl) timerEl.textContent = 'Collected +' + d.awarded + ' coins!';
         setTimeout(_timerTick, 1200);
       }
       if (d.initialized && !d.awarded) {
-        var timerEl2 = document.getElementById('farmTimer');
-        if (timerEl2 && _st.lastCollect) timerEl2.textContent = 'Farm started! Come back in 5 min.';
+        if (timerEl && _st.lastCollect) timerEl.textContent = 'Farm started! Come back in 5 min.';
       }
       _renderCounter();
       _timerTick();
       _startTick();
     } catch (e) {
+      console.error('[Farm] farmCollect exception:', e);
+      if (timerEl) timerEl.textContent = 'Error — check your connection';
       if (btn) btn.disabled = false;
     }
   };
