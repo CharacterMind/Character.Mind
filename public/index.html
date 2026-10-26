@@ -1431,6 +1431,18 @@
             <input type="range" class="settings-range" id="wthFrostSlider" min="-20" max="50" step="1" value="32"
               oninput="document.getElementById('wthFrostLabel').textContent=this.value+'°F'; wthSettings && wthSettings.setFrostF(+this.value)">
           </div>
+
+          <div class="settings-field">
+            <label class="settings-label">Preview effects</label>
+            <p class="settings-field-sub">Force an effect on so you can see what it looks like — independent of real weather.</p>
+            <div class="wth-test-row">
+              <button class="wth-test-btn" data-mode="rain"  onclick="wthSettings && wthSettings.forceEffect(this.dataset.mode)">🌧️ Rain</button>
+              <button class="wth-test-btn" data-mode="snow"  onclick="wthSettings && wthSettings.forceEffect(this.dataset.mode)">❄️ Snow</button>
+              <button class="wth-test-btn" data-mode="frost" onclick="wthSettings && wthSettings.forceEffect(this.dataset.mode)">🧊 Frost</button>
+              <button class="wth-test-btn" data-mode="heat"  onclick="wthSettings && wthSettings.forceEffect(this.dataset.mode)">🔥 Heat</button>
+              <button class="wth-test-btn" data-mode="clear" onclick="wthSettings && wthSettings.forceEffect(this.dataset.mode)">✕ Clear</button>
+            </div>
+          </div>
         </div>
       </div>
       <!-- Account Tab -->

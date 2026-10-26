@@ -4372,3 +4372,27 @@ body.wth-hot {
   border: none;
   box-shadow: 0 1px 4px rgba(0,0,0,0.4);
 }
+
+/* Weather test/preview buttons */
+.wth-test-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 6px;
+}
+.wth-test-btn {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  color: var(--c-text, #e2e2f0);
+  font-size: 13px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.wth-test-btn:hover { background: rgba(255,255,255,0.11); }
+.wth-test-btn.wth-test-active {
+  background: var(--accent-dim, rgba(139,92,246,0.18));
+  border-color: var(--accent, #8b5cf6);
+  color: var(--accent-l, #a78bfa);
+}
