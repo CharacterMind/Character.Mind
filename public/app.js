@@ -9768,8 +9768,8 @@ function transformLogoForEvent(eventName) {
     halloween: {
       iconText: '🎃', iconCls: 'halloween-icon',
       logoHtml: () =>
-        '<span class="season-c">🌙</span>hara<span class="season-c">🌙</span>ter' +
-        '<span class="season-dot season-dot--halloween">💀</span>' +
+        'character' +
+        '<span class="season-dot season-dot--halloween">🎃</span>' +
         'm<span class="season-i season-i--ghost" aria-label="i">👻</span>nd',
     },
     christmas: {
