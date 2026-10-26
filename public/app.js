@@ -12761,3 +12761,158 @@ async function claimHalloweenGift() {
   };
 })();
 
+
+// â”€â”€ AFK Coin Farm â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+(function initFarm() {
+  var _state = { initialized: false, lastCollect: 0, nextCollect: 0, ratePerMin: 1, accumulated: 0, canCollect: false };
+  var _tickId = null;
+  var _toastEl = null;
+
+  // â”€â”€ UI helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  function _ms(ms) {
+    if (ms <= 0) return 'Ready!';
+    var s = Math.ceil(ms / 1000);
+    if (s < 60) return s + 's';
+    var m = Math.floor(s / 60), sr = s % 60;
+    return m + 'm ' + (sr < 10 ? '0' : '') + sr + 's';
+  }
+
+  function _updateCard() {
+    var fillEl      = document.getElementById('farmProgressFill');
+    var accumEl     = document.getElementById('farmAccumulated');
+    var timerEl     = document.getElementById('farmTimer');
+    var collectBtn  = document.getElementById('farmCollectBtn');
+    var rateSub     = document.getElementById('farmRateSub');
+    var badge       = document.getElementById('farmBadge');
+    if (!fillEl) return;
+
+    var now = Date.now();
+    if (!_state.initialized) {
+      if (rateSub) rateSub.textContent = 'Tap Collect to start your farm';
+      if (timerEl) timerEl.textContent = 'Not started yet';
+      if (collectBtn) { collectBtn.disabled = false; collectBtn.textContent = 'Start Farm'; }
+      if (badge) { badge.className = 'farm-badge'; badge.textContent = 'AFK'; }
+      if (accumEl) accumEl.textContent = '+0';
+      if (fillEl) fillEl.style.width = '0%';
+      return;
+    }
+
+    // Recalculate live accumulated (client-side approximation)
+    var elapsedMs = Math.min(now - _state.lastCollect, 8 * 3600 * 1000);
+    var liveAccum = Math.floor(elapsedMs / 60000 * _state.ratePerMin);
+    var msUntil   = Math.max(0, _state.nextCollect - now);
+    var pct       = Math.min(100, ((elapsedMs) / (5 * 60 * 1000)) * 100);
+    var canNow    = msUntil <= 0 && liveAccum >= 1;
+
+    if (fillEl) fillEl.style.width = pct + '%';
+    if (accumEl) accumEl.textContent = '+' + liveAccum;
+    if (rateSub) rateSub.textContent = _state.ratePerMin.toFixed(1).replace('.0','') + ' coin/min Â· max 8 hrs offline';
+    if (timerEl) timerEl.textContent = canNow ? 'Ready to collect!' : 'Next collect in ' + _ms(msUntil);
+    if (collectBtn) { collectBtn.disabled = !canNow; collectBtn.textContent = 'Collect'; }
+    if (badge) {
+      if (canNow) { badge.className = 'farm-badge farm-badge-ready'; badge.textContent = 'READY'; }
+      else        { badge.className = 'farm-badge'; badge.textContent = 'AFK'; }
+    }
+  }
+
+  function _startTick() {
+    if (_tickId) return;
+    _tickId = setInterval(_updateCard, 1000);
+  }
+
+  // â”€â”€ "While you were away" toast â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  function _showAwayToast(coins) {
+    if (_toastEl) { _toastEl.remove(); _toastEl = null; }
+    var el = document.createElement('div');
+    el.className = 'farm-away-toast';
+    el.innerHTML =
+      '<span class="farm-toast-icon">ðŸŒ¾</span>' +
+      '<div class="farm-toast-body">' +
+        '<div class="farm-toast-title">+' + coins.toLocaleString() + ' coins while away!</div>' +
+        '<div class="farm-toast-sub">Your farm kept working. Added to your balance.</div>' +
+      '</div>' +
+      '<button class="farm-toast-close" onclick="this.closest(\'.farm-away-toast\').remove()">âœ•</button>';
+    document.body.appendChild(el);
+    _toastEl = el;
+    setTimeout(function() {
+      if (el.parentNode) {
+        el.classList.add('farm-toast-hide');
+        setTimeout(function() { if (el.parentNode) el.remove(); }, 260);
+      }
+    }, 5000);
+  }
+
+  // â”€â”€ Load state and maybe auto-collect on page load â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  async function _init() {
+    try {
+      var res = await fetch('/api/coins/farm');
+      if (!res.ok) return;
+      var d = await res.json();
+      _state.initialized = d.initialized;
+      _state.lastCollect  = d.lastCollect  || 0;
+      _state.nextCollect  = d.nextCollect  || 0;
+      _state.ratePerMin   = d.ratePerMin   || 1;
+      _state.accumulated  = d.accumulated  || 0;
+      _state.canCollect   = d.canCollect   || false;
+      _updateCard();
+      _startTick();
+
+      // Auto-collect on page load if the farm has ready coins (user was away)
+      if (d.initialized && d.canCollect && d.accumulated >= 1) {
+        try {
+          var cr = await fetch('/api/coins/farm', { method: 'POST' });
+          var cd = await cr.json();
+          if (cd.awarded > 0) {
+            _state.lastCollect = Date.now();
+            _state.nextCollect = Date.now() + 5 * 60 * 1000;
+            _showAwayToast(cd.awarded);
+            if (typeof lastKnownUsage !== 'undefined' && lastKnownUsage) {
+              lastKnownUsage.cmCoins = cd.balance;
+              if (cd.earnedToday != null) lastKnownUsage.coinsEarnedToday = cd.earnedToday;
+            }
+            if (typeof updateNavCoinDisplay === 'function') updateNavCoinDisplay(lastKnownUsage);
+            if (typeof updateSettingsCoinDisplay === 'function')
+              updateSettingsCoinDisplay(cd.balance, cd.earnedToday || 0, cd.dailyCap || 2000, lastKnownUsage && lastKnownUsage.coinsMonthlyReset);
+            _updateCard();
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
+  // â”€â”€ Public collect (button click) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  window.farmCollect = async function() {
+    var btn = document.getElementById('farmCollectBtn');
+    if (btn) btn.disabled = true;
+    try {
+      var res = await fetch('/api/coins/farm', { method: 'POST' });
+      var d = await res.json();
+      _state.initialized = true;
+      _state.lastCollect  = Date.now();
+      _state.nextCollect  = d.nextCollect || (Date.now() + 5 * 60 * 1000);
+      _state.ratePerMin   = d.ratePerMin  || _state.ratePerMin;
+      if (d.awarded > 0) {
+        if (typeof lastKnownUsage !== 'undefined' && lastKnownUsage) {
+          lastKnownUsage.cmCoins = d.balance;
+          if (d.earnedToday != null) lastKnownUsage.coinsEarnedToday = d.earnedToday;
+        }
+        if (typeof updateNavCoinDisplay === 'function') updateNavCoinDisplay(lastKnownUsage);
+        if (typeof updateSettingsCoinDisplay === 'function')
+          updateSettingsCoinDisplay(d.balance, d.earnedToday || 0, d.dailyCap || 2000, lastKnownUsage && lastKnownUsage.coinsMonthlyReset);
+        if (typeof updateSlotBalances === 'function') updateSlotBalances(d.balance, lastKnownUsage && lastKnownUsage.cmTokens);
+        var timerEl = document.getElementById('farmTimer');
+        if (timerEl) timerEl.textContent = 'Collected +' + d.awarded + ' coins!';
+      } else if (d.initialized) {
+        var timerEl2 = document.getElementById('farmTimer');
+        if (timerEl2) timerEl2.textContent = 'Farm started! Come back in 5 min.';
+      }
+      _updateCard();
+      _startTick();
+    } catch (_) {
+      if (btn) btn.disabled = false;
+    }
+  };
+
+  // Kick off after a short delay so the rest of the page initializes first
+  setTimeout(_init, 1200);
+})();

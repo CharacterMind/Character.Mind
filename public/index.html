@@ -1468,6 +1468,27 @@
             <button class="settings-coin-slots-btn" onclick="openCoinShop()" style="background:linear-gradient(135deg,#1e40af,#3b82f6)">🪙 Buy Coins</button>
           </div>
         </div>
+        <!-- AFK Coin Farm -->
+        <div class="settings-farm-card" id="farmCard">
+          <div class="farm-card-header">
+            <span class="farm-card-icon">🌾</span>
+            <div class="farm-card-info">
+              <div class="farm-card-title">Coin Farm</div>
+              <div class="farm-card-sub" id="farmRateSub">Start farming to earn coins while away</div>
+            </div>
+            <div class="farm-badge" id="farmBadge">AFK</div>
+          </div>
+          <div class="farm-progress-row">
+            <div class="farm-progress-track">
+              <div class="farm-progress-fill" id="farmProgressFill" style="width:0%"></div>
+            </div>
+            <div class="farm-accumulated" id="farmAccumulated">+0</div>
+          </div>
+          <div class="farm-footer">
+            <div class="farm-timer" id="farmTimer">Open your farm to start earning</div>
+            <button class="farm-collect-btn" id="farmCollectBtn" onclick="farmCollect()" disabled>Collect</button>
+          </div>
+        </div>
         <div id="settingsTiersSection" class="settings-tiers-section"></div>
         <div class="settings-usage-section">
           <div class="settings-usage-row">
