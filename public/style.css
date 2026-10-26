@@ -4778,6 +4778,25 @@ body.wth-hot {
   padding: 0 2px;
   line-height: 1;
 }
+/* Farm delta flash */
+.farm-delta-flash {
+  position: absolute;
+  right: 0;
+  top: -4px;
+  font-size: .72rem;
+  font-weight: 700;
+  color: #86efac;
+  pointer-events: none;
+  animation: farm-delta-rise 1.3s ease-out forwards;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+@keyframes farm-delta-rise {
+  0%   { opacity: 0;   transform: translateY(0); }
+  15%  { opacity: 1;   transform: translateY(-4px); }
+  70%  { opacity: 1;   transform: translateY(-14px); }
+  100% { opacity: 0;   transform: translateY(-22px); }
+}
 /* Farm WebGL canvas background */
 .settings-farm-card { position: relative; overflow: hidden; }
 .farm-gl-canvas {
@@ -4791,6 +4810,7 @@ body.wth-hot {
 }
 /* Farm idle-game additions */
 .farm-counter {
+  position: relative;
   font-size: 1.55rem;
   font-weight: 700;
   color: var(--text-primary, #e2e8f0);

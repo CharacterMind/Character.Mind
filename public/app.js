@@ -13235,15 +13235,32 @@ async function claimHalloweenGift() {
     accumulated: 0, canCollect: false, maxLevel: 5,
     nextTier: { name: 'Seeds', rate: 0.0003, cost: 150, level: 1 },
   };
-  var _tickId = null;
-  var _toastEl = null;
-  var _syncedAt = 0;
+  var _displayAccum = 0;   // shown on screen; jumps every 5s
+  var _timerTickId  = null; // 1s: timer countdown + button state
+  var _coinTickId   = null; // 5s: counter jump + delta flash
+  var _toastEl      = null;
 
   function _fmtRate(r) {
     if (r < 0.0001) return r.toFixed(12).replace(/0+$/, '').replace(/\.$/, '') + '/sec';
     if (r < 0.001)  return r.toFixed(6) + '/sec';
     if (r < 0.01)   return r.toFixed(4) + '/sec';
     return r.toFixed(3) + '/sec';
+  }
+
+  function _fmtPerHour(r) {
+    var h = r * 3600;
+    if (h < 0.0001) return h.toFixed(8).replace(/0+$/, '').replace(/\.$/, '') + '/hr';
+    if (h < 0.001)  return h.toFixed(6) + '/hr';
+    if (h < 1)      return h.toFixed(4) + '/hr';
+    if (h < 100)    return h.toFixed(2) + '/hr';
+    return Math.round(h) + '/hr';
+  }
+
+  function _fmtDelta(d) {
+    if (d < 0.000001) return '+' + d.toFixed(12).replace(/0+$/, '').replace(/\.$/, '');
+    if (d < 0.001)    return '+' + d.toFixed(9).replace(/0+$/, '');
+    if (d < 1)        return '+' + d.toFixed(4);
+    return '+' + d.toFixed(2);
   }
 
   function _msStr(ms) {
@@ -13266,52 +13283,65 @@ async function claimHalloweenGift() {
     _st.canCollect  = d.canCollect   || false;
     _st.maxLevel    = d.maxLevel     || 5;
     _st.nextTier    = d.nextTier     || null;
-    _syncedAt = Date.now();
+    _displayAccum   = _st.accumulated;
     if (typeof window._farmLevel !== 'undefined') window._farmLevel = _st.level;
   }
 
-  function _liveAccum() {
-    if (!_st.initialized || !_syncedAt) return _st.accumulated;
-    var elSec = Math.min((Date.now() - _syncedAt) / 1000, 8 * 3600);
-    var mult  = (typeof window._farmBoostMult !== 'undefined') ? window._farmBoostMult : 1;
-    return _st.accumulated + elSec * _st.ratePerSec * mult;
+  function _renderCounter() {
+    var counterEl = document.getElementById('farmCounter');
+    if (!counterEl) return;
+    var whole = Math.floor(_displayAccum);
+    var frac  = (_displayAccum - whole).toFixed(9).slice(1);
+    counterEl.innerHTML = whole.toLocaleString() + '<span class="farm-frac">' + frac + '</span>';
+
+    if (_st.initialized) {
+      var base  = typeof lastKnownUsage !== 'undefined' && lastKnownUsage ? (lastKnownUsage.cmCoins || 0) : 0;
+      var bWhole = Math.floor(base) + whole;
+      var balEl = document.getElementById('settingsCoinBalance');
+      if (balEl) balEl.innerHTML = bWhole.toLocaleString() + '<span class="farm-frac">' + frac + '</span>';
+    }
   }
 
-  function _updateCard() {
-    var counterEl    = document.getElementById('farmCounter');
-    var ratePillEl   = document.getElementById('farmRatePill');
-    var timerEl      = document.getElementById('farmTimer');
-    var collectBtn   = document.getElementById('farmCollectBtn');
-    var progressFill = document.getElementById('farmProgressFill');
-    var badge        = document.getElementById('farmBadge');
-    var tierNameEl   = document.getElementById('farmTierName');
-    var upgradeRow   = document.getElementById('farmUpgradeRow');
-    var upgradeName  = document.getElementById('farmUpgradeName');
-    var upgradeRate  = document.getElementById('farmUpgradeRate');
-    var upgradeBtn   = document.getElementById('farmUpgradeBtn');
-    var upgradeCost  = document.getElementById('farmUpgradeCost');
+  function _flashDelta(delta) {
+    var counterEl = document.getElementById('farmCounter');
     if (!counterEl) return;
+    var el = document.createElement('div');
+    el.className = 'farm-delta-flash';
+    el.textContent = _fmtDelta(delta);
+    counterEl.parentNode.appendChild(el);
+    setTimeout(function() { if (el.parentNode) el.remove(); }, 1300);
+  }
 
-    var now   = Date.now();
-    var accum = _liveAccum();
-    var whole = Math.floor(accum);
-    var frac  = (accum - whole).toFixed(9).slice(1);
-    counterEl.innerHTML = whole.toLocaleString() + '<span class="farm-frac">' + frac + '</span>';
+  function _coinTick() {
+    if (!_st.initialized) return;
+    var mult  = (typeof window._farmBoostMult !== 'undefined') ? window._farmBoostMult : 1;
+    var delta = 5 * _st.ratePerSec * mult;
+    _displayAccum += delta;
+    _renderCounter();
+    _flashDelta(delta);
+  }
+
+  function _timerTick() {
+    var ratePillEl  = document.getElementById('farmRatePill');
+    var rateHintEl  = document.getElementById('farmRateHint');
+    var timerEl     = document.getElementById('farmTimer');
+    var collectBtn  = document.getElementById('farmCollectBtn');
+    var progressFill= document.getElementById('farmProgressFill');
+    var badge       = document.getElementById('farmBadge');
+    var tierNameEl  = document.getElementById('farmTierName');
+    var upgradeRow  = document.getElementById('farmUpgradeRow');
+    var upgradeName = document.getElementById('farmUpgradeName');
+    var upgradeRate = document.getElementById('farmUpgradeRate');
+    var upgradeBtn  = document.getElementById('farmUpgradeBtn');
+    var upgradeCost = document.getElementById('farmUpgradeCost');
 
     var mult = (typeof window._farmBoostMult !== 'undefined') ? window._farmBoostMult : 1;
     if (ratePillEl) ratePillEl.textContent = _fmtRate(_st.ratePerSec * mult) + (mult > 1 ? ' ⚡' : '');
-
-    // Live balance display: base coins + farm fraction ticking
-    if (_st.initialized) {
-      var baseCoins  = typeof lastKnownUsage !== 'undefined' && lastKnownUsage ? (lastKnownUsage.cmCoins || 0) : 0;
-      var totalWhole = Math.floor(baseCoins) + Math.floor(accum);
-      var totalFrac  = frac;
-      var balEl = document.getElementById('settingsCoinBalance');
-      if (balEl) balEl.innerHTML = totalWhole.toLocaleString() + '<span class="farm-frac">' + totalFrac + '</span>';
-    }
+    if (rateHintEl) rateHintEl.textContent = '≈ ' + _fmtPerHour(_st.ratePerSec * mult) + ' · max 8 hrs';
     if (badge)      badge.textContent = 'LV ' + _st.level;
     if (tierNameEl) tierNameEl.textContent = _st.tierName;
 
+    var now     = Date.now();
     var msUntil = Math.max(0, _st.nextCollect - now);
     var pct     = _st.lastCollect ? Math.min(100, (now - _st.lastCollect) / (5 * 60 * 1000) * 100) : 0;
     if (progressFill) progressFill.style.width = pct + '%';
@@ -13326,7 +13356,7 @@ async function claimHalloweenGift() {
       if (!_st.initialized) { collectBtn.textContent = 'Start'; collectBtn.disabled = false; }
       else { collectBtn.textContent = 'Collect'; collectBtn.disabled = !canNow; }
     }
-    if (badge) badge.className = (canNow ? 'farm-badge farm-badge-ready' : 'farm-badge');
+    if (badge) badge.className = canNow ? 'farm-badge farm-badge-ready' : 'farm-badge';
 
     if (upgradeRow) {
       if (_st.nextTier && _st.level < _st.maxLevel) {
@@ -13334,7 +13364,7 @@ async function claimHalloweenGift() {
         if (upgradeName) upgradeName.textContent = _st.nextTier.name;
         if (upgradeRate) upgradeRate.textContent  = _fmtRate(_st.nextTier.rate);
         if (upgradeCost) upgradeCost.textContent  = _st.nextTier.cost.toLocaleString() + ' coins';
-        var bal      = typeof lastKnownUsage !== 'undefined' && lastKnownUsage ? (lastKnownUsage.cmCoins || 0) : 0;
+        var bal       = typeof lastKnownUsage !== 'undefined' && lastKnownUsage ? (lastKnownUsage.cmCoins || 0) : 0;
         var canAfford = bal >= _st.nextTier.cost;
         if (upgradeBtn) {
           upgradeBtn.disabled = !canAfford;
@@ -13347,8 +13377,9 @@ async function claimHalloweenGift() {
   }
 
   function _startTick() {
-    if (_tickId) return;
-    _tickId = setInterval(_updateCard, 200);
+    if (_timerTickId) return;
+    _timerTickId = setInterval(_timerTick, 1000);
+    _coinTickId  = setInterval(_coinTick,  5000);
   }
 
   function _showAwayToast(coins) {
@@ -13390,11 +13421,12 @@ async function claimHalloweenGift() {
       var res = await fetch('/api/coins/farm');
       if (!res.ok) return;
       var d = await res.json();
-      if (!_st.initialized) _applyState(d);  // don't overwrite if user already clicked Start
+      if (!_st.initialized) _applyState(d);
       else _st.nextTier = d.nextTier || _st.nextTier;
-      _updateCard();
+      _renderCounter();
+      _timerTick();
       _startTick();
-      if (d.initialized && d.canCollect && Math.floor(d.accumulated) >= 1) {
+      if (d.initialized && d.canCollect) {
         try {
           var cr = await fetch('/api/coins/farm', { method: 'POST' });
           var cd = await cr.json();
@@ -13402,7 +13434,8 @@ async function claimHalloweenGift() {
             _applyState(cd);
             _showAwayToast(cd.awarded);
             _refreshCoinsUI(cd);
-            _updateCard();
+            _renderCounter();
+            _timerTick();
           }
         } catch (e2) {}
       }
@@ -13420,12 +13453,14 @@ async function claimHalloweenGift() {
         _refreshCoinsUI(d);
         var timerEl = document.getElementById('farmTimer');
         if (timerEl) timerEl.textContent = 'Collected +' + d.awarded + ' coins!';
+        setTimeout(_timerTick, 1200);
       }
       if (d.initialized && !d.awarded) {
         var timerEl2 = document.getElementById('farmTimer');
-        if (timerEl2 && !_st.lastCollect) timerEl2.textContent = 'Farm started! Come back in 5 min.';
+        if (timerEl2 && _st.lastCollect) timerEl2.textContent = 'Farm started! Come back in 5 min.';
       }
-      _updateCard();
+      _renderCounter();
+      _timerTick();
       _startTick();
     } catch (e) {
       if (btn) btn.disabled = false;
@@ -13445,7 +13480,7 @@ async function claimHalloweenGift() {
         _st.nextTier   = d.nextTier  || null;
         _st.maxLevel   = d.maxLevel  || 5;
         _st.accumulated = 0;
-        _syncedAt = Date.now();
+        _displayAccum   = 0;
         if (typeof lastKnownUsage !== 'undefined' && lastKnownUsage && d.balance != null)
           lastKnownUsage.cmCoins = d.balance;
         if (typeof updateNavCoinDisplay === 'function') updateNavCoinDisplay(lastKnownUsage);
@@ -13454,7 +13489,8 @@ async function claimHalloweenGift() {
             typeof lastKnownUsage !== 'undefined' && lastKnownUsage ? lastKnownUsage.coinsEarnedToday || 0 : 0,
             typeof lastKnownUsage !== 'undefined' && lastKnownUsage ? lastKnownUsage.coinDailyLimit || 2000 : 2000,
             typeof lastKnownUsage !== 'undefined' && lastKnownUsage ? lastKnownUsage.coinsMonthlyReset : null);
-        _updateCard();
+        _renderCounter();
+        _timerTick();
       } else {
         if (btn) btn.disabled = false;
       }
