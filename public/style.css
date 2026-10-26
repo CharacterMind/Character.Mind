@@ -4241,6 +4241,8 @@ body.hw-screaming::after {
 /* ── Weather Effects ─────────────────────────────────────────────────────── */
 
 /* Widget — sits inline to the left of the 🎃 pumpkin button */
+#wthWidget, #wthOptionsPanel { display: none !important; }
+
 .wth-widget {
   position: fixed;
   bottom: 14px;
