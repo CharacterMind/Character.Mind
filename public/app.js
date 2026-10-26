@@ -12375,7 +12375,8 @@ async function claimHalloweenGift() {
     if (_wthPanel.classList.contains('wth-opt-open')) _wthPanelRefresh();
   });
 
-  document.getElementById('wthOptClose').addEventListener('click', function(e) {
+  var _wthOptCloseBtn = document.getElementById('wthOptClose');
+  if (_wthOptCloseBtn) _wthOptCloseBtn.addEventListener('click', function(e) {
     e.stopPropagation();
     _wthPanel.classList.remove('wth-opt-open');
   });
