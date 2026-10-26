@@ -289,6 +289,24 @@ if (db) {
     } catch (e) { console.error('[STARTUP] Miss Delight image error:', e.message); }
   })();
 
+  // Fetch Bron's image on startup if missing
+  (async () => {
+    try {
+      const check = await db.query(`SELECT 1 FROM characters WHERE name='Bron' AND (image IS NULL OR length(image)=0) LIMIT 1`);
+      if (!check.rows.length) return;
+      const r = await fetch('https://poppyplaytime.wiki.gg/images/thumb/BronRender1.png/300px-BronRender1.png', {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CharacterMind/1.0)' },
+        signal: AbortSignal.timeout(15000)
+      });
+      if (!r.ok) return;
+      const buf = Buffer.from(await r.arrayBuffer());
+      const dataUri = `data:image/png;base64,${buf.toString('base64')}`;
+      await db.query(`UPDATE characters SET image=$1 WHERE name='Bron'`, [dataUri]);
+      invalidateCharList();
+      console.log('[STARTUP] Fetched Bron image');
+    } catch (e) { console.error('[STARTUP] Bron image error:', e.message); }
+  })();
+
   db.query(`
     CREATE TABLE IF NOT EXISTS users (
       google_id TEXT PRIMARY KEY,
@@ -3725,6 +3743,7 @@ const EDGE_VOICE_MAP = {
   custom_1790897425575_lily: 'en-US-AriaNeural',  // Lily — energetic, expressive, bright
   custom_1790776698867:      'en-US-JennyNeural',  // Poppy — warm, soft, gentle
   cm_miss_delight:           'en-US-NancyNeural',  // Miss Delight — sinister sing-song
+  bron:                      'en-US-BrianNeural',  // Bron — deep, clear, ancient dinosaur
 };
 const EDGE_DEFAULT_VOICE = 'en-US-AriaNeural';
 
