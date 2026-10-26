@@ -3785,14 +3785,16 @@ app.get('/api/coins/farm', requireAuth, async (req, res) => {
     const lastCollect = u.lastAfkCollect || 0;
     const level = Math.min(u.farmLevel || 0, FARM_TIERS.length - 1);
     const tier = FARM_TIERS[level];
-    const ratePerSec = tier.rate * earnMult(uid);
+    const baseRate = tier.rate * earnMult(uid);
+    const balance = u.cmCoins || 0;
+    const adjustedRate = baseRate / (1 + balance / 2000);
     const elapsedSec = lastCollect ? Math.min((now - lastCollect) / 1000, AFK_FARM_MAX_MS / 1000) : 0;
-    const accumulated = (u.farmFrac || 0) + elapsedSec * ratePerSec;
+    const accumulated = (u.farmFrac || 0) + elapsedSec * adjustedRate;
     const canCollect = lastCollect ? ((now - lastCollect) >= AFK_FARM_MIN_MS) : false;
     const nextCollect = lastCollect ? Math.max(lastCollect + AFK_FARM_MIN_MS, now) : now;
     const nextTier = level < FARM_TIERS.length - 1 ? { ...FARM_TIERS[level + 1], level: level + 1 } : null;
     res.json({
-      level, tierName: tier.name, ratePerSec, nextTier,
+      level, tierName: tier.name, ratePerSec: adjustedRate, baseRate, nextTier,
       lastCollect, accumulated, canCollect, nextCollect,
       initialized: lastCollect > 0, maxLevel: FARM_TIERS.length - 1,
     });
@@ -3807,11 +3809,13 @@ app.post('/api/coins/farm', requireAuth, async (req, res) => {
     const u = getLimits(uid);
     const now = Date.now();
 
-    const dbRow = await db.query('SELECT last_afk_collect, farm_level, farm_frac FROM users WHERE google_id = $1', [uid]);
+    const dbRow = await db.query('SELECT last_afk_collect, farm_level, farm_frac, cm_coins FROM users WHERE google_id = $1', [uid]);
     const lastCollect = Number(dbRow.rows[0]?.last_afk_collect) || 0;
     const level = Math.min(parseInt(dbRow.rows[0]?.farm_level) || 0, FARM_TIERS.length - 1);
     const farmFrac = parseFloat(dbRow.rows[0]?.farm_frac) || 0;
-    const ratePerSec = FARM_TIERS[level].rate * earnMult(uid);
+    const cmCoins = parseFloat(dbRow.rows[0]?.cm_coins) || 0;
+    const baseRate = FARM_TIERS[level].rate * earnMult(uid);
+    const ratePerSec = baseRate / (1 + cmCoins / 2000);
     const nextTier = level < FARM_TIERS.length - 1 ? { ...FARM_TIERS[level + 1], level: level + 1 } : null;
 
     // First ever collect — just initialize the timestamp
@@ -3821,7 +3825,7 @@ app.post('/api/coins/farm', requireAuth, async (req, res) => {
       return res.json({
         awarded: 0, balance: u.cmCoins || 0,
         lastCollect: now, nextCollect: now + AFK_FARM_MIN_MS,
-        ratePerSec, level, tierName: FARM_TIERS[level].name, nextTier,
+        ratePerSec, baseRate, level, tierName: FARM_TIERS[level].name, nextTier,
         accumulated: 0, initialized: true, maxLevel: FARM_TIERS.length - 1,
       });
     }
@@ -3831,7 +3835,7 @@ app.post('/api/coins/farm', requireAuth, async (req, res) => {
       return res.json({
         awarded: 0, balance: u.cmCoins || 0, reason: 'too_soon',
         nextCollect: lastCollect + AFK_FARM_MIN_MS,
-        ratePerSec, level, tierName: FARM_TIERS[level].name, nextTier,
+        ratePerSec, baseRate, level, tierName: FARM_TIERS[level].name, nextTier,
         accumulated: farmFrac + Math.min(elapsed / 1000, AFK_FARM_MAX_MS / 1000) * ratePerSec,
         initialized: true, maxLevel: FARM_TIERS.length - 1,
       });
@@ -3847,7 +3851,7 @@ app.post('/api/coins/farm', requireAuth, async (req, res) => {
       u.lastAfkCollect = now; u.farmFrac = newFrac;
       return res.json({
         awarded: 0, balance: u.cmCoins || 0, nextCollect: now + AFK_FARM_MIN_MS,
-        ratePerSec, level, tierName: FARM_TIERS[level].name, nextTier,
+        ratePerSec, baseRate, level, tierName: FARM_TIERS[level].name, nextTier,
         accumulated: newFrac, initialized: true, maxLevel: FARM_TIERS.length - 1,
       });
     }
@@ -3860,7 +3864,7 @@ app.post('/api/coins/farm', requireAuth, async (req, res) => {
       return res.json({
         awarded: 0, balance: u.cmCoins || 0, earnedToday: u.coinsEarnedToday,
         dailyCap: COIN_DAILY_CAP, capped: true, nextCollect: now + AFK_FARM_MIN_MS,
-        ratePerSec, level, tierName: FARM_TIERS[level].name, nextTier,
+        ratePerSec, baseRate, level, tierName: FARM_TIERS[level].name, nextTier,
         accumulated: rawEarn, initialized: true, maxLevel: FARM_TIERS.length - 1,
       });
     }
@@ -3886,10 +3890,12 @@ app.post('/api/coins/farm', requireAuth, async (req, res) => {
     u.farmFrac         = newFrac;
 
     console.log(`[farm] uid=${uid} lv=${level} awarded=${actualAward}`);
+    const newBalance = u.cmCoins;
+    const newAdjustedRate = baseRate / (1 + newBalance / 2000);
     res.json({
-      awarded: actualAward, balance: u.cmCoins, earnedToday: u.coinsEarnedToday,
+      awarded: actualAward, balance: newBalance, earnedToday: u.coinsEarnedToday,
       dailyCap: COIN_DAILY_CAP, nextCollect: now + AFK_FARM_MIN_MS,
-      ratePerSec, level, tierName: FARM_TIERS[level].name, nextTier,
+      ratePerSec: newAdjustedRate, baseRate, level, tierName: FARM_TIERS[level].name, nextTier,
       accumulated: newFrac, initialized: true, maxLevel: FARM_TIERS.length - 1,
     });
   } catch (e) {
