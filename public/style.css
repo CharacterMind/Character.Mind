@@ -3625,11 +3625,6 @@ html, body {
   --halloween-orange-mid: rgba(249,115,22,0.28);
   --hw-user-bubble:       #1c0900;
   --hw-ai-bubble:         #0d0b16;
-  /* Replace accent with Halloween purple-orange gradient everywhere */
-  --accent:     #c2410c;
-  --accent-l:   #fb923c;
-  --accent-d:   #9a3412;
-  --accent-dim: rgba(194,65,12,0.14);
   --narration:  #fb923c;
   --user-bubble:#1c0900;
 }

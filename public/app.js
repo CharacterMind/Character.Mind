@@ -6103,6 +6103,7 @@ function startUsageModalTimer() {
 
 async function openWhatsNew() {
   const modal = document.getElementById('whatsNewModal');
+  if (!modal) return;
   modal.style.display = 'flex';
   const dot = document.getElementById('whatsNewDot');
   if (dot) dot.hidden = true;
@@ -6382,6 +6383,7 @@ async function checkWhatsNewDot() {
       if (dot) dot.hidden = false;
       const mobDot2 = document.getElementById('mobWhatsNewDot');
       if (mobDot2) mobDot2.hidden = false;
+      setTimeout(() => openWhatsNew(), 1800);
     }
   } catch (_) {}
 }
@@ -9702,7 +9704,7 @@ function checkSeasonalEvent() {
     return;
   }
 
-  setTimeout(() => transformLogoForEvent(event.name), 500);
+  if (event.name !== 'halloween') setTimeout(() => transformLogoForEvent(event.name), 500);
   setTimeout(() => showEventBanner(event.banner, event.name), 1200);
 }
 
