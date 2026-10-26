@@ -3920,11 +3920,6 @@ body.hw-screaming::after {
 }
 
 /* Lightning flash overlay */
-.hw-lightning {
-  position: fixed; inset: 0;
-  background: #d0d4ff; pointer-events: none; z-index: 8003;
-  opacity: 0; transition: opacity 0s;
-}
 
 /* Pulsing orange glow on character home cards */
 .halloween .hc {

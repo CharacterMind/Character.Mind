@@ -10115,24 +10115,9 @@ async function claimHalloweenGift() {
     });
     document.body.appendChild(dripWrap);
 
-    const bolt = document.createElement('div');
-    bolt.className = 'hw-lightning'; bolt.id = 'hwLightningEl';
-    document.body.appendChild(bolt);
-    (function lightLoop() {
-      setTimeout(() => {
-        bolt.style.opacity = '.07';
-        setTimeout(() => {
-          bolt.style.opacity = '0';
-          setTimeout(() => {
-            bolt.style.opacity = '.11';
-            setTimeout(() => { bolt.style.opacity = '0'; lightLoop(); }, 50);
-          }, 120);
-        }, 65);
-      }, (16 + Math.random() * 40) * 1000);
-    })();
   }
   function removeHwAtmosphere() {
-    ['hwVignette','hwFogWrap','hwDripWrap','hwLightningEl'].forEach(id => document.getElementById(id)?.remove());
+    ['hwVignette','hwFogWrap','hwDripWrap'].forEach(id => document.getElementById(id)?.remove());
   }
 
   if (_hwMasterOn) spawnHwAtmosphere();
