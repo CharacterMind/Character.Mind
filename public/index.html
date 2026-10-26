@@ -771,7 +771,7 @@
               <span class="md-upgrade-btn" onclick="event.stopPropagation();openPricingModal()">Upgrade</span>
               <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-            <button class="md-item" id="optOpys5" onclick="selectOrUpgrade('opys5')">
+            <button class="md-item" id="optOpys5" onclick="selectOrUpgrade('opys5')" hidden>
               <div class="md-item-body">
                 <div class="md-item-name">Opys 5 <span class="md-item-plan-tag">X100+</span></div>
                 <div class="md-item-sub">The flagship — multi-pass refinement, rewrites itself until it's right</div>
@@ -779,7 +779,7 @@
               <span class="md-upgrade-btn" onclick="event.stopPropagation();openPricingModal()">Upgrade</span>
               <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-            <button class="md-item" id="optOpys6" onclick="selectOrUpgrade('opys6')">
+            <button class="md-item" id="optOpys6" onclick="selectOrUpgrade('opys6')" hidden>
               <div class="md-item-body">
                 <div class="md-item-name">Opys 6 <span class="md-item-plan-tag">X200</span></div>
                 <div class="md-item-sub">Next-generation, exclusive — cinematic depth nothing else comes close to</div>
@@ -2037,7 +2037,7 @@
 </div>
 
 
-<script src="app.js?v=355"></script>
+<script src="app.js?v=356"></script>
 
 <!-- Quiz Modal -->
 <div id="quizOverlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeQuizModal()">

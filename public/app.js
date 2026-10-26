@@ -5921,11 +5921,7 @@ async function openWhatsNew() {
   const mobDot = document.getElementById('mobWhatsNewDot');
   if (mobDot) mobDot.hidden = true;
   const body = document.getElementById('whatsNewBody');
-  if (window._announcements) {
-    try { localStorage.setItem('cm_wn_seen', window._announcements[0]?.id || ''); } catch (_) {}
-    renderWhatsNew(window._announcements, body);
-    return;
-  }
+  // Always fetch fresh so deploys show immediately without requiring a hard refresh
   try {
     const r = await fetch('/api/announcements');
     const data = await r.json();
@@ -5933,7 +5929,12 @@ async function openWhatsNew() {
     try { localStorage.setItem('cm_wn_seen', data[0]?.id || ''); } catch (_) {}
     renderWhatsNew(data, body);
   } catch (_) {
-    body.innerHTML = '<div class="whats-new-loading">Failed to load.</div>';
+    // Fall back to cached data if network fails
+    if (window._announcements) {
+      renderWhatsNew(window._announcements, body);
+    } else {
+      body.innerHTML = '<div class="whats-new-loading">Failed to load.</div>';
+    }
   }
 }
 
@@ -12245,8 +12246,9 @@ async function claimHalloweenGift() {
   let _wthRainOn    = true;
   let _wthSnowOn    = true;
   let _wthCloudsOn  = localStorage.getItem('wth_clouds_on')  !== '0';
-  let _wthThunderOn   = localStorage.getItem('wth_thunder_on')   !== '0';
-  let _wthLightningOn = localStorage.getItem('wth_lightning_on') !== '0';
+  let _wthThunderVol    = parseInt(localStorage.getItem('wth_thunder_vol')    || '70', 10);
+  let _wthLightningFreq = parseInt(localStorage.getItem('wth_lightning_freq') || '50', 10);
+  let _wthAmbientVol    = parseInt(localStorage.getItem('wth_ambient_vol')    || '0',  10);
   let _wthFloodOn     = true;
   let _wthRainIntensity = localStorage.getItem('wth_rain_intensity') || 'medium';
   let _wthSnowIntensity = localStorage.getItem('wth_snow_intensity') || 'medium';
@@ -12259,7 +12261,8 @@ async function claimHalloweenGift() {
   let _rainDrops = [], _rainStreaks = [];
   let _rainGl = null, _rainGlProg = null, _rainGlT0 = 0, _rainGlUL = null, _rainGlIntens = 2.0;
   let _dripsCanvas = null, _dripsCtx = null, _dripsAnimId = null, _drips = [];
-  let _dripZones = [];
+  let _dripZones = [], _dripZoneNextRefresh = 0;
+  let _ambientCtx = null, _ambientGain = null, _ambientSrc = null, _ambientActive = false;
   let _puddleEl = null, _puddleTid = null, _puddleH = 0;
   let _snowGroundEl = null, _snowGroundTid = null, _snowGroundH = 0;
   let _cloudEl = null;
@@ -12314,9 +12317,22 @@ async function claimHalloweenGift() {
         '<button class="wth-opt-int-btn" data-intensity="heavy" data-type="snow">Heavy</button>' +
       '</div>' +
       '<div class="wth-sim-sep"></div>' +
-      '<label class="wth-opt-row"><span>⚡ Lightning</span>' +
-        '<button class="wth-opt-tog" id="wthTogLightning" data-pref="wth_lightning_on"></button></label>' +
-      '<div class="wth-opt-epilepsy">⚠️ Contains flashing lights</div>' +
+      '<div class="wth-opt-int-label">🔊 Thunder</div>' +
+      '<div class="wth-vol-row">' +
+        '<input type="range" class="wth-slider" id="wthThunderSlider" min="0" max="100" value="70">' +
+        '<span class="wth-slider-val" id="wthThunderVal">70</span>' +
+      '</div>' +
+      '<div class="wth-opt-int-label">⚡ Lightning</div>' +
+      '<div class="wth-vol-row">' +
+        '<input type="range" class="wth-slider" id="wthLightningSlider" min="0" max="100" value="50">' +
+        '<span class="wth-slider-val" id="wthLightningVal">50</span>' +
+      '</div>' +
+      '<div class="wth-opt-epilepsy">⚠️ Flashing lights · set to 0 to disable</div>' +
+      '<div class="wth-opt-int-label">🌧️ Ambient</div>' +
+      '<div class="wth-vol-row">' +
+        '<input type="range" class="wth-slider" id="wthAmbientSlider" min="0" max="100" value="0">' +
+        '<span class="wth-slider-val" id="wthAmbientVal">0</span>' +
+      '</div>' +
     '</div>';
   document.body.appendChild(_wthPanel);
 
@@ -12335,7 +12351,12 @@ async function claimHalloweenGift() {
   }
 
   function _wthPanelRefresh() {
-    _wthPanelSetTog('wthTogLightning', _wthLightningOn);
+    var tSl = document.getElementById('wthThunderSlider');
+    var lSl = document.getElementById('wthLightningSlider');
+    var aSl = document.getElementById('wthAmbientSlider');
+    if (tSl) { tSl.value = _wthThunderVol;    document.getElementById('wthThunderVal').textContent  = _wthThunderVol; }
+    if (lSl) { lSl.value = _wthLightningFreq; document.getElementById('wthLightningVal').textContent = _wthLightningFreq; }
+    if (aSl) { aSl.value = _wthAmbientVol;    document.getElementById('wthAmbientVal').textContent   = _wthAmbientVol; }
     var rainRow = document.getElementById('wthRainIntensityRow');
     if (rainRow) rainRow.querySelectorAll('.wth-opt-int-btn').forEach(function(b) {
       b.classList.toggle('wth-int-active', b.dataset.intensity === _wthRainIntensity);
@@ -12385,15 +12406,26 @@ async function claimHalloweenGift() {
       return;
     }
 
-    var btn = e.target.closest('.wth-opt-tog');
-    if (!btn) return;
-    var pref = btn.dataset.pref;
-    var on;
-    if (pref === 'wth_lightning_on') {
-      _wthLightningOn = !_wthLightningOn; on = _wthLightningOn;
-      localStorage.setItem(pref, on ? '1' : '0');
+  });
+
+  _wthPanel.addEventListener('input', function(e) {
+    var sl = e.target.closest('.wth-slider');
+    if (!sl) return;
+    var v = parseInt(sl.value, 10);
+    if (sl.id === 'wthThunderSlider') {
+      _wthThunderVol = v;
+      localStorage.setItem('wth_thunder_vol', v);
+      var tv = document.getElementById('wthThunderVal'); if (tv) tv.textContent = v;
+    } else if (sl.id === 'wthLightningSlider') {
+      _wthLightningFreq = v;
+      localStorage.setItem('wth_lightning_freq', v);
+      var lv = document.getElementById('wthLightningVal'); if (lv) lv.textContent = v;
+    } else if (sl.id === 'wthAmbientSlider') {
+      _wthAmbientVol = v;
+      localStorage.setItem('wth_ambient_vol', v);
+      var av = document.getElementById('wthAmbientVal'); if (av) av.textContent = v;
+      _setAmbientVol(v);
     }
-    _wthPanelSetTog(btn.id, on);
   });
 
   // â"€â"€ Clock â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
@@ -12613,6 +12645,11 @@ async function claimHalloweenGift() {
     if (!_dripsCanvas || !_dripsCtx) return;
     var ctx = _dripsCtx;
     var W = _dripsCanvas.width, H = _dripsCanvas.height;
+    var now = Date.now();
+    if (now > _dripZoneNextRefresh) {
+      _dripZones = _buildDripZones(W, H);
+      _dripZoneNextRefresh = now + 6000;
+    }
     ctx.clearRect(0, 0, W, H);
     for (var i = 0; i < _drips.length; i++) {
       var d = _drips[i];
@@ -12721,8 +12758,8 @@ async function claimHalloweenGift() {
     _rainAnimId = requestAnimationFrame(_rainFrame);
     _startDrips();
     _startPuddle();
+    _startAmbient();
     if (_wthCloudsOn) _startClouds(true);
-    if (_wthThunderOn) _startThunder();
     if (_wthRainIntensity === 'heavy') _startFlood(true);
     else if (_wthRainIntensity === 'medium') {
       _rainTids.push(setTimeout(function() { if (_rainActive) _startFlood(true); }, 3 * 60 * 1000));
@@ -12739,6 +12776,7 @@ async function claimHalloweenGift() {
     _stopDrips();
     _stopPuddle();
     _stopFlood();
+    _stopAmbient();
     if (!_snowActive) _stopClouds();
     _stopThunder();
   }
@@ -12914,9 +12952,48 @@ async function claimHalloweenGift() {
     _thunderTids.forEach(function(t) { clearTimeout(t); }); _thunderTids = [];
   }
 
+  function _startAmbient() {
+    if (_ambientActive || _wthAmbientVol === 0) return;
+    try {
+      _ambientCtx = new (window.AudioContext || window.webkitAudioContext)();
+      _ambientGain = _ambientCtx.createGain();
+      _ambientGain.gain.value = (_wthAmbientVol / 100) * 0.38;
+      _ambientGain.connect(_ambientCtx.destination);
+      var sr = _ambientCtx.sampleRate;
+      var buf = _ambientCtx.createBuffer(1, sr * 3, sr);
+      var data = buf.getChannelData(0);
+      for (var i = 0; i < sr * 3; i++) data[i] = Math.random() * 2 - 1;
+      _ambientSrc = _ambientCtx.createBufferSource();
+      _ambientSrc.buffer = buf;
+      _ambientSrc.loop = true;
+      var lpf = _ambientCtx.createBiquadFilter(); lpf.type = 'bandpass'; lpf.frequency.value = 380; lpf.Q.value = 0.8;
+      var hpf = _ambientCtx.createBiquadFilter(); hpf.type = 'highshelf'; hpf.frequency.value = 2600; hpf.gain.value = -10;
+      _ambientSrc.connect(lpf); lpf.connect(hpf); hpf.connect(_ambientGain);
+      _ambientSrc.start();
+      _ambientActive = true;
+    } catch(e) {}
+  }
+
+  function _stopAmbient() {
+    _ambientActive = false;
+    try { if (_ambientSrc) _ambientSrc.stop(); } catch(e) {}
+    _ambientSrc = null;
+    try { if (_ambientCtx) _ambientCtx.close(); } catch(e) {}
+    _ambientCtx = null; _ambientGain = null;
+  }
+
+  function _setAmbientVol(v) {
+    if (_ambientGain) _ambientGain.gain.value = (v / 100) * 0.38;
+    if (v > 0 && !_ambientActive && _rainActive) _startAmbient();
+    else if (v === 0) _stopAmbient();
+  }
+
   function _scheduleNextThunder() {
     if (!_thunderActive) return;
-    var delay = (10 + Math.random() * 30) * 1000;
+    var freq = _wthLightningFreq;
+    var minD = freq >= 75 ? 4 : freq >= 50 ? 10 : freq >= 25 ? 20 : 30;
+    var rngD = freq >= 75 ? 8 : freq >= 50 ? 25 : freq >= 25 ? 35 : 40;
+    var delay = (minD + Math.random() * rngD) * 1000;
     var tid = setTimeout(function() {
       _doLightningFlash();
       setTimeout(_doThunderSound, 300 + Math.random() * 800);
@@ -12926,7 +13003,7 @@ async function claimHalloweenGift() {
   }
 
   function _doLightningFlash() {
-    var show = _wthManualLightning !== null ? _wthManualLightning : _wthLightningOn;
+    var show = _wthManualLightning !== null ? _wthManualLightning : _wthLightningFreq > 0;
     if (!show) return;
     var el = document.getElementById('wthLightningFlash');
     if (!el) { el = document.createElement('div'); el.id = 'wthLightningFlash'; document.body.appendChild(el); }
@@ -12937,7 +13014,7 @@ async function claimHalloweenGift() {
   }
 
   function _doThunderSound() {
-    var play = _wthManualThunder !== null ? _wthManualThunder : (_thunderActive && _wthThunderOn);
+    var play = _wthManualThunder !== null ? _wthManualThunder : (_thunderActive && _wthThunderVol > 0);
     if (!play) return;
     try {
       var ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -12951,7 +13028,7 @@ async function claimHalloweenGift() {
       }
       var src = ctx.createBufferSource(); src.buffer = buf;
       var lpf = ctx.createBiquadFilter(); lpf.type = 'lowpass'; lpf.frequency.value = 180; lpf.Q.value = 3;
-      var gain = ctx.createGain(); gain.gain.value = 0.55;
+      var gain = ctx.createGain(); gain.gain.value = (_wthThunderVol / 100) * 0.72;
       src.connect(lpf); lpf.connect(gain); gain.connect(ctx.destination);
       src.start(); src.stop(ctx.currentTime + 3);
       setTimeout(function() { try { ctx.close(); } catch(e){} }, 3500);
@@ -13529,8 +13606,8 @@ void main(){
         else _stopThunder();
       }
       if (effect === 'lightning') {
-        _wthLightningOn = on;
-        localStorage.setItem('wth_lightning_on', on ? '1' : '0');
+        _wthLightningFreq = on ? 50 : 0;
+        localStorage.setItem('wth_lightning_freq', _wthLightningFreq);
       }
       if (effect === 'flood')     { if (on) _startFlood(); else _stopFlood(); }
     },
