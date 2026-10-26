@@ -4616,18 +4616,23 @@ app.post('/api/admin/revoke-subscription', requireAuth, async (req, res) => {
   if (!email?.trim()) return res.status(400).json({ error: 'Email required' });
   try {
     const { rows } = await db.query(
-      'SELECT google_id, name, paypal_subscription_id, subscription_tier FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+      'SELECT google_id, name, paypal_subscription_id, subscription_tier, coin_tier, coin_tier_expires FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
       [email.trim()]
     );
     if (!rows.length) return res.status(404).json({ error: 'User not found' });
-    const { google_id: uid, name, paypal_subscription_id: subId, subscription_tier: oldTier } = rows[0];
-    if (oldTier === 'free' || !oldTier) return res.status(400).json({ error: 'User has no active subscription' });
+    const { google_id: uid, name, paypal_subscription_id: subId, subscription_tier: oldTier,
+            coin_tier: oldCoinTier, coin_tier_expires: coinExp } = rows[0];
+    const hasPaypal = oldTier && oldTier !== 'free';
+    const hasCoin   = oldCoinTier && (!coinExp || Number(coinExp) > Date.now());
+    if (!hasPaypal && !hasCoin) return res.status(400).json({ error: 'User has no active subscription' });
     await db.query(
-      'UPDATE users SET subscription_tier = $1, paypal_subscription_id = NULL WHERE google_id = $2',
+      'UPDATE users SET subscription_tier = $1, paypal_subscription_id = NULL, coin_tier = NULL, coin_tier_expires = NULL WHERE google_id = $2',
       ['free', uid]
     );
     const lim = getLimits(uid);
     lim.subscriptionTier = 'free'; lim.tierLoaded = true;
+    lim.coinTier = null; lim.coinTierExpires = null;
+    lim.paypalTier = 'free';
     lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null;
     lim.weeklyTokens = 0; lim.weeklyStart = null; lim.warned = {};
     lim.callsToday = 0; lim.callDayStart = null;
@@ -4635,9 +4640,10 @@ app.post('/api/admin/revoke-subscription', requireAuth, async (req, res) => {
     lim.imagesDay = 0; lim.imageDayStart = null; lim.imageFirstUsedAt = null;
     lim.regenCount = 0;
     if (subId) cancelPayPalSubscription(subId, 'Revoked by admin').catch(() => {});
-    const subNote = subId ? ', PayPal sub ' + subId + ' cancelled' : '';
-    console.log('[admin] revoke-subscription: ' + name + ' (' + uid + ') was ' + oldTier + ' -> free' + subNote);
-    res.json({ ok: true, name, previousTier: oldTier });
+    const previousTier = hasPaypal ? oldTier : oldCoinTier;
+    const subNote = subId ? ', PayPal sub ' + subId + ' cancelled' : (hasCoin ? ', coin tier ' + oldCoinTier + ' cleared' : '');
+    console.log('[admin] revoke-subscription: ' + name + ' (' + uid + ') was ' + previousTier + ' -> free' + subNote);
+    res.json({ ok: true, name, previousTier });
   } catch (err) {
     console.error('[revoke-subscription]', err.message);
     if (!res.headersSent) res.status(500).json({ error: 'Something went wrong' });
