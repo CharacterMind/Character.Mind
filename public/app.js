@@ -12135,13 +12135,14 @@ async function claimHalloweenGift() {
   let _wthHotF   = parseInt(localStorage.getItem('wth_hot_f')   || '90', 10);
   let _wthFrostF = parseInt(localStorage.getItem('wth_frost_f') || '32', 10);
   // Per-effect preferences (each default ON)
-  let _wthRainOn    = localStorage.getItem('wth_rain_on')    !== '0';
-  let _wthSnowOn    = localStorage.getItem('wth_snow_on')    !== '0';
+  let _wthRainOn    = true;
+  let _wthSnowOn    = true;
   let _wthCloudsOn  = localStorage.getItem('wth_clouds_on')  !== '0';
   let _wthThunderOn   = localStorage.getItem('wth_thunder_on')   !== '0';
   let _wthLightningOn = localStorage.getItem('wth_lightning_on') !== '0';
-  let _wthFloodOn     = localStorage.getItem('wth_flood_on')     !== '0';
+  let _wthFloodOn     = true;
   let _wthRainIntensity = localStorage.getItem('wth_rain_intensity') || 'medium';
+  let _wthSnowIntensity = localStorage.getItem('wth_snow_intensity') || 'medium';
 
   // â"€â"€ Runtime state â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   let _wthData = null;
@@ -12180,40 +12181,34 @@ async function claimHalloweenGift() {
       '<button class="wth-opt-close" id="wthOptClose" aria-label="Close">×</button>' +
     '</div>' +
     '<div class="wth-sim-hd">Simulate</div>' +
-    '<div class="wth-sim-grid">' +
+    '<div class="wth-sim-grid wth-sim-grid-4">' +
       '<button class="wth-sim-btn" data-preset="auto">🔄 Auto</button>' +
       '<button class="wth-sim-btn" data-preset="clear">☀️ Clear</button>' +
       '<button class="wth-sim-btn" data-preset="rain">🌧️ Rain</button>' +
-      '<button class="wth-sim-btn" data-preset="downpour">🌊 Downpour</button>' +
-      '<button class="wth-sim-btn" data-preset="thunder-rain">🔊 T+Rain</button>' +
-      '<button class="wth-sim-btn" data-preset="storm">⛈️ Thunderstorm</button>' +
-      '<button class="wth-sim-btn" data-preset="thunder">🔊 Thunder</button>' +
-      '<button class="wth-sim-btn" data-preset="lightning">⚡ Lightning</button>' +
-      '<button class="wth-sim-btn" data-preset="thunder-lightning">🌩️ T+Lightning</button>' +
       '<button class="wth-sim-btn" data-preset="snow">❄️ Snow</button>' +
+      '<button class="wth-sim-btn" data-preset="storm">⛈️ Storm</button>' +
+      '<button class="wth-sim-btn" data-preset="lightning">⚡ Lightning</button>' +
       '<button class="wth-sim-btn" data-preset="flood">🌊 Flood</button>' +
       '<button class="wth-sim-btn" data-preset="random">🎲 Random</button>' +
     '</div>' +
     '<div class="wth-sim-sep"></div>' +
     '<div class="wth-opt-rows">' +
-      '<label class="wth-opt-row"><span>☁️ Clouds</span>' +
-        '<button class="wth-opt-tog" id="wthTogClouds" data-pref="wth_clouds_on"></button></label>' +
-      '<label class="wth-opt-row"><span>🌧️ Rain</span>' +
-        '<button class="wth-opt-tog" id="wthTogRain" data-pref="wth_rain_on"></button></label>' +
+      '<div class="wth-opt-int-label">🌧️ Rain</div>' +
       '<div class="wth-opt-intensity" id="wthRainIntensityRow">' +
-        '<button class="wth-opt-int-btn" data-intensity="light">Light</button>' +
-        '<button class="wth-opt-int-btn" data-intensity="medium">Medium</button>' +
-        '<button class="wth-opt-int-btn" data-intensity="heavy">Heavy</button>' +
+        '<button class="wth-opt-int-btn" data-intensity="light" data-type="rain">Light</button>' +
+        '<button class="wth-opt-int-btn" data-intensity="medium" data-type="rain">Medium</button>' +
+        '<button class="wth-opt-int-btn" data-intensity="heavy" data-type="rain">Heavy</button>' +
       '</div>' +
-      '<label class="wth-opt-row"><span>❄️ Snow</span>' +
-        '<button class="wth-opt-tog" id="wthTogSnow" data-pref="wth_snow_on"></button></label>' +
-      '<label class="wth-opt-row"><span>🔊 Thunder</span>' +
-        '<button class="wth-opt-tog" id="wthTogThunder" data-pref="wth_thunder_on"></button></label>' +
+      '<div class="wth-opt-int-label">❄️ Snow</div>' +
+      '<div class="wth-opt-intensity" id="wthSnowIntensityRow">' +
+        '<button class="wth-opt-int-btn" data-intensity="light" data-type="snow">Light</button>' +
+        '<button class="wth-opt-int-btn" data-intensity="medium" data-type="snow">Medium</button>' +
+        '<button class="wth-opt-int-btn" data-intensity="heavy" data-type="snow">Heavy</button>' +
+      '</div>' +
+      '<div class="wth-sim-sep"></div>' +
       '<label class="wth-opt-row"><span>⚡ Lightning</span>' +
         '<button class="wth-opt-tog" id="wthTogLightning" data-pref="wth_lightning_on"></button></label>' +
-      '<div class="wth-opt-epilepsy">⚠️ Lightning contains flashing lights</div>' +
-      '<label class="wth-opt-row"><span>🌊 Flood</span>' +
-        '<button class="wth-opt-tog" id="wthTogFlood" data-pref="wth_flood_on"></button></label>' +
+      '<div class="wth-opt-epilepsy">⚠️ Contains flashing lights</div>' +
     '</div>';
   document.body.appendChild(_wthPanel);
 
@@ -12232,15 +12227,14 @@ async function claimHalloweenGift() {
   }
 
   function _wthPanelRefresh() {
-    _wthPanelSetTog('wthTogClouds',    _wthCloudsOn);
-    _wthPanelSetTog('wthTogRain',      _wthRainOn);
-    _wthPanelSetTog('wthTogSnow',      _wthSnowOn);
-    _wthPanelSetTog('wthTogThunder',   _wthThunderOn);
     _wthPanelSetTog('wthTogLightning', _wthLightningOn);
-    _wthPanelSetTog('wthTogFlood',     _wthFloodOn);
-    var row = document.getElementById('wthRainIntensityRow');
-    if (row) row.querySelectorAll('.wth-opt-int-btn').forEach(function(b) {
+    var rainRow = document.getElementById('wthRainIntensityRow');
+    if (rainRow) rainRow.querySelectorAll('.wth-opt-int-btn').forEach(function(b) {
       b.classList.toggle('wth-int-active', b.dataset.intensity === _wthRainIntensity);
+    });
+    var snowRow = document.getElementById('wthSnowIntensityRow');
+    if (snowRow) snowRow.querySelectorAll('.wth-opt-int-btn').forEach(function(b) {
+      b.classList.toggle('wth-int-active', b.dataset.intensity === _wthSnowIntensity);
     });
     _wthPanelRefreshPresets();
   }
@@ -12271,10 +12265,15 @@ async function claimHalloweenGift() {
     // Intensity buttons
     var intBtn = e.target.closest('.wth-opt-int-btn');
     if (intBtn) {
-      _wthRainIntensity = intBtn.dataset.intensity;
-      localStorage.setItem('wth_rain_intensity', _wthRainIntensity);
+      if (intBtn.dataset.type === 'snow') {
+        _wthSnowIntensity = intBtn.dataset.intensity;
+        localStorage.setItem('wth_snow_intensity', _wthSnowIntensity);
+      } else {
+        _wthRainIntensity = intBtn.dataset.intensity;
+        localStorage.setItem('wth_rain_intensity', _wthRainIntensity);
+        if (_rainActive) _rebuildRainParticles();
+      }
       _wthPanelRefresh();
-      if (_rainActive) _rebuildRainParticles();
       return;
     }
 
@@ -12282,32 +12281,9 @@ async function claimHalloweenGift() {
     if (!btn) return;
     var pref = btn.dataset.pref;
     var on;
-    if (pref === 'wth_clouds_on') {
-      _wthCloudsOn = !_wthCloudsOn; on = _wthCloudsOn;
-      localStorage.setItem(pref, on ? '1' : '0');
-      if (on && (_rainActive || _snowActive)) _startClouds(_rainActive);
-      else if (!on) _stopClouds();
-    } else if (pref === 'wth_rain_on') {
-      _wthRainOn = !_wthRainOn; on = _wthRainOn;
-      localStorage.setItem(pref, on ? '1' : '0');
-      if (_wthData) _applyEffects(); else if (on) _startRain(); else _stopRain();
-    } else if (pref === 'wth_snow_on') {
-      _wthSnowOn = !_wthSnowOn; on = _wthSnowOn;
-      localStorage.setItem(pref, on ? '1' : '0');
-      if (_wthData) _applyEffects(); else if (on) _startSnow(); else _stopSnow();
-    } else if (pref === 'wth_thunder_on') {
-      _wthThunderOn = !_wthThunderOn; on = _wthThunderOn;
-      localStorage.setItem(pref, on ? '1' : '0');
-      if (on && _rainActive) _startThunder();
-      else if (!on) _stopThunder();
-    } else if (pref === 'wth_lightning_on') {
+    if (pref === 'wth_lightning_on') {
       _wthLightningOn = !_wthLightningOn; on = _wthLightningOn;
       localStorage.setItem(pref, on ? '1' : '0');
-    } else if (pref === 'wth_flood_on') {
-      _wthFloodOn = !_wthFloodOn; on = _wthFloodOn;
-      localStorage.setItem(pref, on ? '1' : '0');
-      if (on && _rainActive) _startFlood();
-      else if (!on) _stopFlood();
     }
     _wthPanelSetTog(btn.id, on);
   });
@@ -12479,6 +12455,8 @@ async function claimHalloweenGift() {
 
   // ── Glass drip effect ────────────────────────────────────────────────────
   function _makeDrip(W, H, init) {
+    var pMin = _wthRainIntensity === 'heavy' ? 8 : _wthRainIntensity === 'medium' ? 40 : 80;
+    var pRng = _wthRainIntensity === 'heavy' ? 35 : _wthRainIntensity === 'medium' ? 100 : 160;
     return {
       x:     Math.random() * W,
       y:     init ? Math.random() * H * 0.8 : -Math.random() * 20,
@@ -12486,7 +12464,7 @@ async function claimHalloweenGift() {
       speed: 0.25 + Math.random() * 1.1,
       alpha: 0.50 + Math.random() * 0.38,
       trail: init ? Math.random() * 80 : 0,
-      pause: Math.floor(40 + Math.random() * 140),
+      pause: Math.floor(pMin + Math.random() * pRng),
       age:   init ? 9999 : 0,
     };
   }
@@ -12571,7 +12549,10 @@ async function claimHalloweenGift() {
     _startPuddle();
     if (_wthCloudsOn) _startClouds(true);
     if (_wthThunderOn) _startThunder();
-    if (_wthFloodOn) _startFlood();
+    if (_wthRainIntensity === 'heavy') _startFlood(true);
+    else if (_wthRainIntensity === 'medium') {
+      _rainTids.push(setTimeout(function() { if (_rainActive) _startFlood(true); }, 3 * 60 * 1000));
+    }
   }
 
   function _stopRain() {
@@ -12621,8 +12602,9 @@ async function claimHalloweenGift() {
     var f = document.createElement('div');
     f.className = 'wth-flake';
     var x     = Math.random() * 100;
-    var size  = 10 + Math.random() * 16;
-    var dur   = 5 + Math.random() * 8;
+    var heavy = _wthSnowIntensity === 'heavy', light = _wthSnowIntensity === 'light';
+    var size  = (heavy ? 14 : light ? 7 : 10) + Math.random() * (heavy ? 18 : light ? 12 : 16);
+    var dur   = (heavy ? 3 : light ? 8 : 5) + Math.random() * (heavy ? 7 : light ? 9 : 8);
     var del   = Math.random() * 5;
     var drift = (Math.random() - 0.5) * 90;
     f.textContent = _FLAKES[Math.floor(Math.random() * _FLAKES.length)];
@@ -12640,7 +12622,8 @@ async function claimHalloweenGift() {
     if (_snowActive) return;
     _snowActive = true;
     document.body.classList.add('wth-snowing');
-    for (var i = 0; i < 26; i++) _spawnFlake();
+    var flakeCount = _wthSnowIntensity === 'heavy' ? 48 : _wthSnowIntensity === 'light' ? 12 : 26;
+    for (var i = 0; i < flakeCount; i++) _spawnFlake();
     _startFrost();
     _startSnowGround();
     if (_wthCloudsOn) _startClouds(false);
@@ -12663,9 +12646,11 @@ async function claimHalloweenGift() {
     _snowGroundH = 0;
     function _growSnow() {
       if (!_snowActive) return;
-      _snowGroundH = Math.min(_snowGroundH + 2, 32);
+      var sGrow = _wthSnowIntensity === 'heavy' ? 4 : _wthSnowIntensity === 'light' ? 1 : 2;
+      var sInt  = _wthSnowIntensity === 'heavy' ? 3000 : _wthSnowIntensity === 'light' ? 8000 : 5000;
+      _snowGroundH = Math.min(_snowGroundH + sGrow, 32);
       _snowGroundEl.style.height = _snowGroundH + 'px';
-      _snowGroundTid = setTimeout(_growSnow, 5000);
+      _snowGroundTid = setTimeout(_growSnow, sInt);
     }
     _snowGroundTid = setTimeout(_growSnow, 10000);
   }
@@ -12980,9 +12965,11 @@ void main(){
 
   function _floodRiseStep() {
     if (!_floodEl || _floodDraining) return;
-    _floodH = Math.min(_floodH + 1.8, 48);
+    var rise     = _wthRainIntensity === 'heavy' ? 3.5 : _wthRainIntensity === 'medium' ? 1.8 : 0.8;
+    var interval = _wthRainIntensity === 'heavy' ? 10000 : _wthRainIntensity === 'medium' ? 16000 : 28000;
+    _floodH = Math.min(_floodH + rise, 48);
     _floodEl.style.height = _floodH + 'vh';
-    if (_floodH < 48) _floodTid = setTimeout(_floodRiseStep, 16000);
+    if (_floodH < 48) _floodTid = setTimeout(_floodRiseStep, interval);
   }
 
   function _stopFlood() {
@@ -13229,7 +13216,7 @@ void main(){
     }
 
     if (name === 'random') {
-      var opts = ['rain','downpour','storm','thunder-rain','thunder','lightning','thunder-lightning','snow','flood'];
+      var opts = ['rain','storm','lightning','snow','flood'];
       _applyPreset(opts[Math.floor(Math.random() * opts.length)]);
       return;
     }
@@ -13239,7 +13226,6 @@ void main(){
     if (name === 'clear') {
       /* all already stopped */
     } else if (name === 'rain') {
-      _wthRainIntensity = 'medium';
       _startRain();
     } else if (name === 'downpour') {
       _wthRainIntensity = 'heavy';
@@ -13291,9 +13277,9 @@ void main(){
     var temp_f = _wthData.temp_f;
     var code   = _wthData.code;
 
-    if (_isRain(code) && _wthRainOn) _startRain(); else _stopRain();
+    if (_isRain(code)) _startRain(); else _stopRain();
 
-    if (_isSnow(code) && _wthSnowOn) {
+    if (_isSnow(code)) {
       _startSnow();
     } else {
       _stopSnow();
@@ -13315,9 +13301,8 @@ void main(){
     setTimeout(function() {
       if (_wthOn && !_rainActive && !_snowActive) {
         var doSnow = Math.random() < 0.35;
-        if (doSnow && _wthSnowOn) _startSnow();
-        else if (!doSnow && _wthRainOn) _startRain();
-        else { _scheduleRandomWeather(); return; }
+        if (doSnow) _startSnow();
+        else _startRain();
         var dur = (3 + Math.random() * 6) * 60 * 1000; // 3-9 min event
         setTimeout(function() {
           var needsRain = _wthData && _isRain(_wthData.code);
