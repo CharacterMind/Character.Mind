@@ -675,15 +675,11 @@ async function openPaypalCheckout(planKey, period) {
   document.getElementById('paypal-checkout-status').style.color = '';
   currentCheckoutEffective = effective;
 
-  const payTabs = document.getElementById('co-pay-tabs');
   const payPanelPaypal = document.getElementById('payment-panel-paypal');
-  const payPanelCard = document.getElementById('payment-panel-card');
   const payBtn = document.getElementById('co-pay-btn');
   const footer = document.getElementById('co-footer-text');
   if (effective === 0) {
-    if (payTabs) payTabs.style.display = 'none';
     if (payPanelPaypal) payPanelPaypal.style.display = 'none';
-    if (payPanelCard) payPanelCard.style.display = 'none';
     if (footer) footer.textContent = 'Secured by C.M. Coins · Cancel anytime · No hidden fees';
     if (payBtn) {
       payBtn.textContent = 'Confirm & Use Coins';
@@ -691,10 +687,9 @@ async function openPaypalCheckout(planKey, period) {
       payBtn.onclick = () => handleCoinCheckout(planKey);
     }
   } else {
-    if (payTabs) payTabs.style.display = '';
+    if (payPanelPaypal) payPanelPaypal.style.display = '';
     if (footer) footer.textContent = 'Secured by PayPal · Cancel anytime · No hidden fees';
     if (payBtn) { payBtn.style.display = 'none'; payBtn.onclick = null; }
-    switchPayTab('paypal');
   }
 
   document.getElementById('paypalCheckoutModal').style.display = 'flex';
@@ -745,12 +740,12 @@ function initPayPalWidgets(planKey) {
   const planId = (currentCheckoutPeriod === 'annual' ? PAYPAL_PLAN_IDS_YEARLY : PAYPAL_PLAN_IDS)[planKey];
   if (!planId || typeof paypal === 'undefined') return;
 
-  // PayPal wallet button
+  // Render all eligible payment buttons — PayPal automatically includes
+  // "Debit or Credit Card" below the wallet button in this layout
   try {
     const ppContainer = document.getElementById('paypal-button-container');
     if (ppContainer) ppContainer.innerHTML = '';
     paypal.Buttons({
-      fundingSource: paypal.FUNDING.PAYPAL,
       style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'subscribe' },
       createSubscription(data, actions) {
         if (!currentUser) throw new Error('Session expired — please refresh and sign in again');
@@ -763,30 +758,6 @@ function initPayPalWidgets(planKey) {
       }
     }).render('#paypal-button-container');
   } catch (err) { console.error('PayPal button render error:', err); }
-
-  // Card button (PayPal-hosted card form, no Stripe needed)
-  try {
-    const cardContainer = document.getElementById('card-button-container');
-    if (cardContainer) cardContainer.innerHTML = '';
-    const cardBtn = paypal.Buttons({
-      fundingSource: paypal.FUNDING.CARD,
-      style: { layout: 'vertical', color: 'black', shape: 'rect', label: 'pay' },
-      createSubscription(data, actions) {
-        if (!currentUser) throw new Error('Session expired — please refresh and sign in again');
-        return actions.subscription.create({ plan_id: planId, custom_id: String(currentUser.googleId) });
-      },
-      onApprove(data) { return verifyAndActivateSubscription(data.subscriptionID, planKey); },
-      onError(err) {
-        document.getElementById('paypal-checkout-status').textContent = 'Payment failed. Please try again.';
-        console.error('PayPal card error:', err);
-      }
-    });
-    if (cardBtn.isEligible()) {
-      cardBtn.render('#card-button-container');
-    } else if (cardContainer) {
-      cardContainer.innerHTML = '<p style="font-size:13px;color:var(--text3);text-align:center;padding:12px 0">Card payments aren\'t available in your region.<br>Please use the PayPal tab.</p>';
-    }
-  } catch (err) { console.error('Card button render error:', err); }
 
 }
 
@@ -823,15 +794,10 @@ function closePaypalCheckout() {
   document.getElementById('paypalCheckoutModal').style.display = 'none';
   currentCheckoutPlan = null;
   currentCheckoutEffective = 0;
-  const payTabs = document.getElementById('co-pay-tabs');
   const payPanelPaypal = document.getElementById('payment-panel-paypal');
-  const payPanelCard = document.getElementById('payment-panel-card');
   const payBtn = document.getElementById('co-pay-btn');
-  if (payTabs) payTabs.style.display = '';
   if (payPanelPaypal) payPanelPaypal.style.display = '';
-  if (payPanelCard) payPanelCard.style.display = 'none';
   if (payBtn) { payBtn.style.display = 'none'; payBtn.disabled = false; payBtn.textContent = 'Pay'; payBtn.onclick = null; }
-  switchPayTab('paypal');
 }
 
 async function handleCoinCheckout(planKey) {
@@ -864,13 +830,6 @@ async function handleCoinCheckout(planKey) {
     if (payBtn) { payBtn.disabled = false; payBtn.textContent = 'Confirm & Use Coins'; }
     console.error('[coin checkout]', err);
   }
-}
-
-function switchPayTab(tab) {
-  document.getElementById('payment-panel-paypal').style.display = tab === 'paypal' ? '' : 'none';
-  document.getElementById('payment-panel-card').style.display = tab === 'card' ? '' : 'none';
-  document.getElementById('co-tab-paypal').classList.toggle('active', tab === 'paypal');
-  document.getElementById('co-tab-card').classList.toggle('active', tab === 'card');
 }
 
 // ── Coin Shop ─────────────────────────────────────────────────────────────────
