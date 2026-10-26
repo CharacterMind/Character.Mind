@@ -3788,7 +3788,7 @@ app.get('/api/coins/farm', requireAuth, async (req, res) => {
     const ratePerSec = tier.rate * earnMult(uid);
     const elapsedSec = lastCollect ? Math.min((now - lastCollect) / 1000, AFK_FARM_MAX_MS / 1000) : 0;
     const accumulated = (u.farmFrac || 0) + elapsedSec * ratePerSec;
-    const canCollect = lastCollect ? ((now - lastCollect) >= AFK_FARM_MIN_MS && accumulated >= 1) : false;
+    const canCollect = lastCollect ? ((now - lastCollect) >= AFK_FARM_MIN_MS) : false;
     const nextCollect = lastCollect ? Math.max(lastCollect + AFK_FARM_MIN_MS, now) : now;
     const nextTier = level < FARM_TIERS.length - 1 ? { ...FARM_TIERS[level + 1], level: level + 1 } : null;
     res.json({

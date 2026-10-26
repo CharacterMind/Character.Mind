@@ -13229,12 +13229,14 @@ async function claimHalloweenGift() {
     _st.maxLevel    = d.maxLevel     || 5;
     _st.nextTier    = d.nextTier     || null;
     _syncedAt = Date.now();
+    if (typeof window._farmLevel !== 'undefined') window._farmLevel = _st.level;
   }
 
   function _liveAccum() {
     if (!_st.initialized || !_syncedAt) return _st.accumulated;
     var elSec = Math.min((Date.now() - _syncedAt) / 1000, 8 * 3600);
-    return _st.accumulated + elSec * _st.ratePerSec;
+    var mult  = (typeof window._farmBoostMult !== 'undefined') ? window._farmBoostMult : 1;
+    return _st.accumulated + elSec * _st.ratePerSec * mult;
   }
 
   function _updateCard() {
@@ -13258,7 +13260,8 @@ async function claimHalloweenGift() {
     var frac  = (accum - whole).toFixed(9).slice(1);
     counterEl.innerHTML = whole.toLocaleString() + '<span class="farm-frac">' + frac + '</span>';
 
-    if (ratePillEl) ratePillEl.textContent = _fmtRate(_st.ratePerSec);
+    var mult = (typeof window._farmBoostMult !== 'undefined') ? window._farmBoostMult : 1;
+    if (ratePillEl) ratePillEl.textContent = _fmtRate(_st.ratePerSec * mult) + (mult > 1 ? ' ⚡' : '');
     if (badge)      badge.textContent = 'LV ' + _st.level;
     if (tierNameEl) tierNameEl.textContent = _st.tierName;
 
@@ -13413,5 +13416,133 @@ async function claimHalloweenGift() {
   };
 
   setTimeout(_init, 1200);
+})();
+
+// -- Farm WebGL animation + GPU Boost --
+(function initFarmGL() {
+  var BOOST_MULT = 5;
+  var _boosting = false;
+  var _boostRaf = null;
+  var _glCtx = null;
+  var _prog = null;
+  var _uTime = null;
+  var _uBoost = null;
+  var _uLevel = null;
+  var _buf = null;
+  var _startTime = 0;
+
+  var VERT = [
+    'attribute vec2 a;',
+    'void main(){gl_Position=vec4(a,0.,1.);}',
+  ].join('\n');
+
+  var FRAG = [
+    'precision mediump float;',
+    'uniform float uTime;',
+    'uniform float uBoost;',
+    'uniform float uLevel;',
+    'void main(){',
+    '  vec2 uv=gl_FragCoord.xy/vec2(320.,120.);',
+    '  float wave=sin(uv.x*6.28+uTime*1.2)*0.5+0.5;',
+    '  float ground=step(uv.y,0.22+wave*0.06*(uLevel/5.));',
+    '  float crop=step(uv.y,0.22+wave*0.06*(uLevel/5.)+(uLevel/5.)*0.55*wave);',
+    '  vec3 col=mix(vec3(0.12,0.28,0.08),vec3(0.18,0.55,0.14),crop-ground);',
+    '  col=mix(col,vec3(0.08,0.18,0.04),ground);',
+    '  float glow=uBoost*0.5*(sin(uTime*4.)*0.5+0.5);',
+    '  col+=vec3(glow*0.6,glow*0.5,0.0);',
+    '  gl_FragColor=vec4(col,1.0);',
+    '}',
+  ].join('\n');
+
+  function _mkShader(gl, type, src) {
+    var s = gl.createShader(type);
+    gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { gl.deleteShader(s); return null; }
+    return s;
+  }
+
+  function _initGL() {
+    var canvas = document.getElementById('farmGlCanvas');
+    if (!canvas) return false;
+    var gl = canvas.getContext('webgl', { alpha: false, antialias: false, powerPreference: 'default' });
+    if (!gl) return false;
+    _glCtx = gl;
+    var vs = _mkShader(gl, gl.VERTEX_SHADER, VERT);
+    var fs = _mkShader(gl, gl.FRAGMENT_SHADER, FRAG);
+    if (!vs || !fs) return false;
+    var prog = gl.createProgram();
+    gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return false;
+    _prog = prog;
+    _uTime  = gl.getUniformLocation(prog, 'uTime');
+    _uBoost = gl.getUniformLocation(prog, 'uBoost');
+    _uLevel = gl.getUniformLocation(prog, 'uLevel');
+    var verts = new Float32Array([-1,-1, 1,-1, -1,1, 1,1]);
+    _buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, _buf);
+    gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+    _startTime = performance.now();
+    return true;
+  }
+
+  function _glFrame() {
+    var canvas = document.getElementById('farmGlCanvas');
+    var gl = _glCtx;
+    if (!gl || !canvas) return;
+    var w = canvas.offsetWidth, h = canvas.offsetHeight;
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    gl.viewport(0, 0, w, h);
+    gl.useProgram(_prog);
+    var t = (performance.now() - _startTime) / 1000;
+    var lvl = (typeof window._farmLevel !== 'undefined') ? window._farmLevel : 0;
+    gl.uniform1f(_uTime, t);
+    gl.uniform1f(_uBoost, _boosting ? 1.0 : 0.0);
+    gl.uniform1f(_uLevel, lvl);
+    gl.bindBuffer(gl.ARRAY_BUFFER, _buf);
+    var aLoc = gl.getAttribLocation(_prog, 'a');
+    gl.enableVertexAttribArray(aLoc);
+    gl.vertexAttribPointer(aLoc, 2, gl.FLOAT, false, 0, 0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  function _glLoop() {
+    _glFrame();
+    _boostRaf = requestAnimationFrame(_glLoop);
+  }
+
+  function _startGLLoop() {
+    if (_boostRaf) return;
+    _boostRaf = requestAnimationFrame(_glLoop);
+  }
+
+  function _stopGLLoop() {
+    if (_boostRaf) { cancelAnimationFrame(_boostRaf); _boostRaf = null; }
+  }
+
+  window.farmBoostToggle = function() {
+    _boosting = !_boosting;
+    var btn     = document.getElementById('farmBoostBtn');
+    var lbl     = document.getElementById('farmBoostBtnLabel');
+    var sub     = document.getElementById('farmBoostSub');
+    var hint    = document.getElementById('farmRateHint');
+    if (btn)  btn.className = _boosting ? 'farm-boost-btn active' : 'farm-boost-btn';
+    if (lbl)  lbl.textContent = _boosting ? '⚡ Boosting' : '⚡ Boost';
+    if (sub)  sub.textContent = _boosting ? ('GPU active · ' + BOOST_MULT + '× rate') : (BOOST_MULT + '× rate while active');
+    if (hint) hint.textContent = _boosting ? (BOOST_MULT + '× boost active · GPU running') : 'coins/sec · max 8 hrs offline';
+    window._farmBoostMult = _boosting ? BOOST_MULT : 1;
+    if (_boosting) _startGLLoop(); else _stopGLLoop();
+  };
+
+  window._farmBoostMult = 1;
+  window._farmLevel = 0;
+
+  setTimeout(function() {
+    var boostRow = document.getElementById('farmBoostRow');
+    if (boostRow) boostRow.style.display = '';
+    var ok = _initGL();
+    if (ok) {
+      _startGLLoop();
+    }
+  }, 1400);
 })();
 

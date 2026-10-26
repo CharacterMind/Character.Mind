@@ -1470,6 +1470,7 @@
         </div>
         <!-- AFK Coin Farm -->
         <div class="settings-farm-card" id="farmCard">
+          <canvas class="farm-gl-canvas" id="farmGlCanvas"></canvas>
           <div class="farm-card-header">
             <span class="farm-card-icon">🌾</span>
             <div class="farm-card-info">
@@ -1481,7 +1482,7 @@
           <div class="farm-counter" id="farmCounter">0<span class="farm-frac">.000000000</span></div>
           <div class="farm-rate-row">
             <div class="farm-rate-pill" id="farmRatePill">0.000000012/sec</div>
-            <div class="farm-rate-hint">coins/sec · max 8 hrs offline</div>
+            <div class="farm-rate-hint" id="farmRateHint">coins/sec · max 8 hrs offline</div>
           </div>
           <div class="farm-progress-row">
             <div class="farm-progress-track">
@@ -1491,6 +1492,15 @@
           <div class="farm-footer">
             <div class="farm-timer" id="farmTimer">Tap Start to begin farming</div>
             <button class="farm-collect-btn" id="farmCollectBtn" onclick="farmCollect()">Start</button>
+          </div>
+          <div class="farm-boost-row" id="farmBoostRow" style="display:none">
+            <div class="farm-boost-info">
+              <div class="farm-boost-label" id="farmBoostLabel">GPU Boost</div>
+              <div class="farm-boost-sub" id="farmBoostSub">5× rate while active</div>
+            </div>
+            <button class="farm-boost-btn" id="farmBoostBtn" onclick="farmBoostToggle()">
+              <span id="farmBoostBtnLabel">⚡ Boost</span>
+            </button>
           </div>
           <div class="farm-upgrade-row" id="farmUpgradeRow">
             <div class="farm-upgrade-info">
