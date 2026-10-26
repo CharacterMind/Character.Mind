@@ -12309,6 +12309,7 @@ async function claimHalloweenGift() {
   let _cloudEl = null;
   let _thunderActive = false, _thunderTids = [];
   let _floodEl = null, _floodTid = null, _floodH = 0, _floodDraining = false;
+  let _floodGl = null, _floodProg = null, _floodGlAnimId = null, _floodT0 = 0, _floodUL = null;
   let _heatStage = null, _heatOverlay = null;
   let _frostEl = null, _iciclesEl = null;
 
@@ -12854,14 +12855,179 @@ async function claimHalloweenGift() {
     } catch(e) {}
   }
 
-  // ── Flood ────────────────────────────────────────────────────────────────────
+  // ── Flood (WebGL ocean water) ─────────────────────────────────────────────
+  var _FLOOD_VS = `attribute vec2 aPos;void main(){gl_Position=vec4(aPos,0.0,1.0);}`;
+
+  var _FLOOD_FS = `
+precision highp float;
+uniform float uTime;
+uniform vec2  uRes;
+
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float vnoise(vec2 p){
+  vec2 i=floor(p),f=fract(p);
+  f=f*f*(3.0-2.0*f);
+  return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),
+             mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);
+}
+float fbm(vec2 p){
+  float v=0.0,a=0.5;
+  for(int i=0;i<5;i++){v+=a*vnoise(p);p=p*2.1+vec2(1.3,0.7);a*=0.5;}
+  return v;
+}
+
+float waveH(vec2 p,float t){
+  float h=0.0;
+  h+=0.45*sin(dot(normalize(vec2(1.0,0.3)),p)*1.5+t*0.85);
+  h+=0.45*sin(dot(normalize(vec2(-0.6,0.4)),p)*1.5+t*0.85+2.1);
+  h+=0.22*sin(dot(normalize(vec2(0.4,0.9)),p)*2.8+t*1.1+0.7);
+  h+=0.22*sin(dot(normalize(vec2(-0.8,0.2)),p)*3.2+t*1.3+3.5);
+  h+=0.10*sin(dot(normalize(vec2(0.7,-0.5)),p)*5.5+t*1.7+1.9);
+  h+=0.10*sin(dot(normalize(vec2(-0.3,0.8)),p)*6.1+t*2.0+4.2);
+  h+=0.05*sin(dot(normalize(vec2(0.9,0.3)),p)*10.0+t*2.5+0.3);
+  h+=0.05*sin(dot(normalize(vec2(-0.5,-0.4)),p)*11.5+t*2.8+2.7);
+  h+=0.025*sin(dot(normalize(vec2(0.2,0.7)),p)*18.0+t*3.5+1.1);
+  return h;
+}
+
+void main(){
+  vec2 uv=gl_FragCoord.xy/uRes;
+  float t=uTime;
+  vec2 p=uv*vec2(6.0,4.0);
+
+  float e=0.04;
+  float h=waveH(p,t);
+  float hx=waveH(p+vec2(e,0.0),t);
+  float hy=waveH(p+vec2(0.0,e),t);
+  vec3 N=normalize(vec3((h-hx)/e,(h-hy)/e,1.0));
+  float hn=h/1.575;
+
+  float depth=1.0-uv.y;
+
+  vec3 deepColor =vec3(0.004,0.055,0.18);
+  vec3 oceanColor=vec3(0.012,0.14, 0.36);
+  vec3 midColor  =vec3(0.025,0.25, 0.52);
+  vec3 coralColor=vec3(0.04, 0.40, 0.62);
+  vec3 tealColor =vec3(0.06, 0.55, 0.65);
+  vec3 foamColor =vec3(0.92, 0.96, 1.00);
+  vec3 sunColor  =vec3(1.00, 0.97, 0.85);
+  vec3 skyColor  =vec3(0.45, 0.70, 0.92);
+
+  float d0=smoothstep(0.0, 0.25,depth);
+  float d1=smoothstep(0.2, 0.55,depth);
+  float d2=smoothstep(0.5, 0.85,depth);
+  vec3 baseColor=mix(
+    mix(mix(tealColor,coralColor,d0),midColor,d1),
+    mix(oceanColor,deepColor,d2),d2);
+
+  vec3 L=normalize(vec3(0.5,0.8,1.0));
+  vec3 V=normalize(vec3(0.0,0.3,1.0));
+  vec3 H2=normalize(L+V);
+  float diff=max(dot(N,L),0.0)*0.4+0.6;
+  float spec=pow(max(dot(N,H2),0.0),200.0)*3.5;
+  float fresnel=pow(1.0-clamp(dot(N,V),0.0,1.0),4.0);
+  float sss=smoothstep(0.2,1.0,hn)*0.35;
+
+  vec2 cp=p*2.0;
+  float c1=fbm(cp+vec2(t*0.12,t*0.08));
+  float c2=fbm(cp+vec2(-t*0.08,t*0.14)+3.7);
+  float caustic=pow(abs(sin(c1*6.28)*cos(c2*6.28+1.5)),2.0);
+  caustic=smoothstep(0.4,0.9,caustic)*0.7*(1.0-depth*0.8);
+
+  float foamMask=smoothstep(0.5,0.85,hn);
+  float foamNoise=vnoise(p*3.5+vec2(t*0.25,0.0));
+  foamMask=smoothstep(0.2,0.8,foamMask*(0.6+0.4*foamNoise));
+
+  float fstreak=fbm(vec2(p.x*0.3+t*0.06,p.y*2.0));
+  float streaks=smoothstep(0.62,0.78,fstreak)*smoothstep(0.8,0.2,depth);
+
+  float edgeFoam=smoothstep(0.20,0.00,depth);
+  edgeFoam*=0.5+0.5*vnoise(vec2(p.x*4.0,t*0.6));
+  edgeFoam+=smoothstep(0.08,0.00,depth)*vnoise(vec2(p.x*8.0,t*1.2))*0.8;
+  edgeFoam=clamp(edgeFoam,0.0,1.0);
+
+  float sparkle=vnoise(p*14.0+vec2(t*2.0,0.0));
+  sparkle=pow(sparkle,12.0)*4.0*smoothstep(0.5,0.05,depth);
+
+  vec3 color=baseColor*diff;
+  color+=sss*vec3(0.04,0.18,0.12);
+  color+=caustic*vec3(0.12,0.28,0.42);
+  color=mix(color,skyColor*0.55,fresnel*0.3*smoothstep(0.4,0.0,depth));
+  color+=spec*sunColor;
+  color=mix(color,foamColor,foamMask*0.82);
+  color=mix(color,foamColor*0.85,streaks*0.55);
+  color=mix(color,foamColor,edgeFoam*0.90);
+  color+=sparkle*sunColor*0.6;
+  color=pow(clamp(color,0.0,1.0),vec3(0.88));
+
+  float alpha=0.88+depth*0.09;
+  alpha=mix(alpha,0.5,edgeFoam*0.4);
+  alpha=clamp(alpha,0.55,0.97);
+  gl_FragColor=vec4(color,alpha);
+}`;
+
+  function _initFloodGL(canvas) {
+    var gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: false });
+    if (!gl) return false;
+    function _compile(type, src) {
+      var s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      return s;
+    }
+    var prog = gl.createProgram();
+    gl.attachShader(prog, _compile(gl.VERTEX_SHADER, _FLOOD_VS));
+    gl.attachShader(prog, _compile(gl.FRAGMENT_SHADER, _FLOOD_FS));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return false;
+    gl.useProgram(prog);
+    var buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+    var aLoc = gl.getAttribLocation(prog, 'aPos');
+    gl.enableVertexAttribArray(aLoc);
+    gl.vertexAttribPointer(aLoc, 2, gl.FLOAT, false, 0, 0);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    _floodGl = gl;
+    _floodProg = prog;
+    _floodUL = { uTime: gl.getUniformLocation(prog,'uTime'), uRes: gl.getUniformLocation(prog,'uRes') };
+    _floodT0 = performance.now();
+    return true;
+  }
+
+  function _renderFloodGL() {
+    var gl = _floodGl;
+    if (!gl) return;
+    var canvas = gl.canvas;
+    var w = canvas.offsetWidth | 0;
+    var h = canvas.offsetHeight | 0;
+    if (!w || !h) { _floodGlAnimId = requestAnimationFrame(_renderFloodGL); return; }
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    gl.viewport(0, 0, w, h);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.uniform1f(_floodUL.uTime, (performance.now() - _floodT0) / 1000);
+    gl.uniform2f(_floodUL.uRes, w, h);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    _floodGlAnimId = requestAnimationFrame(_renderFloodGL);
+  }
+
   function _startFlood() {
     if (!_wthFloodOn) return;
     if (!_floodEl) {
-      _floodEl = document.createElement('div');
-      _floodEl.id = 'wthFlood';
-      document.body.appendChild(_floodEl);
+      var canvas = document.createElement('canvas');
+      canvas.id = 'wthFlood';
+      canvas.style.cssText = 'position:fixed;bottom:0;left:0;width:100%;height:0;z-index:9993;pointer-events:none;';
+      document.body.appendChild(canvas);
+      _floodEl = canvas;
       _floodH = 0;
+      if (!_initFloodGL(canvas)) {
+        /* WebGL unavailable — plain blue fallback */
+        canvas.style.background = 'rgba(0,60,160,0.72)';
+      } else {
+        _renderFloodGL();
+      }
     }
     _floodDraining = false;
     clearTimeout(_floodTid);
@@ -12889,6 +13055,8 @@ async function claimHalloweenGift() {
     if (_floodH > 0) {
       _floodTid = setTimeout(_floodDrainStep, 22000);
     } else {
+      if (_floodGlAnimId) { cancelAnimationFrame(_floodGlAnimId); _floodGlAnimId = null; }
+      _floodGl = null; _floodProg = null; _floodUL = null;
       var _fe = _floodEl; _floodEl = null; _floodDraining = false;
       _fe.style.opacity = '0'; _fe.style.transition = 'opacity 5s';
       setTimeout(function() { _fe.remove(); }, 5100);

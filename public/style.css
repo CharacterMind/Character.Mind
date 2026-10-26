@@ -4319,40 +4319,12 @@ body.hw-screaming::after {
   opacity: 0; transition: opacity 0s;
 }
 
-/* Flood water — rises during rain, drains slowly after */
+/* Flood water — WebGL ocean canvas, sized by JS */
 #wthFlood {
   position: fixed;
   bottom: 0; left: 0; right: 0; height: 0;
-  background: linear-gradient(to top,
-    rgba(0,35,100,0.88) 0%,
-    rgba(0,55,145,0.65) 25%,
-    rgba(0,75,175,0.38) 55%,
-    rgba(5,90,200,0.12) 80%,
-    transparent 100%
-  );
   z-index: 9993; pointer-events: none;
-  transition: height 20s ease-out;
-  overflow: hidden;
-}
-#wthFlood::before {
-  content: '';
-  position: absolute;
-  top: -12px; left: -50%; width: 200%; height: 24px;
-  background: rgba(0,65,160,0.55);
-  border-radius: 50%;
-  animation: wthWave 3.5s ease-in-out infinite;
-}
-#wthFlood::after {
-  content: '';
-  position: absolute;
-  top: -7px; left: -60%; width: 220%; height: 14px;
-  background: rgba(15,80,180,0.35);
-  border-radius: 50%;
-  animation: wthWave 5.5s ease-in-out infinite reverse;
-}
-@keyframes wthWave {
-  0%,100% { transform: translateX(0) scaleY(1); }
-  50%     { transform: translateX(2%) scaleY(1.3); }
+  display: block;
 }
 
 /* Rain canvas (replaces DOM drops) */
