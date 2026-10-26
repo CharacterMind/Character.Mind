@@ -10564,6 +10564,74 @@ async function claimHalloweenGift() {
     document.body.insertAdjacentHTML('beforeend', webSVG.replace('web-left','web-right'));
   }
 
+  // ── Atmospheric horror: vignette, fog, blood drips, lightning ───────────────
+  function spawnHwAtmosphere() {
+    if (document.getElementById('hwVignette')) return;
+
+    const vig = document.createElement('div');
+    vig.className = 'hw-vignette'; vig.id = 'hwVignette';
+    document.body.appendChild(vig);
+
+    const fogWrap = document.createElement('div');
+    fogWrap.className = 'hw-fog-wrap'; fogWrap.id = 'hwFogWrap';
+    [
+      { bottom: 0,   h: 130, dur: 26, delay: 0,    op: .22 },
+      { bottom: 60,  h: 95,  dur: 33, delay: -11,  op: .16 },
+      { bottom: 130, h: 75,  dur: 41, delay: -20,  op: .11 },
+      { bottom: 200, h: 55,  dur: 50, delay: -30,  op: .07 },
+    ].forEach(({ bottom, h, dur, delay, op }) => {
+      const b = document.createElement('div');
+      b.className = 'hw-fog-band';
+      b.style.cssText = `bottom:${bottom}px;height:${h}px;animation-duration:${dur}s;animation-delay:${delay}s;--fog-op:${op};`;
+      fogWrap.appendChild(b);
+    });
+    document.body.appendChild(fogWrap);
+
+    const dripWrap = document.createElement('div');
+    dripWrap.className = 'hw-drip-wrap'; dripWrap.id = 'hwDripWrap';
+    [
+      [3,  2, 80,  7,  0   ],
+      [9,  3, 115, 11, -3  ],
+      [16, 2, 60,  8,  -7  ],
+      [24, 4, 135, 14, -2  ],
+      [33, 2, 70,  9,  -10 ],
+      [44, 3, 100, 12, -5  ],
+      [55, 2, 55,  7,  -8  ],
+      [64, 4, 105, 13, -1  ],
+      [73, 2, 75,  9,  -4  ],
+      [82, 3, 90,  11, -9  ],
+      [90, 2, 65,  8,  -6  ],
+      [96, 3, 50,  6,  -12 ],
+    ].forEach(([left, w, h, dur, delay]) => {
+      const d = document.createElement('div');
+      d.className = 'hw-drip';
+      d.style.cssText = `left:${left}%;width:${w}px;--drip-h:${h}px;animation-duration:${dur}s;animation-delay:${delay}s;`;
+      dripWrap.appendChild(d);
+    });
+    document.body.appendChild(dripWrap);
+
+    const bolt = document.createElement('div');
+    bolt.className = 'hw-lightning'; bolt.id = 'hwLightningEl';
+    document.body.appendChild(bolt);
+    (function lightLoop() {
+      setTimeout(() => {
+        bolt.style.opacity = '.07';
+        setTimeout(() => {
+          bolt.style.opacity = '0';
+          setTimeout(() => {
+            bolt.style.opacity = '.11';
+            setTimeout(() => { bolt.style.opacity = '0'; lightLoop(); }, 50);
+          }, 120);
+        }, 65);
+      }, (16 + Math.random() * 40) * 1000);
+    })();
+  }
+  function removeHwAtmosphere() {
+    ['hwVignette','hwFogWrap','hwDripWrap','hwLightningEl'].forEach(id => document.getElementById(id)?.remove());
+  }
+
+  if (_hwMasterOn) spawnHwAtmosphere();
+
   // ── Flying parade ───────────────────────────────────────────────────────────
   // Each entry: [emoji, minSize, maxSize, minSpeed, maxSpeed, minTop%, maxTop%]
   const PARADE = [
@@ -10572,7 +10640,7 @@ async function claimHalloweenGift() {
     ['🧟', 28, 52, 12, 20, 55, 82],
     ['💀', 26, 46, 10, 18, 20, 75],
     ['🎃', 30, 56, 10, 17, 25, 78],
-    ['🐱', 24, 42, 9,  17, 60, 85],
+    ['🐈‍⬛', 24, 44, 9,  17, 60, 85],
     ['🕷️', 22, 42, 7,  14, 18, 80],
     ['🦇', 24, 46, 9,  16, 15, 70],
     ['🧛', 30, 56, 8,  15, 10, 65],
@@ -10587,6 +10655,11 @@ async function claimHalloweenGift() {
     ['😈', 28, 50, 10, 17, 15, 72],
     ['👁️', 18, 32, 8,  14, 25, 75],
     ['🌑', 22, 40, 8,  14, 10, 55],
+    ['🕸️', 26, 44, 8,  14, 20, 70],
+    ['🔪', 22, 36, 11, 19, 30, 80],
+    ['🫀', 20, 34, 9,  16, 35, 78],
+    ['🦠', 18, 30, 7,  13, 25, 75],
+    ['💉', 20, 34, 10, 17, 40, 82],
   ];
 
   const CONFETTI = [
@@ -10722,6 +10795,7 @@ async function claimHalloweenGift() {
     hwStage.innerHTML = ''; hwStage.style.display = 'none';
     document.querySelectorAll('.halloween-web').forEach(el => el.remove());
     document.body.classList.remove('hw-screaming','hw-demon-voice');
+    removeHwAtmosphere();
     // Restore logo text to plain "character.mind"
     hwLogoObserver.disconnect();
     document.querySelectorAll('.logo-text[data-hw-done]').forEach(restoreHwLogo);
@@ -10730,6 +10804,7 @@ async function claimHalloweenGift() {
     document.body.classList.add('halloween');
     document.body.insertAdjacentHTML('beforeend', webSVG);
     document.body.insertAdjacentHTML('beforeend', webSVG.replace('web-left','web-right'));
+    spawnHwAtmosphere();
     if (hwConfetti) { hwStage.style.display = ''; startConfetti(); }
     if (hwAnimations) { hwStage.style.display = ''; startParade(); }
     if (hwCallVoice) document.body.classList.add('hw-demon-voice');
@@ -10813,7 +10888,7 @@ async function claimHalloweenGift() {
   // ── Flying parade ───────────────────────────────────────────────────────────
   function spawnParade() {
     if (!hwAnimations) return;
-    if (hwStage.querySelectorAll('.hw-flyer').length >= 14) return;
+    if (hwStage.querySelectorAll('.hw-flyer').length >= 20) return;
     const [emoji, minS, maxS, minSpd, maxSpd, minT, maxT] = PARADE[Math.floor(Math.random() * PARADE.length)];
     const fromRight = Math.random() > 0.5;
     const el = document.createElement('div');

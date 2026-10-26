@@ -3844,6 +3844,78 @@ body.hw-screaming::after {
   50%, 100% { opacity: 0; }
 }
 
+/* ── Halloween Atmosphere ─────────────────────────────────────────────────── */
+
+/* Dark vignette that closes in at the edges */
+.hw-vignette {
+  position: fixed; inset: 0;
+  background: radial-gradient(ellipse at 50% 35%, transparent 28%, rgba(0,0,0,.65) 100%);
+  pointer-events: none; z-index: 8000;
+  animation: hwVigPulse 7s ease-in-out infinite;
+}
+@keyframes hwVigPulse {
+  0%,100% { opacity: .72; }
+  50%     { opacity: 1;   }
+}
+
+/* Ground fog layers */
+.hw-fog-wrap {
+  position: fixed; bottom: 0; left: 0; width: 100%; height: 280px;
+  pointer-events: none; z-index: 8001; overflow: hidden;
+}
+.hw-fog-band {
+  position: absolute; left: -55%; width: 210%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 65%,
+    rgba(15,0,25,.24) 0%, rgba(8,0,18,.12) 55%, transparent 100%);
+  animation: hwFogDrift linear infinite;
+  opacity: 0;
+}
+@keyframes hwFogDrift {
+  0%   { transform: translateX(0)    scaleY(1);   opacity: 0; }
+  12%  { opacity: var(--fog-op); }
+  88%  { opacity: var(--fog-op); }
+  100% { transform: translateX(32%)  scaleY(1.1); opacity: 0; }
+}
+
+/* Blood drips from the top of the viewport */
+.hw-drip-wrap {
+  position: fixed; top: 0; left: 0; width: 100%;
+  pointer-events: none; z-index: 8002;
+}
+.hw-drip {
+  position: absolute; top: 0;
+  border-radius: 0 0 50% 50%;
+  background: linear-gradient(to bottom,
+    #5c0000 0%, #c0161a 55%, rgba(192,22,26,0) 100%);
+  pointer-events: none;
+  animation: hwDrip var(--drip-dur) ease-in var(--drip-delay) infinite;
+  opacity: 0;
+}
+@keyframes hwDrip {
+  0%   { height: 0;             opacity: 0; }
+  6%   { opacity: 1; }
+  62%  { height: var(--drip-h); opacity: 1; }
+  78%  { height: var(--drip-h); opacity: .45; }
+  100% { height: var(--drip-h); opacity: 0;  }
+}
+
+/* Lightning flash overlay */
+.hw-lightning {
+  position: fixed; inset: 0;
+  background: #d0d4ff; pointer-events: none; z-index: 8003;
+  opacity: 0; transition: opacity 0s;
+}
+
+/* Pulsing orange glow on character home cards */
+.halloween .hc {
+  animation: hwCardGlow 4.5s ease-in-out infinite;
+}
+@keyframes hwCardGlow {
+  0%,100% { box-shadow: 0 0 6px rgba(249,115,22,.05); }
+  50%     { box-shadow: 0 0 20px rgba(249,115,22,.18), 0 0 6px rgba(249,115,22,.08) inset; }
+}
+
 /* Inner container slams in from nothing */
 .hw-js-inner {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
