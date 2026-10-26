@@ -4221,35 +4221,55 @@ body.hw-screaming::after {
 
 /* ── Weather Effects ─────────────────────────────────────────────────────── */
 
-/* Widget */
+/* Widget — sits inline to the left of the 🎃 pumpkin button */
 .wth-widget {
   position: fixed;
-  bottom: 62px;
-  right: 16px;
+  bottom: 14px;
+  right: 68px;
   left: auto;
-  background: rgba(15, 15, 22, 0.78);
+  background: rgba(15, 15, 22, 0.82);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border: 1px solid rgba(255,255,255,0.09);
   border-radius: 12px;
-  padding: 8px 13px 7px;
+  padding: 5px 11px 4px;
   pointer-events: none;
   z-index: 99984;
   color: #e2e2f0;
   font-family: inherit;
-  min-width: 148px;
+  min-width: 0;
+  white-space: nowrap;
   box-shadow: 0 4px 20px rgba(0,0,0,0.35);
   transition: opacity 0.3s;
 }
 .wth-widget.wth-hidden { opacity: 0; pointer-events: none; }
 .wth-time-row { display: flex; align-items: baseline; gap: 7px; margin-bottom: 1px; }
-.wth-time { font-size: 19px; font-weight: 700; color: #fff; letter-spacing: -0.5px; line-height: 1; }
-.wth-date { font-size: 10px; color: rgba(255,255,255,0.42); white-space: nowrap; }
-.wth-weather-row { display: flex; align-items: center; gap: 5px; margin-top: 2px; }
+.wth-time { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: -0.5px; line-height: 1; }
+.wth-date { font-size: 10px; color: rgba(255,255,255,0.48); white-space: nowrap; }
+.wth-weather-row { display: flex; align-items: center; gap: 5px; margin-top: 1px; }
 .wth-emoji { font-size: 13px; line-height: 1; }
-.wth-temp { font-size: 13px; font-weight: 600; color: var(--accent-l, #a78bfa); }
+.wth-temp { font-size: 12px; font-weight: 600; color: var(--accent-l, #a78bfa); }
 .wth-desc { font-size: 10px; color: rgba(255,255,255,0.42); }
 .wth-locating { font-size: 10px; color: rgba(255,255,255,0.35); margin-top: 1px; }
+
+/* Rain puddle accumulation on ground */
+#wthPuddle {
+  position: fixed;
+  bottom: 0; left: 0; right: 0; height: 0;
+  background: linear-gradient(to top, rgba(20,50,140,0.28) 0%, rgba(30,70,180,0.14) 55%, transparent 100%);
+  z-index: 9990; pointer-events: none;
+  transition: height 3s ease-out, opacity 3s ease-in;
+}
+
+/* Snow ground accumulation */
+#wthSnowGround {
+  position: fixed;
+  bottom: 0; left: 0; right: 0; height: 0;
+  background: linear-gradient(to top, rgba(228,240,255,0.65) 0%, rgba(200,225,255,0.3) 55%, transparent 100%);
+  z-index: 9991; pointer-events: none;
+  transition: height 4s ease-out, opacity 4s ease-in;
+  border-radius: 45% 55% 0 0 / 8px 6px 0 0;
+}
 
 /* Rain drops */
 .wth-drop {

@@ -12461,6 +12461,8 @@ async function claimHalloweenGift() {
   let _wthData = null;
   let _rainActive = false, _snowActive = false, _heatActive = false;
   let _rainTids = [], _snowTids = [];
+  let _puddleEl = null, _puddleTid = null, _puddleH = 0;
+  let _snowGroundEl = null, _snowGroundTid = null, _snowGroundH = 0;
   let _heatStage = null, _heatOverlay = null;
   let _frostEl = null, _iciclesEl = null;
 
@@ -12472,12 +12474,15 @@ async function claimHalloweenGift() {
   if (!_wthOn) _widget.classList.add('wth-hidden');
 
   // â”€â”€ Clock â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const _DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const _MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   function _tick() {
-    const now  = new Date();
-    const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const date = now.toLocaleDateString([], {
-      weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
-    });
+    const now = new Date();
+    const h   = now.getHours(), m = now.getMinutes();
+    const hr  = h % 12 || 12;
+    const ampm = h < 12 ? 'AM' : 'PM';
+    const time = hr + ':' + (m < 10 ? '0' : '') + m + ' ' + ampm;
+    const date = _DAYS[now.getDay()] + ' · ' + _MONTHS[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear();
     const tEl = document.getElementById('_wthTime');
     const dEl = document.getElementById('_wthDate');
     if (tEl) tEl.textContent = time;
@@ -12508,16 +12513,16 @@ async function claimHalloweenGift() {
 
   // â”€â”€ WMO code helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function _wmoInfo(c) {
-    if (c === 0)  return { desc: 'Clear sky',     emoji: 'â˜€ï¸' };
-    if (c <= 3)   return { desc: 'Partly cloudy', emoji: 'â›…' };
-    if (c <= 49)  return { desc: 'Foggy',         emoji: 'ðŸŒ«ï¸' };
-    if (c <= 57)  return { desc: 'Drizzle',       emoji: 'ðŸŒ¦ï¸' };
-    if (c <= 67)  return { desc: 'Rainy',         emoji: 'ðŸŒ§ï¸' };
-    if (c <= 77)  return { desc: 'Snowing',       emoji: 'â„ï¸' };
-    if (c <= 82)  return { desc: 'Rain showers',  emoji: 'ðŸŒ§ï¸' };
-    if (c <= 86)  return { desc: 'Snow showers',  emoji: 'ðŸŒ¨ï¸' };
-    if (c <= 99)  return { desc: 'Thunderstorm',  emoji: 'â›ˆï¸' };
-    return { desc: 'Unknown', emoji: 'ðŸŒ¡ï¸' };
+    if (c === 0)  return { desc: 'Clear sky',     emoji: '\u2600\uFE0F' };
+    if (c <= 3)   return { desc: 'Partly cloudy', emoji: '\u26C5' };
+    if (c <= 49)  return { desc: 'Foggy',         emoji: '\uD83C\uDF2B\uFE0F' };
+    if (c <= 57)  return { desc: 'Drizzle',       emoji: '\uD83C\uDF26\uFE0F' };
+    if (c <= 67)  return { desc: 'Rainy',         emoji: '\uD83C\uDF27\uFE0F' };
+    if (c <= 77)  return { desc: 'Snowing',       emoji: '\u2744\uFE0F' };
+    if (c <= 82)  return { desc: 'Rain showers',  emoji: '\uD83C\uDF27\uFE0F' };
+    if (c <= 86)  return { desc: 'Snow showers',  emoji: '\uD83C\uDF28\uFE0F' };
+    if (c <= 99)  return { desc: 'Thunderstorm',  emoji: '\u26C8\uFE0F' };
+    return { desc: 'Unknown', emoji: '\uD83C\uDF21\uFE0F' };
   }
   function _isRain(c) { return (c >= 51 && c <= 67) || (c >= 80 && c <= 82) || c >= 95; }
   function _isSnow(c) { return (c >= 71 && c <= 77) || (c >= 85 && c <= 86); }
@@ -12582,6 +12587,7 @@ async function claimHalloweenGift() {
     _rainActive = true;
     document.body.classList.add('wth-raining');
     for (var i = 0; i < 32; i++) _spawnDrop();
+    _startPuddle();
   }
 
   function _stopRain() {
@@ -12589,10 +12595,36 @@ async function claimHalloweenGift() {
     document.body.classList.remove('wth-raining');
     _rainTids.forEach(function(t) { clearTimeout(t); }); _rainTids = [];
     document.querySelectorAll('.wth-drop,.wth-splash').forEach(function(el) { el.remove(); });
+    _stopPuddle();
+  }
+
+  function _startPuddle() {
+    if (_puddleEl) return;
+    _puddleEl = document.createElement('div');
+    _puddleEl.id = 'wthPuddle';
+    document.body.appendChild(_puddleEl);
+    _puddleH = 0;
+    function _growPuddle() {
+      if (!_rainActive) return;
+      _puddleH = Math.min(_puddleH + 1, 16);
+      _puddleEl.style.height = _puddleH + 'px';
+      _puddleTid = setTimeout(_growPuddle, 4000);
+    }
+    _puddleTid = setTimeout(_growPuddle, 6000);
+  }
+
+  function _stopPuddle() {
+    clearTimeout(_puddleTid);
+    if (_puddleEl) {
+      _puddleEl.style.opacity = '0';
+      var _pe = _puddleEl; _puddleEl = null;
+      setTimeout(function() { _pe.remove(); }, 3200);
+    }
+    _puddleH = 0;
   }
 
   // â”€â”€ Snow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  var _FLAKES = ['â„','â…','â†','*','Â·'];
+  var _FLAKES = ['\u2744','\u2745','\u2746','*','\u00B7'];
 
   function _spawnFlake() {
     if (!_snowActive) return;
@@ -12620,6 +12652,7 @@ async function claimHalloweenGift() {
     document.body.classList.add('wth-snowing');
     for (var i = 0; i < 26; i++) _spawnFlake();
     _startFrost();
+    _startSnowGround();
   }
 
   function _stopSnow() {
@@ -12627,6 +12660,32 @@ async function claimHalloweenGift() {
     document.body.classList.remove('wth-snowing');
     _snowTids.forEach(function(t) { clearTimeout(t); }); _snowTids = [];
     document.querySelectorAll('.wth-flake').forEach(function(el) { el.remove(); });
+    _stopSnowGround();
+  }
+
+  function _startSnowGround() {
+    if (_snowGroundEl) return;
+    _snowGroundEl = document.createElement('div');
+    _snowGroundEl.id = 'wthSnowGround';
+    document.body.appendChild(_snowGroundEl);
+    _snowGroundH = 0;
+    function _growSnow() {
+      if (!_snowActive) return;
+      _snowGroundH = Math.min(_snowGroundH + 2, 32);
+      _snowGroundEl.style.height = _snowGroundH + 'px';
+      _snowGroundTid = setTimeout(_growSnow, 5000);
+    }
+    _snowGroundTid = setTimeout(_growSnow, 10000);
+  }
+
+  function _stopSnowGround() {
+    clearTimeout(_snowGroundTid);
+    if (_snowGroundEl) {
+      _snowGroundEl.style.opacity = '0';
+      var _sg = _snowGroundEl; _snowGroundEl = null;
+      setTimeout(function() { _sg.remove(); }, 4200);
+    }
+    _snowGroundH = 0;
   }
 
   // â”€â”€ Frost â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -12714,9 +12773,30 @@ async function claimHalloweenGift() {
 
   // â”€â”€ Init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   _render();
-  setInterval(_tick, 15000);
+  setInterval(_tick, 10000);
   if (_wthOn) _locate();
   setInterval(function() { if (_wthOn) _locate(); }, 30 * 60 * 1000);
+
+  // ── Random weather events (rain/snow even when real weather is clear) ───────
+  (function _scheduleRandomWeather() {
+    var delay = (6 + Math.random() * 19) * 60 * 1000; // 6-25 min between events
+    setTimeout(function() {
+      if (_wthOn && !_rainActive && !_snowActive) {
+        var doSnow = Math.random() < 0.35;
+        if (doSnow) _startSnow(); else _startRain();
+        var dur = (3 + Math.random() * 6) * 60 * 1000; // 3-9 min event
+        setTimeout(function() {
+          var needsRain = _wthData && _isRain(_wthData.code);
+          var needsSnow = _wthData && _isSnow(_wthData.code);
+          if (doSnow && !needsSnow) _stopSnow();
+          if (!doSnow && !needsRain) _stopRain();
+          _scheduleRandomWeather();
+        }, dur);
+      } else {
+        _scheduleRandomWeather();
+      }
+    }, delay);
+  })();
 
   // â”€â”€ Public API for settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   window.wthSettings = {
