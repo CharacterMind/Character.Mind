@@ -4396,6 +4396,26 @@ body.wth-post-flood::after {
   font-size: 10px; color: rgba(255,200,100,0.72);
   line-height: 1.4;
 }
+.wth-vol-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 2px 14px 8px;
+}
+.wth-slider {
+  flex: 1; height: 3px; -webkit-appearance: none; appearance: none;
+  background: rgba(80,130,255,0.28); border-radius: 3px; cursor: pointer; outline: none;
+}
+.wth-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 14px; height: 14px;
+  background: rgba(100,165,255,0.90); border-radius: 50%; cursor: pointer; border: none;
+}
+.wth-slider::-moz-range-thumb {
+  width: 14px; height: 14px;
+  background: rgba(100,165,255,0.90); border-radius: 50%; cursor: pointer; border: none;
+}
+.wth-slider-val {
+  font-size: 10px; color: rgba(130,170,230,0.70);
+  width: 22px; text-align: right; flex-shrink: 0;
+}
 .wth-opt-tog {
   background: rgba(20,40,100,0.7); border: 1px solid rgba(80,130,255,0.4);
   border-radius: 14px; padding: 3px 11px; cursor: pointer;

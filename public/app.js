@@ -8046,6 +8046,7 @@ async function startCallMode() {
     const nameEl = document.getElementById('callCharName');
     if (nameEl) { nameEl.innerHTML = colorizeNameHtml(currentChar.name || '', currentChar.color); }
     overlay.style.display = 'flex';
+    if (typeof window.wthRebuildDripZones === 'function') setTimeout(window.wthRebuildDripZones, 120);
     const vob = document.getElementById('callVoiceOnBadge');
     if (vob) { vob.style.display = ''; clearTimeout(callVobTimer); callVobTimer = setTimeout(() => { vob.style.display = 'none'; callVobTimer = null; }, 5000); }
     setCallState('calling');
@@ -13569,6 +13570,13 @@ void main(){
   })();
 
   // â"€â"€ Public API for settings â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+  window.wthRebuildDripZones = function() {
+    if (_dripsCanvas) {
+      _dripZones = _buildDripZones(_dripsCanvas.width, _dripsCanvas.height);
+      _dripZoneNextRefresh = Date.now() + 6000;
+    }
+  };
+
   window.wthSettings = {
     toggle: function(on) {
       _wthOn = on;
