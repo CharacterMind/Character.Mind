@@ -1777,16 +1777,33 @@
         <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
 
-      <!-- PayPal panel (PayPal shows its own card option natively) -->
+      <!-- Payment method tabs -->
+      <div id="co-pay-tabs" class="co-pay-tabs" style="margin-bottom:14px">
+        <button id="co-tab-paypal" class="co-pay-tab active" onclick="switchPayTab('paypal')">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M20.07 5.24C19.32 4.38 17.94 4 16.12 4H10.5a.75.75 0 0 0-.74.63L7.6 17.5a.45.45 0 0 0 .44.5h3.22l-.17 1.07a.39.39 0 0 0 .39.43h2.72a.65.65 0 0 0 .64-.55l.03-.13.51-3.21.03-.18a.65.65 0 0 1 .64-.55h.4c2.62 0 4.67-1.06 5.27-4.14.25-1.28.12-2.35-.54-3.1z"/><path d="M8.74 5.5a.75.75 0 0 1 .74-.63h5.62c.67 0 1.29.05 1.85.14a5.3 5.3 0 0 1 .82.21 3.7 3.7 0 0 1 1.3.72c.5-.3.84-.73 1.07-1.28C21.04 3.2 19.9 2 17.5 2h-6.12a.75.75 0 0 0-.74.63L8.47 15.5h2.07z"/></svg>
+          PayPal
+        </button>
+        <button id="co-tab-card" class="co-pay-tab" onclick="switchPayTab('card')">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
+          Credit Card
+        </button>
+      </div>
+
+      <!-- PayPal panel -->
       <div id="payment-panel-paypal">
         <div class="co-express-wrap">
-          <div class="co-express-label">Pay with PayPal or Card</div>
+          <div class="co-express-label">Pay with PayPal</div>
           <div id="paypal-button-container" class="co-express-btns"></div>
         </div>
       </div>
-      <!-- keep dummy IDs so JS refs don't throw -->
-      <div id="co-pay-tabs" style="display:none"></div>
-      <div id="payment-panel-card" style="display:none"></div>
+
+      <!-- Card panel (PayPal-hosted card fields) -->
+      <div id="payment-panel-card" style="display:none">
+        <div class="co-express-wrap">
+          <div class="co-express-label">Debit or Credit Card</div>
+          <div id="card-button-container" class="co-express-btns"></div>
+        </div>
+      </div>
 
       <div id="paypal-checkout-status" class="paypal-checkout-status"></div>
       <p class="paypal-checkout-footer" id="co-footer-text">Secured by PayPal &middot; Cancel anytime &middot; No hidden fees</p>
