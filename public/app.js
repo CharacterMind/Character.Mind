@@ -5158,186 +5158,9 @@ function updateSettingsCoinDisplay(balance, earnedToday, dailyCap, monthlyReset)
 }
 
 // ── Slot machine ───────────────────────────────────────────────────────────
-let slotSpinning = false;
-let slotAutoRunning = false;
-let slotAutoStop = false;
-const SLOT_SYMS = ['🍒','🍋','🍊','🍇','⭐','💎'];
+// Slots and token system removed
+function updateSlotBalances() {}
 
-function updateSlotBalances(coinBal, tokenBal) {
-  const coinEl = document.getElementById('slotBalanceDisplay');
-  const tokEl = document.getElementById('slotTokenDisplay');
-  if (coinEl && coinBal !== undefined) coinEl.textContent = coinBal;
-  if (tokEl && tokenBal !== undefined) tokEl.textContent = tokenBal;
-}
-
-function openSlotMachine() {
-  const overlay = document.getElementById('slotMachineOverlay');
-  if (!overlay) return;
-  updateSlotBalances(lastKnownUsage?.cmCoins ?? 0, lastKnownUsage?.cmTokens ?? 0);
-  overlay.style.display = 'flex';
-}
-function closeSlotMachine() {
-  slotAutoStop = true;
-  const overlay = document.getElementById('slotMachineOverlay');
-  if (overlay) overlay.style.display = 'none';
-}
-
-async function spinSlots() {
-  if (slotSpinning) return;
-  const bet = parseInt(document.getElementById('slotBetSlider')?.value || '10');
-  const resultEl = document.getElementById('slotResult');
-  const spinBtn = document.getElementById('slotSpinBtn');
-  const reelEls = [0,1,2].map(i => document.getElementById(`slotReel${i}`));
-  const SPIN_SYMS = ['🍒','🍋','🍊','🍇','⭐','💎','7️⃣'];
-
-  slotSpinning = true;
-  if (spinBtn) spinBtn.disabled = true;
-  if (resultEl) { resultEl.textContent = ''; resultEl.className = 'slot-result'; }
-
-  const spinStart = Date.now();
-  const intervals = reelEls.map(r => {
-    if (r) r.classList.add('spinning');
-    return setInterval(() => {
-      if (r) r.textContent = SPIN_SYMS[Math.floor(Math.random() * SPIN_SYMS.length)];
-    }, 80);
-  });
-
-  try {
-    const res = await fetch('/api/coins/gamble', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bet })
-    });
-    const d = await res.json();
-    intervals.forEach(id => clearInterval(id));
-
-    if (!res.ok) {
-      reelEls.forEach(r => { if (r) { r.classList.remove('spinning'); r.textContent = '🎰'; } });
-      if (resultEl) { resultEl.textContent = d.error || 'Error'; resultEl.className = 'slot-result lose'; }
-      return false;
-    }
-
-    const elapsed = Date.now() - spinStart;
-    if (elapsed < 700) await new Promise(r => setTimeout(r, 700 - elapsed));
-
-    for (let i = 0; i < 3; i++) {
-      if (i > 0) await new Promise(r => setTimeout(r, 180));
-      if (reelEls[i]) { reelEls[i].classList.remove('spinning'); reelEls[i].textContent = d.reels[i]; }
-    }
-    await new Promise(r => setTimeout(r, 200));
-
-    if (d.multiplier === 0) {
-      if (resultEl) { resultEl.textContent = 'No match — better luck next time!'; resultEl.className = 'slot-result lose'; }
-    } else if (d.multiplier === 1) {
-      if (resultEl) { resultEl.textContent = `Two of a kind — bet returned!`; resultEl.className = 'slot-result'; }
-    } else if (d.multiplier === 10) {
-      const net = d.win;
-      if (resultEl) { resultEl.textContent = `💎 JACKPOT! 10× — you won +${net} tokens! 🎉`; resultEl.className = 'slot-result win'; }
-    } else {
-      const net = d.win;
-      if (resultEl) { resultEl.textContent = `${d.multiplier}× — you won +${net} tokens! 🎉`; resultEl.className = 'slot-result win'; }
-    }
-
-    if (lastKnownUsage) { lastKnownUsage.cmTokens = d.newBalance; lastKnownUsage.cmCoins = d.coinBalance; }
-    updateSlotBalances(d.coinBalance, d.newBalance);
-    updateSettingsCoinDisplay(d.coinBalance, lastKnownUsage?.coinsEarnedToday || 0, lastKnownUsage?.coinDailyLimit || 100, lastKnownUsage?.coinsMonthlyReset);
-    updateNavCoinDisplay(lastKnownUsage);
-    return true;
-  } catch (e) {
-    intervals.forEach(id => clearInterval(id));
-    reelEls.forEach(r => { if (r) { r.classList.remove('spinning'); r.textContent = '🎰'; } });
-    if (resultEl) { resultEl.textContent = 'Something went wrong'; resultEl.className = 'slot-result lose'; }
-    return false;
-  } finally {
-    slotSpinning = false;
-    if (!slotAutoRunning && spinBtn) spinBtn.disabled = false;
-  }
-}
-
-async function toggleAutoSpin() {
-  if (slotAutoRunning) {
-    slotAutoStop = true;
-    return;
-  }
-  const count = parseInt(document.getElementById('slotAutoCount')?.value || '10');
-  const autoBtn = document.getElementById('slotAutoBtn');
-  const spinBtn = document.getElementById('slotSpinBtn');
-  slotAutoRunning = true;
-  slotAutoStop = false;
-  if (autoBtn) { autoBtn.textContent = 'STOP'; autoBtn.classList.add('stopping'); }
-  if (spinBtn) spinBtn.disabled = true;
-
-  const resultEl = document.getElementById('slotResult');
-  try {
-    for (let i = 0; i < count; i++) {
-      if (slotAutoStop) break;
-      const tokenBal = lastKnownUsage?.cmTokens ?? 0;
-      const bet = parseInt(document.getElementById('slotBetSlider')?.value || '10');
-      if (tokenBal < bet) {
-        if (resultEl) { resultEl.textContent = 'Out of tokens!'; resultEl.className = 'slot-result lose'; }
-        break;
-      }
-      if (resultEl) { resultEl.textContent = `Auto spin ${i + 1}/${count}…`; resultEl.className = 'slot-result'; }
-      const ok = await spinSlots();
-      if (!ok) break;
-      if (i < count - 1 && !slotAutoStop) await new Promise(r => setTimeout(r, 400));
-    }
-  } finally {
-    slotAutoRunning = false;
-    slotAutoStop = false;
-    if (autoBtn) { autoBtn.textContent = 'AUTO'; autoBtn.classList.remove('stopping'); }
-    if (spinBtn) spinBtn.disabled = false;
-  }
-
-}
-
-async function buyTokens() {
-  const amount = parseInt(document.getElementById('slotBuySlider')?.value || '10');
-  const resultEl = document.getElementById('slotResult');
-  try {
-    const res = await fetch('/api/tokens/buy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount })
-    });
-    const d = await res.json();
-    if (!res.ok) {
-      if (resultEl) { resultEl.textContent = d.error || 'Buy failed'; resultEl.className = 'slot-result lose'; }
-      return;
-    }
-    if (lastKnownUsage) { lastKnownUsage.cmCoins = d.coinBalance; lastKnownUsage.cmTokens = d.tokenBalance; }
-    updateSlotBalances(d.coinBalance, d.tokenBalance);
-    updateSettingsCoinDisplay(d.coinBalance, lastKnownUsage?.coinsEarnedToday || 0, lastKnownUsage?.coinDailyLimit || 100, lastKnownUsage?.coinsMonthlyReset);
-    updateNavCoinDisplay(lastKnownUsage);
-    if (resultEl) { resultEl.textContent = `Bought ${amount} tokens! 🎟️`; resultEl.className = 'slot-result win'; }
-  } catch (e) {
-    if (resultEl) { resultEl.textContent = 'Something went wrong'; resultEl.className = 'slot-result lose'; }
-  }
-}
-
-async function sellTokens() {
-  const amount = parseInt(document.getElementById('slotSellSlider')?.value || '10');
-  const resultEl = document.getElementById('slotResult');
-  try {
-    const res = await fetch('/api/tokens/sell', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount })
-    });
-    const d = await res.json();
-    if (!res.ok) {
-      if (resultEl) { resultEl.textContent = d.error || 'Sell failed'; resultEl.className = 'slot-result lose'; }
-      return;
-    }
-    if (lastKnownUsage) { lastKnownUsage.cmCoins = d.coinBalance; lastKnownUsage.cmTokens = d.tokenBalance; }
-    updateSlotBalances(d.coinBalance, d.tokenBalance);
-    updateSettingsCoinDisplay(d.coinBalance, lastKnownUsage?.coinsEarnedToday || 0, lastKnownUsage?.coinDailyLimit || 100, lastKnownUsage?.coinsMonthlyReset);
-    updateNavCoinDisplay(lastKnownUsage);
-    if (resultEl) { resultEl.textContent = `Sold ${d.tokensSpent} tokens → +${d.coinsEarned} coin${d.coinsEarned !== 1 ? 's' : ''} 🪙`; resultEl.className = 'slot-result win'; }
-  } catch (e) {
-    if (resultEl) { resultEl.textContent = 'Something went wrong'; resultEl.className = 'slot-result lose'; }
-  }
-}
 
 async function loadUsage() {
   if (!currentUser) return;
@@ -5933,20 +5756,7 @@ function showCoinPop(amount, anchorEl) {
   }, 2200);
 }
 
-function updateNavCoinDisplay(u) {
-  const el = document.getElementById('navCoinDisplay');
-  const countEl = document.getElementById('navCoinCount');
-  const tokEl = document.getElementById('navTokenCount');
-  if (!el || !u) return;
-  const coins = u.cmCoins != null ? u.cmCoins : 0;
-  const tokens = u.cmTokens != null ? u.cmTokens : 0;
-  if (countEl) countEl.textContent = coins;
-  if (tokEl) tokEl.textContent = tokens;
-  el.style.display = currentUser ? 'flex' : 'none';
-  // Show/hide the 🎰 chat toolbar button
-  const chatSlotsBtn = document.getElementById('chatSlotsBtn');
-  if (chatSlotsBtn) chatSlotsBtn.style.display = (currentUser && currentChar) ? '' : 'none';
-}
+function updateNavCoinDisplay(u) { /* coin display moved to Settings */ }
 
 function updateUsageModal(u) {
   if (!u) return;
@@ -12472,9 +12282,9 @@ async function claimHalloweenGift() {
   }
 })();
 
-// â”€â”€ Weather Effects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ Weather Effects â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 (function initWeather() {
-  // â”€â”€ Persisted settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Persisted settings â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   let _wthOn     = localStorage.getItem('wth_on')    !== '0'; // default ON
   let _wthUnit   = localStorage.getItem('wth_unit')  || 'F';
   let _wthHotF   = parseInt(localStorage.getItem('wth_hot_f')   || '90', 10);
@@ -12488,7 +12298,7 @@ async function claimHalloweenGift() {
   let _wthFloodOn     = localStorage.getItem('wth_flood_on')     !== '0';
   let _wthRainIntensity = localStorage.getItem('wth_rain_intensity') || 'medium';
 
-  // â”€â”€ Runtime state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Runtime state â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   let _wthData = null;
   let _rainActive = false, _snowActive = false, _heatActive = false;
   let _rainTids = [], _snowTids = [];
@@ -12502,7 +12312,7 @@ async function claimHalloweenGift() {
   let _heatStage = null, _heatOverlay = null;
   let _frostEl = null, _iciclesEl = null;
 
-  // â”€â”€ Widget element â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Widget element â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   const _widget = document.createElement('div');
   _widget.id = 'wthWidget';
   _widget.className = 'wth-widget';
@@ -12513,29 +12323,29 @@ async function claimHalloweenGift() {
   const _wthPanel = document.createElement('div');
   _wthPanel.id = 'wthOptionsPanel';
   _wthPanel.innerHTML =
-    '<div class=”wth-opt-hd”>' +
+    '<div class="wth-opt-hd">' +
       '<span>Weather Effects</span>' +
-      '<button class=”wth-opt-close” id=”wthOptClose” aria-label=”Close”>×</button>' +
+      '<button class="wth-opt-close" id="wthOptClose" aria-label="Close">×</button>' +
     '</div>' +
-    '<div class=”wth-opt-rows”>' +
-      '<label class=”wth-opt-row”><span>☁️ Clouds</span>' +
-        '<button class=”wth-opt-tog” id=”wthTogClouds” data-pref=”wth_clouds_on”></button></label>' +
-      '<label class=”wth-opt-row”><span>🌧️ Rain</span>' +
-        '<button class=”wth-opt-tog” id=”wthTogRain” data-pref=”wth_rain_on”></button></label>' +
-      '<div class=”wth-opt-intensity” id=”wthRainIntensityRow”>' +
-        '<button class=”wth-opt-int-btn” data-intensity=”light”>Light</button>' +
-        '<button class=”wth-opt-int-btn” data-intensity=”medium”>Medium</button>' +
-        '<button class=”wth-opt-int-btn” data-intensity=”heavy”>Heavy</button>' +
+    '<div class="wth-opt-rows">' +
+      '<label class="wth-opt-row"><span>☁️ Clouds</span>' +
+        '<button class="wth-opt-tog" id="wthTogClouds" data-pref="wth_clouds_on"></button></label>' +
+      '<label class="wth-opt-row"><span>🌧️ Rain</span>' +
+        '<button class="wth-opt-tog" id="wthTogRain" data-pref="wth_rain_on"></button></label>' +
+      '<div class="wth-opt-intensity" id="wthRainIntensityRow">' +
+        '<button class="wth-opt-int-btn" data-intensity="light">Light</button>' +
+        '<button class="wth-opt-int-btn" data-intensity="medium">Medium</button>' +
+        '<button class="wth-opt-int-btn" data-intensity="heavy">Heavy</button>' +
       '</div>' +
-      '<label class=”wth-opt-row”><span>❄️ Snow</span>' +
-        '<button class=”wth-opt-tog” id=”wthTogSnow” data-pref=”wth_snow_on”></button></label>' +
-      '<label class=”wth-opt-row”><span>🔊 Thunder</span>' +
-        '<button class=”wth-opt-tog” id=”wthTogThunder” data-pref=”wth_thunder_on”></button></label>' +
-      '<label class=”wth-opt-row”><span>⚡ Lightning</span>' +
-        '<button class=”wth-opt-tog” id=”wthTogLightning” data-pref=”wth_lightning_on”></button></label>' +
-      '<div class=”wth-opt-epilepsy”>⚠️ Lightning contains flashing lights</div>' +
-      '<label class=”wth-opt-row”><span>🌊 Flood</span>' +
-        '<button class=”wth-opt-tog” id=”wthTogFlood” data-pref=”wth_flood_on”></button></label>' +
+      '<label class="wth-opt-row"><span>❄️ Snow</span>' +
+        '<button class="wth-opt-tog" id="wthTogSnow" data-pref="wth_snow_on"></button></label>' +
+      '<label class="wth-opt-row"><span>🔊 Thunder</span>' +
+        '<button class="wth-opt-tog" id="wthTogThunder" data-pref="wth_thunder_on"></button></label>' +
+      '<label class="wth-opt-row"><span>⚡ Lightning</span>' +
+        '<button class="wth-opt-tog" id="wthTogLightning" data-pref="wth_lightning_on"></button></label>' +
+      '<div class="wth-opt-epilepsy">⚠️ Lightning contains flashing lights</div>' +
+      '<label class="wth-opt-row"><span>🌊 Flood</span>' +
+        '<button class="wth-opt-tog" id="wthTogFlood" data-pref="wth_flood_on"></button></label>' +
     '</div>';
   document.body.appendChild(_wthPanel);
 
@@ -12621,7 +12431,7 @@ async function claimHalloweenGift() {
     _wthPanelSetTog(btn.id, on);
   });
 
-  // â”€â”€ Clock â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Clock â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   const _DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   const _MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   function _tick() {
@@ -12637,7 +12447,7 @@ async function claimHalloweenGift() {
     if (dEl) dEl.textContent = date;
   }
 
-  // â”€â”€ Widget render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Widget render â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   function _render() {
     let weatherRow = '<div class="wth-locating">Detecting…</div>';
     if (_wthData) {
@@ -12659,7 +12469,7 @@ async function claimHalloweenGift() {
     _tick();
   }
 
-  // â”€â”€ WMO code helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ WMO code helpers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   function _wmoInfo(c) {
     if (c === 0)  return { desc: 'Clear sky',     emoji: '\u2600\uFE0F' };
     if (c <= 3)   return { desc: 'Partly cloudy', emoji: '\u26C5' };
@@ -12675,7 +12485,7 @@ async function claimHalloweenGift() {
   function _isRain(c) { return (c >= 51 && c <= 67) || (c >= 80 && c <= 82) || c >= 95; }
   function _isSnow(c) { return (c >= 71 && c <= 77) || (c >= 85 && c <= 86); }
 
-  // â”€â”€ Open-Meteo fetch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Open-Meteo fetch â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   async function _fetchWeather(lat, lon) {
     try {
       const res = await fetch(
@@ -12701,7 +12511,7 @@ async function claimHalloweenGift() {
     );
   }
 
-  // â”€â”€ Rain (canvas) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Rain (canvas) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   var _RAIN_CFG = {
     light:  { drops: 80,  dSpd: [5,11],  dW: [1,2],    dH: [10,22], dA: [0.50,0.80],
               streaks: 8,  sSpd: [0.15,0.5],  sW: [1,2],    sH: [25,80],  sA: [0.10,0.28] },
@@ -12860,7 +12670,7 @@ async function claimHalloweenGift() {
     _puddleH = 0;
   }
 
-  // â”€â”€ Snow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Snow â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   var _FLAKES = ['\u2744','\u2745','\u2746','*','\u00B7'];
 
   function _spawnFlake() {
@@ -12927,7 +12737,7 @@ async function claimHalloweenGift() {
     _snowGroundH = 0;
   }
 
-  // â”€â”€ Frost â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Frost â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   function _startFrost() {
     if (_frostEl) return;
     document.body.classList.add('wth-frost');
@@ -13084,7 +12894,7 @@ async function claimHalloweenGift() {
     }
   }
 
-  // â”€â”€ Heat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Heat â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   function _startHeat() {
     if (_heatActive) return;
     _heatActive = true;
@@ -13118,7 +12928,7 @@ async function claimHalloweenGift() {
     if (_heatOverlay) { _heatOverlay.remove();  _heatOverlay = null; }
   }
 
-  // â”€â”€ Apply effects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Apply effects â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   function _applyEffects() {
     if (!_wthOn || !_wthData) {
       _stopRain(); _stopSnow(); _stopFrost(); _stopHeat(); _stopClouds(); _stopThunder(); _stopFlood(); return;
@@ -13138,7 +12948,7 @@ async function claimHalloweenGift() {
     if (temp_f >= _wthHotF) _startHeat(); else _stopHeat();
   }
 
-  // â”€â”€ Init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Init â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   _render();
   setInterval(_tick, 10000);
   if (_wthOn) _locate();
@@ -13167,7 +12977,7 @@ async function claimHalloweenGift() {
     }, delay);
   })();
 
-  // â”€â”€ Public API for settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Public API for settings â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   window.wthSettings = {
     toggle: function(on) {
       _wthOn = on;
@@ -13412,8 +13222,6 @@ async function claimHalloweenGift() {
     if (typeof updateSettingsCoinDisplay === 'function')
       updateSettingsCoinDisplay(d.balance || 0, d.earnedToday || 0, d.dailyCap || 2000,
         typeof lastKnownUsage !== 'undefined' && lastKnownUsage ? lastKnownUsage.coinsMonthlyReset : null);
-    if (typeof updateSlotBalances === 'function')
-      updateSlotBalances(d.balance || 0, typeof lastKnownUsage !== 'undefined' && lastKnownUsage ? lastKnownUsage.cmTokens : 0);
   }
 
   async function _init() {

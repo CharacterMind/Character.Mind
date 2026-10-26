@@ -438,15 +438,6 @@
           <span>Quiz</span>
         </button>
       </div>
-      <div class="nav-coin-display" id="navCoinDisplay" style="display:none">
-        <span class="nav-coin-icon">🪙</span>
-        <span class="nav-coin-count" id="navCoinCount">0</span>
-        <span class="nav-coin-label">coins</span>
-        <span class="nav-coin-sep">·</span>
-        <span class="nav-coin-icon">🎟️</span>
-        <span class="nav-coin-count" id="navTokenCount">0</span>
-        <span class="nav-coin-label">tokens</span>
-      </div>
       <button id="userBadge" class="user-badge"></button>
     </div>
   </aside>
@@ -1014,7 +1005,6 @@
     <div id="compLeaderboardPane" class="whats-new-body" style="padding:0">
       <div style="display:flex;gap:0;border-bottom:1px solid var(--border2)">
         <button id="lbTabCoins" class="comp-subtab comp-subtab-active" onclick="switchLbTab('coins')">🏅 All-Time Coins</button>
-        <button id="lbTabTokens" class="comp-subtab" onclick="switchLbTab('tokens')">🎟️ Token Tournament</button>
       </div>
       <div id="lbBody" style="padding:12px 16px"><div class="whats-new-loading">Loading…</div></div>
     </div>
@@ -2008,64 +1998,9 @@
   <div class="cvt-line"></div>
 </div>
 
-<!-- Slot machine overlay (accessible from chat toolbar and Settings) -->
-<div id="slotMachineOverlay" class="slot-overlay" style="display:none" onclick="if(event.target===this)closeSlotMachine()">
-  <div class="slot-modal">
-    <button class="slot-close-x" onclick="closeSlotMachine()" aria-label="Close">✕</button>
-    <div class="slot-cabinet">
-      <div class="slot-cab-top">
-        <div class="slot-cab-lights"><span></span><span></span><span></span><span></span><span></span></div>
-        <div class="slot-cab-title">CHARACTER MIND</div>
-        <div class="slot-cab-lights"><span></span><span></span><span></span><span></span><span></span></div>
-      </div>
-      <div class="slot-balance-row">
-        <div class="slot-bal-item"><span>🎟️</span><span id="slotTokenDisplay">—</span></div>
-        <div class="slot-bal-item"><span>🪙</span><span id="slotBalanceDisplay">—</span></div>
-      </div>
-      <div class="slot-reel-area">
-        <div class="slot-payline"></div>
-        <div class="slot-reels">
-          <div class="slot-reel-win"><div class="slot-reel" id="slotReel0">🎰</div></div>
-          <div class="slot-reel-win"><div class="slot-reel" id="slotReel1">🎰</div></div>
-          <div class="slot-reel-win"><div class="slot-reel" id="slotReel2">🎰</div></div>
-        </div>
-      </div>
-      <div class="slot-result" id="slotResult"></div>
-      <div class="slot-bet-row">
-        <span class="slot-bet-label">BET</span>
-        <input type="number" id="slotBetSlider" min="1" max="500" value="10" class="slot-num-input">
-        <span>🎟️</span>
-      </div>
-      <div class="slot-spin-row">
-        <div class="slot-auto-wrap">
-          <input type="number" id="slotAutoCount" min="1" max="500" value="10" class="slot-num-input slot-auto-num" placeholder="×">
-          <button class="slot-auto-btn" id="slotAutoBtn" onclick="toggleAutoSpin()">AUTO</button>
-        </div>
-        <button class="slot-spin-btn" id="slotSpinBtn" onclick="spinSlots()">SPIN</button>
-      </div>
-    </div>
-    <div class="slot-exchange">
-      <div class="slot-exchange-title">Exchange</div>
-      <div class="slot-ex-row">
-        <span class="slot-ex-label">Buy tokens <span class="slot-ex-rate">(1 coin = 1 🎟️)</span></span>
-        <div class="slot-ex-controls">
-          <input type="number" id="slotBuySlider" min="1" max="10000" value="10" class="slot-num-input">
-          <button class="slot-ex-btn buy" onclick="buyTokens()">BUY</button>
-        </div>
-      </div>
-      <div class="slot-ex-row">
-        <span class="slot-ex-label">Sell tokens <span class="slot-ex-rate">(10 🎟️ = 1 coin)</span></span>
-        <div class="slot-ex-controls">
-          <input type="number" id="slotSellSlider" min="10" max="100000" step="10" value="10" class="slot-num-input">
-          <button class="slot-ex-btn sell" onclick="sellTokens()">SELL</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
 
 <script src="https://js.stripe.com/v3/"></script>
-<script src="app.js?v=344"></script>
+<script src="app.js?v=345"></script>
 
 <!-- Quiz Modal -->
 <div id="quizOverlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeQuizModal()">
