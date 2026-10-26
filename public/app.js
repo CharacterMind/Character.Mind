@@ -5276,6 +5276,26 @@ async function adminResetLimits() {
   if (btn) { btn.textContent = 'Reset limits'; btn.disabled = false; }
 }
 
+async function adminResetMyAccount() {
+  if (!isOwner()) return;
+  if (!confirm('Reset EVERYTHING? Coins → 0, farm → unstarted, all chat history deleted. This cannot be undone.')) return;
+  const btn = document.getElementById('resetAccountBtn');
+  if (btn) { btn.textContent = 'Resetting…'; btn.disabled = true; }
+  try {
+    const d = await fetch('/api/admin/reset-account', { method: 'POST' }).then(r => r.json());
+    if (d.ok) {
+      currentUser && (currentUser.cmCoins = 0);
+      if (typeof lastKnownUsage !== 'undefined' && lastKnownUsage) lastKnownUsage.cmCoins = 0;
+      await loadUsage();
+      if (lastKnownUsage) updateUsageModal(lastKnownUsage);
+      showWarning('Account reset to zero ✓', 5000);
+    } else {
+      showWarning(d.error || 'Reset failed.');
+    }
+  } catch (_) { showWarning('Reset failed.'); }
+  if (btn) { btn.textContent = 'Reset everything ↺'; btn.disabled = false; }
+}
+
 async function adminResetUserByEmail() {
   if (!isOwner()) return;
   const email = document.getElementById('sendToEmail')?.value?.trim();

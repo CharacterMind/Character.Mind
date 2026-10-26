@@ -4463,6 +4463,48 @@ app.post('/api/admin/reset-mine', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// Owner-only: nuke own account back to day-zero state for testing
+app.post('/api/admin/reset-account', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  if (!db) return res.status(503).json({ error: 'No database' });
+  const uid = req.user.googleId;
+  try {
+    // Reset coins + farm on users row
+    await db.query(
+      `UPDATE users SET
+         cm_coins              = 0,
+         coins_earned_today    = 0,
+         coins_day_reset       = 0,
+         coins_earned_all_time = 0,
+         last_afk_collect      = 0,
+         farm_level            = 0,
+         farm_frac             = 0,
+         recent_chats          = '{}'
+       WHERE google_id = $1`,
+      [uid]
+    );
+    // Wipe all chat history
+    await db.query('DELETE FROM chat_current  WHERE user_id = $1', [uid]);
+    await db.query('DELETE FROM chat_archives WHERE user_id = $1', [uid]);
+    await db.query('DELETE FROM story_summaries WHERE user_id = $1', [uid]);
+    // Clear in-memory conversation cache
+    const prefix = uid + ':';
+    for (const k of Object.keys(conversations)) {
+      if (k.startsWith(prefix)) delete conversations[k];
+    }
+    for (const k of [...convLoaded]) {
+      if (k.startsWith(prefix)) convLoaded.delete(k);
+    }
+    // Clear in-memory limits cache so coins/farm reload from DB
+    delete userLimits[uid];
+    console.log(`[admin] full account reset for owner uid=${uid}`);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[admin/reset-account]', e.message);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
 // Owner-only: reset another user's limits by email — no secret required
 app.post('/api/admin/reset-by-email', requireAuth, async (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
