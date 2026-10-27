@@ -4952,19 +4952,8 @@ function showWarning(msg, autoCloseMs, persistent) {
   if (autoCloseMs && !persistent) setTimeout(() => banner.remove(), autoCloseMs);
 }
 
-// ── Usage warning banners ──────────────────────────────────────────────────────
-// Always drawn from the CURRENT usage numbers (never from one-off events or saved timestamps), so they are the same after every
-// reload, on every device and in every browser. They use the same steps as the bar colours and the headline: 50%, 75% and 90%.
-const WEEKLY_BANNER_TEXT = { 50: "You're approaching your weekly limit.", 75: "You've used 75% of your weekly limit.", 90: "You've used 90% of your weekly limit — resets next week." };
-const SESSION_BANNER_TEXT = {};   // session 90% uses the toast instead
-function usagePctOf(used, limit) { return (limit > 0 && typeof used === 'number') ? Math.min(100, Math.round(used / limit * 100)) : 0; }   // the same rounding the bars show
-function usageStep(pct) { return pct >= 90 ? 90 : pct >= 75 ? 75 : pct >= 50 ? 50 : 0; }
-function bannerDismissKey() { return 'cm_usage_banner_dismissed_' + (currentUser?.googleId || 'anon'); }
-function loadBannerDismissals() { try { return JSON.parse(localStorage.getItem(bannerDismissKey()) || '{}') || {}; } catch (_) { return {}; } }
-function saveBannerDismissal(kind, level, windowStart) { try { const d = loadBannerDismissals(); d[kind] = { level, windowStart }; localStorage.setItem(bannerDismissKey(), JSON.stringify(d)); } catch (_) {} }
-// closing a banner hides that level until the usage reaches a higher level or a new week / session begins
-function bannerDismissed(w) { const d = loadBannerDismissals()[w.kind]; return !!d && d.windowStart === w.windowStart && d.level >= w.level; }
-
+// ── Usage warning banners ───────────────────────────────────────────────────────────────────
+function usagePctOf(used, limit) { return (limit > 0 && typeof used === 'number') ? Math.min(100, Math.round(used / limit * 100)) : 0; }
 function showSessionToast(msg) {
   const toast = document.getElementById('sessionWarningToast');
   const text = document.getElementById('sessionToastText');
@@ -4981,43 +4970,58 @@ function dismissSessionToast() {
 function renderUsageBanners(usage) {
   const container = document.getElementById('warningBanners');
   if (!container || !usage) return;
-  const want = [];
-  const isFreeUser = !usage.subscriptionTier || usage.subscriptionTier === 'free';
-  const wStep = isFreeUser ? 0 : usageStep(usagePctOf(usage.weeklyTokens, usage.weeklyLimit));
-  if (wStep) want.push({ kind: 'weekly', level: wStep, msg: WEEKLY_BANNER_TEXT[wStep], windowStart: usage.weeklyStart || 0, upgrade: true, persistent: wStep === 90 });
-  const sStep = usagePctOf(usage.sessionTokens, usage.sessionLimit);
+
+  // ── Session warn bar (compact inline bar, all users) ──────────────────────────
+  const sPct = usagePctOf(usage.sessionTokens, usage.sessionLimit);
   const swBar = document.getElementById('sessionWarnBar');
   const swMsg = document.getElementById('sessionWarnMsg');
   const lockoutVisible = document.getElementById('lockoutBar')?.style.display !== 'none';
   if (swBar) {
-    if (sStep >= 90 && !lockoutVisible) {
-      if (swMsg) swMsg.textContent = sStep >= 95 ? "Almost at your session limit — wrap up soon" : "You've used 90% of your session limit";
+    if (sPct >= 90 && !lockoutVisible) {
+      if (swMsg) swMsg.textContent = sPct >= 95 ? "Almost at your session limit — wrap up soon" : "You’ve used 90% of your session limit";
       swBar.style.display = 'flex';
     } else {
       swBar.style.display = 'none';
     }
   }
-  const sStepBanner = usageStep(sStep);
-  if (SESSION_BANNER_TEXT[sStepBanner]) want.push({ kind: 'session', level: sStepBanner, msg: SESSION_BANNER_TEXT[sStepBanner], windowStart: usage.sessionStartedAt || 0, upgrade: false, persistent: false });
-  // "1 image remaining" banner intentionally hidden
-  // take down any usage banner that no longer applies (a reset, a new week, a lower level...)
+
+  // ── warningBanners: exclusive priority banner, paid users only ─────────────
+  // 50% weekly (sticky) → replaced by 90% session → blank → replaced by 90% weekly.
+  // Once session 90% fires in a weekly window, the 50% banner never returns that week.
+  const isFreeUser = !usage.subscriptionTier || usage.subscriptionTier === 'free';
+  if (isFreeUser) {
+    [...container.querySelectorAll('.warning-banner[data-usage-kind]')].forEach(b => b.remove());
+    return;
+  }
+
+  const wPct = usagePctOf(usage.weeklyTokens, usage.weeklyLimit);
+  const userKey = currentUser?.googleId || 'anon';
+  const sess90Key = `cm_sess90_week_${usage.weeklyStart || 0}_${userKey}`;
+  if (sPct >= 90) { try { localStorage.setItem(sess90Key, '1'); } catch (_) {} }
+  const sessionHit90 = sPct >= 90 || localStorage.getItem(sess90Key) === '1';
+
+  let active = null;
+  if (wPct >= 90) {
+    active = { kind: 'weekly',  level: 90, msg: "You’ve reached 90% of your weekly limit."  };
+  } else if (sPct >= 90) {
+    active = { kind: 'session', level: 90, msg: "You’ve reached 90% of your session limit." };
+  } else if (!sessionHit90 && wPct >= 50) {
+    active = { kind: 'weekly',  level: 50, msg: "Approaching your weekly limit."                 };
+  }
+
+  // Remove stale; add active if not already present
   [...container.querySelectorAll('.warning-banner[data-usage-kind]')].forEach(b => {
-    if (!want.some(w => w.kind === b.dataset.usageKind && String(w.level) === b.dataset.usageLevel)) b.remove();
+    if (!active || b.dataset.usageKind !== active.kind || b.dataset.usageLevel !== String(active.level)) b.remove();
   });
-  for (const w of want) {
-    if (!w.persistent && bannerDismissed(w)) continue;
-    if (container.querySelector('.warning-banner[data-usage-kind="' + w.kind + '"][data-usage-level="' + w.level + '"]')) continue;
+  if (active && !container.querySelector(`.warning-banner[data-usage-kind="${active.kind}"][data-usage-level="${active.level}"]`)) {
     const banner = document.createElement('div');
-    banner.className = 'warning-banner' + (w.persistent ? ' warning-banner-critical' : '');
-    banner.dataset.usageKind = w.kind; banner.dataset.usageLevel = String(w.level); banner.dataset.warnMsg = w.msg;
+    banner.className = 'warning-banner warning-banner-critical';
+    banner.dataset.usageKind = active.kind;
+    banner.dataset.usageLevel = String(active.level);
+    banner.dataset.warnMsg = active.msg;
     const text = document.createElement('span');
-    text.textContent = w.msg;
+    text.textContent = active.msg;
     banner.appendChild(text);
-    const close = document.createElement('button');
-    close.className = 'warning-banner-close'; close.setAttribute('aria-label', 'Dismiss'); close.textContent = '\u2715';
-    if (w.persistent) close.style.display = 'none';   // the 90% weekly warning stays until the week resets
-    else close.onclick = () => { saveBannerDismissal(w.kind, w.level, w.windowStart); banner.remove(); };
-    banner.appendChild(close);
     container.appendChild(banner);
   }
 }
