@@ -318,8 +318,6 @@ if (db) {
     ['kickin_chicken',   'kickin chicken',   `${WIKI}SmilingCritters-YellowBird.png/300px-SmilingCritters-YellowBird.png`],
     ['crafty_corn',      'crafty corn',      `${WIKI}SmilingCritters-WhiteUnicorn.png/300px-SmilingCritters-WhiteUnicorn.png`],
     ['bobby_bearhug',    'bobby bearhug',    `${WIKI}SmilingCritters-RedBear.png/300px-SmilingCritters-RedBear.png`],
-    ['boxy_boo',         'boxy boo',         `${WIKI}Boxy_Boo_HDwikisize.png/300px-Boxy_Boo_HDwikisize.png`],
-    ['the_prototype',    'the prototype',    null],
   ].forEach(([id, key, img]) => seedOfficialChar(id, key, img));
 
   // Fetch Miss Delight's image on startup if missing
