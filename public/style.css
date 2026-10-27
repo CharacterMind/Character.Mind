@@ -2931,6 +2931,10 @@ html, body {
   background: rgba(239,68,68,0.14); border-top-color: rgba(239,68,68,0.35);
   color: #fca5a5;
 }
+.warning-banner-calls {
+  background: rgba(139,92,246,0.13); border-top-color: rgba(139,92,246,0.35);
+  color: #c4b5fd;
+}
 .warning-upgrade-link {
   background: none; border: none; cursor: pointer; padding: 0 4px;
   color: var(--accent-l); font-size: 13px; font-weight: 600; text-decoration: underline;

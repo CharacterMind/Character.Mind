@@ -4971,26 +4971,44 @@ function renderUsageBanners(usage) {
   const container = document.getElementById('warningBanners');
   if (!container || !usage) return;
 
-  // ── Session warn bar (compact inline bar, all users) ──────────────────────────
+  // \u2500\u2500 Session warn bar (compact inline bar, all users) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   const sPct = usagePctOf(usage.sessionTokens, usage.sessionLimit);
   const swBar = document.getElementById('sessionWarnBar');
   const swMsg = document.getElementById('sessionWarnMsg');
   const lockoutVisible = document.getElementById('lockoutBar')?.style.display !== 'none';
   if (swBar) {
     if (sPct >= 90 && !lockoutVisible) {
-      if (swMsg) swMsg.textContent = sPct >= 95 ? "Almost at your session limit — wrap up soon" : "You’ve used 90% of your session limit";
+      if (swMsg) swMsg.textContent = sPct >= 95 ? "Almost at your session limit \u2014 wrap up soon" : "You\u2019ve used 90% of your session limit";
       swBar.style.display = 'flex';
     } else {
       swBar.style.display = 'none';
     }
   }
 
-  // ── warningBanners: exclusive priority banner, paid users only ─────────────
-  // 50% weekly (sticky) → replaced by 90% session → blank → replaced by 90% weekly.
+  // \u2500\u2500 Call limit banner (all users, stacks below weekly/session banner) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  const callsToday = usage.callsToday || 0;
+  const callsLimit = usage.callsLimit || 6;
+  const callsMaxed = callsLimit > 0 && callsToday >= callsLimit;
+  const existingCallBanner = container.querySelector('.warning-banner[data-usage-kind="calls"]');
+  if (callsMaxed && !existingCallBanner) {
+    const cb = document.createElement('div');
+    cb.className = 'warning-banner warning-banner-calls';
+    cb.dataset.usageKind = 'calls';
+    cb.dataset.usageLevel = 'max';
+    const cbText = document.createElement('span');
+    cbText.textContent = "\uD83D\uDCF5 Call limit hit \u2014 they\u2019re filing a restraining order. Resets tomorrow.";
+    cb.appendChild(cbText);
+    container.appendChild(cb);
+  } else if (!callsMaxed && existingCallBanner) {
+    existingCallBanner.remove();
+  }
+
+  // \u2500\u2500 Weekly/session priority banner (paid users only) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // 50% weekly (sticky) \u2192 replaced by 90% session \u2192 blank \u2192 replaced by 90% weekly.
   // Once session 90% fires in a weekly window, the 50% banner never returns that week.
   const isFreeUser = !usage.subscriptionTier || usage.subscriptionTier === 'free';
   if (isFreeUser) {
-    [...container.querySelectorAll('.warning-banner[data-usage-kind]')].forEach(b => b.remove());
+    [...container.querySelectorAll('.warning-banner[data-usage-kind]:not([data-usage-kind="calls"])')].forEach(b => b.remove());
     return;
   }
 
@@ -5002,15 +5020,15 @@ function renderUsageBanners(usage) {
 
   let active = null;
   if (wPct >= 90) {
-    active = { kind: 'weekly',  level: 90, msg: "You’ve reached 90% of your weekly limit."  };
+    active = { kind: 'weekly',  level: 90, msg: "You\u2019ve reached 90% of your weekly limit."  };
   } else if (sPct >= 90) {
-    active = { kind: 'session', level: 90, msg: "You’ve reached 90% of your session limit." };
+    active = { kind: 'session', level: 90, msg: "You\u2019ve reached 90% of your session limit." };
   } else if (!sessionHit90 && wPct >= 50) {
     active = { kind: 'weekly',  level: 50, msg: "Approaching your weekly limit."                 };
   }
 
-  // Remove stale; add active if not already present
-  [...container.querySelectorAll('.warning-banner[data-usage-kind]')].forEach(b => {
+  // Remove stale weekly/session banners (never touches the calls banner)
+  [...container.querySelectorAll('.warning-banner[data-usage-kind]:not([data-usage-kind="calls"])')].forEach(b => {
     if (!active || b.dataset.usageKind !== active.kind || b.dataset.usageLevel !== String(active.level)) b.remove();
   });
   if (active && !container.querySelector(`.warning-banner[data-usage-kind="${active.kind}"][data-usage-level="${active.level}"]`)) {
