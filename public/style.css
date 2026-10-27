@@ -3338,6 +3338,8 @@ html, body {
 }
 
 .btn-call { position: relative; }
+.btn-call-soon { opacity: 0.45; cursor: default; }
+.btn-call-soon:hover { background: var(--bg3) !important; color: var(--text2) !important; }
 
 .past-chat-toolbar { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text3); padding: 0 2px 2px; flex-shrink: 0; }
 .past-chat-delall { background: none; border: 1px solid var(--border2); color: #ef4444; border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; }

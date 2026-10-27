@@ -2021,7 +2021,8 @@ function updateSettingsUsage(u) {
   const settingsWeeklyWrap = document.getElementById('settingsWeeklyWrap');
   if (settingsWeeklyWrap) settingsWeeklyWrap.style.display = isFreeSettings ? 'none' : '';
 
-  const sPct = Math.min(100, Math.round((u.sessionTokens / u.sessionLimit) * 100));
+  const CALL_EQUIV_BASE = 1800;
+  const sPct = Math.min(100, Math.round(((u.sessionTokens || 0) / CALL_EQUIV_BASE) / (u.callsLimit || 6) * 100));
   const wPct = u.weeklyLimit ? Math.min(100, Math.round((u.weeklyTokens / u.weeklyLimit) * 100)) : 0;
   const fillClass = p => p >= 90 ? 'danger' : p >= 75 ? 'warn' : '';   // the same steps as the usage window (50 / 75 / 90)
   const sBar = document.getElementById('settingsSessionBar');
@@ -5746,7 +5747,11 @@ function updateUsageModal(u) {
     packMsg.textContent = u.cmCoins != null ? `Your balance: ${(u.cmCoins || 0).toLocaleString()} coins` : '';
   }
 
-  const sPct = Math.min(100, Math.round((u.sessionTokens / u.sessionLimit) * 100));
+  // Call-token %: 1 Opes-medium message = 1 credit. Bar reflects model/effort weight.
+  const CALL_EQUIV_BASE = 1800;
+  const callCredsUsed = (u.sessionTokens || 0) / CALL_EQUIV_BASE;
+  const callCredsLimit = u.callsLimit || 6;
+  const sPct = Math.min(100, Math.round(callCredsUsed / callCredsLimit * 100));
   const wPct = u.weeklyLimit ? Math.min(100, Math.round((u.weeklyTokens / u.weeklyLimit) * 100)) : 0;
 
   const sBar = document.getElementById('usageSessionBar');
@@ -5757,13 +5762,17 @@ function updateUsageModal(u) {
 
   const sResetSrc = (u.cooldownUntil && Date.now() < u.cooldownUntil) ? u.cooldownUntil : (u.sessionTokens > 0 ? u.sessionExpiresAt : null);
   _sessionCountdownUntil = sResetSrc || null;
+  const _callCredSubText = () => {
+    const used = Math.round(callCredsUsed * 10) / 10;
+    return `${used} / ${callCredsLimit} call credits · Opas ≈ 0.23 per msg · Opes = 1 · Opus = 2`;
+  };
   (function tickSessionCountdown() {
     const sSubEl = document.getElementById('usageSessionSub');
     if (!sSubEl) return;
     if (_sessionCountdownUntil && Date.now() < _sessionCountdownUntil) {
       sSubEl.textContent = 'Resets in ' + formatCountdown(_sessionCountdownUntil - Date.now());
     } else {
-      sSubEl.textContent = 'Starts fresh when you send your first message';
+      sSubEl.textContent = (u.sessionTokens || 0) > 0 ? _callCredSubText() : 'Starts fresh when you send your first message';
     }
   })();
   if (!_sessionCountdownTimer && sResetSrc) {
@@ -5773,7 +5782,7 @@ function updateUsageModal(u) {
       if (_sessionCountdownUntil && Date.now() < _sessionCountdownUntil) {
         sSubEl.textContent = 'Resets in ' + formatCountdown(_sessionCountdownUntil - Date.now());
       } else {
-        sSubEl.textContent = 'Starts fresh when you send your first message';
+        sSubEl.textContent = _callCredSubText();
         clearInterval(_sessionCountdownTimer); _sessionCountdownTimer = null;
       }
     }, 1000);
@@ -5809,7 +5818,7 @@ function updateUsageModal(u) {
   const callsLimit = u.callsLimit || 6;
   const callsPct = callsLimit > 0 ? Math.min(100, Math.round(callsToday / callsLimit * 100)) : 0;
   setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct,
-    `Up to ${callsLimit} voice calls · each call counts as 1 regardless of length`, false);
+    `${callsToday} of ${callsLimit} voice calls used today · messages also count toward Call Credits`, false);
 
   // Memos
   const memosToday = u.memosToday || 0;
@@ -7966,6 +7975,14 @@ function showCallInactivityBanner() {
 }
 
 let callRecognition = null;
+
+function showVoiceCallComingSoon() {
+  const toast = document.createElement('div');
+  toast.className = 'toast-msg';
+  toast.textContent = '📞 Voice calls coming soon!';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2500);
+}
 
 function toggleCallMode() {
   if (callModeActive) { endCallMode(); } else { startCallMode(); }
