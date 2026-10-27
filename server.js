@@ -207,6 +207,36 @@ app.listen(PORT, () => {
   initDB();
 });
 
+// ── Official character seeder ─────────────────────────────────────────────────
+async function seedOfficialChar(id, matchKey, imgUrl) {
+  if (!db) return;
+  const tpl = matchCharacterTemplate(matchKey);
+  if (!tpl) return console.error(`[SEED] No template: ${matchKey}`);
+  try {
+    const ow = await db.query(`SELECT google_id FROM users WHERE email = 'support.charactermind@gmail.com' LIMIT 1`);
+    if (!ow.rows.length) return console.warn(`[SEED] Owner not found, skipping ${matchKey}`);
+    await db.query(
+      `INSERT INTO characters (id, name, tagline, description, system_prompt, greeting, greeting_mode, color, tags, creator_name, device_id)
+       VALUES ($1,$2,$3,$3,$4,$5,$6,$7,$8,'Character Mind Playtime Co',$9)
+       ON CONFLICT (id) DO UPDATE SET
+         system_prompt=EXCLUDED.system_prompt, tagline=EXCLUDED.tagline,
+         greeting=EXCLUDED.greeting, greeting_mode=EXCLUDED.greeting_mode,
+         color=EXCLUDED.color, tags=EXCLUDED.tags`,
+      [id, tpl.name, tpl.tagline, tpl.systemPrompt, tpl.greeting, tpl.greetingMode, tpl.color, JSON.stringify(tpl.tags), ow.rows[0].google_id]
+    );
+    console.log(`[SEED] ${tpl.name} upserted`);
+    if (!imgUrl) return;
+    const ck = await db.query(`SELECT 1 FROM characters WHERE id=$1 AND (image IS NULL OR length(image)=0) LIMIT 1`, [id]);
+    if (!ck.rows.length) return;
+    const r = await fetch(imgUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CharacterMind/1.0)' }, signal: AbortSignal.timeout(15000) });
+    if (!r.ok) return console.warn(`[SEED] Image fetch failed for ${tpl.name}: ${r.status}`);
+    const buf = Buffer.from(await r.arrayBuffer());
+    await db.query(`UPDATE characters SET image=$1 WHERE id=$2`, [`data:image/png;base64,${buf.toString('base64')}`, id]);
+    invalidateCharList();
+    console.log(`[STARTUP] Fetched ${tpl.name} image`);
+  } catch(e) { console.error(`[SEED] ${matchKey} error:`, e.message); }
+}
+
 function initDB() {
 if (db) {
   db.query(`
@@ -270,6 +300,27 @@ if (db) {
     ).then(r => { if (r && r.rowCount > 0) console.log('[SEED] Bron upserted'); })
       .catch(err => console.error('Bron seed error:', err));
   }
+
+  // Seed all official Poppy Playtime characters with PFPs
+  const WIKI = 'https://poppyplaytime.wiki.gg/images/thumb/';
+  [
+    ['poppy',            'poppy',            `${WIKI}PoppyPlaytimeHD.png/300px-PoppyPlaytimeHD.png`],
+    ['huggy_wuggy',      'huggy wuggy',      `${WIKI}PPT_Huggy_Wuggy_Passive_Render.png/300px-PPT_Huggy_Wuggy_Passive_Render.png`],
+    ['kissy_missy',      'kissy missy',      `${WIKI}Female_huggie_colored.png/300px-Female_huggie_colored.png`],
+    ['mommy_long_legs',  'mommy long legs',  `${WIKI}PPT_Mommy_Long_Legs_Render.png/300px-PPT_Mommy_Long_Legs_Render.png`],
+    ['catnap',           'catnap',           `${WIKI}PPT_CatNap_Render.png/300px-PPT_CatNap_Render.png`],
+    ['dogday',           'dogday',           `${WIKI}Belts_dogday.png/300px-Belts_dogday.png`],
+    ['bunzo_bunny',      'bunzo bunny',      `${WIKI}Bunzo_Bunny.png/300px-Bunzo_Bunny.png`],
+    ['pj_pug_a_pillar',  'pj pug-a-pillar',  `${WIKI}PJ_Pug-a-Pillar.png/300px-PJ_Pug-a-Pillar.png`],
+    ['picky_piggy',      'picky piggy',      `${WIKI}SmilingCritters-PinkPig.png/300px-SmilingCritters-PinkPig.png`],
+    ['hoppy_hopscotch',  'hopscotch fly',    `${WIKI}SmilingCritters-GreenBunny.png/300px-SmilingCritters-GreenBunny.png`],
+    ['bubba_bubbaphant', 'bubba chubba',     `${WIKI}SmilingCritters-BlueElephant.png/300px-SmilingCritters-BlueElephant.png`],
+    ['kickin_chicken',   'kickin chicken',   `${WIKI}SmilingCritters-YellowBird.png/300px-SmilingCritters-YellowBird.png`],
+    ['crafty_corn',      'crafty corn',      `${WIKI}SmilingCritters-WhiteUnicorn.png/300px-SmilingCritters-WhiteUnicorn.png`],
+    ['bobby_bearhug',    'bobby bearhug',    `${WIKI}SmilingCritters-RedBear.png/300px-SmilingCritters-RedBear.png`],
+    ['boxy_boo',         'boxy boo',         `${WIKI}Boxy_Boo_HDwikisize.png/300px-Boxy_Boo_HDwikisize.png`],
+    ['the_prototype',    'the prototype',    null],
+  ].forEach(([id, key, img]) => seedOfficialChar(id, key, img));
 
   // Fetch Miss Delight's image on startup if missing
   (async () => {
