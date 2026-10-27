@@ -1209,7 +1209,7 @@ function updateSettingsPlanCard(tier) {
   const name  = document.getElementById('settingsPlanName');
   const sub   = document.getElementById('settingsPlanSub');
   if (badge) badge.textContent = PLAN_LABELS[t] || t;
-  if (name)  name.textContent  = (PLAN_LABELS[t] || t) + ' Plan';
+  if (name)  name.textContent  = PLAN_LABELS[t] || t;
   if (sub)   sub.textContent   = PLAN_SUBS[t] || '';
   renderSettingsTiers(t);
 }
@@ -1232,13 +1232,16 @@ function renderSettingsTiers(currentTier) {
     <div class="st2-cards-wrap">
       ${PLAN_DATA.filter(p => ACTIVE_PLANS.includes(p.key)).map(p=>{
         const isCurrent = p.key === t;
-        const price = period === 'annual' ? p.annual : p.monthly;
+        const saleOn = halloweenSaleActive();
+        const basePrice = period === 'annual' ? p.annual : p.monthly;
+        const price = (saleOn && basePrice > 0) ? Math.round(basePrice * (1 - HALLOWEEN_SALE.discount) * 100) / 100 : basePrice;
+        const origPriceHtml = (saleOn && basePrice > 0) ? `<div class="st2-orig-price">$${basePrice}</div>` : '';
         return `
         <div class="st2-card${p.badge==='Recommended'?' st2-featured':''}${isCurrent?' st2-current':''}">
           ${p.badge&&!isCurrent?`<div class="st2-badge">${p.badge}</div>`:''}
           <div class="st2-plan-name">${p.name}</div>
           <div class="st2-price-row">
-            <div class="st2-price">${price===0?'Free':'$'+price}</div>
+            ${origPriceHtml}<div class="st2-price">${price===0?'Free':'$'+price}</div>
             ${price>0?`<div class="st2-period">/${period==='annual'?'mo*':'mo'}</div>`:''}
           </div>
           <ul class="st2-feats">${p.features.map(f=>`<li class="st2-feat">${chk} ${f}</li>`).join('')}</ul>

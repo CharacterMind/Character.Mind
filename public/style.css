@@ -2245,6 +2245,7 @@ html, body {
 .st2-plan-name { font-size: 13px; font-weight: 700; color: var(--text); margin-top: 2px; }
 .st2-price-row { display: flex; align-items: baseline; gap: 1px; }
 .st2-price { font-size: 18px; font-weight: 800; color: var(--text); line-height: 1; }
+.st2-orig-price { font-size: 11px; font-weight: 500; color: var(--text3); text-decoration: line-through; align-self: center; margin-right: 3px; }
 .st2-period { font-size: 10px; color: var(--text3); margin-left: 2px; }
 .st2-feats { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 3px; flex: 1; }
 .st2-feat { display: flex; align-items: flex-start; gap: 4px; font-size: 9.5px; color: var(--text2); line-height: 1.4; }
