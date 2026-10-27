@@ -1107,17 +1107,17 @@ const TIER_IMAGE_LIMITS = { free: 3,   advanced: 9,   x20: 60,   x50: 150,  x100
 const TIER_REGEN_LIMITS = { free: 10,  advanced: 30,  x20: 200,  x50: 500,  x100: 1000, x200: 2000  };
 
 const COIN_EARN_PER_WIN = { free: 3, advanced: 4, x20: 6, x50: 9, x100: 12, x200: 15 };
-const COIN_DAILY_CAP    = 500;
+const COIN_DAILY_CAP    = 100;
 const COIN_MONTHLY_COST = { advanced: 2000, x20: 8000, x50: 20000, x100: 50000, x200: 150000 };
 const AFK_FARM_MAX_MS = 8 * 3600 * 1000;  // cap offline accumulation at 8 hours
 const AFK_FARM_MIN_MS = 5 * 60 * 1000;    // minimum 5 min between collects
 const FARM_TIERS = [
-  { name: 'Bare dirt', rate: 0.000000012, cost: 0      }, // lv 0 — basically nothing
-  { name: 'Seeds',     rate: 0.00008,     cost: 150    }, // lv 1
-  { name: 'Sprouts',   rate: 0.0004,      cost: 600    }, // lv 2
-  { name: 'Crops',     rate: 0.0015,      cost: 2500   }, // lv 3
-  { name: 'Harvest',   rate: 0.005,       cost: 10000  }, // lv 4
-  { name: 'Megafarm',  rate: 0.012,       cost: 40000  }, // lv 5
+  { name: 'Bare dirt', rate: 0.000000012, cost: 0      }, // lv 0 — ~1 coin/day
+  { name: 'Seeds',     rate: 0.000006,    cost: 150    }, // lv 1 — ~20 coins/hr at low balance
+  { name: 'Sprouts',   rate: 0.000025,    cost: 600    }, // lv 2
+  { name: 'Crops',     rate: 0.00008,     cost: 2500   }, // lv 3
+  { name: 'Harvest',   rate: 0.00022,     cost: 10000  }, // lv 4
+  { name: 'Megafarm',  rate: 0.0005,      cost: 40000  }, // lv 5
 ];
 const TIER_RANK         = { free: 0, advanced: 1, x20: 2, x50: 3, x100: 4, x200: 5 };
 
@@ -6557,7 +6557,7 @@ const PAYPAL_PLAN_IDS_HALLOWEEN_YEARLY = {
   x200:     process.env.PAYPAL_PLAN_X200_HALLOWEEN_YEARLY,
 };
 const HALLOWEEN_SALE_ENDS = new Date('2026-11-05T00:00:00Z');
-function halloweenSaleActive() { const n = new Date(); return n < HALLOWEEN_SALE_ENDS && n.getMonth() === 9; }
+function halloweenSaleActive() { return new Date() < HALLOWEEN_SALE_ENDS; }
 // Yearly is offered once the first three yearly plans exist; X100/X200 are sold only when their own plan ids are set (planIds.x100 / planIds.x200)
 const yearlyAvailable = () => ['advanced', 'x20', 'x50'].every(k => PAYPAL_PLAN_IDS_YEARLY[k]);
 // the PayPal plan to charge for a plan and period (monthly or annual) — uses Halloween plans during the sale
