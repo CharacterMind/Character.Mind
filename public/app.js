@@ -2117,7 +2117,7 @@ function homeCard(c) {
     ? `<div class="hc-avatar"><img src="${c.image}" style="width:100%;height:100%;object-fit:cover;border-radius:10px"></div>`
     : `<div class="hc-avatar" style="background:${safeColor(c.color)}">${escHtml((c.name||'?')[0])}</div>`;
   const creator = (c.creator || 'anonymous').replace(/^@/, '');
-  const officialBadge = c.isOfficial ? `<span class="hc-official-badge" title="Official Character Mind Playtime Co character">CM</span>` : '';
+  const officialBadge = c.isOfficial ? `<span class="hc-official-badge" title="Official Character Mind character">✓ Official</span>` : '';
   const ownerEdit = c.isMine ? `<button class="hc-edit-btn" onclick="event.stopPropagation();editCharacter('${escHtml(c.id)}')" title="Edit">✏️</button>` : '';
   return `<div class="hc" onclick="openChat('${escHtml(c.id)}')">
     ${av}
@@ -2175,27 +2175,31 @@ function renderHome() {
     return;
   }
 
-  const forYou   = characters.slice(0, 10);
-  const featured = [...characters].reverse().slice(0, 10);
   const chevron  = `<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>`;
+  const recents  = getRecentChats();
+  const recentIds = new Set(Object.keys(recents));
+  const forYou   = characters.filter(c => recentIds.has(c.id))
+                     .sort((a,b) => (recents[b.id]||0) - (recents[a.id]||0))
+                     .slice(0, 10);
+  const featured = characters.filter(c => !recentIds.has(c.id)).slice(0, 10);
+  // If user hasn't chatted with anyone yet, just show all as Featured
+  const showForYou = forYou.length > 0;
+  const featuredList = showForYou ? featured : characters.slice(0, 10);
+
+  const sectionHtml = (title, cards, onclick) => cards.length === 0 ? '' : `
+    <div class="home-section">
+      <div class="home-section-head">
+        <span class="home-section-title">${title}</span>
+        <button class="home-section-more" onclick="${onclick}">${chevron}</button>
+      </div>
+      <div class="home-row">${cards.map(c => homeCard(c)).join('')}</div>
+    </div>`;
 
   view.innerHTML = homeTopbar() + `
     <div id="homeSearchResults" class="home-search-results" style="display:none"></div>
     <div id="homeSections">
-      <div class="home-section">
-        <div class="home-section-head">
-          <span class="home-section-title">For you</span>
-          <button class="home-section-more" onclick="showDiscover()">${chevron}</button>
-        </div>
-        <div class="home-row">${forYou.map(c => homeCard(c)).join('')}</div>
-      </div>
-      <div class="home-section">
-        <div class="home-section-head">
-          <span class="home-section-title">Featured</span>
-          <button class="home-section-more" onclick="showDiscover()">${chevron}</button>
-        </div>
-        <div class="home-row">${featured.map(c => homeCard(c)).join('')}</div>
-      </div>
+      ${showForYou ? sectionHtml('Continue chatting', forYou, 'showDiscover()') : ''}
+      ${sectionHtml(showForYou ? 'Discover more' : 'Featured characters', featuredList, 'showDiscover()')}
     </div>
   `;
 }
@@ -2263,40 +2267,7 @@ function colorizeNameHtml(name, c) {
     return `<span style="color:${col};font-weight:900;text-shadow:0 0 8px ${col}55,0 1px 2px rgba(0,0,0,0.6)">${escHtml(ch)}</span>`;
   }).join('');
 }
-// Apply the character's colours per-word — readable cycling palette, bold weight.
-function colorizeLetters(bubble, c) {
-  if (!bubble) return;
-  const cbMode = document.documentElement.dataset.colorblind;
-  const cbPal = cbMode && CB_PALETTES[cbMode];
-  const rawHexes = cbPal ? cbPal.colors : String(c || '').match(/#[0-9a-fA-F]{6}/gi);
-  if (!rawHexes || !rawHexes.length) return;
-  const spColors = rawHexes.map(boostColor);
-  const wrapWords = (spans, colors) => {
-    spans.forEach(el => {
-      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-      const nodes = [];
-      let nd;
-      while (nd = walker.nextNode()) nodes.push(nd);
-      for (const tn of nodes) {
-        if (tn.parentNode && tn.parentNode.closest && tn.parentNode.closest('code, pre')) continue;
-        const frag = document.createDocumentFragment();
-        for (const ch of tn.textContent) {
-          if (/\s/.test(ch)) { frag.appendChild(document.createTextNode(ch)); continue; }
-          const sp = document.createElement('span');
-          const col = colors[Math.floor(Math.random() * colors.length)];
-          sp.style.color = col;
-          sp.style.fontWeight = '900';
-          sp.style.textShadow = '0 0 8px ' + col + '55, 0 1px 2px rgba(0,0,0,0.6)';
-          sp.textContent = ch;
-          frag.appendChild(sp);
-        }
-        tn.parentNode.replaceChild(frag, tn);
-      }
-    });
-  };
-  wrapWords(bubble.querySelectorAll('.sp'), spColors);
-  wrapWords(bubble.querySelectorAll('.nr'), spColors);
-}
+function colorizeLetters() {}
 
 // Re-randomize word colors in every visible bubble and all name occurrences — triggered by click in the chat.
 function randomizeChatColors() {
@@ -3281,7 +3252,16 @@ function formatCount(n) {
 function renderDiscover() {
   const grid = document.getElementById('discoverGrid');
   const filtered = currentFilter === 'all' ? characters : characters.filter(c => (c.tags||[]).includes(currentFilter));
-  grid.innerHTML = filtered.map(c => charCard(c)).join('');
+  if (filtered.length === 0) {
+    const label = currentFilter === 'all' ? 'No characters yet' : `No ${currentFilter} characters yet`;
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;padding:60px 0">
+      <div class="empty-icon">✦</div>
+      <div class="empty-title">${label}</div>
+      <div class="empty-sub">More are on the way — check back soon.</div>
+    </div>`;
+  } else {
+    grid.innerHTML = filtered.map(c => charCard(c)).join('');
+  }
 }
 
 function setFilter(btn, tag) {
