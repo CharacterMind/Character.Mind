@@ -676,7 +676,7 @@ if (GOOGLE_AUTH_ENABLED) {
         const isNew = result.rows[0]?.is_new_user;
         if (isNew) {
           if (user.email) sendWelcomeEmail(user.name, user.email).catch(err => console.error('[welcome-email]', err.message));
-          db.query(`UPDATE users SET cm_coins = cm_coins + 100, coins_earned_all_time = COALESCE(coins_earned_all_time,0) + 100 WHERE google_id = $1`, [user.googleId])
+          db.query(`UPDATE users SET cm_coins = cm_coins + 25, coins_earned_all_time = COALESCE(coins_earned_all_time,0) + 25 WHERE google_id = $1`, [user.googleId])
             .catch(err => console.error('Welcome coins error:', err.message));
         }
       }).catch(err => console.error('User upsert error:', err.message));
@@ -1106,18 +1106,18 @@ const TIER_MEMO_LIMITS  = { free: 50,  advanced: 150, x20: 1000, x50: 2500, x100
 const TIER_IMAGE_LIMITS = { free: 3,   advanced: 9,   x20: 60,   x50: 150,  x100: 300,  x200: 600   };
 const TIER_REGEN_LIMITS = { free: 10,  advanced: 30,  x20: 200,  x50: 500,  x100: 1000, x200: 2000  };
 
-const COIN_EARN_PER_WIN = { free: 10, advanced: 15, x20: 20, x50: 30, x100: 40, x200: 50 };
-const COIN_DAILY_CAP    = 2000; // raised — subscription multipliers can push earnings high
+const COIN_EARN_PER_WIN = { free: 3, advanced: 4, x20: 6, x50: 9, x100: 12, x200: 15 };
+const COIN_DAILY_CAP    = 500;
 const COIN_MONTHLY_COST = { advanced: 2000, x20: 8000, x50: 20000, x100: 50000, x200: 150000 };
 const AFK_FARM_MAX_MS = 8 * 3600 * 1000;  // cap offline accumulation at 8 hours
 const AFK_FARM_MIN_MS = 5 * 60 * 1000;    // minimum 5 min between collects
 const FARM_TIERS = [
   { name: 'Bare dirt', rate: 0.000000012, cost: 0      }, // lv 0 — basically nothing
-  { name: 'Seeds',     rate: 0.0003,      cost: 150    }, // lv 1
-  { name: 'Sprouts',   rate: 0.0015,      cost: 600    }, // lv 2
-  { name: 'Crops',     rate: 0.006,       cost: 2500   }, // lv 3
-  { name: 'Harvest',   rate: 0.02,        cost: 10000  }, // lv 4
-  { name: 'Megafarm',  rate: 0.055,       cost: 40000  }, // lv 5 — very hard to reach
+  { name: 'Seeds',     rate: 0.00008,     cost: 150    }, // lv 1
+  { name: 'Sprouts',   rate: 0.0004,      cost: 600    }, // lv 2
+  { name: 'Crops',     rate: 0.0015,      cost: 2500   }, // lv 3
+  { name: 'Harvest',   rate: 0.005,       cost: 10000  }, // lv 4
+  { name: 'Megafarm',  rate: 0.012,       cost: 40000  }, // lv 5
 ];
 const TIER_RANK         = { free: 0, advanced: 1, x20: 2, x50: 3, x100: 4, x200: 5 };
 
@@ -1138,24 +1138,24 @@ function getRank(allTimeCoins) {
 
 // ── Mission pool — ordered by unlock order. Show first N unclaimed at a time. ─
 const DAILY_MISSION_POOL = [
-  { id: 'login',    label: 'Log in today',                    target: 1,  reward: 5,  type: 'login'            },
-  { id: 'messages', label: 'Send 5 messages',                 target: 5,  reward: 10, type: 'messages'         },
-  { id: 'chars',    label: 'Chat with 2 different characters',target: 2,  reward: 15, type: 'chars'            },
-  { id: 'msg15',    label: 'Send 15 messages',                target: 15, reward: 20, type: 'messages'         },
-  { id: 'chars3',   label: 'Chat with 3 different characters',target: 3,  reward: 20, type: 'chars'            },
-  { id: 'call1',    label: 'Make a call today',               target: 1,  reward: 25, type: 'calls'            },
-  { id: 'msg30',    label: 'Send 30 messages',                target: 30, reward: 30, type: 'messages'         },
-  { id: 'gamble1',  label: 'Win a gamble today',              target: 1,  reward: 10, type: 'gamble_win_daily' },
-  { id: 'game1',    label: 'Play a game today',               target: 1,  reward: 15, type: 'games'            },
-  { id: 'chars5',   label: 'Chat with 5 different characters',target: 5,  reward: 30, type: 'chars'            },
+  { id: 'login',    label: 'Log in today',                    target: 1,  reward: 2,  type: 'login'            },
+  { id: 'messages', label: 'Send 5 messages',                 target: 5,  reward: 3,  type: 'messages'         },
+  { id: 'chars',    label: 'Chat with 2 different characters',target: 2,  reward: 5,  type: 'chars'            },
+  { id: 'msg15',    label: 'Send 15 messages',                target: 15, reward: 6,  type: 'messages'         },
+  { id: 'chars3',   label: 'Chat with 3 different characters',target: 3,  reward: 6,  type: 'chars'            },
+  { id: 'call1',    label: 'Make a call today',               target: 1,  reward: 8,  type: 'calls'            },
+  { id: 'msg30',    label: 'Send 30 messages',                target: 30, reward: 10, type: 'messages'         },
+  { id: 'gamble1',  label: 'Win a gamble today',              target: 1,  reward: 3,  type: 'gamble_win_daily' },
+  { id: 'game1',    label: 'Play a game today',               target: 1,  reward: 5,  type: 'games'            },
+  { id: 'chars5',   label: 'Chat with 5 different characters',target: 5,  reward: 10, type: 'chars'            },
 ];
 const WEEKLY_MISSION_POOL = [
-  { id: 'days',       label: 'Log in 5 days this week',          target: 5,  reward: 50, type: 'days'            },
-  { id: 'gamble_win', label: 'Win 3 gambles this week',          target: 3,  reward: 30, type: 'gamble_win'      },
-  { id: 'wdays7',     label: 'Log in every day this week',       target: 7,  reward: 75, type: 'days'            },
-  { id: 'wmsg50',     label: 'Send 50 messages this week',       target: 50, reward: 50, type: 'messages_weekly' },
-  { id: 'wgamble7',   label: 'Win 7 gambles this week',          target: 7,  reward: 50, type: 'gamble_win'      },
-  { id: 'wchars5',    label: 'Chat with 5 characters this week', target: 5,  reward: 45, type: 'chars_weekly'    },
+  { id: 'days',       label: 'Log in 5 days this week',          target: 5,  reward: 15, type: 'days'            },
+  { id: 'gamble_win', label: 'Win 3 gambles this week',          target: 3,  reward: 10, type: 'gamble_win'      },
+  { id: 'wdays7',     label: 'Log in every day this week',       target: 7,  reward: 20, type: 'days'            },
+  { id: 'wmsg50',     label: 'Send 50 messages this week',       target: 50, reward: 15, type: 'messages_weekly' },
+  { id: 'wgamble7',   label: 'Win 7 gambles this week',          target: 7,  reward: 15, type: 'gamble_win'      },
+  { id: 'wchars5',    label: 'Chat with 5 characters this week', target: 5,  reward: 14, type: 'chars_weekly'    },
 ];
 const DAILY_SHOW   = 3;
 const WEEKLY_SHOW  = 2;
@@ -1165,46 +1165,46 @@ const DAILY_MISSIONS   = DAILY_MISSION_POOL;
 const WEEKLY_MISSIONS  = WEEKLY_MISSION_POOL;
 
 const MONTHLY_CHALLENGE_POOL = [
-  { id: 'mcal10',    label: 'Make 10 calls this month',               target: 10,   reward: 100,  type: 'calls_monthly'    },
-  { id: 'mmsg100',   label: 'Send 100 messages this month',           target: 100,  reward: 150,  type: 'messages_monthly' },
-  { id: 'mchars10',  label: 'Chat with 10 different characters',      target: 10,   reward: 125,  type: 'chars_monthly'    },
-  { id: 'mgamble20', label: 'Win 20 gambles this month',              target: 20,   reward: 200,  type: 'gamble_monthly'   },
-  { id: 'mgame15',   label: 'Play 15 games this month',               target: 15,   reward: 175,  type: 'games_monthly'    },
-  { id: 'mmsg500',   label: 'Send 500 messages this month',           target: 500,  reward: 400,  type: 'messages_monthly' },
-  { id: 'mcal30',    label: 'Make 30 calls this month',               target: 30,   reward: 300,  type: 'calls_monthly'    },
-  { id: 'mdays25',   label: 'Log in 25 days this month',              target: 25,   reward: 500,  type: 'days_monthly'     },
-  { id: 'mchars20',  label: 'Chat with 20 different characters',      target: 20,   reward: 300,  type: 'chars_monthly'    },
-  { id: 'mmsg1k',    label: 'Send 1,000 messages this month',         target: 1000, reward: 800,  type: 'messages_monthly' },
-  { id: 'mgamble50', label: 'Win 50 gambles this month',              target: 50,   reward: 500,  type: 'gamble_monthly'   },
-  { id: 'mcal60',    label: 'Make 60 calls this month',               target: 60,   reward: 600,  type: 'calls_monthly'    },
-  { id: 'mstreak14', label: 'Reach a 14-day login streak',            target: 14,   reward: 350,  type: 'streak_monthly'   },
-  { id: 'mgame50',   label: 'Play 50 games this month',               target: 50,   reward: 450,  type: 'games_monthly'    },
-  { id: 'mmsg2k',    label: 'Send 2,000 messages this month',         target: 2000, reward: 1500, type: 'messages_monthly' },
+  { id: 'mcal10',    label: 'Make 10 calls this month',               target: 10,   reward: 30,  type: 'calls_monthly'    },
+  { id: 'mmsg100',   label: 'Send 100 messages this month',           target: 100,  reward: 45,  type: 'messages_monthly' },
+  { id: 'mchars10',  label: 'Chat with 10 different characters',      target: 10,   reward: 38,  type: 'chars_monthly'    },
+  { id: 'mgamble20', label: 'Win 20 gambles this month',              target: 20,   reward: 60,  type: 'gamble_monthly'   },
+  { id: 'mgame15',   label: 'Play 15 games this month',               target: 15,   reward: 52,  type: 'games_monthly'    },
+  { id: 'mmsg500',   label: 'Send 500 messages this month',           target: 500,  reward: 120, type: 'messages_monthly' },
+  { id: 'mcal30',    label: 'Make 30 calls this month',               target: 30,   reward: 90,  type: 'calls_monthly'    },
+  { id: 'mdays25',   label: 'Log in 25 days this month',              target: 25,   reward: 150, type: 'days_monthly'     },
+  { id: 'mchars20',  label: 'Chat with 20 different characters',      target: 20,   reward: 90,  type: 'chars_monthly'    },
+  { id: 'mmsg1k',    label: 'Send 1,000 messages this month',         target: 1000, reward: 240, type: 'messages_monthly' },
+  { id: 'mgamble50', label: 'Win 50 gambles this month',              target: 50,   reward: 150, type: 'gamble_monthly'   },
+  { id: 'mcal60',    label: 'Make 60 calls this month',               target: 60,   reward: 180, type: 'calls_monthly'    },
+  { id: 'mstreak14', label: 'Reach a 14-day login streak',            target: 14,   reward: 105, type: 'streak_monthly'   },
+  { id: 'mgame50',   label: 'Play 50 games this month',               target: 50,   reward: 135, type: 'games_monthly'    },
+  { id: 'mmsg2k',    label: 'Send 2,000 messages this month',         target: 2000, reward: 450, type: 'messages_monthly' },
 ];
 const MONTHLY_MISSIONS = MONTHLY_CHALLENGE_POOL;
 
 const ACHIEVEMENT_POOL = [
-  { id: 'ach_msg1',     label: 'First Words',        desc: 'Send your first message',                reward: 25,   type: 'messages_total',     target: 1      },
-  { id: 'ach_msg10',    label: 'Getting Chatty',      desc: 'Send 10 messages total',                 reward: 50,   type: 'messages_total',     target: 10     },
-  { id: 'ach_msg100',   label: 'Conversationalist',   desc: 'Send 100 messages total',                reward: 150,  type: 'messages_total',     target: 100    },
-  { id: 'ach_msg1k',    label: 'Dedicated Chatter',   desc: 'Send 1,000 messages total',              reward: 500,  type: 'messages_total',     target: 1000   },
-  { id: 'ach_msg5k',    label: 'Devoted Soul',         desc: 'Send 5,000 messages total',              reward: 1500, type: 'messages_total',     target: 5000   },
-  { id: 'ach_call1',    label: 'First Call',           desc: 'Make your first call',                   reward: 50,   type: 'calls_total',        target: 1      },
-  { id: 'ach_call10',   label: 'Phone Friend',         desc: 'Make 10 calls total',                    reward: 150,  type: 'calls_total',        target: 10     },
-  { id: 'ach_call50',   label: 'Call Addict',          desc: 'Make 50 calls total',                    reward: 500,  type: 'calls_total',        target: 50     },
-  { id: 'ach_str3',     label: "Three's a Habit",      desc: '3-day login streak',                     reward: 50,   type: 'streak_best',        target: 3      },
-  { id: 'ach_str7',     label: 'Week Warrior',         desc: '7-day login streak',                     reward: 150,  type: 'streak_best',        target: 7      },
-  { id: 'ach_str14',    label: 'Two-Week Strong',       desc: '14-day login streak',                    reward: 300,  type: 'streak_best',        target: 14     },
-  { id: 'ach_str30',    label: 'Monthly Legend',        desc: '30-day login streak',                    reward: 1000, type: 'streak_best',        target: 30     },
-  { id: 'ach_chr5',     label: 'Explorer',              desc: 'Chat with 5 different characters',       reward: 75,   type: 'chars_total',        target: 5      },
-  { id: 'ach_chr10',    label: 'Social Butterfly',      desc: 'Chat with 10 different characters',      reward: 200,  type: 'chars_total',        target: 10     },
-  { id: 'ach_chr25',    label: 'Collector',             desc: 'Chat with 25 different characters',      reward: 600,  type: 'chars_total',        target: 25     },
-  { id: 'ach_gmb1',     label: 'High Roller',           desc: 'Win your first gamble',                  reward: 25,   type: 'gambles_total',      target: 1      },
-  { id: 'ach_gmb10',    label: 'Lucky Streak',          desc: 'Win 10 gambles total',                   reward: 100,  type: 'gambles_total',      target: 10     },
-  { id: 'ach_gmb50',    label: 'Casino Regular',        desc: 'Win 50 gambles total',                   reward: 400,  type: 'gambles_total',      target: 50     },
-  { id: 'ach_coin1k',   label: 'Coin Collector',        desc: 'Earn 1,000 coins total',                 reward: 100,  type: 'coins_earned_total', target: 1000   },
-  { id: 'ach_coin10k',  label: 'Coin Hoarder',          desc: 'Earn 10,000 coins total',                reward: 500,  type: 'coins_earned_total', target: 10000  },
-  { id: 'ach_coin100k', label: 'Coin Millionaire',      desc: 'Earn 100,000 coins total',               reward: 2000, type: 'coins_earned_total', target: 100000 },
+  { id: 'ach_msg1',     label: 'First Words',        desc: 'Send your first message',                reward: 8,   type: 'messages_total',     target: 1      },
+  { id: 'ach_msg10',    label: 'Getting Chatty',      desc: 'Send 10 messages total',                 reward: 15,  type: 'messages_total',     target: 10     },
+  { id: 'ach_msg100',   label: 'Conversationalist',   desc: 'Send 100 messages total',                reward: 45,  type: 'messages_total',     target: 100    },
+  { id: 'ach_msg1k',    label: 'Dedicated Chatter',   desc: 'Send 1,000 messages total',              reward: 150, type: 'messages_total',     target: 1000   },
+  { id: 'ach_msg5k',    label: 'Devoted Soul',         desc: 'Send 5,000 messages total',              reward: 450, type: 'messages_total',     target: 5000   },
+  { id: 'ach_call1',    label: 'First Call',           desc: 'Make your first call',                   reward: 15,  type: 'calls_total',        target: 1      },
+  { id: 'ach_call10',   label: 'Phone Friend',         desc: 'Make 10 calls total',                    reward: 45,  type: 'calls_total',        target: 10     },
+  { id: 'ach_call50',   label: 'Call Addict',          desc: 'Make 50 calls total',                    reward: 150, type: 'calls_total',        target: 50     },
+  { id: 'ach_str3',     label: "Three's a Habit",      desc: '3-day login streak',                     reward: 15,  type: 'streak_best',        target: 3      },
+  { id: 'ach_str7',     label: 'Week Warrior',         desc: '7-day login streak',                     reward: 45,  type: 'streak_best',        target: 7      },
+  { id: 'ach_str14',    label: 'Two-Week Strong',       desc: '14-day login streak',                    reward: 90,  type: 'streak_best',        target: 14     },
+  { id: 'ach_str30',    label: 'Monthly Legend',        desc: '30-day login streak',                    reward: 300, type: 'streak_best',        target: 30     },
+  { id: 'ach_chr5',     label: 'Explorer',              desc: 'Chat with 5 different characters',       reward: 22,  type: 'chars_total',        target: 5      },
+  { id: 'ach_chr10',    label: 'Social Butterfly',      desc: 'Chat with 10 different characters',      reward: 60,  type: 'chars_total',        target: 10     },
+  { id: 'ach_chr25',    label: 'Collector',             desc: 'Chat with 25 different characters',      reward: 180, type: 'chars_total',        target: 25     },
+  { id: 'ach_gmb1',     label: 'High Roller',           desc: 'Win your first gamble',                  reward: 8,   type: 'gambles_total',      target: 1      },
+  { id: 'ach_gmb10',    label: 'Lucky Streak',          desc: 'Win 10 gambles total',                   reward: 30,  type: 'gambles_total',      target: 10     },
+  { id: 'ach_gmb50',    label: 'Casino Regular',        desc: 'Win 50 gambles total',                   reward: 120, type: 'gambles_total',      target: 50     },
+  { id: 'ach_coin1k',   label: 'Coin Collector',        desc: 'Earn 1,000 coins total',                 reward: 30,  type: 'coins_earned_total', target: 1000   },
+  { id: 'ach_coin10k',  label: 'Coin Hoarder',          desc: 'Earn 10,000 coins total',                reward: 150, type: 'coins_earned_total', target: 10000  },
+  { id: 'ach_coin100k', label: 'Coin Millionaire',      desc: 'Earn 100,000 coins total',               reward: 600, type: 'coins_earned_total', target: 100000 },
 ];
 
 function getISOWeek(date) {
@@ -1341,8 +1341,8 @@ function maybeTrackLogin(uid) {
 // ── Daily Check-in Coin Grind ─────────────────────────────────────────────────
 // Base reward per day; streak multipliers give bonus coins on milestone days.
 // Subscription tier further multiplies the total earned (see TIER_EARN_MULT).
-const CHECKIN_BASE = 50;
-const CHECKIN_STREAK_BONUS = { 3: 25, 7: 75, 14: 150, 30: 300 }; // added to base at milestone streak
+const CHECKIN_BASE = 15;
+const CHECKIN_STREAK_BONUS = { 3: 8, 7: 25, 14: 50, 30: 100 }; // added to base at milestone streak
 
 function checkinTodayStr() {
   const n = new Date();
@@ -1379,7 +1379,11 @@ async function checkDailyCheckin(uid) {
     .filter(([day]) => newStreak % parseInt(day) === 0)
     .reduce((acc, [, val]) => Math.max(acc, val), 0);
   const mult = earnMult(uid);
-  const coins = Math.round((CHECKIN_BASE + bonus) * mult);
+  const rawCoins = Math.round((CHECKIN_BASE + bonus) * mult);
+  const utcMidnightCI = new Date(); utcMidnightCI.setUTCHours(0,0,0,0);
+  const dayStartCI = utcMidnightCI.getTime();
+  if ((u.coinsDayReset || 0) < dayStartCI) { u.coinsEarnedToday = 0; u.coinsDayReset = dayStartCI; }
+  const coins = Math.min(rawCoins, Math.max(0, COIN_DAILY_CAP - (u.coinsEarnedToday || 0)));
   const bonusDay = bonus > 0;
 
   // Atomic award: coins + last_checkin in one UPDATE — only succeeds if not already claimed today
@@ -1569,7 +1573,7 @@ function calcCost(_side, type, { textLen = 0, imageSizeBytes = 0, modelTier = 'o
 }
 
 // Subscription earning multiplier — higher tiers earn MORE from missions/games/check-in
-const TIER_EARN_MULT = { free: 1, advanced: 1.5, x20: 2, x50: 3, x100: 5, x200: 8 };
+const TIER_EARN_MULT = { free: 1, advanced: 1.2, x20: 1.5, x50: 2, x100: 3, x200: 5 };
 function earnMult(userId) {
   const tier = userLimits[userId]?.subscriptionTier || 'free';
   return TIER_EARN_MULT[tier] ?? 1;
@@ -7700,7 +7704,15 @@ app.post('/api/missions/claim', requireAuth, async (req, res) => {
     if (isAch)          data.ach.push(id);
     else if (isMonthly) data.mClaimed.push(id);
     else                data.claimed.push(id);
-    const actualReward = Math.round(applyMissionMult(mission.reward) * earnMult(uid));
+    const u2 = getLimits(uid);
+    const rawReward = Math.round(applyMissionMult(mission.reward) * earnMult(uid));
+    const utcMidnight2 = new Date(); utcMidnight2.setUTCHours(0,0,0,0);
+    const dayStart2 = utcMidnight2.getTime();
+    if ((u2.coinsDayReset || 0) < dayStart2) { u2.coinsEarnedToday = 0; u2.coinsDayReset = dayStart2; }
+    // Achievements and monthly challenges are one-time; only daily/weekly missions are capped
+    const actualReward = (!isAch && !isMonthly)
+      ? Math.min(rawReward, Math.max(0, COIN_DAILY_CAP - (u2.coinsEarnedToday || 0)))
+      : rawReward;
     const r = await db.query(
       'UPDATE users SET missions_data=$1, cm_coins=cm_coins+$2, coins_earned_all_time=COALESCE(coins_earned_all_time,0)+$2 WHERE google_id=$3 RETURNING cm_coins, coins_earned_all_time',
       [JSON.stringify(data), actualReward, uid]
@@ -7708,6 +7720,7 @@ app.post('/api/missions/claim', requireAuth, async (req, res) => {
     const u = getLimits(uid);
     u.cmCoins = (u.cmCoins || 0) + actualReward;
     u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + actualReward;
+    if (!isAch && !isMonthly) u.coinsEarnedToday = (u.coinsEarnedToday || 0) + actualReward;
     res.json({ ok: true, reward: actualReward, newBalance: r.rows[0]?.cm_coins || u.cmCoins, isAch, isMonthly });
   } catch (e) { console.error('[missions/claim]', e.message); res.status(500).json({ error: 'Something went wrong' }); }
 });
