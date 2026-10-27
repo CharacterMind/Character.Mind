@@ -955,6 +955,8 @@ async function loadLimitsFromDB() {
         regenDayStart: d.regenDayStart || null,
         callsToday: d.callsToday || 0,
         callDayStart: d.callDayStart || null,
+        msgTokensToday: d.msgTokensToday || 0,
+        msgDayStart: d.msgDayStart || null,
         memosToday: d.memosToday || 0,
         memoDayStart: d.memoDayStart || null,
         imagesDay: d.imagesDay || 0,
@@ -991,7 +993,7 @@ function saveLimitsToDB(userId) {
 }
 
 const LIMITS = {
-  SESSION_COOLDOWN_MS: 1 * 60 * 60 * 1000,
+  SESSION_COOLDOWN_MS: 2 * 60 * 60 * 1000,
   WEEKLY_MS: 7 * 24 * 60 * 60 * 1000,
   REGEN_FREE: 10, // kept for reference — actual limits use TIER_REGEN_LIMITS below
   CALL_DAILY: 3
@@ -1440,11 +1442,12 @@ const SKIP_COIN_DEDUCT_IDS = new Set();
 function getLimits(sid) {
   const now = Date.now();
   if (!userLimits[sid]) {
-    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null, memosToday: 0, memoDayStart: null, imagesDay: 0, imageDayStart: null, imageFirstUsedAt: null, ttsCharsToday: 0, ttsDayStart: null, swearsToday: 0, swearDayStart: null, subscriptionTier: 'free', tokenCredit: 0, creditsEnabled: true, lastCheckin: null, checkinStreak: 0 };
+    userLimits[sid] = { sessionTokens: 0, sessionStartedAt: null, cooldownUntil: null, weeklyTokens: 0, weeklyStart: null, warned: {}, regenCount: 0, callsToday: 0, callDayStart: null, msgTokensToday: 0, msgDayStart: null, memosToday: 0, memoDayStart: null, imagesDay: 0, imageDayStart: null, imageFirstUsedAt: null, ttsCharsToday: 0, ttsDayStart: null, swearsToday: 0, swearDayStart: null, subscriptionTier: 'free', tokenCredit: 0, creditsEnabled: true, lastCheckin: null, checkinStreak: 0 };
   }
   const u = userLimits[sid];
   if (u.subscriptionTier === undefined) u.subscriptionTier = 'free';
   if (u.memosToday === undefined) u.memosToday = 0;
+  if (u.msgTokensToday === undefined) u.msgTokensToday = 0;
   // Session window expired (time-based, like Anthropic) → reset for next message
   // Use >= to match client's `Date.now() >= cooldownUntil` trigger (cooldownUntil === sessionStartedAt + SESSION_COOLDOWN_MS)
   // Also reset if cooldownUntil itself has passed (covers edge case where sessionStartedAt is null but cooldownUntil is stale)
@@ -1460,8 +1463,9 @@ function getLimits(sid) {
   }
   // Daily window resets at 8 AM UTC (calls + memos)
   const callWindow = getCallWindowStart();
-  if (!u.callDayStart  || u.callDayStart  < callWindow) { u.callsToday  = 0; u.callDayStart  = callWindow; }
-  if (!u.memoDayStart  || u.memoDayStart  < callWindow) { u.memosToday  = 0; u.memoDayStart  = callWindow; }
+  if (!u.callDayStart  || u.callDayStart  < callWindow) { u.callsToday     = 0; u.callDayStart  = callWindow; }
+  if (!u.memoDayStart  || u.memoDayStart  < callWindow) { u.memosToday     = 0; u.memoDayStart  = callWindow; }
+  if (!u.msgDayStart   || u.msgDayStart   < callWindow) { u.msgTokensToday = 0; u.msgDayStart   = callWindow; }
   // Image window is rolling 24h from first use, not a fixed daily window
   if (u.imageFirstUsedAt && (now - u.imageFirstUsedAt) >= 24 * 60 * 60 * 1000) {
     u.imagesDay = 0; u.imageFirstUsedAt = null; u.imageDayStart = null;
@@ -1498,6 +1502,7 @@ function buildUsagePayload(u, userId) {
     weeklyResetsAt: u.weeklyStart ? u.weeklyStart + LIMITS.WEEKLY_MS : null,
     regenCount: u.regenCount || 0,
     regenLimit: TIER_REGEN_LIMITS[u.subscriptionTier || 'free'] ?? TIER_REGEN_LIMITS.free,
+    msgTokensToday: u.msgTokensToday || 0,
     callsToday: u.callsToday || 0,
     callsLimit: callLimit === Infinity ? 9999 : callLimit,
     callsRemaining,
@@ -1593,8 +1598,10 @@ function addTokens(sid, tokens) {
   if (!u.weeklyStart) u.weeklyStart = now;
   if (!u.sessionStartedAt) u.sessionStartedAt = now;
 
-  u.sessionTokens += tokens;
-  u.weeklyTokens += tokens;
+  u.sessionTokens  += tokens;
+  u.weeklyTokens   += tokens;
+  u.msgTokensToday  = (u.msgTokensToday || 0) + tokens;
+  if (!u.msgDayStart) u.msgDayStart = getCallWindowStart();
   const sPct = (u.sessionTokens / sessionLimitFor(u)) * 100;
   const wPct = (u.weeklyTokens / weeklyLimitFor(u)) * 100;
   const warnings = [];
@@ -1619,8 +1626,9 @@ function addTokens(sid, tokens) {
 function refundTokens(sid, tokens) {
   const u = userLimits[sid];
   if (!u) return;
-  u.sessionTokens = Math.max(0, (u.sessionTokens || 0) - tokens);
-  u.weeklyTokens = Math.max(0, (u.weeklyTokens || 0) - tokens);
+  u.sessionTokens  = Math.max(0, (u.sessionTokens  || 0) - tokens);
+  u.weeklyTokens   = Math.max(0, (u.weeklyTokens   || 0) - tokens);
+  u.msgTokensToday = Math.max(0, (u.msgTokensToday || 0) - tokens);
   if (u.cooldownUntil && u.sessionTokens < sessionLimitFor(u)) u.cooldownUntil = null;
   // A warning that the refunded reply had triggered no longer applies: let it fire again when the level is really reached
   if (u.warned) {

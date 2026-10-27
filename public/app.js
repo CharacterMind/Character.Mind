@@ -2022,7 +2022,7 @@ function updateSettingsUsage(u) {
   if (settingsWeeklyWrap) settingsWeeklyWrap.style.display = isFreeSettings ? 'none' : '';
 
   const CALL_EQUIV_BASE = 1800;
-  const sPct = Math.min(100, Math.round(((u.sessionTokens || 0) / CALL_EQUIV_BASE) / (u.callsLimit || 6) * 100));
+  const sPct = Math.min(100, Math.round(((u.msgTokensToday || 0) / CALL_EQUIV_BASE) / (u.callsLimit || 6) * 100));
   const wPct = u.weeklyLimit ? Math.min(100, Math.round((u.weeklyTokens / u.weeklyLimit) * 100)) : 0;
   const fillClass = p => p >= 90 ? 'danger' : p >= 75 ? 'warn' : '';   // the same steps as the usage window (50 / 75 / 90)
   const sBar = document.getElementById('settingsSessionBar');
@@ -5771,7 +5771,7 @@ function updateUsageModal(u) {
 
   // Call-token %: 1 Opes-medium message = 1 credit. Bar reflects model/effort weight.
   const CALL_EQUIV_BASE = 1800;
-  const callCredsUsed = (u.sessionTokens || 0) / CALL_EQUIV_BASE;
+  const callCredsUsed = (u.msgTokensToday || 0) / CALL_EQUIV_BASE;
   const callCredsLimit = u.callsLimit || 6;
   const sPct = Math.min(100, Math.round(callCredsUsed / callCredsLimit * 100));
   const wPct = u.weeklyLimit ? Math.min(100, Math.round((u.weeklyTokens / u.weeklyLimit) * 100)) : 0;
@@ -5794,7 +5794,7 @@ function updateUsageModal(u) {
     if (_sessionCountdownUntil && Date.now() < _sessionCountdownUntil) {
       sSubEl.textContent = 'Resets in ' + formatCountdown(_sessionCountdownUntil - Date.now());
     } else {
-      sSubEl.textContent = (u.sessionTokens || 0) > 0 ? _callCredSubText() : 'Starts fresh when you send your first message';
+      sSubEl.textContent = (u.msgTokensToday || 0) > 0 ? _callCredSubText() : 'Starts fresh when you send your first message';
     }
   })();
   if (!_sessionCountdownTimer && sResetSrc) {
