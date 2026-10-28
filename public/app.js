@@ -1867,6 +1867,61 @@ function closeWelcome() {
   document.getElementById('welcomeModal').style.display = 'none';
 }
 
+// ── Nav policies popover ─────────────────────────────────────────────────────────
+function openNavPolicies() {
+  document.getElementById('userDropdown')?.classList.remove('open');
+  const existing = document.getElementById('navPoliciesPopover');
+  if (existing) { existing.remove(); return; }
+  const pop = document.createElement('div');
+  pop.id = 'navPoliciesPopover';
+  pop.style.cssText = 'position:fixed;left:var(--sidebar-w,270px);bottom:80px;z-index:9000;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:6px;min-width:180px;box-shadow:0 8px 30px rgba(0,0,0,.5)';
+  pop.innerHTML = `
+    <a href="/terms.html" target="_blank" style="display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:7px;font-size:13px;font-weight:500;color:var(--text1);text-decoration:none;" onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background=''">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>Terms of Service
+    </a>
+    <a href="/privacy.html" target="_blank" style="display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:7px;font-size:13px;font-weight:500;color:var(--text1);text-decoration:none;" onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background=''">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>Privacy Policy
+    </a>`;
+  document.body.appendChild(pop);
+  const dismiss = (e) => { if (!pop.contains(e.target)) { pop.remove(); document.removeEventListener('click', dismiss, true); } };
+  setTimeout(() => document.addEventListener('click', dismiss, true), 10);
+}
+
+// ── Changelog ─────────────────────────────────────────────────────────────────────
+const CHANGELOG_DATA = {
+  '3.65': { date: 'October 2026', items: ['Push notifications when characters finish responding (regular chat & group chat)', 'Distinct vibration patterns per notification type (single vs group)', 'Notifications suppressed while app is visible — no spam', 'Server-side 45-second throttle per user'] },
+  '3.64': { date: 'October 2026', items: ['Group chats — up to 15 characters chatting together', 'Auto-chat: characters talk to each other automatically in the background', 'Per-round responder count — choose how many characters speak each turn', 'Auto-chat costs 2× tokens; more speakers = more session cost', 'Limit modal appears inside group chat when session/weekly limit is hit', 'Group chat pause/resume control'] },
+  '3.63': { date: 'September 2026', items: ['Home page redesigned: "Continue chatting" vs "Discover more" sections', 'Empty state for Discover when no characters are found', 'Improved character card hover glow & polish (v364)', 'Dead Halloween CSS removed'] },
+  '3.60': { date: 'August 2026', items: ['14 official Poppy Playtime characters seeded with profile pictures', 'Teal "✓ Official" badge on verified characters', 'Bunzo Bunny and PJ Pug-a-Pillar character templates added', 'Canonical Smiling Critter names corrected across all templates', 'Rainbow chat text removed'] },
+  '3.50': { date: 'July 2026', items: ['All 6 Smiling Critter templates rewritten with accurate game lore', 'Bobby BearHug, CatNap, DogDay, Hopscotch, Kickin Chicken, PickyPiggy', 'Improved personality accuracy across all official characters'] },
+  '3.40': { date: 'June 2026', items: ['C.M. Coins virtual currency system', 'Idle coin farming with upgrades (Seeds → GPU Boost)', 'In-app quizzes to earn coins', 'Session boosts — spend coins to extend your call credits', 'Competitions & leaderboards'] },
+  '3.30': { date: 'October 2026', items: ['Halloween 2026 seasonal theme', 'Halloween sale: 40% off extended through November 5', 'Halloween gift — claim a free limit reset during the event'] },
+  '3.20': { date: 'May 2026', items: ['Five subscription tiers: Free → Advanced (opes/opis/opos/opus/opys)', 'PayPal monthly and annual billing', 'Session credits: toggle to keep chatting when your limit is reached', 'Per-tier token limits and features'] },
+  '3.00': { date: 'April 2026', items: ['Voice calls (infrastructure built, "coming soon" in UI)', 'Wellness check-ins: receive messages from your favorite character', 'Phone number opt-in for call-style notifications', 'Safety / Resources panel (crisis contacts, AI disclaimers)'] },
+  '2.50': { date: 'March 2026', items: ['Web push notifications — receive reminders from characters', 'VAPID key setup, service worker registration', 'Push subscription management in settings', 'Re-engagement push reminders when you have not chatted in 2+ days'] },
+  '2.00': { date: 'February 2026', items: ['Discover page — browse all available characters', 'Feed / notifications panel', 'Character profile images and color theming', 'Conversation history archive with browse panel'] },
+  '1.50': { date: 'January 2026', items: ['PayPal subscription integration', 'Subscription management (cancel, upgrade, downgrade)', 'Settings modal: profile, preferences, account tabs', 'Public profile: display name, avatar'] },
+  '1.20': { date: 'December 2025', items: ['User-created characters with custom name, personality and avatar', 'Character editor with system prompt customization', 'Image generation for character profile pictures'] },
+  '1.00': { date: 'November 2025', items: ['First public release of Character.Mind', 'AI character chat powered by Google Gemini', 'Google Sign-In authentication', 'Single character conversation with persistent history', 'Dark theme, Inter font, minimal UI'] },
+};
+
+function showChangelogVersion(ver) {
+  const el = document.getElementById('changelogContent');
+  if (!el) return;
+  const entry = CHANGELOG_DATA[ver];
+  if (!entry) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <div class="changelog-entry">
+      <div class="changelog-entry-meta">
+        <span class="changelog-ver">v${ver}</span>
+        <span class="changelog-date">${entry.date}</span>
+      </div>
+      <ul class="changelog-list">
+        ${entry.items.map(i => `<li>${i}</li>`).join('')}
+      </ul>
+    </div>`;
+}
+
 // ── Contact us ──────────────────────────────────────────────────────────────────
 function openContact() {
   document.getElementById('userDropdown')?.classList.remove('open');
@@ -1948,6 +2003,12 @@ function showSettingsTab(tab) {
   document.querySelectorAll('.settings-tab-content').forEach(p => p.classList.add('hidden'));
   const activePane = document.getElementById(`stab-content-${tab}`);
   if (activePane) activePane.classList.remove('hidden');
+  if (tab === 'changelog') {
+    const sel = document.getElementById('versionPicker');
+    if (sel && !document.getElementById('changelogContent')?.innerHTML.trim()) {
+      showChangelogVersion(sel.value);
+    }
+  }
 }
 
 // ── Wellness Check-in Settings ────────────────────────────────────────────────

@@ -195,7 +195,7 @@
 <div class="hero">
   <div class="hero-badge">Legal Document</div>
   <h1 class="hero-title">Terms of Service</h1>
-  <p class="hero-meta">Effective <span>October 3, 2026</span> &nbsp;·&nbsp; Last updated <span>October 19, 2026</span></p>
+  <p class="hero-meta">Effective <span>October 3, 2026</span> &nbsp;·&nbsp; Last updated <span>October 27, 2026</span></p>
 </div>
 
 <div class="layout">
@@ -209,6 +209,8 @@
       <li><a href="#s5" class="toc-link">5. Payments &amp; Billing</a></li>
       <li><a href="#s5a" class="toc-link">5a. C.M. Coins</a></li>
       <li><a href="#s5b" class="toc-link">5b. Wellness Check-ins</a></li>
+      <li><a href="#s5c" class="toc-link">5c. Group Chat</a></li>
+      <li><a href="#s5d" class="toc-link">5d. Push Notifications</a></li>
       <li><a href="#s6" class="toc-link">6. Usage Limits</a></li>
       <li><a href="#s7" class="toc-link">7. AI-Generated Content</a></li>
       <li><a href="#s8" class="toc-link">8. User-Created Characters</a></li>
@@ -291,6 +293,35 @@
         <li><strong>Not a crisis service:</strong> Wellness check-ins are a friendly, character-driven feature. They are not a substitute for professional mental health support. Every check-in message includes a reference to the 988 Suicide &amp; Crisis Lifeline (US) and relevant resources. If you or someone you know is in immediate danger, contact your local emergency services.</li>
         <li><strong>Phone number (optional):</strong> You may optionally provide a phone number in your wellness settings. This number is stored only to enable future voice-call check-ins and is not used for any other purpose.</li>
         <li><strong>Voice calls:</strong> Character.Mind supports AI voice calls with characters during chat sessions. Audio is generated server-side using text-to-speech and streamed to your browser. Voice calls are part of the standard service and do not require a phone number. Providing a phone number in wellness settings is for future check-in call features only.</li>
+      </ul>
+    </div>
+
+    <div class="section" id="s5c">
+      <p class="section-num">Section 05c</p>
+      <h2>Group Chat</h2>
+      <p>Character.Mind includes a group chat feature that allows you to create conversations with up to 15 AI characters simultaneously. By using group chat, you agree to the following additional terms:</p>
+      <ul>
+        <li><strong>Multi-character conversations:</strong> Group chats involve multiple AI characters responding within the same conversation thread. Each character retains its individual personality and system prompt, but also receives the broader group context.</li>
+        <li><strong>Auto-Chat:</strong> Group chats include an optional Auto-Chat mode where characters continue the conversation autonomously, without user input, at configurable intervals. Auto-Chat consumes tokens at 2× the standard rate, as content is generated proactively. You may pause or stop Auto-Chat at any time.</li>
+        <li><strong>Responders per round:</strong> You may configure how many characters respond per conversational round. Higher counts consume proportionally more session tokens. Token costs are displayed before and after each round.</li>
+        <li><strong>Usage limits apply:</strong> All group chat activity counts toward your session and weekly token limits. The standard limit modal applies inside group chats. Session credits and boosts apply equally to group chat usage.</li>
+        <li><strong>Conversation history:</strong> Group chat conversations are stored in-memory per session and are not permanently persisted between sessions. A group conversation resets when you close and reopen it.</li>
+        <li><strong>Moderation:</strong> All group chat messages are subject to the same content moderation policies as regular one-on-one chats. Violations carry the same strike and suspension consequences.</li>
+      </ul>
+    </div>
+
+    <div class="section" id="s5d">
+      <p class="section-num">Section 05d</p>
+      <h2>Push Notifications</h2>
+      <p>Character.Mind offers optional browser push notifications. When enabled, you may receive notifications on your device when an AI character finishes responding to you, including in group chat.</p>
+      <ul>
+        <li><strong>Opt-in only:</strong> Push notifications require explicit permission from your browser. You can revoke this permission at any time through your browser settings or the Character.Mind Settings panel.</li>
+        <li><strong>What we send:</strong> Notifications include the character's name, a brief preview of their response (up to 100 characters), and a link back to the app. Group chat notifications include the group name and the name of the last speaking character.</li>
+        <li><strong>Suppression while active:</strong> Notifications are automatically suppressed while your Character.Mind browser tab is visible and in focus. You will not receive duplicate notifications for content you are already reading.</li>
+        <li><strong>Frequency limits:</strong> To prevent notification spam, at most one notification is sent per user per 45-second window across all chat sources.</li>
+        <li><strong>Re-engagement reminders:</strong> Separately from real-time notifications, Character.Mind may send re-engagement push reminders if you have not used the app in two or more days, as part of the wellness check-in feature (if opted in). These are governed by <a href="#s5b">Section 5b</a>.</li>
+        <li><strong>Data stored:</strong> Your push subscription endpoint, keys, and recent chat context (character name, last message summary, chat mode) are stored in our database solely for the purpose of delivering notifications. See our <a href="/privacy.html">Privacy Policy</a> for retention details.</li>
+        <li><strong>Subscription removal:</strong> If your push subscription becomes invalid (e.g., you unsubscribe in your browser), it is automatically removed from our systems the next time a notification delivery fails.</li>
       </ul>
     </div>
 

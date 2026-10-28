@@ -1,35 +1,34 @@
 ﻿*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* c.ai-matched palette */
-  --bg:   #131316;
-  --bg2:  #18181b;
-  --bg3:  #202024;
-  --bg4:  #2a2a2f;
-  --border:  #26262c;
-  --border2: #303036;
-  --text:  #faf9f5;
-  --text2: #a1a1aa;
-  --text3: #52525b;
+  /* Character.Mind — brand palette */
+  --bg:   #0c0c11;
+  --bg2:  #111118;
+  --bg3:  #17171f;
+  --bg4:  #1f1f29;
+  --border:  #1c1c26;
+  --border2: #272734;
+  --text:  #eeecf8;
+  --text2: #9390a8;
+  --text3: #4d4960;
   --accent:      #8b5cf6;
   --accent-l:    #a78bfa;
   --accent-d:    #7c3aed;
-  --accent-dim:  rgba(139,92,246,0.12);
+  --accent-dim:  rgba(139,92,246,0.13);
   --narration:   #b8a4e8;
-  --user-bubble: #1e1040;
-  --ai-bubble:   #26272b;
-  --input-bg:    #202024;
+  --user-bubble: #1b1042;
+  --ai-bubble:   #1c1c26;
+  --input-bg:    #17171f;
   --sidebar-w: 270px;
   --panel-w:   290px;
   --r:  10px;
   --rl: 14px;
   --rx: 20px;
-  /* Aliases referenced throughout but previously undefined */
-  --hover:   #2a2a30;
-  --surface: #202024;
-  --bg1:     #1a1a1e;
-  --text1:   #faf9f5;
-  --border1: #303036;
+  --hover:   #20202c;
+  --surface: #17171f;
+  --bg1:     #14141c;
+  --text1:   #eeecf8;
+  --border1: #272734;
 }
 
 html, body {
@@ -162,6 +161,7 @@ html, body {
   width: var(--sidebar-w); background: var(--bg2); border-right: 1px solid var(--border);
   display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
   transition: width 0.25s ease;
+  box-shadow: inset -1px 0 0 rgba(139,92,246,0.06);
 }
 .sidebar.collapsed { width: 0; border-right: none; }
 .sidebar-header-row { display: flex; align-items: center; justify-content: center; padding-bottom: 0; position: relative; }
@@ -270,18 +270,19 @@ html, body {
 .nav-coin-count { color: var(--accent-l); font-size: 15px; font-weight: 700; }
 .nav-coin-sep { color: var(--text3); font-size: 12px; }
 .nav-coin-label { color: var(--text3); font-size: 13px; font-weight: 500; }
-.nav-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; margin-top: 4px; }
+.nav-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; margin-top: 4px; }
 .nav-grid-btn {
   flex-direction: column !important;
-  padding: 9px 4px !important;
-  gap: 5px !important;
-  font-size: 11.5px !important;
+  padding: 8px 3px !important;
+  gap: 4px !important;
+  font-size: 10.5px !important;
   justify-content: center;
-  border-radius: 10px !important;
+  border-radius: 9px !important;
   color: var(--text2) !important;
+  letter-spacing: .01em;
 }
-.nav-grid-btn:hover { color: var(--text) !important; }
-.nav-grid-btn svg { width: 17px !important; height: 17px !important; }
+.nav-grid-btn:hover { color: var(--text) !important; background: var(--hover) !important; }
+.nav-grid-btn svg { width: 16px !important; height: 16px !important; }
 .nav-grid-icon-wrap {
   position: relative; display: inline-flex; align-items: center; justify-content: center;
 }
@@ -366,7 +367,7 @@ html, body {
   font-size: 13px; color: var(--text); cursor: pointer;
 }
 .sidebar-ctx-menu button:hover { background: var(--bg3); }
-.sidebar-bottom { padding: 10px; border-top: 1px solid var(--border); position: relative; }
+.sidebar-bottom { padding: 10px; border-top: 1px solid var(--border); position: relative; background: linear-gradient(to top, rgba(139,92,246,0.05) 0%, transparent 64px); }
 
 /* ── Main / Views ────────────────────────────────────────────────────────── */
 .main { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
@@ -3688,6 +3689,21 @@ html, body {
 .settings-toggle-thumb { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: #fff; border-radius: 50%; transition: left .2s; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
 .settings-toggle-row input:checked + .settings-toggle-track .settings-toggle-thumb { left: 20px; }
 .settings-toggle-label { font-size: 13px; color: var(--text2); min-width: 22px; }
+
+/* ── Changelog styles ────────────────────────────────────────────────────────── */
+.changelog-content { margin-top: 16px; }
+.changelog-entry { background: var(--bg3); border: 1px solid var(--border2); border-radius: 12px; padding: 18px 20px; }
+.changelog-entry-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.changelog-ver { font-size: 14px; font-weight: 700; color: var(--accent-l); }
+.changelog-date { font-size: 12px; color: var(--text3); background: var(--bg4); border-radius: 6px; padding: 2px 8px; }
+.changelog-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.changelog-list li {
+  font-size: 13px; color: var(--text2); padding-left: 18px; position: relative; line-height: 1.5;
+}
+.changelog-list li::before {
+  content: ''; position: absolute; left: 4px; top: 7px;
+  width: 5px; height: 5px; border-radius: 50%; background: var(--accent); opacity: 0.7;
+}
 
 /* ── Halloween Theme (October) ──────────────────────────────────────────────── */
 .halloween {
