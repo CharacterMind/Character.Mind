@@ -4523,7 +4523,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ charId: currentChar.id, message: text, modelTier: callModeActive ? 'opas' : selectedModelTier, effort: callModeActive ? 'low' : (overrideEffort || selectedEffort), ...(imgB64 ? { image: imgB64 } : {}), ...(callModeActive ? { callMode: true } : {}), ...(bookExtra ? { book: bookExtra } : {}), chatMode: rpMode ? 'rp' : 'chat' }),
+      body: JSON.stringify({ charId: (callModeActive && callContextChar ? callContextChar.id : currentChar.id), message: text, modelTier: callModeActive ? 'opas' : selectedModelTier, effort: callModeActive ? 'low' : (overrideEffort || selectedEffort), ...(imgB64 ? { image: imgB64 } : {}), ...(callModeActive ? { callMode: true } : {}), ...(callModeActive && callCharacters.length > 1 ? { otherChars: callCharacters.filter(c => c.id !== (callContextChar || currentChar).id).map(c => ({ id: c.id, name: c.name })) } : {}), ...(bookExtra ? { book: bookExtra } : {}), chatMode: rpMode ? 'rp' : 'chat' }),
       signal: streamAbortCtrl.signal
     });
 
@@ -6223,27 +6223,6 @@ function updateUsageModal(u) {
   const callsPct = callsLimit > 0 ? Math.min(100, Math.round(callsToday / callsLimit * 100)) : 0;
   setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct,
     `${callsToday} of ${callsLimit} voice calls used today · messages also count toward Call Credits`, false);
-
-  // Memos
-  const memosToday = u.memosToday || 0;
-  const memosLimit = u.memosLimit || 50;
-  const memosPct = memosLimit > 0 ? Math.min(100, Math.round(memosToday / memosLimit * 100)) : 0;
-  setBar('usageMemosBar', 'usageMemosPct', 'usageMemosSub', memosPct,
-    `Up to ${memosLimit} memos · token cost scales with memo length and model tier`, false);
-
-  // Images
-  const imagesDay = u.imagesDay || 0;
-  const imageLimit = u.imageLimit || 3;
-  const imagesPct = imageLimit > 0 ? Math.min(100, Math.round(imagesDay / imageLimit * 100)) : 0;
-  setBar('usageImagesBar', 'usageImagesPct', 'usageImagesSub', imagesPct,
-    `Up to ${imageLimit} image uploads · larger or higher-resolution images use more tokens`, false);
-
-  // Regenerations
-  const regenToday = u.regenCount || 0;
-  const regenLimit = u.regenLimit || 10;
-  const regenPct = regenLimit > 0 ? Math.min(100, Math.round(regenToday / regenLimit * 100)) : 0;
-  setBar('usageRegenBar', 'usageRegenPct', 'usageRegenSub', regenPct,
-    `Up to ${regenLimit} regenerations · each regen costs tokens — heavier models and longer replies cost more`, false);
 
   // Daily resets subtitle
   const dailyResetsEl = document.getElementById('usageDailyResetsSub');
@@ -8144,14 +8123,21 @@ function showMemoLimitBanner(resetsAt) {
 }
 
 function callModeTTS(bubble) {
-  if (!callModeActive || !bubble) { if (callModeActive) setTimeout(() => listenForSpeech(), 500); return; }
+  if (!callModeActive || !bubble) { if (callModeActive) setTimeout(() => afterCallTTSDone(), 500); return; }
   const text = (bubble.innerText || bubble.textContent).trim();
-  if (!text) { listenForSpeech(); return; }
+  if (!text) { afterCallTTSDone(); return; }
   resetCallInactivityTimer();
   setCallState('responding');
   stopCallAudio();
+  callContextChar = null; // primary char speaking
+  updateCallSpeaker(currentChar);
+  // Record to conversation log
+  callConversation.push({ role: 'char', text, charId: currentChar.id, charName: currentChar.name });
+  if (callConversation.length > 14) callConversation.shift();
+  // Decide if a secondary char will react after this TTS
+  callChainCount = (callCharacters.length > 1 && Math.random() < 0.45) ? 1 : 0;
   if (serverTTSOk) { callModeTTS_server(text); return; }
-  if (callModeActive) listenForSpeech();
+  if (callModeActive) afterCallTTSDone();
 }
 
 let serverTTSOk = true;
@@ -8202,7 +8188,7 @@ async function playCallBlob(blob) {
     callAudio = { pause: () => { token.stopped = true; token.stop?.(); } };
     await _hwDemonPlay(blob, token);
     callAudio = null;
-    if (!token.stopped && callModeActive) listenForSpeech();
+    if (!token.stopped && callModeActive) afterCallTTSDone();
     return;
   }
   const url = URL.createObjectURL(blob);
@@ -8211,7 +8197,7 @@ async function playCallBlob(blob) {
   const finish = () => {
     URL.revokeObjectURL(url);
     if (callAudio === audio) callAudio = null;
-    if (callModeActive) listenForSpeech();
+    if (callModeActive) afterCallTTSDone();
   };
   audio.onended = finish;
   audio.onerror = finish;
@@ -8250,9 +8236,9 @@ async function speakAndHangUp(text, resetsAt) {
 async function callModeTTS_server(text) {
   const gen = callGen;
   const clean = text.replace(/\*[^*]*\*/g, '').replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim();
-  if (!clean) { if (callModeActive && gen === callGen) listenForSpeech(); return; }
+  if (!clean) { if (callModeActive && gen === callGen) afterCallTTSDone(); return; }
 
-  if (ttsProvider === 'browser') { if (callModeActive && gen === callGen) listenForSpeech(); return; }
+  if (ttsProvider === 'browser') { if (callModeActive && gen === callGen) afterCallTTSDone(); return; }
 
   // Split into sentences so we can start playing the first sentence immediately
   // while pre-fetching the next one — reduces the "falling behind" latency.
@@ -8263,7 +8249,7 @@ async function callModeTTS_server(text) {
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: s, charId: currentChar?.id, provider: ttsProvider, geminiVoice: geminiVoiceName })
+      body: JSON.stringify({ text: s, charId: (callContextChar || currentChar)?.id, provider: ttsProvider, geminiVoice: geminiVoiceName })
     });
     if (!r.ok) { if (r.status === 501) serverTTSOk = false; throw new Error('tts ' + r.status); }
     return r.blob();
@@ -8302,7 +8288,7 @@ async function callModeTTS_server(text) {
       nextFetch = prefetch;
     }
   } catch (_) {
-    if (callModeActive && gen === callGen) listenForSpeech();
+    if (callModeActive && gen === callGen) afterCallTTSDone();
   }
 }
 
@@ -8319,6 +8305,14 @@ let callDurationTimer = null;
 let callSessionStartedAt = null;
 let lastKnownCallResetsAt = 0;
 let callVobTimer = null;
+
+// ── Multi-char call state ─────────────────────────────────────────────────────
+let callCharacters = [];        // all chars currently on the call
+let callConversation = [];      // rolling log [{role:'user'|'char', text, charId, charName}]
+let callContextChar = null;     // secondary char currently generating (null = primary)
+let callChainCount = 0;         // chain slots remaining after current TTS ends
+let callUserSilenceTimer = null;
+const CALL_USER_SILENCE_MS = 10000; // 10 s before asking "are you there?"
 
 function getCallSecsKey() {
   return 'cm_call_secs_' + new Date().toISOString().slice(0,10);
@@ -8422,6 +8416,11 @@ async function startCallMode() {
   serverTTSOk = true; // reset so every new call retries server TTS from scratch
   callMuted = false;
   callFirstConnect = true;
+  callCharacters = currentChar ? [currentChar] : [];
+  callConversation = [];
+  callContextChar = null;
+  callChainCount = 0;
+  clearTimeout(callUserSilenceTimer); callUserSilenceTimer = null;
   startCallDurationTimer();
   resetCallInactivityTimer();
   document.getElementById('callBtn')?.classList.add('active');
@@ -8715,6 +8714,11 @@ function endCallMode() {
   window.speechSynthesis?.cancel();
   if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
   stopActiveTTS();
+  clearTimeout(callUserSilenceTimer); callUserSilenceTimer = null;
+  callCharacters = [];
+  callConversation = [];
+  callContextChar = null;
+  callChainCount = 0;
   document.getElementById('callBtn')?.classList.remove('active');
   const overlay = document.getElementById('callOverlay');
   if (overlay) overlay.style.display = 'none';
@@ -8723,6 +8727,10 @@ function endCallMode() {
   clearTimeout(callVobTimer); callVobTimer = null;
   const vob = document.getElementById('callVoiceOnBadge');
   if (vob) { vob.style.display = 'none'; vob.style.top = ''; }
+  const partyRow = document.getElementById('callPartyRow');
+  if (partyRow) partyRow.style.display = 'none';
+  const picker = document.getElementById('callCharPicker');
+  if (picker) picker.style.display = 'none';
 }
 
 function setCallState(state) {
@@ -8775,6 +8783,12 @@ function listenForSpeech() {
   if (!SR) return;
   if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
 
+  // Start the "are you there?" timer
+  clearTimeout(callUserSilenceTimer);
+  callUserSilenceTimer = setTimeout(() => {
+    if (callModeActive && !callMuted) triggerAreYouThere();
+  }, CALL_USER_SILENCE_MS);
+
   let transcript = '';
   let silenceTimer = null;
   let dispatched = false;
@@ -8783,10 +8797,17 @@ function listenForSpeech() {
   const dispatch = () => {
     if (dispatched) return;
     dispatched = true;
+    clearTimeout(callUserSilenceTimer); callUserSilenceTimer = null;
     if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
     if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
     const text = transcript.trim();
-    if (text) { resetCallInactivityTimer(); sendCallMessage(text); }
+    if (text) {
+      resetCallInactivityTimer();
+      // Record user utterance to conversation log
+      callConversation.push({ role: 'user', text });
+      if (callConversation.length > 14) callConversation.shift();
+      sendCallMessage(text);
+    }
     else if (callModeActive && !callMuted) setTimeout(() => listenForSpeech(), 300);
   };
 
@@ -8843,6 +8864,209 @@ function sendCallMessage(text) {
   playSound('call-send');
   if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
   sendMessage(text);
+}
+
+// Called after every TTS playback ends — decides whether to chain a secondary char
+// response or return to listening.
+function afterCallTTSDone() {
+  if (!callModeActive) return;
+  if (callCharacters.length > 1 && callChainCount > 0) {
+    callChainCount--;
+    const justSpoke = callContextChar || currentChar;
+    const others = callCharacters.filter(c => c.id !== justSpoke.id);
+    if (others.length > 0) {
+      const nextChar = others[Math.floor(Math.random() * others.length)];
+      callContextChar = nextChar;
+      updateCallSpeaker(nextChar);
+      sendCallCharResponse(nextChar);
+      return;
+    }
+  }
+  callChainCount = 0;
+  callContextChar = null;
+  updateCallSpeaker(currentChar);
+  listenForSpeech();
+}
+
+// Sends a chat request for a secondary call character and plays the TTS response.
+async function sendCallCharResponse(charObj) {
+  if (!callModeActive) return;
+  const gen = callGen;
+  const userName = getDisplayName() || 'the user';
+  const recentConv = callConversation.slice(-6);
+  const contextLines = recentConv.map(e =>
+    e.role === 'user' ? `${userName}: "${e.text}"` : `${e.charName}: "${e.text}"`
+  ).join('\n');
+  const otherNames = callCharacters.filter(c => c.id !== charObj.id).map(c => c.name).join(', ');
+  const prompt = contextLines
+    ? `[Group voice call with ${userName}${otherNames ? ' and ' + otherNames : ''}.\nConversation so far:\n${contextLines}\n\nReact naturally to what was just said — 1-2 sentences, your own personality and emotion.]`
+    : `[You just joined a voice call with ${userName}. Say something to greet them — 1 sentence.]`;
+
+  setCallState('thinking');
+  try {
+    const r = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        charId: charObj.id, message: prompt, modelTier: 'opas', effort: 'low',
+        callMode: true, callChained: true,
+        otherChars: callCharacters.filter(c => c.id !== charObj.id).map(c => ({ id: c.id, name: c.name }))
+      })
+    });
+    if (gen !== callGen) return;
+    if (!r.ok) { if (callModeActive && gen === callGen) afterCallTTSDone(); return; }
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '';
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done || gen !== callGen) break;
+      buf += decoder.decode(value, { stream: true });
+      const parts = buf.split('\n\n'); buf = parts.pop();
+      for (const part of parts) {
+        if (!part.startsWith('data: ')) continue;
+        const ds = part.slice(6);
+        if (ds === '[DONE]') break;
+        try { const { text } = JSON.parse(ds); if (text) fullText += text; } catch (_) {}
+      }
+    }
+    if (gen !== callGen) return;
+    if (!fullText.trim()) { if (callModeActive && gen === callGen) afterCallTTSDone(); return; }
+    callConversation.push({ role: 'char', text: fullText.trim(), charId: charObj.id, charName: charObj.name });
+    if (callConversation.length > 14) callConversation.shift();
+    setCallState('responding');
+    callModeTTS_server(fullText.trim());
+  } catch(_) {
+    if (callModeActive && gen === callGen) afterCallTTSDone();
+  }
+}
+
+// Fires when user hasn't spoken for CALL_USER_SILENCE_MS — a char asks if they're there.
+async function triggerAreYouThere() {
+  if (!callModeActive || callMuted) return;
+  const char = callContextChar || (callCharacters.length > 0 ? callCharacters[Math.floor(Math.random() * callCharacters.length)] : currentChar);
+  const userName = getDisplayName() || 'Dave';
+  const prompt = `[${userName} hasn't said anything for 10 seconds. In your own personality and voice, ask if they're still there — 1 short sentence only.]`;
+  const gen = callGen;
+  setCallState('thinking');
+  try {
+    const r = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ charId: char.id, message: prompt, modelTier: 'opas', effort: 'low', callMode: true, callChained: true })
+    });
+    if (gen !== callGen) return;
+    if (!r.ok) { if (callModeActive && gen === callGen) listenForSpeech(); return; }
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = ''; let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done || gen !== callGen) break;
+      buf += decoder.decode(value, { stream: true });
+      const parts = buf.split('\n\n'); buf = parts.pop();
+      for (const part of parts) {
+        if (!part.startsWith('data: ')) continue;
+        const ds = part.slice(6);
+        if (ds === '[DONE]') break;
+        try { const { text } = JSON.parse(ds); if (text) fullText += text; } catch (_) {}
+      }
+    }
+    if (gen !== callGen) return;
+    if (!fullText.trim()) { if (callModeActive && gen === callGen) listenForSpeech(); return; }
+    callContextChar = char === currentChar ? null : char;
+    callChainCount = 0; // don't chain after "are you there?" — go straight back to listening
+    setCallState('responding');
+    callModeTTS_server(fullText.trim());
+  } catch(_) {
+    if (callModeActive && gen === callGen) listenForSpeech();
+  }
+}
+
+// Updates the call overlay to show which character is currently speaking.
+function updateCallSpeaker(charObj) {
+  if (!charObj) return;
+  const nameEl = document.getElementById('callCharName');
+  if (nameEl) nameEl.innerHTML = colorizeNameHtml(charObj.name || '', charObj.color);
+  const imgEl = document.getElementById('callCharImg');
+  if (imgEl) imgEl.style.backgroundImage = isCharImg(charObj.image) ? `url('${charObj.image}')` : '';
+  const [co1, co2, co3] = getCharCallColors(charObj);
+  const bgEl = document.getElementById('callBg');
+  if (bgEl) {
+    bgEl.style.setProperty('--co1', co1);
+    bgEl.style.setProperty('--co2', co2);
+    bgEl.style.setProperty('--co3', co3);
+  }
+  document.querySelectorAll('.call-party-avatar').forEach(el => {
+    el.classList.toggle('speaking', el.dataset.charId === charObj.id);
+  });
+}
+
+// Rebuilds the party row avatars from callCharacters.
+function updateCallPartyRow() {
+  const row = document.getElementById('callPartyRow');
+  const list = document.getElementById('callPartyAvatars');
+  if (!row || !list) return;
+  if (callCharacters.length <= 1) { row.style.display = 'none'; return; }
+  row.style.display = 'flex';
+  list.innerHTML = '';
+  callCharacters.forEach(c => {
+    const av = document.createElement('div');
+    av.className = 'call-party-avatar';
+    av.dataset.charId = c.id;
+    if (isCharImg(c.image)) {
+      av.style.backgroundImage = `url('${c.image}')`;
+    } else {
+      av.textContent = (c.name || '?')[0].toUpperCase();
+    }
+    av.title = c.name || '';
+    list.appendChild(av);
+  });
+  updateCallSpeaker(callContextChar || currentChar);
+}
+
+function showCallCharPicker() {
+  const picker = document.getElementById('callCharPicker');
+  const list = document.getElementById('callCharPickerList');
+  if (!picker || !list) return;
+  list.innerHTML = '';
+  if (callCharacters.length >= 5) {
+    list.innerHTML = '<div class="call-picker-empty">Max 5 characters per call</div>';
+    picker.style.display = 'flex'; return;
+  }
+  const existing = new Set(callCharacters.map(c => c.id));
+  const available = (typeof characters !== 'undefined' ? characters : []).filter(c => !existing.has(c.id)).slice(0, 20);
+  if (available.length === 0) {
+    list.innerHTML = '<div class="call-picker-empty">No other characters available</div>';
+  } else {
+    available.forEach(c => {
+      const item = document.createElement('button');
+      item.className = 'call-picker-item';
+      const imgDiv = document.createElement('div');
+      imgDiv.className = 'call-picker-item-img';
+      if (isCharImg(c.image)) imgDiv.style.backgroundImage = `url('/api/characters/${c.id}/image')`;
+      else imgDiv.textContent = (c.name || '?')[0].toUpperCase();
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = c.name || '';
+      item.appendChild(imgDiv); item.appendChild(nameSpan);
+      item.onclick = () => { addCharToCall(c); hideCallCharPicker(); };
+      list.appendChild(item);
+    });
+  }
+  picker.style.display = 'flex';
+}
+
+function hideCallCharPicker() {
+  const picker = document.getElementById('callCharPicker');
+  if (picker) picker.style.display = 'none';
+}
+
+function addCharToCall(charObj) {
+  if (!charObj || callCharacters.length >= 5) return;
+  if (callCharacters.find(c => c.id === charObj.id)) return;
+  callCharacters.push(charObj);
+  updateCallPartyRow();
 }
 
 function openImagePicker() {

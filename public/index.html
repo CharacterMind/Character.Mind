@@ -124,21 +124,6 @@
       <div class="usage-track-modal" style="margin-top:6px"><div class="usage-fill-modal green" id="usageCallsBar"></div></div>
       <div class="usage-sec-sub" id="usageCallsSub" style="margin-top:4px"></div>
 
-      <!-- Memos -->
-      <div class="usage-sec-label-row" style="margin-top:16px"><span class="usage-sec-label">Memos</span><span class="usage-sec-pct" id="usageMemosPct">—</span></div>
-      <div class="usage-track-modal" style="margin-top:6px"><div class="usage-fill-modal green" id="usageMemosBar"></div></div>
-      <div class="usage-sec-sub" id="usageMemosSub" style="margin-top:4px"></div>
-
-      <!-- Images -->
-      <div class="usage-sec-label-row" style="margin-top:16px"><span class="usage-sec-label">Images</span><span class="usage-sec-pct" id="usageImagesPct">—</span></div>
-      <div class="usage-track-modal" style="margin-top:6px"><div class="usage-fill-modal green" id="usageImagesBar"></div></div>
-      <div class="usage-sec-sub" id="usageImagesSub" style="margin-top:4px"></div>
-
-      <!-- Regenerations -->
-      <div class="usage-sec-label-row" style="margin-top:16px"><span class="usage-sec-label">Regenerations</span><span class="usage-sec-pct" id="usageRegenPct">—</span></div>
-      <div class="usage-track-modal" style="margin-top:6px"><div class="usage-fill-modal green" id="usageRegenBar"></div></div>
-      <div class="usage-sec-sub" id="usageRegenSub" style="margin-top:4px"></div>
-
       <!-- Games -->
       <div class="usage-sec-label-row" style="margin-top:16px"><span class="usage-sec-label">🎮 Games</span><span class="usage-sec-pct" id="usageGamePct">—</span></div>
       <div class="usage-track-modal" style="margin-top:6px"><div class="usage-fill-modal green" id="usageGameBar"></div></div>
@@ -815,6 +800,19 @@
           <div class="call-char-img" id="callCharImg"></div>
           <!-- Voice On badge -->
           <div id="callVoiceOnBadge" class="call-voice-on-badge" style="display:none">Voice On</div>
+          <!-- Party row — shown when 2+ chars on call -->
+          <div class="call-party-row" id="callPartyRow" style="display:none">
+            <div class="call-party-avatars" id="callPartyAvatars"></div>
+            <button class="call-party-add" id="callPartyAddBtn" onclick="showCallCharPicker()" title="Add character to call">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+            </button>
+          </div>
+          <!-- Character picker for adding to call -->
+          <div class="call-char-picker" id="callCharPicker" style="display:none">
+            <div class="call-char-picker-title">Add to call</div>
+            <div class="call-char-picker-list" id="callCharPickerList"></div>
+            <button class="call-char-picker-close" onclick="hideCallCharPicker()">Cancel</button>
+          </div>
           <!-- Top: mic error banner -->
           <div class="call-mic-error" id="callMicError" style="display:none">
             <strong>We can't hear you</strong>
@@ -839,6 +837,12 @@
                 <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" transform="rotate(135 12 12)"/></svg>
               </button>
               <span class="call-btn-label">Hang up</span>
+            </div>
+            <div class="call-btn-wrap" id="callAddCharBtnWrap">
+              <button class="call-add-char-btn" onclick="showCallCharPicker()" title="Add character">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+              </button>
+              <span class="call-btn-label">Add</span>
             </div>
           </div>
         </div>

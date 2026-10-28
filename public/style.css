@@ -1311,8 +1311,88 @@ html, body {
   color: #fff; transition: background .15s;
 }
 .call-end-btn:hover { background: #d03050; }
+.call-add-char-btn {
+  width: 52px; height: 52px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.12); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; transition: background .15s;
+}
+.call-add-char-btn:hover { background: rgba(255,255,255,0.24); }
 /* Calling state: hide mute so End button centers */
 .call-overlay[data-state="calling"] #callMuteBtnWrap { display: none; }
+
+/* ── Call party row (multi-char) ─────────────────────────────── */
+.call-party-row {
+  position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(0,0,0,0.35); backdrop-filter: blur(8px);
+  border-radius: 40px; padding: 6px 10px;
+  border: 1px solid rgba(255,255,255,0.12);
+  z-index: 10; max-width: calc(100vw - 48px);
+}
+.call-party-avatars { display: flex; gap: 6px; align-items: center; }
+.call-party-avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  background-color: rgba(255,255,255,0.15);
+  background-size: cover; background-position: center;
+  border: 2px solid rgba(255,255,255,0.2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: #fff;
+  transition: border-color .2s, box-shadow .2s;
+  flex-shrink: 0;
+}
+.call-party-avatar.speaking {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.4), 0 0 12px rgba(255,255,255,0.2);
+  animation: callPartyPulse 1.5s ease-in-out infinite;
+}
+@keyframes callPartyPulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(255,255,255,0.4), 0 0 12px rgba(255,255,255,0.2); }
+  50% { box-shadow: 0 0 0 4px rgba(255,255,255,0.2), 0 0 20px rgba(255,255,255,0.15); }
+}
+.call-party-add {
+  width: 30px; height: 30px; border-radius: 50%; border: none;
+  background: rgba(255,255,255,0.15); color: #fff; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: background .15s;
+}
+.call-party-add:hover { background: rgba(255,255,255,0.28); }
+
+/* Call character picker */
+.call-char-picker {
+  position: absolute; inset: 0; z-index: 20;
+  background: rgba(8,10,24,0.92); backdrop-filter: blur(16px);
+  flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px; padding: 24px;
+}
+.call-char-picker-title {
+  font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 4px;
+}
+.call-char-picker-list {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  justify-content: center; max-height: 60vh; overflow-y: auto;
+  max-width: 480px; width: 100%;
+}
+.call-picker-item {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px; padding: 10px 12px; cursor: pointer; color: #fff;
+  font-size: 12px; font-weight: 600; transition: background .15s;
+  width: 80px; text-align: center;
+}
+.call-picker-item:hover { background: rgba(255,255,255,0.18); }
+.call-picker-item-img {
+  width: 44px; height: 44px; border-radius: 50%;
+  background-size: cover; background-position: center;
+  background-color: rgba(255,255,255,0.15);
+}
+.call-picker-empty { color: rgba(255,255,255,0.5); font-size: 13px; }
+.call-char-picker-close {
+  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18);
+  color: #fff; padding: 10px 28px; border-radius: 20px; cursor: pointer;
+  font-size: 14px; font-weight: 600; transition: background .15s;
+}
+.call-char-picker-close:hover { background: rgba(255,255,255,0.2); }
 
 /* Desktop: larger avatar and brand text */
 @media (min-width: 768px) {

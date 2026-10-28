@@ -5819,7 +5819,7 @@ async function analyzeImage(apiKey, dataUri) {
 app.post('/api/chat', requireAuth, async (req, res) => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'AI service not configured' });
-  const { charId, message, modelTier: reqModelTier, effort: reqEffort, image, callMode, chatMode } = req.body;
+  const { charId, message, modelTier: reqModelTier, effort: reqEffort, image, callMode, chatMode, otherChars, callChained } = req.body;
   const isRpMode = chatMode !== 'chat'; // default to RP; 'chat' = normal conversation mode
   const effortUserId = req.user.googleId;
   let effort = callMode ? 'medium' : resolveEffort(effortUserId, reqEffort);
@@ -6077,8 +6077,11 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
+  const otherCharNames = Array.isArray(otherChars) && otherChars.length
+    ? otherChars.map(c => c.name).filter(Boolean).join(', ')
+    : null;
   const callModeDirective = callMode
-    ? '\n\n[CALL MODE — You are on a live voice call. Keep your reply SHORT: 1-2 sentences, under 25 words. Speak naturally — no asterisks, no markdown, no action text in parentheses. Plain conversational words only.]'
+    ? `\n\n[CALL MODE — You are on a live voice call${otherCharNames ? ` with ${otherCharNames} also on the call` : ''}. Keep your reply SHORT: 1-2 sentences, under 30 words. Speak naturally — no asterisks, no markdown, no action text in parentheses. Plain conversational words only. Express genuine emotion when it fits: surprise, frustration, excitement, curiosity — whatever your character would actually feel. ${callChained ? 'You are reacting to what another character just said, not addressing the user directly.' : ''}]`
     : '';
 
   const chatModeDirective = !isRpMode
