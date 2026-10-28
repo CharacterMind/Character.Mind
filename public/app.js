@@ -4829,9 +4829,12 @@ function showLimitModal(type, displayStr) {
   const sub = document.getElementById('limitModalSub');
   const outdoorMsg = document.getElementById('limitOutdoorMsg');
   const charName = currentChar?.name;
+  const groupName = currentGroupData?.name;
   if (title) title.textContent = charName
     ? `Keep chatting with ${charName}`
-    : (type === 'session' ? 'Session limit reached' : 'Weekly limit reached');
+    : groupName
+      ? `Keep the group chat going`
+      : (type === 'session' ? 'Session limit reached' : 'Weekly limit reached');
   const resetStr = displayStr ? (type === 'weekly' ? displayStr + '.' : displayStr) : 'soon';
   if (sub) sub.textContent = `Resets ${resetStr}.`;
   if (outdoorMsg) {
@@ -10727,6 +10730,7 @@ let groupPickerSelected = new Set();
 let groupIsStreaming = false;
 let groupAutoChat = false;
 let groupAutoChatTimer = null;
+let groupAutoChatAbort = null;
 
 async function loadGroups() {
   const list = document.getElementById('groupsList');
@@ -10779,6 +10783,8 @@ function openGroupPicker() {
   const grid = document.getElementById('groupPickerGrid');
   const nameInput = document.getElementById('groupNameInput');
   if (nameInput) nameInput.value = '';
+  const rprInput = document.getElementById('groupRprInput');
+  if (rprInput) { rprInput.value = '3'; rprInput.max = '15'; }
   if (!modal || !grid) return;
 
   // Populate grid with all characters
@@ -10823,6 +10829,11 @@ function togglePickerChar(charId, el) {
 function updatePickerCount() {
   const el = document.getElementById('groupPickerCount');
   if (el) el.textContent = `${groupPickerSelected.size} / 15 selected`;
+  const rprInput = document.getElementById('groupRprInput');
+  if (rprInput && groupPickerSelected.size > 0) {
+    rprInput.max = groupPickerSelected.size;
+    if (parseInt(rprInput.value) > groupPickerSelected.size) rprInput.value = groupPickerSelected.size;
+  }
 }
 
 async function createGroupFromPicker() {
@@ -10952,11 +10963,17 @@ function appendGroupToken(token) {
 }
 
 async function sendGroupMessage() {
-  if (groupIsStreaming || !currentGroupId) return;
+  if (!currentGroupId) return;
   const input = document.getElementById('groupMessageInput');
   if (!input) return;
   const text = input.value.trim();
   if (!text) return;
+
+  // Abort any running auto-chat stream so user message goes through immediately
+  if (groupAutoChatAbort) { groupAutoChatAbort.abort(); groupAutoChatAbort = null; }
+  // Wait one tick for the abort to flush the finally block
+  if (groupIsStreaming) await new Promise(r => setTimeout(r, 80));
+  if (groupIsStreaming) return; // still streaming after abort — don't double-send
 
   input.value = '';
   autoResize(input);
@@ -11069,8 +11086,11 @@ async function runGroupAutoChat() {
   _currentGroupBubble = null;
   let autoChatError = false;
 
+  const ac = new AbortController();
+  groupAutoChatAbort = ac;
+
   try {
-    const res = await fetch(`/api/groups/${currentGroupId}/autochat`, { method: 'POST' });
+    const res = await fetch(`/api/groups/${currentGroupId}/autochat`, { method: 'POST', signal: ac.signal });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       autoChatError = true;
@@ -11119,12 +11139,15 @@ async function runGroupAutoChat() {
       }
     }
   } catch (e) {
-    console.error('[autochat] stream error:', e);
-    autoChatError = true;
-    groupAutoChat = false;
-    const btn = document.getElementById('groupAutoChatBtn');
-    if (btn) btn.classList.remove('active');
+    if (e?.name !== 'AbortError') {
+      console.error('[autochat] stream error:', e);
+      autoChatError = true;
+      groupAutoChat = false;
+      const btn = document.getElementById('groupAutoChatBtn');
+      if (btn) btn.classList.remove('active');
+    }
   } finally {
+    groupAutoChatAbort = null;
     groupIsStreaming = false;
     hideGroupTyping();
     _currentGroupBubble = null;
