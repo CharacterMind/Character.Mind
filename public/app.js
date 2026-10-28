@@ -11225,6 +11225,8 @@ function hideGroupTyping() {
 }
 
 let _currentGroupBubble = null;
+let _pendingGroupChar = null;
+let _pendingGroupBubbleStarted = false;
 
 function startGroupCharBubble(charId, charName, charColor, charImage) {
   hideGroupTyping();
@@ -11269,6 +11271,8 @@ async function sendGroupMessage() {
   appendUserGroupMsg(text);
   groupIsStreaming = true;
   _currentGroupBubble = null;
+  _pendingGroupChar = null;
+  _pendingGroupBubbleStarted = false;
 
   const sendBtn = document.getElementById('groupSendBtn');
   if (sendBtn) sendBtn.disabled = true;
@@ -11313,13 +11317,19 @@ async function sendGroupMessage() {
 
         if (evt.type === 'speaker_start') {
           showGroupTyping(evt.charName, evt.charColor);
-          startGroupCharBubble(evt.charId, evt.charName, evt.charColor, evt.charImage);
+          _pendingGroupChar = { id: evt.charId, name: evt.charName, color: evt.charColor, image: evt.charImage };
+          _pendingGroupBubbleStarted = false;
         } else if (evt.type === 'token') {
-          hideGroupTyping();
+          if (!_pendingGroupBubbleStarted && _pendingGroupChar) {
+            startGroupCharBubble(_pendingGroupChar.id, _pendingGroupChar.name, _pendingGroupChar.color, _pendingGroupChar.image);
+            _pendingGroupBubbleStarted = true;
+          }
           if (evt.token) appendGroupToken(evt.token);
         } else if (evt.type === 'speaker_end') {
+          if (!_pendingGroupBubbleStarted) hideGroupTyping();
           _currentGroupBubble = null;
-          hideGroupTyping();
+          _pendingGroupChar = null;
+          _pendingGroupBubbleStarted = false;
         } else if (evt.done) {
           streamDone = true;
           break;
@@ -11332,6 +11342,8 @@ async function sendGroupMessage() {
     groupIsStreaming = false;
     hideGroupTyping();
     _currentGroupBubble = null;
+    _pendingGroupChar = null;
+    _pendingGroupBubbleStarted = false;
     if (sendBtn) sendBtn.disabled = false;
     if (groupAutoChat) scheduleAutoChat();
   }
@@ -11521,13 +11533,19 @@ async function runGroupAutoChat() {
 
         if (evt.type === 'speaker_start') {
           showGroupTyping(evt.charName, evt.charColor);
-          startGroupCharBubble(evt.charId, evt.charName, evt.charColor, evt.charImage);
+          _pendingGroupChar = { id: evt.charId, name: evt.charName, color: evt.charColor, image: evt.charImage };
+          _pendingGroupBubbleStarted = false;
         } else if (evt.type === 'token') {
-          hideGroupTyping();
+          if (!_pendingGroupBubbleStarted && _pendingGroupChar) {
+            startGroupCharBubble(_pendingGroupChar.id, _pendingGroupChar.name, _pendingGroupChar.color, _pendingGroupChar.image);
+            _pendingGroupBubbleStarted = true;
+          }
           if (evt.token) appendGroupToken(evt.token);
         } else if (evt.type === 'speaker_end') {
+          if (!_pendingGroupBubbleStarted) hideGroupTyping();
           _currentGroupBubble = null;
-          hideGroupTyping();
+          _pendingGroupChar = null;
+          _pendingGroupBubbleStarted = false;
         } else if (evt.done) {
           streamDone = true;
           break;
@@ -11547,6 +11565,8 @@ async function runGroupAutoChat() {
     groupIsStreaming = false;
     hideGroupTyping();
     _currentGroupBubble = null;
+    _pendingGroupChar = null;
+    _pendingGroupBubbleStarted = false;
     if (groupAutoChat && !autoChatError) scheduleAutoChat();
   }
 }

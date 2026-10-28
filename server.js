@@ -6211,9 +6211,24 @@ app.post('/api/groups/:id/chat', requireAuth, async (req, res) => {
 
   // Use the group's stored responders_per_round setting
   const rpr = Math.min(orderedChars.length, Math.max(1, group.responders_per_round || 3));
+
+  // Name targeting: if message mentions a character's name, they always respond
+  const msgLower = message.trim().toLowerCase();
+  const mentioned = orderedChars.filter(c => {
+    const n = c.name.toLowerCase();
+    // Match as whole word or at word boundary to avoid false positives
+    return new RegExp('(^|\\s|,|!|\\?)' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|\\s|,|!|\\?|\')', 'i').test(message.trim()) || msgLower.includes(n);
+  });
+
   let responders;
   if (orderedChars.length <= rpr) {
     responders = [...orderedChars];
+  } else if (mentioned.length > 0) {
+    // Guaranteed responders = mentioned chars (up to rpr), then fill randomly
+    const guaranteed = mentioned.slice(0, rpr);
+    const guaranteedIds = new Set(guaranteed.map(c => c.id));
+    const rest = orderedChars.filter(c => !guaranteedIds.has(c.id)).sort(() => Math.random() - 0.5);
+    responders = [...guaranteed, ...rest].slice(0, rpr);
   } else {
     const shuffled = [...orderedChars].sort(() => Math.random() - 0.5);
     responders = shuffled.slice(0, rpr);
