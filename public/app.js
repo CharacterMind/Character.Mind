@@ -11086,6 +11086,20 @@ let groupAutoChatTimer = null;
 let groupAutoChatAbort = null;
 let groupAutoRoundLimit = 0;
 let groupAutoRoundCount = 0;
+let _groupDrip = 0;
+let _groupDripTimer = null;
+
+function _dripGroupUsage() {
+  if (!lastKnownUsage || _groupDrip <= 0) return;
+  // Cap drip so it never visually triggers a lockout that hasn't happened yet
+  const safeDrip = Math.min(_groupDrip,
+    Math.max(0, (lastKnownUsage.weeklyLimit || 999999) - (lastKnownUsage.weeklyTokens || 0) - 50));
+  if (safeDrip <= 0) return;
+  updateUsageBars({ ...lastKnownUsage,
+    sessionTokens: (lastKnownUsage.sessionTokens || 0) + safeDrip,
+    weeklyTokens: (lastKnownUsage.weeklyTokens || 0) + safeDrip
+  });
+}
 
 async function loadGroups() {
   const list = document.getElementById('groupsList');
@@ -11391,7 +11405,11 @@ async function sendGroupMessage() {
             startGroupCharBubble(_pendingGroupChar.id, _pendingGroupChar.name, _pendingGroupChar.color, _pendingGroupChar.image);
             _pendingGroupBubbleStarted = true;
           }
-          if (evt.token) appendGroupToken(evt.token);
+          if (evt.token) {
+            appendGroupToken(evt.token);
+            _groupDrip += 20;
+            if (!_groupDripTimer) _groupDripTimer = setTimeout(() => { _groupDripTimer = null; _dripGroupUsage(); }, 80);
+          }
         } else if (evt.type === 'speaker_end') {
           if (!_pendingGroupBubbleStarted) hideGroupTyping();
           _currentGroupBubble = null;
@@ -11399,6 +11417,7 @@ async function sendGroupMessage() {
           _pendingGroupBubbleStarted = false;
         } else if (evt.done) {
           streamDone = true;
+          clearTimeout(_groupDripTimer); _groupDripTimer = null; _groupDrip = 0;
           if (evt.usage) updateUsageBars(evt.usage);
           break;
         }
@@ -11407,6 +11426,7 @@ async function sendGroupMessage() {
   } catch (e) {
     console.error('[group-chat] stream error:', e);
   } finally {
+    clearTimeout(_groupDripTimer); _groupDripTimer = null; _groupDrip = 0;
     groupIsStreaming = false;
     hideGroupTyping();
     _currentGroupBubble = null;
@@ -11646,7 +11666,11 @@ async function runGroupAutoChat() {
             startGroupCharBubble(_pendingGroupChar.id, _pendingGroupChar.name, _pendingGroupChar.color, _pendingGroupChar.image);
             _pendingGroupBubbleStarted = true;
           }
-          if (evt.token) appendGroupToken(evt.token);
+          if (evt.token) {
+            appendGroupToken(evt.token);
+            _groupDrip += 20;
+            if (!_groupDripTimer) _groupDripTimer = setTimeout(() => { _groupDripTimer = null; _dripGroupUsage(); }, 80);
+          }
         } else if (evt.type === 'speaker_end') {
           if (!_pendingGroupBubbleStarted) hideGroupTyping();
           _currentGroupBubble = null;
@@ -11654,6 +11678,7 @@ async function runGroupAutoChat() {
           _pendingGroupBubbleStarted = false;
         } else if (evt.done) {
           streamDone = true;
+          clearTimeout(_groupDripTimer); _groupDripTimer = null; _groupDrip = 0;
           if (evt.usage) updateUsageBars(evt.usage);
           break;
         }
@@ -11668,6 +11693,7 @@ async function runGroupAutoChat() {
       if (btn) btn.classList.remove('active');
     }
   } finally {
+    clearTimeout(_groupDripTimer); _groupDripTimer = null; _groupDrip = 0;
     groupAutoChatAbort = null;
     groupIsStreaming = false;
     hideGroupTyping();

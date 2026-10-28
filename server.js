@@ -6345,7 +6345,7 @@ app.post('/api/groups/:id/chat', requireAuth, async (req, res) => {
 
     let charResponse = '';
 
-    addTokens(userId, messageCost('opas', 'medium'));
+    addTokens(userId, messageCost('opas', 'medium') * 2);
 
     const charCtx = { aborted: false };
     const charAbortCheck = () => { if (groupAborted) charCtx.aborted = true; return charCtx.aborted; };
