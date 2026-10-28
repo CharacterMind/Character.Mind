@@ -155,64 +155,102 @@ html, body {
 .user-badge.dd-open .ub-chevron { transform: rotate(180deg); }
 
 /* ── Layout ─────────────────────────────────────────────────────────────── */
-.app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
-.app-body { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+.app { display: flex; flex-direction: row; height: 100vh; height: 100dvh; overflow: hidden; }
+.app-body { display: flex; flex: 1; overflow: hidden; min-height: 0; min-width: 0; }
 
-/* ── Top Bar ────────────────────────────────────────────────────────────── */
-.topbar {
-  height: var(--topbar-h); background: var(--bg2);
-  border-bottom: 1px solid var(--border2);
-  display: flex; align-items: center; gap: 2px;
-  padding: 0 14px 0 16px; flex-shrink: 0; position: relative; z-index: 90;
+/* ── Icon Rail ──────────────────────────────────────────────────────────── */
+.icon-rail {
+  width: 60px; flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: center;
+  background: var(--bg2); border-right: 1px solid var(--border);
+  padding: 10px 0 10px; gap: 1px;
+  z-index: 100; overflow: visible;
+  box-shadow: 1px 0 0 rgba(139,92,246,0.07);
 }
-.topbar-logo {
-  display: flex; align-items: center; gap: 7px; cursor: pointer;
-  padding: 5px 8px; border-radius: 8px; transition: background .15s;
-  flex-shrink: 0; margin-right: 4px;
+.rail-logo {
+  width: 38px; height: 38px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; border-radius: 10px; margin-bottom: 6px;
+  transition: background .15s; flex-shrink: 0;
 }
-.topbar-logo:hover { background: var(--bg3); }
-.topbar-logo-img { width: 20px; height: 20px; }
-.topbar-logo-text {
-  font-size: 13.5px; font-weight: 700; letter-spacing: -.4px; white-space: nowrap;
-  background: linear-gradient(130deg, var(--text) 30%, var(--accent-l));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+.rail-logo:hover { background: var(--bg3); }
+.rail-logo-img { width: 26px; height: 26px; }
+.rail-section { display: flex; flex-direction: column; align-items: center; gap: 1px; width: 100%; }
+.rail-sep { width: 30px; height: 1px; background: var(--border); margin: 5px 0; flex-shrink: 0; }
+.rail-spacer { flex: 1; }
+.rail-btn {
+  width: 40px; height: 40px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; color: var(--text3);
+  border-radius: 10px; cursor: pointer;
+  transition: background .15s, color .15s;
+  position: relative;
 }
-.topbar-sep { width: 1px; height: 18px; background: var(--border2); flex-shrink: 0; margin: 0 4px; }
-.topbar-nav { display: flex; align-items: center; }
-.topbar-features { display: flex; align-items: center; }
-.topbar-spacer { flex: 1; }
-.tnav { width: auto !important; padding: 6px 9px !important; font-size: 12.5px !important; font-weight: 500 !important; border-radius: 7px !important; }
-.tnav svg { width: 14px !important; height: 14px !important; }
-.tnav.active { box-shadow: inset 0 -2px 0 var(--accent) !important; }
-.tnav-feat { color: var(--text3) !important; font-size: 12px !important; }
-.tnav-feat:hover { color: var(--text2) !important; }
-.topbar-create { margin-bottom: 0 !important; margin-left: 6px; }
-.topbar-create .btn-create-top { width: auto; padding: 6px 14px; font-size: 12.5px; border-radius: 20px; }
-.topbar-create .create-dropdown { right: 0; left: auto; }
-.topbar-hamburger { display: none; align-items: center; justify-content: center; background: none; border: none; color: var(--text2); cursor: pointer; padding: 5px; border-radius: 7px; flex-shrink: 0; margin-right: 4px; transition: background .15s; }
-.topbar-hamburger:hover { background: var(--bg3); color: var(--text); }
-.topbar-user-wrap { position: relative; margin-left: 6px; }
-.topbar-user-wrap .user-dropdown {
-  bottom: auto; top: calc(100% + 8px); left: auto; right: 0; width: 240px;
+.rail-btn:hover { background: var(--bg3); color: var(--text); }
+.rail-btn.rail-active { color: var(--accent-l); background: var(--accent-dim); }
+.rfeat { opacity: .65; }
+.rfeat:hover { opacity: 1; }
+/* hover tooltip */
+.rail-btn[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute; left: calc(100% + 10px); top: 50%;
+  transform: translateY(-50%);
+  background: var(--bg3); border: 1px solid var(--border2);
+  color: var(--text); font-size: 12px; font-weight: 500;
+  padding: 5px 10px; border-radius: 7px;
+  white-space: nowrap; pointer-events: none;
+  opacity: 0; transition: opacity .1s .35s;
+  z-index: 9999;
+}
+.rail-btn[data-tip]:hover::after { opacity: 1; }
+/* create button */
+.rail-create { position: relative; }
+.rail-create-btn {
+  width: 38px; height: 38px;
+  background: var(--accent-dim) !important;
+  color: var(--accent-l) !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(139,92,246,.25) !important;
+  transition: background .15s, transform .1s !important;
+}
+.rail-create-btn:hover { background: rgba(139,92,246,.25) !important; transform: scale(1.07); }
+.rail-create-dropdown {
+  position: absolute !important;
+  bottom: 0 !important; left: calc(100% + 10px) !important;
+  top: auto !important; right: auto !important;
+  min-width: 180px;
+}
+/* user wrap */
+.rail-user-wrap { position: relative; margin-top: 4px; }
+.rail-user-wrap .user-badge { width: 36px; height: 36px; }
+.rail-user-wrap .user-dropdown {
+  position: absolute;
+  bottom: 0; left: calc(100% + 10px);
+  top: auto; right: auto;
+  width: 246px;
   box-shadow: 0 8px 32px rgba(0,0,0,.5), 0 0 0 1px rgba(139,92,246,.06);
 }
-/* Chat history rail header */
-.chat-rail-header {
+/* chat drawer header */
+.chat-drawer-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 12px 6px; flex-shrink: 0;
+  padding: 14px 12px 8px; flex-shrink: 0;
 }
-.chat-rail-title {
+.chat-drawer-title {
   font-size: 10.5px; font-weight: 700; text-transform: uppercase;
   letter-spacing: .08em; color: var(--text3);
 }
-.chat-rail-header .sidebar-collapse-btn { position: static; transform: none; }
+.chat-drawer-close {
+  background: none; border: none; color: var(--text3); cursor: pointer;
+  padding: 4px; border-radius: 6px; display: flex; align-items: center;
+  transition: background .15s, color .15s;
+}
+.chat-drawer-close:hover { background: var(--bg3); color: var(--text); }
 
 /* ── Sidebar ─────────────────────────────────────────────────────────────── */
 .sidebar {
-  width: var(--sidebar-w); background: var(--bg2); border-right: 1px solid var(--border);
+  width: var(--sidebar-w); background: var(--bg); border-right: 1px solid var(--border);
   display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
-  transition: width 0.25s ease;
-  box-shadow: inset -1px 0 0 rgba(139,92,246,0.06);
+  transition: width 0.25s ease; min-height: 0;
 }
 .sidebar.collapsed { width: 0; border-right: none; }
 .sidebar-header-row { display: flex; align-items: center; justify-content: center; padding-bottom: 0; position: relative; }
@@ -226,7 +264,7 @@ html, body {
 .mob-nav-bar { display: none; } /* shown only via mobile media query */
 
 .sidebar-expand-btn {
-  display: none; position: fixed; top: calc(var(--topbar-h) + 14px); left: 12px; z-index: 50;
+  display: none; position: fixed; top: 14px; left: 70px; z-index: 50;
   background: none; border: none; color: var(--text2); cursor: pointer;
   padding: 6px 8px; border-radius: 8px; opacity: 0.6;
   transition: opacity 0.15s, background 0.15s;
@@ -2731,16 +2769,35 @@ html, body {
     box-shadow: none;
   }
 
-  /* Floating hamburger replaced by mob-nav-bar — hide it on mobile */
+  /* Floating expand btn — hide on mobile (rail handles it) */
   .sidebar-expand-btn { display: none !important; }
 
-  /* Topbar: show hamburger, hide desktop nav items, allow scroll */
-  .topbar { overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 0; padding: 0 10px; }
-  .topbar-nav, .topbar-features, .topbar-sep { display: none; }
-  .topbar-hamburger { display: flex !important; }
-  .topbar-spacer { min-width: 8px; }
+  /* Icon rail: rotate to bottom dock on mobile */
+  .app { flex-direction: column !important; }
+  .icon-rail {
+    width: 100% !important; height: 58px !important;
+    flex-direction: row !important; order: 2 !important;
+    border-right: none !important; border-top: 1px solid var(--border) !important;
+    padding: 0 6px !important; gap: 0 !important;
+    justify-content: space-around !important; overflow-x: auto;
+  }
+  .app-body { order: 1 !important; }
+  .icon-rail .rail-section { flex-direction: row !important; }
+  .icon-rail .rail-logo { display: none !important; }
+  .icon-rail .rail-feat-section { display: none !important; }
+  .icon-rail .rail-sep { display: none !important; }
+  .icon-rail .rail-spacer { display: none !important; }
+  .icon-rail .rail-btn[data-tip]::after { display: none !important; }
+  .rail-user-wrap .user-dropdown {
+    bottom: calc(100% + 8px) !important; left: auto !important;
+    right: 0 !important; top: auto !important;
+  }
+  .rail-create-dropdown {
+    bottom: calc(100% + 8px) !important; left: auto !important;
+    right: 0 !important; top: auto !important;
+  }
 
-  /* Mobile top navigation bar (inside main) — hidden since topbar replaces it */
+  /* Mobile top navigation bar — hidden (rail replaces it) */
   .mob-nav-bar { display: none !important; }
 
   /* Old mob-nav-bar styles — kept for reference but overridden above */
@@ -5059,3 +5116,162 @@ body.hw-screaming::after {
   border-top: 1px solid var(--border, #1e1b2e);
 }
 .group-picker-footer .btn-primary { width: 100%; justify-content: center; }
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   CHARACTER.MIND — LEFT NAV REDESIGN (v370)
+   Layout: vertical left-nav panel (210px) + content area
+   Completely replaces the horizontal topbar layout on desktop
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+@media (min-width: 769px) {
+
+  /* ── 1. App: horizontal row (left-nav | app-body) ────────────────────────── */
+  .app { flex-direction: row !important; }
+
+  /* ── 2. Left nav panel (repurposed from .topbar) ────────────────────────── */
+  .topbar {
+    width: 210px !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    border-bottom: none !important;
+    border-right: 1px solid var(--border) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    flex-shrink: 0 !important;
+    background: var(--bg2) !important;
+  }
+  .topbar::-webkit-scrollbar { width: 0; }
+
+  /* ── 3. Logo area ────────────────────────────────────────────────────────── */
+  .topbar-logo {
+    padding: 18px 14px 16px !important;
+    border-bottom: 1px solid var(--border) !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    flex-shrink: 0 !important;
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+  .topbar-logo-img { width: 22px !important; height: 22px !important; }
+  .topbar-logo-text { font-size: 14px !important; }
+
+  /* ── 4. Separators: hidden (sections use border-top instead) ────────────── */
+  .topbar-sep { display: none !important; }
+
+  /* ── 5. Primary nav (Home, Discover, Feed, Groups) ──────────────────────── */
+  .topbar-nav {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 10px 8px !important;
+    gap: 2px !important;
+    width: 100% !important;
+  }
+
+  /* ── 6. Features section (Plans, Usage, Compete, Quiz, Safety) ──────────── */
+  .topbar-features {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 6px 8px !important;
+    gap: 2px !important;
+    width: 100% !important;
+    border-top: 1px solid var(--border) !important;
+  }
+
+  /* ── 7. Spacer: grows to push Create + User to the bottom ───────────────── */
+  .topbar-spacer { flex: 1 !important; min-height: 0 !important; }
+
+  /* ── 8. Create button: full-width ───────────────────────────────────────── */
+  .topbar-create {
+    padding: 8px !important;
+    margin: 0 !important;
+    width: 100% !important;
+    flex-shrink: 0 !important;
+    border-top: 1px solid var(--border) !important;
+  }
+  .topbar-create .btn-create-top {
+    width: 100% !important;
+    justify-content: center !important;
+    border-radius: 10px !important;
+    padding: 9px 14px !important;
+    font-size: 13px !important;
+  }
+  .topbar-create .create-dropdown {
+    bottom: calc(100% + 4px) !important;
+    top: auto !important;
+    left: 0 !important;
+    right: auto !important;
+    min-width: 160px !important;
+  }
+
+  /* ── 9. User section: very bottom of nav ────────────────────────────────── */
+  .topbar-user-wrap {
+    margin: 0 !important;
+    padding: 8px !important;
+    border-top: 1px solid var(--border) !important;
+    flex-shrink: 0 !important;
+    position: relative !important;
+  }
+  .topbar-user-wrap .user-badge { width: 100% !important; }
+  .topbar-user-wrap .user-dropdown {
+    position: absolute !important;
+    bottom: 100% !important;
+    top: auto !important;
+    left: 0 !important;
+    right: auto !important;
+    width: 240px !important;
+    margin-bottom: 4px !important;
+    box-shadow: 0 -8px 32px rgba(0,0,0,.55), 0 0 0 1px rgba(139,92,246,.06) !important;
+  }
+
+  /* ── 10. Hamburger: hidden (left nav replaces it) ───────────────────────── */
+  .topbar-hamburger { display: none !important; }
+
+  /* ── 11. Nav items: full-width, left-aligned ────────────────────────────── */
+  .tnav {
+    width: 100% !important;
+    justify-content: flex-start !important;
+    text-align: left !important;
+    padding: 9px 12px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    gap: 9px !important;
+    border-radius: 9px !important;
+    box-shadow: none !important;
+  }
+  .tnav svg { width: 16px !important; height: 16px !important; flex-shrink: 0 !important; }
+
+  /* Active: left accent bar instead of bottom underline */
+  .tnav.active {
+    background: var(--accent-dim) !important;
+    color: var(--accent-l) !important;
+    box-shadow: inset 3px 0 0 var(--accent) !important;
+  }
+
+  /* Feature items: slightly smaller, muted */
+  .tnav-feat {
+    font-size: 12.5px !important;
+    padding: 7px 12px !important;
+    color: var(--text2) !important;
+  }
+  .tnav-feat:hover { color: var(--text) !important; }
+
+  /* ── 12. App body: takes all remaining width ────────────────────────────── */
+  .app-body { flex: 1 !important; min-width: 0 !important; overflow: hidden !important; }
+
+  /* ── 13. Sidebar expand button: position within content area ────────────── */
+  .sidebar-expand-btn {
+    top: 14px !important;
+    left: calc(210px + 10px) !important;
+  }
+
+  /* ── 14. Mobile nav bar inside main: keep hidden on desktop ─────────────── */
+  .mob-nav-bar { display: none !important; }
+
+}

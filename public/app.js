@@ -2193,9 +2193,7 @@ function showSettingsTab(tab) {
   if (activePane) activePane.classList.remove('hidden');
   if (tab === 'changelog') {
     const sel = document.getElementById('versionPicker');
-    if (sel && !document.getElementById('changelogContent')?.innerHTML.trim()) {
-      showChangelogVersion(sel.value);
-    }
+    if (sel) showChangelogVersion(sel.value);
   }
 }
 
@@ -2359,7 +2357,10 @@ function showCreate() {
     const sb = document.querySelector('.btn-submit'); if (sb) sb.textContent = 'Create Character';
   }
 }
-function setNavActive(i) { document.querySelectorAll('.topbar-nav .nav-item')[i]?.classList.add('active'); }
+function setNavActive(i) {
+  document.querySelectorAll('.icon-rail .rnav').forEach(b => b.classList.remove('rail-active'));
+  document.querySelectorAll('.icon-rail .rnav')[i]?.classList.add('rail-active');
+}
 
 // ── Render Home — c.ai style rows ─────────────────────────────────────────────
 function homeTopbar() {
