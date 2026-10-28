@@ -1889,6 +1889,7 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '368': { date: 'October 2026', items: ['Complete UI layout overhaul — horizontal topbar replaces left-sidebar navigation', 'Logo, Home/Discover/Feed/Groups nav, Plans/Usage/Compete/Quiz/Safety features, Create button and user account all moved to topbar', 'Sidebar converted to a pure chat history rail (Chats label + search + recent list)', 'Unique platform layout unlike any existing AI chat interface', 'User dropdown now anchors to topbar user badge'] },
   '366': { date: 'October 2026', items: ['New brand palette — deeper dark backgrounds, subtle purple sidebar accent', 'Sidebar navigation expanded: 9-item 3-column grid (Plans, Usage, Compete, Quiz, Safety, Settings, Contact, Policies, Profile)', 'Policies nav button opens quick-access popover with Terms + Privacy links', 'Changelog tab added to Settings with this version picker', 'Terms of Service and Privacy Policy updated for Group Chat and Push Notifications'] },
   '365': { date: 'October 2026', items: ['Push notifications when characters finish responding (regular chat & group chat)', 'Distinct double-pulse vibration for group chat notifications', 'Notifications suppressed automatically while app tab is visible', 'Server-side 45-second throttle prevents notification spam', 'Stale push subscriptions auto-removed on 410/404'] },
   '364': { date: 'October 2026', items: ['Group chats — up to 15 characters chatting together in one thread', 'Multi-character SSE streaming — each speaker labeled by name and color', 'Auto-Chat mode — characters talk to each other in the background automatically', 'Per-round responder count — type exactly how many characters speak per turn', 'Auto-chat costs 2× tokens; more speakers per round costs proportionally more', 'Limit modal with group-specific message when session/weekly cap is hit', 'Send while streaming — aborts auto-chat cleanly so your message goes through'] },
@@ -2172,7 +2173,7 @@ function showCreate() {
     const sb = document.querySelector('.btn-submit'); if (sb) sb.textContent = 'Create Character';
   }
 }
-function setNavActive(i) { document.querySelectorAll('.sidebar-nav .nav-item')[i]?.classList.add('active'); }
+function setNavActive(i) { document.querySelectorAll('.topbar-nav .nav-item')[i]?.classList.add('active'); }
 
 // ── Render Home — c.ai style rows ─────────────────────────────────────────────
 function homeTopbar() {

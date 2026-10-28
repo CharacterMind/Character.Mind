@@ -19,7 +19,8 @@
   --user-bubble: #1b1042;
   --ai-bubble:   #1c1c26;
   --input-bg:    #17171f;
-  --sidebar-w: 270px;
+  --sidebar-w: 220px;
+  --topbar-h: 54px;
   --panel-w:   290px;
   --r:  10px;
   --rl: 14px;
@@ -154,7 +155,57 @@ html, body {
 .user-badge.dd-open .ub-chevron { transform: rotate(180deg); }
 
 /* ── Layout ─────────────────────────────────────────────────────────────── */
-.app { display: flex; height: 100vh; height: 100dvh; overflow: hidden; }
+.app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
+.app-body { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+
+/* ── Top Bar ────────────────────────────────────────────────────────────── */
+.topbar {
+  height: var(--topbar-h); background: var(--bg2);
+  border-bottom: 1px solid var(--border2);
+  display: flex; align-items: center; gap: 2px;
+  padding: 0 14px 0 16px; flex-shrink: 0; position: relative; z-index: 90;
+}
+.topbar-logo {
+  display: flex; align-items: center; gap: 7px; cursor: pointer;
+  padding: 5px 8px; border-radius: 8px; transition: background .15s;
+  flex-shrink: 0; margin-right: 4px;
+}
+.topbar-logo:hover { background: var(--bg3); }
+.topbar-logo-img { width: 20px; height: 20px; }
+.topbar-logo-text {
+  font-size: 13.5px; font-weight: 700; letter-spacing: -.4px; white-space: nowrap;
+  background: linear-gradient(130deg, var(--text) 30%, var(--accent-l));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.topbar-sep { width: 1px; height: 18px; background: var(--border2); flex-shrink: 0; margin: 0 4px; }
+.topbar-nav { display: flex; align-items: center; }
+.topbar-features { display: flex; align-items: center; }
+.topbar-spacer { flex: 1; }
+.tnav { width: auto !important; padding: 6px 9px !important; font-size: 12.5px !important; font-weight: 500 !important; border-radius: 7px !important; }
+.tnav svg { width: 14px !important; height: 14px !important; }
+.tnav.active { box-shadow: inset 0 -2px 0 var(--accent) !important; }
+.tnav-feat { color: var(--text3) !important; font-size: 12px !important; }
+.tnav-feat:hover { color: var(--text2) !important; }
+.topbar-create { margin-bottom: 0 !important; margin-left: 6px; }
+.topbar-create .btn-create-top { width: auto; padding: 6px 14px; font-size: 12.5px; border-radius: 20px; }
+.topbar-create .create-dropdown { right: 0; left: auto; }
+.topbar-hamburger { display: none; align-items: center; justify-content: center; background: none; border: none; color: var(--text2); cursor: pointer; padding: 5px; border-radius: 7px; flex-shrink: 0; margin-right: 4px; transition: background .15s; }
+.topbar-hamburger:hover { background: var(--bg3); color: var(--text); }
+.topbar-user-wrap { position: relative; margin-left: 6px; }
+.topbar-user-wrap .user-dropdown {
+  bottom: auto; top: calc(100% + 8px); left: auto; right: 0; width: 240px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5), 0 0 0 1px rgba(139,92,246,.06);
+}
+/* Chat history rail header */
+.chat-rail-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 12px 6px; flex-shrink: 0;
+}
+.chat-rail-title {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--text3);
+}
+.chat-rail-header .sidebar-collapse-btn { position: static; transform: none; }
 
 /* ── Sidebar ─────────────────────────────────────────────────────────────── */
 .sidebar {
@@ -175,7 +226,7 @@ html, body {
 .mob-nav-bar { display: none; } /* shown only via mobile media query */
 
 .sidebar-expand-btn {
-  display: none; position: fixed; top: 14px; left: 12px; z-index: 50;
+  display: none; position: fixed; top: calc(var(--topbar-h) + 14px); left: 12px; z-index: 50;
   background: none; border: none; color: var(--text2); cursor: pointer;
   padding: 6px 8px; border-radius: 8px; opacity: 0.6;
   transition: opacity 0.15s, background 0.15s;
@@ -337,7 +388,7 @@ html, body {
 
 .sidebar-search {
   display: flex; align-items: center; gap: 8px; background: var(--bg3);
-  border-radius: 8px; padding: 8px 11px; margin-top: 10px;
+  border-radius: 8px; padding: 8px 11px; margin: 4px 8px 8px;
   border: 1px solid transparent; transition: border-color .15s;
 }
 .sidebar-search:focus-within { border-color: var(--border2); }
@@ -2010,7 +2061,7 @@ html, body {
 
 /* ── User Dropdown ────────────────────────────────────────────────────────── */
 .user-dropdown {
-  position: absolute; bottom: 60px; left: 8px; right: 8px;
+  position: absolute;
   background: var(--bg2); border: 1px solid var(--border2);
   border-radius: var(--rl); padding: 6px;
   box-shadow: 0 -8px 32px rgba(0,0,0,.5), 0 0 0 1px rgba(139,92,246,.06);
@@ -2683,8 +2734,17 @@ html, body {
   /* Floating hamburger replaced by mob-nav-bar — hide it on mobile */
   .sidebar-expand-btn { display: none !important; }
 
-  /* Mobile top navigation bar */
-  .mob-nav-bar {
+  /* Topbar: show hamburger, hide desktop nav items, allow scroll */
+  .topbar { overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 0; padding: 0 10px; }
+  .topbar-nav, .topbar-features, .topbar-sep { display: none; }
+  .topbar-hamburger { display: flex !important; }
+  .topbar-spacer { min-width: 8px; }
+
+  /* Mobile top navigation bar (inside main) — hidden since topbar replaces it */
+  .mob-nav-bar { display: none !important; }
+
+  /* Old mob-nav-bar styles — kept for reference but overridden above */
+  .mob-nav-bar-legacy {
     display: flex !important;
     align-items: center;
     gap: 10px;
