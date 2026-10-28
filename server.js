@@ -1064,9 +1064,9 @@ const LIMITS = {
 
 // Session token limits. Every paid tier is an EXACT multiple of FREE_SESSION_TOKENS
 // so that "X20" really means 20×, "X50" really means 50×, etc.
-// Advanced = free + ~2 avg messages (a modest bump above free).
+// Free = ~18 avg messages per 2-hr session. Advanced = 3× that, etc.
 // AVG_MESSAGE_TOKENS is kept for reference and UI estimates only.
-const FREE_SESSION_TOKENS = 60000;
+const FREE_SESSION_TOKENS = 150000;
 const AVG_MESSAGE_TOKENS  = 3600;
 const WEEKLY_SESSIONS     = 3;
 const TIER_TOKEN_LIMITS = {

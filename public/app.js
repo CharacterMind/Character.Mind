@@ -237,7 +237,7 @@ const PLAN_DATA = [
     features: [
       'Opas & Opes: quick-witted, weirdly capable, zero fluff',
       'Every character unlocked — no velvet rope',
-      'Up to ~7 messages per session (token-limited)',
+      'Up to ~18 messages per session (token-limited)',
       'Up to 10 regenerations per day · up to 3 image uploads per day',
       'Up to 6 calls per day · up to 50 memos per day',
     ],
