@@ -195,7 +195,7 @@
 <div class="hero">
   <div class="hero-badge">Legal Document</div>
   <h1 class="hero-title">Terms of Service</h1>
-  <p class="hero-meta">Effective <span>October 3, 2026</span> &nbsp;·&nbsp; Last updated <span>October 27, 2026</span></p>
+  <p class="hero-meta">Effective <span>October 3, 2026</span> &nbsp;·&nbsp; Last updated <span>October 28, 2026</span></p>
 </div>
 
 <div class="layout">
@@ -212,6 +212,7 @@
       <li><a href="#s5c" class="toc-link">5c. Group Chat</a></li>
       <li><a href="#s5d" class="toc-link">5d. Push Notifications</a></li>
       <li><a href="#s6" class="toc-link">6. Usage Limits</a></li>
+      <li><a href="#s6a" class="toc-link">6a. AI Models</a></li>
       <li><a href="#s7" class="toc-link">7. AI-Generated Content</a></li>
       <li><a href="#s8" class="toc-link">8. User-Created Characters</a></li>
       <li><a href="#s9" class="toc-link">9. Acceptable Use</a></li>
@@ -258,11 +259,11 @@
           <tbody>
             <tr><td>Free</td><td>$0</td><td>$0</td></tr>
             <tr><td>Advanced</td><td>$9.99/mo</td><td>$59.99/yr</td></tr>
-            <tr><td>X20</td><td>$39.99/mo</td><td>$239.99/yr</td></tr>
           </tbody>
         </table>
       </div>
-      <p>Annual plans are billed once per year. Monthly plans are billed each month. Prices are in US dollars and may be subject to applicable taxes.</p>
+      <p>Annual plans are billed once per year. Monthly plans are billed each month. Prices are shown in US dollars by default; local currency equivalents are displayed in the app based on your location and are for reference only. All transactions are processed in USD. Prices may be subject to applicable taxes.</p>
+      <p>Higher-tier plans (X20, X50, X100, X200) are planned and will be made available as the platform grows. Their features and pricing will be announced before launch.</p>
     </div>
 
     <div class="section" id="s5">
@@ -328,12 +329,71 @@
     <div class="section" id="s6">
       <p class="section-num">Section 06</p>
       <h2>Usage Limits</h2>
-      <p>All plans are subject to the following usage limits:</p>
+      <p>Character.Mind uses a <strong>token-based system</strong> to manage AI usage fairly across all users. Every AI response consumes tokens — a measure of the computational work required. Tokens count your message, the conversation history, and the generated reply together. A typical short exchange might use 400–800 tokens; a longer conversation with full history can reach several thousand.</p>
+
+      <p><strong>Session limit:</strong> Every user has a session token pool. When you exhaust it, a <strong>2-hour cooldown</strong> begins. After that timer expires, your session resets to full automatically — no action needed. The cooldown countdown is visible in the app.</p>
+
+      <p><strong>Weekly limit:</strong> Paid plans also carry a rolling weekly token cap. Free users have no weekly cap. Weekly limits reset on a <strong>7-day rolling basis</strong> from your first message of each week.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Plan</th><th>Session Tokens</th><th>Approx. Messages</th><th>Weekly Tokens</th></tr></thead>
+          <tbody>
+            <tr><td>Free</td><td>150,000</td><td>~18 messages</td><td>No cap</td></tr>
+            <tr><td>Advanced</td><td>450,000</td><td>~56 messages</td><td>1,350,000</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout">Message counts are approximate. They assume an average context window of ~8,000 tokens per exchange, which grows as the conversation gets longer. Short messages or a freshly started chat will stretch further; long detailed replies will use more.</div>
+
+      <p><strong>Model token costs:</strong> Different AI models cost different amounts per message. Choosing a more capable model produces richer output but uses your session budget faster.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Model</th><th>Tokens / message</th><th>Available on</th></tr></thead>
+          <tbody>
+            <tr><td>Opas</td><td>~420</td><td>Free and above</td></tr>
+            <tr><td>Opes</td><td>~1,800</td><td>Free and above</td></tr>
+            <tr><td>Opis</td><td>~2,250</td><td>Advanced and above</td></tr>
+            <tr><td>Opos</td><td>~2,700</td><td>Advanced and above</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p><strong>Group chat:</strong> In group conversations, each character that responds costs <strong>2× the standard token rate</strong> for that model. This reflects the extra context and coordination required to keep multiple characters in sync.</p>
+
+      <p><strong>Auto-Chat:</strong> When Auto-Chat is running, characters continue the conversation without user input. Each Auto-Chat round consumes tokens at the same 2× group rate. You can pause or stop Auto-Chat at any time. Tokens used during Auto-Chat count toward your session and weekly limits exactly the same as regular messages.</p>
+
+      <p><strong>Daily feature limits</strong> (reset every 8 hours):</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Feature</th><th>Free</th><th>Advanced</th></tr></thead>
+          <tbody>
+            <tr><td>AI voice calls</td><td>6 / day</td><td>18 / day</td></tr>
+            <tr><td>Memos</td><td>50 / day</td><td>150 / day</td></tr>
+            <tr><td>Image uploads</td><td>3 / day</td><td>9 / day</td></tr>
+            <tr><td>Regenerations</td><td>10 / day</td><td>30 / day</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>We reserve the right to adjust limits to maintain service quality for all users. Material changes to limits affecting paid plans will be communicated with at least 7 days' notice.</p>
+    </div>
+
+    <div class="section" id="s6a">
+      <p class="section-num">Section 06a</p>
+      <h2>AI Models Explained</h2>
+      <p>Character.Mind uses a ladder of AI model tiers, each with different writing styles, reply lengths, and token costs. You choose your model from the model bar in the app; some models require a paid plan.</p>
       <ul>
-        <li><strong>Session limit:</strong> A rolling usage window limits the total tokens generated per session. When reached, a cooldown period applies before the session resets.</li>
-        <li><strong>Weekly limit:</strong> A weekly token ceiling applies across all plans. Limits reset on a 7-day rolling basis.</li>
+        <li><strong>Opas</strong> — The quick responder. Short, punchy replies with fast pacing and snappy dialogue. Great for rapid back-and-forth conversations. Costs ~420 tokens per message. Available on all plans.</li>
+        <li><strong>Opes</strong> — The storyteller. A step up from Opas: richer, more natural dialogue with replies around 60% longer. Better suited to everyday chatting and more descriptive scenes. Costs ~1,800 tokens per message. Available on all plans.</li>
+        <li><strong>Opis</strong> — Sharper reasoning and deeper logic. Built for mystery, intrigue, and complex storylines that need to stay consistent over long conversations. Available on Advanced and above.</li>
+        <li><strong>Opos</strong> — Full Game Master mode. Drives plots, voices multiple NPCs simultaneously, and runs entire scenes. Designed for collaborative tabletop-style roleplay. Available on Advanced and above.</li>
       </ul>
-      <p>We reserve the right to adjust limits to maintain service quality for all users.</p>
+      <p>Higher-tier models — Opus, Opys, Opys 5, and Opys 6 — are reserved for future plan tiers. Each successive tier produces longer replies with greater emotional depth, narrative complexity, and creative range.</p>
+      <div class="callout"><strong>Note:</strong> All models are proprietary to Character.Mind and powered by Groq's inference infrastructure. They are not affiliated with any third-party AI products or services that use similar names.</div>
     </div>
 
     <div class="section" id="s7">

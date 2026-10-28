@@ -235,23 +235,23 @@ const PLAN_DATA = [
     key: 'free', name: 'Free', monthly: 0, annual: 0, coinsPerMonth: 0,
     callsPerDay: 6, memosPerDay: 50, imagesPerDay: 3,
     features: [
-      'Opas & Opes: quick-witted, weirdly capable, zero fluff',
-      'Every character unlocked — no velvet rope',
-      'Up to ~18 messages per session (token-limited)',
-      'Up to 10 regenerations per day · up to 3 image uploads per day',
-      'Up to 6 calls per day · up to 50 memos per day',
+      'Opas — fast & punchy: snappy replies, zero filler, straight to the point',
+      'Opes — the step-up: richer storytelling, replies ~60% longer, deeper natural banter (costs more session tokens)',
+      '~18 messages per session · resets every 2 hrs · no weekly cap',
+      'All characters unlocked — no gatekeeping',
+      '10 regenerations · 3 image uploads · 6 calls · 50 memos per day',
     ],
   },
   {
     key: 'advanced', name: 'Advanced', monthly: 9.99, annual: 59.99, coinsPerMonth: 2000,
     callsPerDay: 18, memosPerDay: 150, imagesPerDay: 9,
     features: [
-      'Opis: sharper logic, built for mystery, never loses the thread',
-      'Opos: plays GM — runs the whole room, drives plot, voices every NPC',
-      'Up to ~21 messages per session — 3× free',
-      'Up to 30 regenerations per day · up to 9 image uploads per day',
-      'Up to 18 calls per day · up to 150 memos per day',
-      'Everything in Free',
+      'Opis — sharper logic: built for mystery and intrigue, never loses the thread',
+      'Opos — full GM mode: runs the whole room, drives plot, voices every NPC',
+      '~56 messages per session — 3× free · no weekly cap',
+      '2,000 C.M. Coins every month',
+      '30 regenerations · 9 image uploads · 18 calls · 150 memos per day',
+      'Everything in Free, including Opas & Opes',
     ],
   },
   {
@@ -435,7 +435,7 @@ function setPricingPeriod(period) {
   renderPricingCards();
 }
 
-const ACTIVE_PLANS = ['advanced'];
+const ACTIVE_PLANS = ['free', 'advanced'];
 
 // Update this URL to your Ko-fi / Buy Me a Coffee / PayPal.me donation link
 const DONATION_URL = 'https://ko-fi.com/charactermind';
@@ -515,9 +515,14 @@ function renderPricingCards() {
         coinBtn = `<button class="pc-cta pc-cta-current" disabled title="Need ${need} more coins">🪙 Need ${need} more coins</button>`;
       }
     }
-    const soon = !isCurrent && plan.key !== 'free';
-    const ctaText = isCurrent ? 'Current plan' : soon ? 'Subscribe' : 'Upgrade';
-    const ctaClass = 'pc-cta' + (isCurrent ? ' pc-cta-current' : '');
+    let ctaBtn = '';
+    if (isCurrent) {
+      ctaBtn = `<button class="pc-cta pc-cta-current" disabled>Current plan</button>`;
+    } else if (plan.key === 'free') {
+      ctaBtn = `<p class="pc-cancel-note">Available when your subscription ends</p>`;
+    } else {
+      ctaBtn = `<button class="pc-cta" onclick="handleUpgradeCta('${plan.key}')">Subscribe</button>`;
+    }
     return `<div class="pricing-card${isCurrent ? ' pc-current' : ''}${plan.badge ? ' pc-featured' : ''}">
       ${badge}${saleBadge}
       <div class="pc-name">${escHtml(plan.name)}</div>
@@ -525,7 +530,7 @@ function renderPricingCards() {
       ${perMonth}
       ${coinValueRow}
       <ul class="pc-features">${features}</ul>
-      <button class="${ctaClass}" ${isCurrent ? 'disabled' : `onclick="handleUpgradeCta('${plan.key}')"`}>${ctaText}</button>
+      ${ctaBtn}
       ${coinBtn}
     </div>`;
   }).join('');
