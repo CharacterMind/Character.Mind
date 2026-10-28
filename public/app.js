@@ -11091,14 +11091,22 @@ let _groupDripTimer = null;
 
 function _dripGroupUsage() {
   if (!lastKnownUsage || _groupDrip <= 0) return;
-  // Cap drip so it never visually triggers a lockout that hasn't happened yet
-  const safeDrip = Math.min(_groupDrip,
-    Math.max(0, (lastKnownUsage.weeklyLimit || 999999) - (lastKnownUsage.weeklyTokens || 0) - 50));
-  if (safeDrip <= 0) return;
-  updateUsageBars({ ...lastKnownUsage,
-    sessionTokens: (lastKnownUsage.sessionTokens || 0) + safeDrip,
-    weeklyTokens: (lastKnownUsage.weeklyTokens || 0) + safeDrip
-  });
+  // Direct DOM update only — never goes through updateUsageBars/updateUsageModal
+  // (those functions modify lastKnownUsage which would corrupt the drip baseline)
+  const sT = (lastKnownUsage.sessionTokens || 0) + _groupDrip;
+  const wT = (lastKnownUsage.weeklyTokens || 0) + _groupDrip;
+  const sL = lastKnownUsage.sessionLimit;
+  const wL = lastKnownUsage.weeklyLimit;
+  const sPct = sL > 0 ? Math.min(100, Math.round(sT / sL * 100)) : 0;
+  const wPct = wL > 0 ? Math.min(100, Math.round(wT / wL * 100)) : 0;
+  const sBar = document.getElementById('usageSessionBar');
+  if (sBar) sBar.style.width = sPct + '%';
+  const sPctEl = document.getElementById('usageSessionPct');
+  if (sPctEl) sPctEl.textContent = sPct + '% used';
+  const wBar = document.getElementById('usageWeeklyBar');
+  if (wBar) wBar.style.width = wPct + '%';
+  const wPctEl = document.getElementById('usageWeeklyPct');
+  if (wPctEl) wPctEl.textContent = wPct + '% used';
 }
 
 async function loadGroups() {
@@ -11238,6 +11246,7 @@ function openGroupChat(groupId, groupData) {
   groupIsStreaming = false;
   groupAutoChat = false;
   if (groupAutoChatTimer) { clearTimeout(groupAutoChatTimer); groupAutoChatTimer = null; }
+  clearTimeout(_groupDripTimer); _groupDripTimer = null; _groupDrip = 0;
   const acBtn = document.getElementById('groupAutoChatBtn');
   if (acBtn) acBtn.classList.remove('active');
 
@@ -11283,7 +11292,7 @@ function appendUserGroupMsg(text) {
   if (!msgs) return;
   const div = document.createElement('div');
   div.className = 'group-msg group-msg-user';
-  div.innerHTML = `<button class="group-msg-del-btn" onclick="deleteGroupMsg(this.closest('.group-msg'))" title="Delete">×</button><div class="group-msg-bubble">${escHtml(text)}</div>`;
+  div.innerHTML = `<div class="group-msg-bubble">${escHtml(text)}</div><button class="group-msg-del-btn" onclick="deleteGroupMsg(this.closest('.group-msg'))" title="Delete">×</button>`;
   msgs.appendChild(div);
   const body = document.getElementById('groupChatBody');
   if (body) body.scrollTop = body.scrollHeight;
