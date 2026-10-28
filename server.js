@@ -7347,6 +7347,7 @@ app.post('/api/paypal/verify-subscription', requireAuth, paypalVerifyLimiter, as
     if (prevSub && prevSub !== subscriptionId) cancelPayPalSubscription(prevSub, 'Replaced by a new plan');
     const paidLimits = getLimits(req.user.googleId);
     paidLimits.subscriptionTier = planKey;
+    paidLimits.paypalTier = planKey;
     paidLimits.tierLoaded = true;
     paidLimits.sessionTokens = 0; paidLimits.sessionStartedAt = null; paidLimits.cooldownUntil = null;
     paidLimits.weeklyTokens = 0; paidLimits.weeklyStart = null; paidLimits.warned = {};
@@ -7425,7 +7426,7 @@ app.post('/api/webhooks/paypal', async (req, res) => {
           if (upd.rows.length) {
             if (prevSub && prevSub !== subId) cancelPayPalSubscription(prevSub, 'Replaced by a new plan');
             const lim = getLimits(customId);
-            lim.subscriptionTier = tier; lim.tierLoaded = true;
+            lim.subscriptionTier = tier; lim.paypalTier = tier; lim.tierLoaded = true;
             lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null;
             lim.weeklyTokens = 0; lim.weeklyStart = null; lim.warned = {};
             lim.callsToday = 0; lim.callDayStart = null;
@@ -7500,7 +7501,7 @@ app.post('/api/webhooks/paypal', async (req, res) => {
       // Back to the free plan: start the free session and week from zero. Usage counted against the paid plan's big limits would
       // otherwise sit far above the free limits and lock the person out until the old week ends.
       const lim = getLimits(row.google_id);
-      lim.subscriptionTier = 'free'; lim.tierLoaded = true;
+      lim.subscriptionTier = 'free'; lim.paypalTier = 'free'; lim.tierLoaded = true;
       lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null;
       lim.weeklyTokens = 0; lim.weeklyStart = null; lim.warned = {};
       lim.callsToday = 0; lim.callDayStart = null;
