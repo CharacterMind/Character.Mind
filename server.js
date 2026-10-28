@@ -4727,7 +4727,7 @@ app.post('/api/admin/set-my-tier', requireAuth, (req, res) => {
   const tier = req.body && req.body.tier;
   if (typeof tier !== 'string' || !Object.hasOwn(TIER_TOKEN_LIMITS, tier)) return res.status(400).json({ error: 'Invalid tier' });
   const u = getLimits(req.user.googleId);
-  u.subscriptionTier = tier; u.tierLoaded = true;
+  u.subscriptionTier = tier; u.paypalTier = tier; u.tierLoaded = true;
   u.sessionTokens = 0; u.sessionStartedAt = null; u.cooldownUntil = null;
   u.weeklyTokens = 0; u.weeklyStart = null; u.warned = {};
   u.callsToday = 0; u.callDayStart = null;
@@ -7335,7 +7335,7 @@ app.post('/api/paypal/verify-subscription', requireAuth, paypalVerifyLimiter, as
     const prevSub = prev.rows[0] && prev.rows[0].paypal_subscription_id;
     if (prevSub === subscriptionId && prev.rows[0].subscription_tier === planKey) {
       // Already active: calling this again must not reset the session or re-send emails
-      const cur = getLimits(req.user.googleId); cur.subscriptionTier = planKey; cur.tierLoaded = true;
+      const cur = getLimits(req.user.googleId); cur.subscriptionTier = planKey; cur.paypalTier = planKey; cur.tierLoaded = true;
       return res.json({ ok: true, tier: planKey });
     }
     const upd = await db.query(
@@ -7630,7 +7630,7 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
           const gId = row.rows[0].google_id;
           await db.query('UPDATE users SET subscription_tier=$1, stripe_subscription_id=$2 WHERE google_id=$3', [planKey, sub.id, gId]).catch(() => {});
           const lim = getLimits(gId);
-          lim.subscriptionTier = planKey; lim.tier = planKey; lim.tierLoaded = true;
+          lim.subscriptionTier = planKey; lim.paypalTier = planKey; lim.tierLoaded = true;
           lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null;
           lim.weeklyTokens = 0; lim.weeklyStart = null; lim.warned = {};
           lim.callsToday = 0; lim.callDayStart = null;
@@ -7649,7 +7649,7 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
       const gId = row.rows[0].google_id;
       await db.query("UPDATE users SET subscription_tier='free', stripe_subscription_id=NULL WHERE google_id=$1", [gId]).catch(() => {});
       const lim = getLimits(gId);
-      lim.subscriptionTier = 'free'; lim.tier = 'free'; lim.tierLoaded = true;
+      lim.subscriptionTier = 'free'; lim.paypalTier = 'free'; lim.tierLoaded = true;
       lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null;
       lim.weeklyTokens = 0; lim.weeklyStart = null; lim.warned = {};
       lim.callsToday = 0; lim.callDayStart = null;
