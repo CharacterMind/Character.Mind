@@ -5117,104 +5117,96 @@ body.hw-screaming::after {
 
 
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   CHARACTER.MIND â€” FULL REDESIGN v373
-   Navy + Electric Blue. Professional platform. Nothing like the old look.
+   CHARACTER.MIND â€” REDESIGN v374
+   Top nav bar. Full-width card grid. Clean.
    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
-/* â”€â”€ 1. NEW COLOR PALETTE â€” navy/slate, electric blue accent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-:root {
-  --bg:          #07090f;
-  --bg1:         #0b0f1c;
-  --bg2:         #0d1120;
-  --bg3:         #121828;
-  --bg4:         #182030;
-  --border:      #18243a;
-  --border1:     #1c2840;
-  --border2:     #223050;
-  --text:        #dce6f5;
-  --text1:       #dce6f5;
-  --text2:       #7a90b5;
-  --text3:       #394f72;
-  --accent:      #3b82f6;
-  --accent-l:    #60a5fa;
-  --accent-d:    #1d5cd4;
-  --accent-dim:  rgba(59,130,246,0.13);
-  --narration:   #8aaee8;
-  --user-bubble: #0c1d3e;
-  --ai-bubble:   #121828;
-  --input-bg:    #121828;
-  --hover:       #131c2c;
-  --surface:     #121828;
-  --surface2:    #0d1120;
-}
+/* â”€â”€ 1. LAYOUT: column stack (top nav above, content below) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.app { flex-direction: column !important; }
 
-/* â”€â”€ 2. SIDEBAR â€” expand icon-only rail to 220px labeled sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* â”€â”€ 2. TOP NAV BAR â€” icon-rail becomes a slim horizontal header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .icon-rail {
-  width: 220px !important;
-  align-items: flex-start !important;
-  padding: 0 !important;
+  width: 100% !important;
+  height: 58px !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  padding: 0 24px !important;
   gap: 0 !important;
+  flex-shrink: 0 !important;
   background: var(--bg2) !important;
-  border-right: 1px solid var(--border) !important;
+  border-right: none !important;
+  border-bottom: 1px solid var(--border) !important;
   box-shadow: none !important;
+  overflow: visible !important;
 }
 
-/* Logo row */
+/* Logo â€” left side with wordmark text */
 .rail-logo {
-  width: 100% !important;
-  height: auto !important;
-  padding: 20px 18px 14px !important;
-  border-radius: 0 !important;
-  margin-bottom: 2px !important;
+  width: auto !important;
+  height: 38px !important;
+  padding: 0 !important;
+  border-radius: 8px !important;
+  margin: 0 24px 0 0 !important;
   justify-content: flex-start !important;
-  gap: 10px !important;
+  gap: 9px !important;
+  flex-shrink: 0 !important;
 }
-.rail-logo-img { width: 24px !important; height: 24px !important; }
+.rail-logo-img { width: 22px !important; height: 22px !important; }
 .rail-logo::after {
   content: 'character.mind';
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: -.2px;
+  letter-spacing: -.25px;
   color: var(--text);
+  white-space: nowrap;
 }
 
-/* Sections */
+/* Nav section: horizontal row */
 .rail-section {
-  width: 100% !important;
-  padding: 6px 0 !important;
+  flex-direction: row !important;
+  width: auto !important;
+  padding: 0 !important;
   gap: 2px !important;
-  align-items: flex-start !important;
+  align-items: center !important;
 }
-/* All rail buttons â€” full-width, left-aligned with text label */
+
+/* Feature section (Plans/Usage/Compete/Quiz/Safety): hide from top nav */
+.rail-feat-section { display: none !important; }
+
+/* All rail buttons: compact text-only horizontal pills */
 .rail-btn {
-  width: calc(100% - 16px) !important;
-  height: 38px !important;
-  margin: 1px 8px !important;
-  justify-content: flex-start !important;
-  padding: 0 12px !important;
-  gap: 11px !important;
+  width: auto !important;
+  height: 36px !important;
+  margin: 0 !important;
+  padding: 0 13px !important;
+  gap: 0 !important;
   border-radius: 8px !important;
+  justify-content: center !important;
+  color: var(--text2) !important;
 }
 .rail-btn:hover {
-  background: var(--hover) !important;
+  background: var(--bg3) !important;
   color: var(--text) !important;
 }
 .rail-btn.rail-active {
-  background: var(--accent-dim) !important;
-  color: var(--accent-l) !important;
+  color: var(--text) !important;
+  background: var(--bg3) !important;
+  font-weight: 600 !important;
 }
 
-/* Convert floating tooltip to inline text label */
+/* Hide SVG icons â€” show only text labels in the top nav */
+.rail-btn > svg { display: none !important; }
+
+/* Show data-tip as the button label */
 .rail-btn[data-tip]::after {
   content: attr(data-tip) !important;
   position: static !important;
-  left: auto !important;
-  top: auto !important;
+  left: auto !important; top: auto !important;
   transform: none !important;
   background: none !important;
   border: none !important;
   color: inherit !important;
-  font-size: 13px !important;
+  font-size: 13.5px !important;
   font-weight: 500 !important;
   padding: 0 !important;
   border-radius: 0 !important;
@@ -5223,84 +5215,111 @@ body.hw-screaming::after {
   opacity: 1 !important;
   transition: none !important;
   z-index: auto !important;
-  letter-spacing: normal !important;
   box-shadow: none !important;
+  letter-spacing: normal !important;
 }
 
-/* Separator */
-.rail-sep {
-  width: calc(100% - 28px) !important;
-  margin: 5px 14px !important;
-}
+/* Separators: gone in top nav */
+.rail-sep { display: none !important; }
 
-/* Chats button */
+/* Chats button: just the icon, no label */
 .rail-chats-btn {
-  width: calc(100% - 16px) !important;
-  height: 38px !important;
-  margin: 1px 8px !important;
-  justify-content: flex-start !important;
-  padding: 0 12px !important;
-  gap: 11px !important;
-  border-radius: 8px !important;
+  width: 36px !important;
+  height: 36px !important;
+  margin: 0 4px 0 8px !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
 }
+.rail-chats-btn > svg { display: flex !important; }
+.rail-chats-btn[data-tip]::after { display: none !important; }
 
+/* Spacer: push right-side items all the way right */
+.rail-spacer { display: flex !important; flex: 1 !important; min-width: 20px !important; }
 
-
-/* Create button area */
+/* Create button â€” filled, right side */
 .rail-create {
-  width: 100% !important;
-  padding: 4px 0 6px !important;
+  width: auto !important;
+  padding: 0 !important;
+  margin-left: 6px !important;
+  flex-shrink: 0 !important;
 }
 .rail-create-btn {
-  width: calc(100% - 16px) !important;
-  height: 38px !important;
-  margin: 0 8px !important;
+  width: auto !important;
+  height: 34px !important;
+  margin: 0 !important;
   border-radius: 8px !important;
-  justify-content: flex-start !important;
-  padding: 0 12px !important;
-  gap: 11px !important;
-  background: var(--accent-dim) !important;
-  border: 1px solid rgba(59,130,246,.3) !important;
-  color: var(--accent-l) !important;
+  padding: 0 16px !important;
+  gap: 6px !important;
+  justify-content: center !important;
+  background: var(--accent) !important;
+  border: none !important;
+  color: #fff !important;
 }
-
-/* Create dropdown flies out to the right */
+.rail-create-btn > svg { display: flex !important; width: 16px !important; height: 16px !important; }
+.rail-create-btn[data-tip]::after {
+  content: 'Create' !important;
+  position: static !important;
+  transform: none !important;
+  background: none !important;
+  border: none !important;
+  color: #fff !important;
+  font-size: 13.5px !important;
+  font-weight: 600 !important;
+  padding: 0 !important;
+  opacity: 1 !important;
+  transition: none !important;
+  pointer-events: none !important;
+  white-space: nowrap !important;
+  z-index: auto !important;
+  box-shadow: none !important;
+  letter-spacing: normal !important;
+}
 .rail-create-dropdown {
   position: absolute !important;
-  left: calc(100% + 8px) !important;
-  bottom: 0 !important;
-  top: auto !important;
+  top: calc(100% + 8px) !important;
+  bottom: auto !important;
+  left: 0 !important;
+  right: auto !important;
 }
 
-/* User area */
+/* User badge â€” right end, circle avatar */
 .rail-user-wrap {
-  width: 100% !important;
-  padding: 6px 0 4px !important;
-  border-top: 1px solid var(--border) !important;
+  width: auto !important;
+  padding: 0 !important;
+  border-top: none !important;
+  margin-left: 10px !important;
+  flex-shrink: 0 !important;
 }
 #userBadge {
-  width: calc(100% - 16px) !important;
-  height: 40px !important;
-  margin: 0 8px !important;
-  border-radius: 8px !important;
-  justify-content: flex-start !important;
-  padding: 0 10px !important;
+  width: 34px !important;
+  height: 34px !important;
+  margin: 0 !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  justify-content: center !important;
 }
 .rail-user-wrap .user-dropdown {
   position: absolute !important;
-  bottom: 0 !important;
-  left: calc(100% + 8px) !important;
-  top: auto !important;
+  top: calc(100% + 8px) !important;
+  bottom: auto !important;
+  right: 0 !important;
+  left: auto !important;
   width: 248px !important;
 }
 
-/* Spacer unused in wider sidebar */
-.rail-spacer { display: none !important; }
+/* â”€â”€ 3. APP BODY â€” fill remaining height, full width â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.app-body {
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
 
-/* â”€â”€ 3. HOME CARDS â€” vertical grid poster style, not horizontal scroll â”€â”€â”€â”€â”€ */
+/* â”€â”€ 4. CARDS â€” clean square grid, centered content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .home-row {
   display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)) !important;
+  grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)) !important;
   gap: 14px !important;
   overflow-x: unset !important;
   padding-bottom: 0 !important;
@@ -5310,134 +5329,150 @@ body.hw-screaming::after {
   flex-direction: column !important;
   width: auto !important;
   flex-shrink: unset !important;
-  padding: 0 !important;
-  border-radius: 12px !important;
-  overflow: hidden !important;
+  padding: 28px 16px 20px !important;
   gap: 0 !important;
+  align-items: center !important;
+  text-align: center !important;
+  border-radius: 16px !important;
+  overflow: visible !important;
   background: var(--bg3) !important;
-  border-color: var(--border) !important;
+  border: 1px solid var(--border) !important;
+  position: relative !important;
 }
 .hc:hover {
   background: var(--bg4) !important;
-  border-color: rgba(59,130,246,.45) !important;
-  box-shadow: 0 8px 28px rgba(0,0,0,.45), 0 0 0 1px rgba(59,130,246,.18) !important;
+  border-color: var(--border2) !important;
   transform: translateY(-3px) !important;
+  box-shadow: 0 10px 28px rgba(0,0,0,.35) !important;
 }
 
 .hc-avatar {
-  width: 100% !important;
-  height: 156px !important;
-  border-radius: 0 !important;
-  font-size: 46px !important;
+  width: 96px !important;
+  height: 96px !important;
+  border-radius: 14px !important;
+  font-size: 44px !important;
+  margin: 0 auto 16px !important;
+  flex-shrink: 0 !important;
 }
 
-.hc-info { padding: 12px 13px 13px !important; }
-.hc-name { font-size: 14px !important; }
+.hc-info {
+  padding: 0 !important;
+  width: 100% !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+.hc-name-row { justify-content: center !important; gap: 4px !important; }
+.hc-name {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-align: center !important;
+  text-overflow: clip !important;
+}
+.hc-creator {
+  text-align: center !important;
+  font-size: 11px !important;
+  margin-top: 2px !important;
+}
 .hc-tagline {
   font-size: 12px !important;
-  margin-top: 5px !important;
-  -webkit-line-clamp: 2 !important;
+  text-align: center !important;
+  margin-top: 6px !important;
+  -webkit-line-clamp: 3 !important;
+  color: var(--text2) !important;
+  line-height: 1.5 !important;
 }
-.hc-meta { margin-top: 8px !important; padding-top: 0 !important; }
+.hc-meta { display: none !important; }
+.hc-edit-btn {
+  position: absolute !important;
+  top: 10px !important;
+  right: 10px !important;
+  opacity: 0 !important;
+}
+.hc:hover .hc-edit-btn { opacity: 1 !important; }
 
-/* â”€â”€ 4. HOME HEADER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* â”€â”€ 5. HOME HEADER â€” minimal, search only â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .home-topbar {
-  flex-direction: column !important;
-  align-items: flex-start !important;
+  flex-direction: row !important;
+  align-items: center !important;
   gap: 16px !important;
-  margin-bottom: 32px !important;
-  padding-bottom: 24px !important;
-  border-bottom: 1px solid var(--border) !important;
+  margin-bottom: 28px !important;
+  padding-bottom: 0 !important;
+  border-bottom: none !important;
 }
-.home-topbar-right { width: 100% !important; }
-.home-welcome-name {
-  font-size: 26px !important;
-  font-weight: 800 !important;
-  letter-spacing: -.4px !important;
+.home-welcome { display: none !important; }
+.home-topbar-right { flex: 1 !important; width: 100% !important; }
+.home-announce-btn { display: none !important; }
+.home-search-wrap {
+  max-width: 480px !important;
+  border-radius: 10px !important;
+  background: var(--bg3) !important;
 }
-.home-welcome-sub {
+
+/* Section titles â€” uppercase label style */
+.home-section-title {
   font-size: 11px !important;
-  letter-spacing: .06em !important;
+  font-weight: 700 !important;
   text-transform: uppercase !important;
+  letter-spacing: .08em !important;
   color: var(--text3) !important;
 }
-.home-search-wrap {
-  background: var(--bg3) !important;
-  border-color: var(--border2) !important;
-  border-radius: 10px !important;
-  padding: 10px 16px !important;
-}
-.home-search-wrap:focus-within {
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px rgba(59,130,246,.18) !important;
-}
-.home-section-title { font-size: 16px !important; font-weight: 700 !important; }
 
-/* â”€â”€ 5. GLOBAL ACCENT â€” blue replaces purple â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-.btn-primary { background: var(--accent) !important; }
-.btn-primary:hover { background: var(--accent-d) !important; }
-.filter-btn.active {
-  color: var(--accent-l) !important;
-  border-color: var(--accent) !important;
-  background: var(--accent-dim) !important;
-}
-.sidebar-item.active, .sidebar-item.active:hover {
-  background: var(--accent-dim) !important;
-  color: var(--accent-l) !important;
-}
-
-/* â”€â”€ 6. MOBILE â€” restore bottom-dock behavior â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* â”€â”€ 6. MOBILE â€” icon-only bottom dock â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 @media (max-width: 768px) {
+  .app { flex-direction: column !important; }
   .icon-rail {
-    width: 100% !important;
-    height: 58px !important;
-    flex-direction: row !important;
-    padding: 0 6px !important;
-    gap: 0 !important;
-    align-items: center !important;
-    justify-content: space-around !important;
-    border-right: none !important;
-    border-top: 1px solid var(--border) !important;
     order: 2 !important;
+    height: 56px !important;
+    padding: 0 6px !important;
+    border-bottom: none !important;
+    border-top: 1px solid var(--border) !important;
+    justify-content: space-around !important;
   }
   .rail-logo { display: none !important; }
   .rail-section {
     flex-direction: row !important;
-    padding: 0 !important;
     gap: 0 !important;
-    align-items: center !important;
+    padding: 0 !important;
   }
-  .rail-btn,
-  .rail-chats-btn,
+  .rail-feat-section { display: none !important; }
+  .rail-btn {
+    width: 44px !important;
+    height: 44px !important;
+    padding: 0 !important;
+    justify-content: center !important;
+  }
+  .rail-btn > svg { display: flex !important; }
+  .rail-btn[data-tip]::after { display: none !important; }
+  .rail-chats-btn { width: 44px !important; margin: 0 !important; }
+  .rail-sep { display: none !important; }
+  .rail-spacer { display: flex !important; flex: 1 !important; }
+  .rail-create {
+    width: auto !important;
+    margin-left: 0 !important;
+    padding: 0 !important;
+  }
   .rail-create-btn {
     width: 44px !important;
     height: 44px !important;
-    margin: 0 !important;
-    justify-content: center !important;
     padding: 0 !important;
-    gap: 0 !important;
-    border: none !important;
     background: none !important;
+    border: none !important;
+    color: var(--text2) !important;
+    border-radius: 8px !important;
   }
-  .rail-btn[data-tip]::after { display: none !important; }
-  .rail-sep { display: none !important; }
-  .rail-spacer { display: flex !important; flex: 1 !important; }
-  .rail-create { padding: 0 !important; width: auto !important; }
-  .rail-user-wrap {
-    width: auto !important;
-    padding: 0 !important;
-    border-top: none !important;
-  }
+  .rail-create-btn[data-tip]::after { display: none !important; }
+  .rail-user-wrap { margin-left: 0 !important; }
   #userBadge {
-    width: 40px !important;
-    height: 40px !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    justify-content: center !important;
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 8px !important;
   }
   .home-row {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+    grid-template-columns: repeat(2, 1fr) !important;
     gap: 10px !important;
   }
-  .hc-avatar { height: 120px !important; }
+  .hc-avatar { width: 72px !important; height: 72px !important; font-size: 32px !important; }
+  .app-body { order: 1 !important; }
 }
