@@ -10976,7 +10976,12 @@ async function sendGroupMessage() {
 
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      alert(data.error || 'Failed to send message.');
+      if (res.status === 429 && (data.type === 'session' || data.type === 'weekly')) {
+        if (data.type === 'session') startCooldown(data.cooldownUntil, 'session', true);
+        else startCooldown(data.resetsAt, 'weekly', true);
+      } else {
+        alert(data.error || 'Failed to send message.');
+      }
       groupIsStreaming = false;
       if (sendBtn) sendBtn.disabled = false;
       return;
@@ -11067,10 +11072,15 @@ async function runGroupAutoChat() {
   try {
     const res = await fetch(`/api/groups/${currentGroupId}/autochat`, { method: 'POST' });
     if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
       autoChatError = true;
       groupAutoChat = false;
       const btn = document.getElementById('groupAutoChatBtn');
       if (btn) btn.classList.remove('active');
+      if (res.status === 429 && (data.type === 'session' || data.type === 'weekly')) {
+        if (data.type === 'session') startCooldown(data.cooldownUntil, 'session', true);
+        else startCooldown(data.resetsAt, 'weekly', true);
+      }
       groupIsStreaming = false;
       return;
     }

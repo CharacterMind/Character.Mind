@@ -6136,7 +6136,7 @@ app.post('/api/groups/:id/chat', requireAuth, async (req, res) => {
 
   // Rate limit check
   const limitCheck = checkLimits(userId);
-  if (limitCheck.blocked) return res.status(429).json({ error: 'Chat limit reached. Please wait.' });
+  if (limitCheck.blocked) return res.status(429).json({ error: limitCheck.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limitCheck });
 
   // Load characters
   let chars = [];
@@ -6295,7 +6295,7 @@ app.post('/api/groups/:id/autochat', requireAuth, async (req, res) => {
   if (!memberIds.length) return res.status(400).json({ error: 'Group has no members.' });
 
   const limitCheck = checkLimits(userId);
-  if (limitCheck.blocked) return res.status(429).json({ error: 'Chat limit reached. Please wait.' });
+  if (limitCheck.blocked) return res.status(429).json({ error: limitCheck.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limitCheck });
 
   let chars = [];
   if (db) {
