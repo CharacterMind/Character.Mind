@@ -3969,9 +3969,11 @@ html, body {
 
 /* ── Flying parade characters ── */
 .hw-flyer {
-  position: absolute; pointer-events: none; line-height: 1;
+  position: absolute; pointer-events: none; line-height: 1; will-change: transform;
+}
+.hw-flyer-inner {
+  display: block; line-height: 1;
   filter: drop-shadow(0 0 6px rgba(249,115,22,0.35));
-  will-change: transform;
 }
 
 @keyframes hwFlyLeft {
@@ -3989,6 +3991,49 @@ html, body {
   to   { transform: translateX(calc(100vw + 100px)) translateY(0); }
 }
 
+/* ── Per-creature category animations ── */
+.hw-fc-bat { animation: hwBatFlap 0.38s ease-in-out infinite; filter: drop-shadow(0 0 10px rgba(139,92,246,0.75)) drop-shadow(0 0 24px rgba(88,28,135,0.45)); }
+@keyframes hwBatFlap {
+  0%,100% { transform: scaleX(1) translateY(0); }
+  50%     { transform: scaleX(0.42) translateY(-7px); }
+}
+.hw-fc-ghost { animation: hwGhostFloat 2.6s ease-in-out infinite; filter: drop-shadow(0 0 14px rgba(255,255,255,0.72)) drop-shadow(0 0 34px rgba(200,210,255,0.4)); }
+@keyframes hwGhostFloat {
+  0%,100% { transform: translateY(0) scale(1); opacity: 0.92; }
+  35%     { transform: translateY(-24px) scale(1.07); opacity: 0.7; }
+  65%     { transform: translateY(11px) scale(0.95); opacity: 0.88; }
+}
+.hw-fc-pumpkin { animation: hwPumpkinPulse 1.9s ease-in-out infinite; filter: drop-shadow(0 0 22px rgba(249,115,22,0.98)) drop-shadow(0 0 48px rgba(234,88,12,0.65)); }
+@keyframes hwPumpkinPulse {
+  0%,100% { transform: scale(1) rotate(-2deg); }
+  50%     { transform: scale(1.13) rotate(3deg); }
+}
+.hw-fc-skull { animation: hwSkullTumble 3.4s ease-in-out infinite alternate; filter: drop-shadow(0 0 10px rgba(226,232,240,0.55)) drop-shadow(0 0 24px rgba(148,163,184,0.3)); }
+@keyframes hwSkullTumble {
+  from { transform: rotate(-20deg) scale(0.96); }
+  to   { transform: rotate(20deg)  scale(1.08); }
+}
+.hw-fc-fire { animation: hwFireFlicker 0.25s ease-in-out infinite alternate; filter: drop-shadow(0 0 20px rgba(251,146,60,0.98)) drop-shadow(0 0 42px rgba(234,88,12,0.78)); }
+@keyframes hwFireFlicker {
+  from { transform: scale(1) skewX(0deg) translateY(0); opacity: 1; }
+  to   { transform: scale(0.85) skewX(5deg) translateY(-5px); opacity: 0.7; }
+}
+.hw-fc-eye { animation: hwEyePulse 2.1s ease-in-out infinite; filter: drop-shadow(0 0 18px rgba(167,139,250,0.98)) drop-shadow(0 0 40px rgba(109,40,217,0.68)); }
+@keyframes hwEyePulse {
+  0%,100% { transform: scale(1); opacity: 1; }
+  50%     { transform: scale(1.25); opacity: 0.76; }
+}
+.hw-fc-blood { animation: hwBloodBob 1.05s ease-in-out infinite; filter: drop-shadow(0 0 12px rgba(220,38,38,0.88)) drop-shadow(0 0 30px rgba(153,27,27,0.58)); }
+@keyframes hwBloodBob {
+  0%,100% { transform: scaleY(1)   translateY(0); }
+  50%     { transform: scaleY(1.2) translateY(6px); }
+}
+.hw-fc-witch { animation: hwWitchSway 3.2s ease-in-out infinite; filter: drop-shadow(0 0 9px rgba(167,139,250,0.55)); }
+@keyframes hwWitchSway {
+  0%,100% { transform: rotate(-5deg) scale(1); }
+  50%     { transform: rotate(5deg)  scale(1.05); }
+}
+
 /* ── Falling confetti ── */
 .hw-confetti {
   position: absolute; top: -48px; pointer-events: none;
@@ -3997,6 +4042,28 @@ html, body {
 @keyframes hwFall {
   0%   { transform: translateY(0)     translateX(0)              rotate(0deg);   opacity: 0.9; }
   100% { transform: translateY(105vh) translateX(var(--hw-sway)) rotate(var(--hw-rot)); opacity: 0; }
+}
+
+/* ── Rising embers ── */
+.hw-ember {
+  position: absolute; border-radius: 50%; pointer-events: none; will-change: transform, opacity;
+  background: radial-gradient(circle, #ffe87a 0%, #ff8c00 35%, rgba(220,38,38,0.6) 65%, transparent 100%);
+  animation: hwEmberRise linear both;
+}
+@keyframes hwEmberRise {
+  0%   { transform: translateY(0) translateX(0) scale(1); opacity: 0.95; }
+  50%  { opacity: 0.55; }
+  100% { transform: translateY(-110vh) translateX(var(--ember-sway)) scale(0.12); opacity: 0; }
+}
+
+/* ── Haunted moon ── */
+#hwMoon {
+  position: fixed; top: -24px; right: -24px; z-index: 2; pointer-events: none;
+  animation: hwMoonGlow 5.5s ease-in-out infinite;
+}
+@keyframes hwMoonGlow {
+  0%,100% { opacity: 0.3; filter: brightness(1); }
+  50%     { opacity: 0.44; filter: brightness(1.22); }
 }
 
 /* ── Spider webs: corners, behind UI ── */

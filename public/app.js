@@ -10500,6 +10500,12 @@ async function claimHalloweenGift() {
     vig.className = 'hw-vignette'; vig.id = 'hwVignette';
     document.body.appendChild(vig);
 
+    // Haunted moon — upper-right corner atmospheric glow
+    const moon = document.createElement('div');
+    moon.id = 'hwMoon';
+    moon.innerHTML = `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" width="280" height="280"><defs><radialGradient id="mng" cx="38%" cy="35%" r="58%"><stop offset="0%" stop-color="#fffbe6"/><stop offset="50%" stop-color="#fcd34d"/><stop offset="100%" stop-color="#c2570a"/></radialGradient><filter id="mnf" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="16" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><circle cx="100" cy="100" r="86" fill="url(#mng)" filter="url(#mnf)" opacity="0.6"/><circle cx="70" cy="75" r="12" fill="rgba(0,0,0,0.13)"/><circle cx="120" cy="58" r="17" fill="rgba(0,0,0,0.1)"/><circle cx="130" cy="120" r="10" fill="rgba(0,0,0,0.11)"/><circle cx="84" cy="132" r="7" fill="rgba(0,0,0,0.09)"/></svg>`;
+    document.body.appendChild(moon);
+
     // 8 fog bands covering more of the screen height
     const fogWrap = document.createElement('div');
     fogWrap.className = 'hw-fog-wrap'; fogWrap.id = 'hwFogWrap';
@@ -10580,7 +10586,7 @@ async function claimHalloweenGift() {
   }
 
   function removeHwAtmosphere() {
-    ['hwVignette','hwFogWrap','hwDripWrap','hwEyeWrap','hwLightWrap'].forEach(id => document.getElementById(id)?.remove());
+    ['hwVignette','hwFogWrap','hwDripWrap','hwEyeWrap','hwLightWrap','hwMoon'].forEach(id => document.getElementById(id)?.remove());
   }
 
   spawnHwAtmosphere();
@@ -10588,27 +10594,28 @@ async function claimHalloweenGift() {
 
   // ── Flying parade — EXTREME density ─────────────────────────────────────────
   // Each entry: [emoji, minSize, maxSize, minSpeed, maxSpeed, minTop%, maxTop%]
+  // Each entry: [emoji, minSize, maxSize, minSpeed, maxSpeed, minTop%, maxTop%, category]
   const PARADE = [
-    ['👻', 36, 76, 9, 17, 18, 72], ['🧙‍♀️', 40, 80, 8, 15, 12, 65],
-    ['🧟', 34, 68, 12, 20, 55, 82], ['💀', 32, 62, 10, 18, 20, 75],
-    ['🎃', 36, 74, 10, 17, 25, 78], ['🐈‍⬛', 30, 60, 9, 17, 60, 85],
-    ['🕷️', 28, 58, 7, 14, 18, 80], ['🦇', 30, 62, 9, 16, 15, 70],
-    ['🧛', 36, 72, 8, 15, 10, 65], ['☠️', 32, 64, 10, 18, 22, 74],
-    ['🔮', 30, 58, 11, 18, 30, 78], ['🌙', 28, 56, 8, 15, 10, 50],
-    ['🩸', 26, 52, 11, 19, 30, 80], ['🦴', 28, 54, 10, 18, 25, 75],
-    ['⚰️', 34, 66, 9, 16, 40, 80], ['🧿', 26, 50, 8, 15, 15, 65],
-    ['🪬', 28, 52, 9, 16, 20, 70], ['😈', 34, 68, 10, 17, 15, 72],
-    ['👁️', 24, 48, 8, 14, 25, 75], ['🌑', 28, 56, 8, 14, 10, 55],
-    ['🕸️', 32, 60, 8, 14, 20, 70], ['🔪', 28, 52, 11, 19, 30, 80],
-    ['🫀', 26, 50, 9, 16, 35, 78], ['🦠', 24, 46, 7, 13, 25, 75],
-    ['💉', 26, 50, 10, 17, 40, 82], ['🕯️', 30, 56, 8, 15, 20, 75],
-    ['⚗️', 28, 52, 9, 16, 30, 78], ['🪦', 34, 64, 8, 15, 40, 82],
-    ['😱', 32, 66, 9, 16, 15, 70], ['🔥', 30, 58, 10, 18, 15, 72],
-    ['💫', 24, 46, 7, 13, 10, 60], ['🎭', 32, 60, 8, 15, 20, 72],
-    ['☄️', 28, 54, 11, 20, 12, 65], ['🌪️', 30, 56, 9, 17, 18, 75],
-    ['🐀', 28, 54, 9, 16, 55, 82], ['🌿', 26, 48, 7, 14, 25, 75],
-    ['🧪', 26, 50, 9, 16, 30, 80], ['🗡️', 24, 46, 10, 18, 30, 80],
-    ['💜', 22, 42, 8, 14, 15, 65], ['⚡', 28, 52, 11, 20, 12, 68],
+    ['👻', 36, 76, 9, 17, 18, 72, 'ghost'],   ['🧙‍♀️', 40, 80, 8, 15, 12, 65, 'witch'],
+    ['🧟', 34, 68, 12, 20, 55, 82, 'ghost'],   ['💀', 32, 62, 10, 18, 20, 75, 'skull'],
+    ['🎃', 36, 74, 10, 17, 25, 78, 'pumpkin'], ['🐈‍⬛', 30, 60, 9, 17, 60, 85, 'witch'],
+    ['🕷️', 28, 58, 7, 14, 18, 80, 'skull'],   ['🦇', 30, 62, 9, 16, 15, 70, 'bat'],
+    ['🧛', 36, 72, 8, 15, 10, 65, 'witch'],    ['☠️', 32, 64, 10, 18, 22, 74, 'skull'],
+    ['🔮', 30, 58, 11, 18, 30, 78, 'eye'],     ['🌙', 28, 56, 8, 15, 10, 50, 'witch'],
+    ['🩸', 26, 52, 11, 19, 30, 80, 'blood'],   ['🦴', 28, 54, 10, 18, 25, 75, 'skull'],
+    ['⚰️', 34, 66, 9, 16, 40, 80, 'skull'],   ['🧿', 26, 50, 8, 15, 15, 65, 'eye'],
+    ['🪬', 28, 52, 9, 16, 20, 70, 'eye'],      ['😈', 34, 68, 10, 17, 15, 72, 'witch'],
+    ['👁️', 24, 48, 8, 14, 25, 75, 'eye'],     ['🌑', 28, 56, 8, 14, 10, 55, 'witch'],
+    ['🕸️', 32, 60, 8, 14, 20, 70, 'skull'],   ['🔪', 28, 52, 11, 19, 30, 80, 'blood'],
+    ['🫀', 26, 50, 9, 16, 35, 78, 'blood'],    ['🦠', 24, 46, 7, 13, 25, 75, 'witch'],
+    ['💉', 26, 50, 10, 17, 40, 82, 'blood'],   ['🕯️', 30, 56, 8, 15, 20, 75, 'fire'],
+    ['⚗️', 28, 52, 9, 16, 30, 78, 'witch'],   ['🪦', 34, 64, 8, 15, 40, 82, 'skull'],
+    ['😱', 32, 66, 9, 16, 15, 70, 'ghost'],    ['🔥', 30, 58, 10, 18, 15, 72, 'fire'],
+    ['💫', 24, 46, 7, 13, 10, 60, 'fire'],     ['🎭', 32, 60, 8, 15, 20, 72, 'witch'],
+    ['☄️', 28, 54, 11, 20, 12, 65, 'fire'],   ['🌪️', 30, 56, 9, 17, 18, 75, 'ghost'],
+    ['🐀', 28, 54, 9, 16, 55, 82, 'witch'],    ['🌿', 26, 48, 7, 14, 25, 75, 'witch'],
+    ['🧪', 26, 50, 9, 16, 30, 80, 'witch'],    ['🗡️', 24, 46, 10, 18, 30, 80, 'blood'],
+    ['💜', 22, 42, 8, 14, 15, 65, 'witch'],    ['⚡', 28, 52, 11, 20, 12, 68, 'fire'],
   ];
 
   const CONFETTI = [
@@ -10621,6 +10628,7 @@ async function claimHalloweenGift() {
   // ── Settings state ──────────────────────────────────────────────────────────
   let confettiLoopId = null;
   let paradeLoopId   = null;
+  let emberLoopId    = null;
 
   const hwStage = document.createElement('div');
   hwStage.id = 'hw-stage';
@@ -10628,17 +10636,20 @@ async function claimHalloweenGift() {
 
   function spawnParade() {
     if (hwStage.querySelectorAll('.hw-flyer').length >= 80) return;
-    const [emoji, minS, maxS, minSpd, maxSpd, minT, maxT] = PARADE[Math.floor(Math.random() * PARADE.length)];
+    const [emoji, minS, maxS, minSpd, maxSpd, minT, maxT, cat] = PARADE[Math.floor(Math.random() * PARADE.length)];
     const fromRight = Math.random() > 0.5;
-    const el = document.createElement('div');
-    el.className = 'hw-flyer';
-    el.textContent = emoji;
+    const outer = document.createElement('div');
+    outer.className = 'hw-flyer';
+    const inner = document.createElement('div');
+    inner.className = 'hw-flyer-inner' + (cat ? ' hw-fc-' + cat : '');
+    inner.textContent = emoji;
+    outer.appendChild(inner);
     const size   = minS + Math.random() * (maxS - minS);
     const topPct = minT + Math.random() * (maxT - minT);
     const dur    = minSpd + Math.random() * (maxSpd - minSpd);
-    el.style.cssText = `font-size:${size}px;top:calc(${topPct}vh - 68px);animation:${fromRight?'hwFlyLeft':'hwFlyRight'} ${dur}s linear both;`;
-    hwStage.appendChild(el);
-    setTimeout(() => el.remove(), dur * 1000 + 600);
+    outer.style.cssText = `font-size:${size}px;top:calc(${topPct}vh - 68px);animation:${fromRight?'hwFlyLeft':'hwFlyRight'} ${dur}s linear both;`;
+    hwStage.appendChild(outer);
+    setTimeout(() => outer.remove(), dur * 1000 + 600);
   }
 
   function startParade() {
@@ -10673,6 +10684,20 @@ async function claimHalloweenGift() {
   }
   for (let i = 0; i < 90; i++) setTimeout(spawnConfetti, i * 25);
   startConfetti();
+
+  // ── Rising embers from the bottom ────────────────────────────────────────────
+  function spawnEmber() {
+    if (hwStage.querySelectorAll('.hw-ember').length >= 100) return;
+    const el = document.createElement('div');
+    el.className = 'hw-ember';
+    const sz  = 2 + Math.random() * 5;
+    const dur = 4 + Math.random() * 7;
+    el.style.cssText = `left:${Math.random()*100}%;bottom:0;width:${sz}px;height:${sz}px;--ember-sway:${(Math.random()-0.5)*130}px;animation-duration:${dur}s;`;
+    hwStage.appendChild(el);
+    setTimeout(() => el.remove(), dur * 1000);
+  }
+  emberLoopId = setInterval(spawnEmber, 90);
+  for (let i = 0; i < 25; i++) setTimeout(spawnEmber, i * 160);
 
   // ── Halloween logo: 👁 for "i" in "mind" ────────────────────────────────────
   function applyHwLogo(el) {
@@ -10714,6 +10739,7 @@ async function claimHalloweenGift() {
     hwStage.remove();
     removeHwAtmosphere();
     clearInterval(confettiLoopId); confettiLoopId = null;
+    clearInterval(emberLoopId);    emberLoopId    = null;
     clearTimeout(paradeLoopId);    paradeLoopId   = null;
     clearTimeout(_lightTimerId);   _lightTimerId  = null;
     document.querySelectorAll('.halloween-web').forEach(e => e.remove());
