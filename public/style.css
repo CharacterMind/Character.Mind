@@ -3945,6 +3945,14 @@ html, body {
 .cl-changed .changelog-list li::before { background: #60a5fa; }
 .cl-fixed .changelog-list li::before { background: #a78bfa; }
 .cl-removed .changelog-list li::before { background: #f87171; }
+.cl-snapshot-headline { font-size: 11px; color: var(--text3); font-style: italic; margin-left: auto; }
+.cl-snapshot-group { padding: 4px 0; }
+.cl-snapshot-current .changelog-list li::before { background: var(--accent-l); opacity: 1; }
+.cl-snapshot-vhdr { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.cl-snapshot-vbadge { font-size: 12px; font-weight: 700; color: var(--accent-l); }
+.cl-snapshot-vdate { font-size: 11px; color: var(--text3); }
+.cl-snapshot-vtag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--accent); background: rgba(130,100,255,.15); border-radius: 4px; padding: 2px 6px; }
+.cl-snapshot-sep { height: 1px; background: var(--border2); margin: 14px 0; }
 
 /* ── Halloween Theme (October) ──────────────────────────────────────────────── */
 .halloween {

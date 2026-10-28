@@ -2099,26 +2099,40 @@ function showChangelogVersion(ver) {
   if (!el) return;
   const entry = CHANGELOG_DATA[ver];
   if (!entry) { el.innerHTML = ''; return; }
-  const defs = [
-    { key: 'added',   label: 'Added',   cls: 'cl-added',   sym: '+' },
-    { key: 'changed', label: 'Changed', cls: 'cl-changed', sym: '~' },
-    { key: 'fixed',   label: 'Fixed',   cls: 'cl-fixed',   sym: '✓' },
-    { key: 'removed', label: 'Removed', cls: 'cl-removed', sym: '−' },
-  ];
-  const sections = defs.filter(d => entry[d.key]?.length).map(d => `
-    <div class="cl-section ${d.cls}">
-      <div class="cl-section-label">${d.sym} ${d.label}</div>
-      <ul class="changelog-list">${entry[d.key].map(i => `<li>${i}</li>`).join('')}</ul>
-    </div>`).join('');
-  const fallback = !sections && entry.items?.length
-    ? `<ul class="changelog-list">${entry.items.map(i => `<li>${i}</li>`).join('')}</ul>` : '';
+
+  const targetVer = Number(ver);
+  const allVers = Object.keys(CHANGELOG_DATA).map(Number).sort((a, b) => a - b);
+  const versionsUpTo = allVers.filter(v => v <= targetVer);
+
+  // Build cumulative snapshot groups newest-first
+  const groups = versionsUpTo.slice().reverse().map(v => {
+    const e = CHANGELOG_DATA[String(v)];
+    const items = [...(e.added || []), ...(e.items || [])];
+    return items.length ? { ver: v, date: e.date, items } : null;
+  }).filter(Boolean);
+
+  if (!groups.length) { el.innerHTML = ''; return; }
+
+  const groupHtml = groups.map((g, idx) => `
+    <div class="cl-snapshot-group${g.ver === targetVer ? ' cl-snapshot-current' : ''}">
+      <div class="cl-snapshot-vhdr">
+        <span class="cl-snapshot-vbadge">v${g.ver}</span>
+        <span class="cl-snapshot-vdate">${g.date}</span>
+        ${g.ver === targetVer ? '<span class="cl-snapshot-vtag">this version</span>' : ''}
+      </div>
+      <ul class="changelog-list">${g.items.map(i => `<li>${i}</li>`).join('')}</ul>
+    </div>
+    ${idx < groups.length - 1 ? '<div class="cl-snapshot-sep"></div>' : ''}
+  `).join('');
+
   el.innerHTML = `
     <div class="changelog-entry">
       <div class="changelog-entry-meta">
         <span class="changelog-ver">v${ver}</span>
         <span class="changelog-date">${entry.date}</span>
+        <span class="cl-snapshot-headline">Everything in this version</span>
       </div>
-      ${sections || fallback}
+      ${groupHtml}
     </div>`;
 }
 
