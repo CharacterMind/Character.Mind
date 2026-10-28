@@ -282,6 +282,8 @@ if (db) {
       'custom_1790895746935_elliot','custom_1790895746936_stella','custom_1790895746937_leith'
     ) AND is_hidden = FALSE`))
     .then(r => { if (r && r.rowCount > 0) { console.log(`[MIGRATION] Hid ${r.rowCount} ch2/ch3 character(s)`); invalidateCharList(); } })
+    .then(() => db.query(`UPDATE characters SET is_hidden = TRUE WHERE id IN ('kissy_missy', 'bron') AND is_hidden = FALSE`))
+    .then(r => { if (r && r.rowCount > 0) { console.log(`[MIGRATION] Hid ${r.rowCount} character(s) (Kissy, Bron)`); invalidateCharList(); } })
     .catch(err => console.error('is_hidden migration error:', err));
 
   // Sync Miss Delight's DB record to the current template on every startup
@@ -298,8 +300,8 @@ if (db) {
   {
     const tpl = matchCharacterTemplate('bron');
     if (tpl) db.query(
-      `INSERT INTO characters (id, name, tagline, description, system_prompt, greeting, greeting_mode, color, tags, creator_name, device_id)
-       SELECT 'bron', $1, $2, $2, $3, $4, $5, $6, $7, 'Character Mind Playtime Co', u.google_id
+      `INSERT INTO characters (id, name, tagline, description, system_prompt, greeting, greeting_mode, color, tags, creator_name, device_id, is_hidden)
+       SELECT 'bron', $1, $2, $2, $3, $4, $5, $6, $7, 'Character Mind Playtime Co', u.google_id, TRUE
        FROM (SELECT google_id FROM users WHERE email = 'support.charactermind@gmail.com' LIMIT 1) u
        ON CONFLICT (id) DO UPDATE SET
          system_prompt = EXCLUDED.system_prompt,
@@ -307,7 +309,8 @@ if (db) {
          greeting      = EXCLUDED.greeting,
          greeting_mode = EXCLUDED.greeting_mode,
          color         = EXCLUDED.color,
-         tags          = EXCLUDED.tags`,
+         tags          = EXCLUDED.tags,
+         is_hidden     = EXCLUDED.is_hidden`,
       [tpl.name, tpl.tagline, tpl.systemPrompt, tpl.greeting, tpl.greetingMode, tpl.color, JSON.stringify(tpl.tags)]
     ).then(r => { if (r && r.rowCount > 0) console.log('[SEED] Bron upserted'); })
       .catch(err => console.error('Bron seed error:', err));
@@ -320,10 +323,10 @@ if (db) {
   [
     ['custom_1790776698867', 'poppy',       `${WIKI}PoppyPlaytimeHD.png/300px-PoppyPlaytimeHD.png`],
     ['huggy_wuggy',          'huggy wuggy', `${WIKI}PPT_Huggy_Wuggy_Passive_Render.png/300px-PPT_Huggy_Wuggy_Passive_Render.png`],
-    ['kissy_missy',          'kissy missy', `${WIKI}Female_huggie_colored.png/300px-Female_huggie_colored.png`],
   ].forEach(([id, key, img]) => seedOfficialChar(id, key, img, false));
-  // Chapter 2 & 3 — hidden until re-enabled
+  // Hidden until re-enabled
   [
+    ['kissy_missy',          'kissy missy',  `${WIKI}Female_huggie_colored.png/300px-Female_huggie_colored.png`],
     ['mommy_long_legs',  'mommy long legs',  `${WIKI}PPT_Mommy_Long_Legs_Render.png/300px-PPT_Mommy_Long_Legs_Render.png`],
     ['catnap',           'catnap',           `${WIKI}PPT_CatNap_Render.png/300px-PPT_CatNap_Render.png`],
     ['dogday',           'dogday',           `${WIKI}Belts_dogday.png/300px-Belts_dogday.png`],
