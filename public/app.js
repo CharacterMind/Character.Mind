@@ -8817,6 +8817,18 @@ function listenForSpeech() {
     const text = transcript.trim();
     if (text) {
       resetCallInactivityTimer();
+      // If user directly addresses a character by name, route to them
+      if (callModeActive && callCharacters.length > 1) {
+        const lc = text.toLowerCase();
+        const addressed = callCharacters.find(c => {
+          const name = (c.name || '').toLowerCase();
+          return lc === name || lc.startsWith(name + ' ') || lc.startsWith(name + ',') ||
+                 lc.startsWith('hi ' + name) || lc.startsWith('hey ' + name) ||
+                 lc.startsWith('hello ' + name) || lc.startsWith('ok ' + name) ||
+                 lc.startsWith('okay ' + name);
+        });
+        if (addressed) callContextChar = addressed;
+      }
       // Record user utterance to conversation log
       callConversation.push({ role: 'user', text });
       if (callConversation.length > 14) callConversation.shift();

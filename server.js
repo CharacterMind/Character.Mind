@@ -270,6 +270,7 @@ if (db) {
     .then(() => db.query(`UPDATE characters SET is_hidden = TRUE WHERE id IN ('custom_1790897425575_lily', 'custom_1790895746938_gracie', 'custom_1790774765927', 'custom_1791126206092_doey') AND NOT is_hidden`))
     .then(r => { if (r && r.rowCount > 0) { console.log(`[MIGRATION] Hid ${r.rowCount} character(s)`); invalidateCharList(); } })
     .then(() => db.query(`UPDATE characters SET is_hidden = FALSE WHERE id = 'custom_1790776698867' AND is_hidden`))
+    .then(() => db.query(`UPDATE characters SET is_hidden = TRUE WHERE id = 'poppy' AND is_hidden = FALSE`))
     .then(r => { if (r && r.rowCount > 0) { console.log('[MIGRATION] Un-hid Poppy (ch1)'); invalidateCharList(); } })
     .then(() => db.query(`UPDATE characters SET is_hidden = TRUE WHERE id IN (
       'custom_1790894243872_mll','custom_1790894243873_catnap','custom_1790894243874_dogday',
@@ -314,10 +315,11 @@ if (db) {
   // Seed all official Poppy Playtime characters with PFPs
   const WIKI = 'https://poppyplaytime.wiki.gg/images/thumb/';
   // Chapter 1 — visible
+  // Poppy uses her original DB id so TTS voice & image config stay intact
   [
-    ['poppy',           'poppy',           `${WIKI}PoppyPlaytimeHD.png/300px-PoppyPlaytimeHD.png`],
-    ['huggy_wuggy',     'huggy wuggy',     `${WIKI}PPT_Huggy_Wuggy_Passive_Render.png/300px-PPT_Huggy_Wuggy_Passive_Render.png`],
-    ['kissy_missy',     'kissy missy',     `${WIKI}Female_huggie_colored.png/300px-Female_huggie_colored.png`],
+    ['custom_1790776698867', 'poppy',       `${WIKI}PoppyPlaytimeHD.png/300px-PoppyPlaytimeHD.png`],
+    ['huggy_wuggy',          'huggy wuggy', `${WIKI}PPT_Huggy_Wuggy_Passive_Render.png/300px-PPT_Huggy_Wuggy_Passive_Render.png`],
+    ['kissy_missy',          'kissy missy', `${WIKI}Female_huggie_colored.png/300px-Female_huggie_colored.png`],
   ].forEach(([id, key, img]) => seedOfficialChar(id, key, img, false));
   // Chapter 2 & 3 — hidden until re-enabled
   [
