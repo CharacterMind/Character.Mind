@@ -10585,26 +10585,13 @@ async function claimHalloweenGift() {
     });
     document.body.appendChild(eyeWrap);
 
-    // Lightning flash element (first strike after 6-16s, then every 16-38s)
-    const lightWrap = document.createElement('div');
-    lightWrap.id = 'hwLightWrap';
-    lightWrap.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:8010;background:#fff8f0;opacity:0;transition:opacity 0.04s;';
-    document.body.appendChild(lightWrap);
-    setTimeout(function doFlash() {
-      lightWrap.style.opacity = '0.8';
-      setTimeout(() => { lightWrap.style.opacity = '0'; }, 70);
-      setTimeout(() => { lightWrap.style.opacity = '0.55'; }, 160);
-      setTimeout(() => { lightWrap.style.opacity = '0'; }, 240);
-      _lightTimerId = setTimeout(doFlash, 16000 + Math.random() * 22000);
-    }, 6000 + Math.random() * 10000);
   }
 
   function removeHwAtmosphere() {
-    ['hwVignette','hwFogWrap','hwDripWrap','hwEyeWrap','hwLightWrap','hwMoon'].forEach(id => document.getElementById(id)?.remove());
+    ['hwVignette','hwFogWrap','hwDripWrap','hwEyeWrap','hwMoon'].forEach(id => document.getElementById(id)?.remove());
   }
 
   spawnHwAtmosphere();
-  let _lightTimerId = null;
 
   // ── Flying parade — EXTREME density ─────────────────────────────────────────
   // Each entry: [emoji, minSize, maxSize, minSpeed, maxSpeed, minTop%, maxTop%]
@@ -10755,7 +10742,6 @@ async function claimHalloweenGift() {
     clearInterval(confettiLoopId); confettiLoopId = null;
     clearInterval(emberLoopId);    emberLoopId    = null;
     clearTimeout(paradeLoopId);    paradeLoopId   = null;
-    clearTimeout(_lightTimerId);   _lightTimerId  = null;
     document.querySelectorAll('.halloween-web').forEach(e => e.remove());
     document.querySelectorAll('.logo-text').forEach(restoreHwLogo);
     hwLogoObserver.disconnect();

@@ -3945,7 +3945,55 @@ html, body {
 
 /* ── Home view ── */
 .halloween .home-view { background: radial-gradient(ellipse at 50% -10%,#1f0a00 0%,#0c0a10 55%); }
-.halloween .char-card:hover { border-color: rgba(249,115,22,0.35); box-shadow: 0 4px 20px rgba(249,115,22,0.1); }
+.halloween .char-card:hover { border-color: rgba(249,115,22,0.55) !important; box-shadow: 0 6px 28px rgba(249,115,22,0.2), 0 0 0 1px rgba(168,85,247,0.18) !important; animation: none !important; }
+
+/* Char-card (discover grid) Halloween decorations */
+@keyframes hwDiscoverGlow {
+  0%,100% { box-shadow: 0 0 0 1px rgba(249,115,22,0.1) inset; }
+  50%     { box-shadow: 0 0 16px rgba(249,115,22,0.18), 0 0 0 1px rgba(168,85,247,0.12) inset; }
+}
+.halloween .char-card {
+  border-color: rgba(249,115,22,0.2);
+  animation: hwDiscoverGlow 4.5s ease-in-out infinite;
+}
+/* Cobweb — top-right corner (card already has overflow:hidden + position:relative) */
+.halloween .char-card::before {
+  content: '';
+  position: absolute; top: 0; right: 0;
+  width: 54px; height: 54px;
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 54 54' fill='none'%3E%3Cg stroke='rgba(249%2C115%2C22%2C0.42)' stroke-width='0.75' stroke-linecap='round'%3E%3Cline x1='0' y1='0' x2='54' y2='0'/%3E%3Cline x1='0' y1='0' x2='54' y2='27'/%3E%3Cline x1='0' y1='0' x2='54' y2='54'/%3E%3Cline x1='0' y1='0' x2='27' y2='54'/%3E%3Cline x1='0' y1='0' x2='0' y2='54'/%3E%3Cpath d='M14%2C0 Q10%2C10 0%2C14'/%3E%3Cpath d='M27%2C0 Q21%2C9 14%2C20 Q9%2C23 0%2C27'/%3E%3Cpath d='M40%2C0 Q33%2C11 25%2C28 Q18%2C38 0%2C40'/%3E%3C/g%3E%3C/svg%3E") no-repeat top right / 54px 54px;
+}
+/* Tiny bat — bottom-right corner */
+.halloween .char-card::after {
+  content: '🦇';
+  position: absolute; bottom: 6px; right: 7px;
+  font-size: 10px; line-height: 1; opacity: 0.42;
+  pointer-events: none;
+}
+
+/* Home card (.hc) cobweb */
+.halloween .hc { position: relative; border-color: rgba(249,115,22,0.2); }
+.halloween .hc::before {
+  content: '';
+  position: absolute; top: 0; right: 0;
+  width: 46px; height: 46px;
+  pointer-events: none; z-index: 1;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 46' fill='none'%3E%3Cg stroke='rgba(249%2C115%2C22%2C0.38)' stroke-width='0.7' stroke-linecap='round'%3E%3Cline x1='0' y1='0' x2='46' y2='0'/%3E%3Cline x1='0' y1='0' x2='46' y2='23'/%3E%3Cline x1='0' y1='0' x2='46' y2='46'/%3E%3Cline x1='0' y1='0' x2='23' y2='46'/%3E%3Cline x1='0' y1='0' x2='0' y2='46'/%3E%3Cpath d='M12%2C0 Q8%2C8 0%2C12'/%3E%3Cpath d='M23%2C0 Q18%2C8 12%2C17 Q8%2C20 0%2C23'/%3E%3Cpath d='M34%2C0 Q28%2C9 21%2C24 Q16%2C32 0%2C34'/%3E%3C/g%3E%3C/svg%3E") no-repeat top right / 46px 46px;
+}
+
+/* Icon rail Halloween palette */
+.halloween .icon-rail {
+  background: linear-gradient(180deg, #1e0c02 0%, #1c1922 55%, #18181b 100%);
+  border-right-color: rgba(249,115,22,0.38);
+  box-shadow: 1px 0 0 rgba(249,115,22,0.1);
+}
+.halloween .rail-btn.rail-active { color: #f97316 !important; background: rgba(249,115,22,0.12) !important; }
+.halloween .rail-btn.rnav:hover  { background: rgba(249,115,22,0.09) !important; color: #fb923c !important; }
+.halloween .rail-sep              { background: rgba(249,115,22,0.2); }
+
+/* Chat header subtle orange accent */
+.halloween .chat-header { border-bottom-color: rgba(249,115,22,0.22); box-shadow: 0 1px 0 rgba(249,115,22,0.1); }
 
 /* ── Call overlay ── */
 .halloween .call-bg { background: #0f0400 !important; }
@@ -4233,8 +4281,6 @@ body.hw-screaming::after {
   78%  { height: var(--drip-h); opacity: .45; }
   100% { height: var(--drip-h); opacity: 0;  }
 }
-
-/* Lightning flash overlay */
 
 /* Pulsing orange glow on character home cards */
 .halloween .hc {
