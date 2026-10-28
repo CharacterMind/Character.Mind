@@ -5969,6 +5969,8 @@ async function adminPostAnnouncement() {
       if (dot) dot.hidden = false;
       const mDot = document.getElementById('mobWhatsNewDot');
       if (mDot) mDot.hidden = false;
+      const rDot = document.getElementById('railWhatsNewDot');
+      if (rDot) rDot.hidden = false;
     } else {
       if (info) info.textContent = d.error || 'Failed.';
     }
@@ -6348,6 +6350,8 @@ async function openWhatsNew() {
   if (dot) dot.hidden = true;
   const mobDot = document.getElementById('mobWhatsNewDot');
   if (mobDot) mobDot.hidden = true;
+  const railDot = document.getElementById('railWhatsNewDot');
+  if (railDot) railDot.hidden = true;
   const body = document.getElementById('whatsNewBody');
   // Always fetch fresh so deploys show immediately without requiring a hard refresh
   try {
@@ -6624,6 +6628,8 @@ async function checkWhatsNewDot() {
       if (dot) dot.hidden = false;
       const mobDot2 = document.getElementById('mobWhatsNewDot');
       if (mobDot2) mobDot2.hidden = false;
+      const railDot2 = document.getElementById('railWhatsNewDot');
+      if (railDot2) railDot2.hidden = false;
       setTimeout(() => openWhatsNew(), 1800);
     }
   } catch (_) {}
