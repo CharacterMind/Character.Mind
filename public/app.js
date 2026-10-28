@@ -4068,6 +4068,7 @@ async function openChat(charId) {
   } else if (history.length === 0) {
     // Server responded with empty — genuinely new or cleared chat (don't resurrect stale local data)
     messagesDiv.innerHTML = '';
+    gameIframeMap.clear();
     document.getElementById('chatWelcome').innerHTML = '';
     generateGreeting();
   } else if (sameAsShown) {
@@ -4079,6 +4080,7 @@ async function openChat(charId) {
   } else {
     // Server has different (newer or fresher) history — replace display and update local cache
     messagesDiv.innerHTML = '';
+    gameIframeMap.clear();
     document.getElementById('chatWelcome').innerHTML = '';
     history.forEach((m, i) => appendHistoryItem(m, i < history.length - LIVE_COLOUR_MESSAGES));
     updateCtxBar();
