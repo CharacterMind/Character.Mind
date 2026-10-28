@@ -403,6 +403,7 @@ function formatLocalPrice(usdPrice) {
 }
 
 function openPricingModal() {
+  document.getElementById('userDropdown')?.classList.remove('open');
   const m = document.getElementById('pricingModal');
   if (!m) return;
   m.style.display = 'flex';
@@ -973,6 +974,7 @@ let _quizCurrent = 0;
 let _quizAnswered = false;
 
 function openQuizModal() {
+  document.getElementById('userDropdown')?.classList.remove('open');
   if (!currentUser) { showWarning('Sign in to take a quiz.'); return; }
   _quizId = null;
   document.querySelectorAll('.quiz-cat-btn').forEach(b => b.disabled = false);
@@ -6246,6 +6248,7 @@ let _lbCache = {};
 let _missionsCache = null;
 
 async function openCompetitionModal() {
+  document.getElementById('userDropdown')?.classList.remove('open');
   _lbCache = {};
   _missionsCache = null;
   document.getElementById('competitionModal').style.display = 'flex';
@@ -6503,6 +6506,7 @@ function _showHwGiftRow() {
 }
 
 async function openUsageModal() {
+  document.getElementById('userDropdown')?.classList.remove('open');
   document.getElementById('usageModal').style.display = 'flex';
   _showHwGiftRow();
   const wrap = document.getElementById('resetLimitsWrap');
@@ -7416,6 +7420,7 @@ function previewVoiceURI(voiceURI, e) {
 let _cachedGpsCoords = null; // reuse within session — GPS permission only asked once
 
 function openResourcesPanel() {
+  document.getElementById('userDropdown')?.classList.remove('open');
   closeSidebarMobile();
   const overlay = document.getElementById('resourcesPanelOverlay');
   if (!overlay) return;

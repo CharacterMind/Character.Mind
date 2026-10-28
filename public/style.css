@@ -188,8 +188,6 @@ html, body {
 }
 .rail-btn:hover { background: var(--bg3); color: var(--text); }
 .rail-btn.rail-active { color: var(--accent-l); background: var(--accent-dim); }
-.rfeat { opacity: .65; }
-.rfeat:hover { opacity: 1; }
 /* hover tooltip */
 .rail-btn[data-tip]::after {
   content: attr(data-tip);
@@ -2785,7 +2783,6 @@ html, body {
   .app-body { order: 1 !important; }
   .icon-rail .rail-section { flex-direction: row !important; }
   .icon-rail .rail-logo { display: none !important; }
-  .icon-rail .rail-feat-section { display: none !important; }
   .icon-rail .rail-sep { display: none !important; }
   .icon-rail .rail-spacer { display: none !important; }
   .icon-rail .rail-btn[data-tip]::after { display: none !important; }
@@ -5117,3 +5114,330 @@ body.hw-screaming::after {
   border-top: 1px solid var(--border, #1e1b2e);
 }
 .group-picker-footer .btn-primary { width: 100%; justify-content: center; }
+
+
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   CHARACTER.MIND â€” FULL REDESIGN v373
+   Navy + Electric Blue. Professional platform. Nothing like the old look.
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+
+/* â”€â”€ 1. NEW COLOR PALETTE â€” navy/slate, electric blue accent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+:root {
+  --bg:          #07090f;
+  --bg1:         #0b0f1c;
+  --bg2:         #0d1120;
+  --bg3:         #121828;
+  --bg4:         #182030;
+  --border:      #18243a;
+  --border1:     #1c2840;
+  --border2:     #223050;
+  --text:        #dce6f5;
+  --text1:       #dce6f5;
+  --text2:       #7a90b5;
+  --text3:       #394f72;
+  --accent:      #3b82f6;
+  --accent-l:    #60a5fa;
+  --accent-d:    #1d5cd4;
+  --accent-dim:  rgba(59,130,246,0.13);
+  --narration:   #8aaee8;
+  --user-bubble: #0c1d3e;
+  --ai-bubble:   #121828;
+  --input-bg:    #121828;
+  --hover:       #131c2c;
+  --surface:     #121828;
+  --surface2:    #0d1120;
+}
+
+/* â”€â”€ 2. SIDEBAR â€” expand icon-only rail to 220px labeled sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.icon-rail {
+  width: 220px !important;
+  align-items: flex-start !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  background: var(--bg2) !important;
+  border-right: 1px solid var(--border) !important;
+  box-shadow: none !important;
+}
+
+/* Logo row */
+.rail-logo {
+  width: 100% !important;
+  height: auto !important;
+  padding: 20px 18px 14px !important;
+  border-radius: 0 !important;
+  margin-bottom: 2px !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+}
+.rail-logo-img { width: 24px !important; height: 24px !important; }
+.rail-logo::after {
+  content: 'character.mind';
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -.2px;
+  color: var(--text);
+}
+
+/* Sections */
+.rail-section {
+  width: 100% !important;
+  padding: 6px 0 !important;
+  gap: 2px !important;
+  align-items: flex-start !important;
+}
+/* All rail buttons â€” full-width, left-aligned with text label */
+.rail-btn {
+  width: calc(100% - 16px) !important;
+  height: 38px !important;
+  margin: 1px 8px !important;
+  justify-content: flex-start !important;
+  padding: 0 12px !important;
+  gap: 11px !important;
+  border-radius: 8px !important;
+}
+.rail-btn:hover {
+  background: var(--hover) !important;
+  color: var(--text) !important;
+}
+.rail-btn.rail-active {
+  background: var(--accent-dim) !important;
+  color: var(--accent-l) !important;
+}
+
+/* Convert floating tooltip to inline text label */
+.rail-btn[data-tip]::after {
+  content: attr(data-tip) !important;
+  position: static !important;
+  left: auto !important;
+  top: auto !important;
+  transform: none !important;
+  background: none !important;
+  border: none !important;
+  color: inherit !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  white-space: nowrap !important;
+  pointer-events: none !important;
+  opacity: 1 !important;
+  transition: none !important;
+  z-index: auto !important;
+  letter-spacing: normal !important;
+  box-shadow: none !important;
+}
+
+/* Separator */
+.rail-sep {
+  width: calc(100% - 28px) !important;
+  margin: 5px 14px !important;
+}
+
+/* Chats button */
+.rail-chats-btn {
+  width: calc(100% - 16px) !important;
+  height: 38px !important;
+  margin: 1px 8px !important;
+  justify-content: flex-start !important;
+  padding: 0 12px !important;
+  gap: 11px !important;
+  border-radius: 8px !important;
+}
+
+
+
+/* Create button area */
+.rail-create {
+  width: 100% !important;
+  padding: 4px 0 6px !important;
+}
+.rail-create-btn {
+  width: calc(100% - 16px) !important;
+  height: 38px !important;
+  margin: 0 8px !important;
+  border-radius: 8px !important;
+  justify-content: flex-start !important;
+  padding: 0 12px !important;
+  gap: 11px !important;
+  background: var(--accent-dim) !important;
+  border: 1px solid rgba(59,130,246,.3) !important;
+  color: var(--accent-l) !important;
+}
+
+/* Create dropdown flies out to the right */
+.rail-create-dropdown {
+  position: absolute !important;
+  left: calc(100% + 8px) !important;
+  bottom: 0 !important;
+  top: auto !important;
+}
+
+/* User area */
+.rail-user-wrap {
+  width: 100% !important;
+  padding: 6px 0 4px !important;
+  border-top: 1px solid var(--border) !important;
+}
+#userBadge {
+  width: calc(100% - 16px) !important;
+  height: 40px !important;
+  margin: 0 8px !important;
+  border-radius: 8px !important;
+  justify-content: flex-start !important;
+  padding: 0 10px !important;
+}
+.rail-user-wrap .user-dropdown {
+  position: absolute !important;
+  bottom: 0 !important;
+  left: calc(100% + 8px) !important;
+  top: auto !important;
+  width: 248px !important;
+}
+
+/* Spacer unused in wider sidebar */
+.rail-spacer { display: none !important; }
+
+/* â”€â”€ 3. HOME CARDS â€” vertical grid poster style, not horizontal scroll â”€â”€â”€â”€â”€ */
+.home-row {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)) !important;
+  gap: 14px !important;
+  overflow-x: unset !important;
+  padding-bottom: 0 !important;
+}
+
+.hc {
+  flex-direction: column !important;
+  width: auto !important;
+  flex-shrink: unset !important;
+  padding: 0 !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  gap: 0 !important;
+  background: var(--bg3) !important;
+  border-color: var(--border) !important;
+}
+.hc:hover {
+  background: var(--bg4) !important;
+  border-color: rgba(59,130,246,.45) !important;
+  box-shadow: 0 8px 28px rgba(0,0,0,.45), 0 0 0 1px rgba(59,130,246,.18) !important;
+  transform: translateY(-3px) !important;
+}
+
+.hc-avatar {
+  width: 100% !important;
+  height: 156px !important;
+  border-radius: 0 !important;
+  font-size: 46px !important;
+}
+
+.hc-info { padding: 12px 13px 13px !important; }
+.hc-name { font-size: 14px !important; }
+.hc-tagline {
+  font-size: 12px !important;
+  margin-top: 5px !important;
+  -webkit-line-clamp: 2 !important;
+}
+.hc-meta { margin-top: 8px !important; padding-top: 0 !important; }
+
+/* â”€â”€ 4. HOME HEADER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.home-topbar {
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 16px !important;
+  margin-bottom: 32px !important;
+  padding-bottom: 24px !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+.home-topbar-right { width: 100% !important; }
+.home-welcome-name {
+  font-size: 26px !important;
+  font-weight: 800 !important;
+  letter-spacing: -.4px !important;
+}
+.home-welcome-sub {
+  font-size: 11px !important;
+  letter-spacing: .06em !important;
+  text-transform: uppercase !important;
+  color: var(--text3) !important;
+}
+.home-search-wrap {
+  background: var(--bg3) !important;
+  border-color: var(--border2) !important;
+  border-radius: 10px !important;
+  padding: 10px 16px !important;
+}
+.home-search-wrap:focus-within {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(59,130,246,.18) !important;
+}
+.home-section-title { font-size: 16px !important; font-weight: 700 !important; }
+
+/* â”€â”€ 5. GLOBAL ACCENT â€” blue replaces purple â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.btn-primary { background: var(--accent) !important; }
+.btn-primary:hover { background: var(--accent-d) !important; }
+.filter-btn.active {
+  color: var(--accent-l) !important;
+  border-color: var(--accent) !important;
+  background: var(--accent-dim) !important;
+}
+.sidebar-item.active, .sidebar-item.active:hover {
+  background: var(--accent-dim) !important;
+  color: var(--accent-l) !important;
+}
+
+/* â”€â”€ 6. MOBILE â€” restore bottom-dock behavior â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+@media (max-width: 768px) {
+  .icon-rail {
+    width: 100% !important;
+    height: 58px !important;
+    flex-direction: row !important;
+    padding: 0 6px !important;
+    gap: 0 !important;
+    align-items: center !important;
+    justify-content: space-around !important;
+    border-right: none !important;
+    border-top: 1px solid var(--border) !important;
+    order: 2 !important;
+  }
+  .rail-logo { display: none !important; }
+  .rail-section {
+    flex-direction: row !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    align-items: center !important;
+  }
+  .rail-btn,
+  .rail-chats-btn,
+  .rail-create-btn {
+    width: 44px !important;
+    height: 44px !important;
+    margin: 0 !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    border: none !important;
+    background: none !important;
+  }
+  .rail-btn[data-tip]::after { display: none !important; }
+  .rail-sep { display: none !important; }
+  .rail-spacer { display: flex !important; flex: 1 !important; }
+  .rail-create { padding: 0 !important; width: auto !important; }
+  .rail-user-wrap {
+    width: auto !important;
+    padding: 0 !important;
+    border-top: none !important;
+  }
+  #userBadge {
+    width: 40px !important;
+    height: 40px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    justify-content: center !important;
+  }
+  .home-row {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+    gap: 10px !important;
+  }
+  .hc-avatar { height: 120px !important; }
+}
