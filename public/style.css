@@ -461,6 +461,7 @@ html, body {
   font-size: 14px; font-weight: 500; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; color: var(--text);
 }
+.chat-item-sub { font-size: 11px; color: var(--text3); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-section-label {
   font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
   color: var(--text3); padding: 8px 8px 3px; user-select: none;

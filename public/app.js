@@ -3658,6 +3658,17 @@ function initSidebarContextMenu() {
 function getRecentChats() {
   try { return JSON.parse(localStorage.getItem(userKey('cm_recents_v2')) || '{}'); } catch { return {}; }
 }
+function getRecentGroups() {
+  try { return JSON.parse(localStorage.getItem(userKey('cm_recents_groups')) || '{}'); } catch { return {}; }
+}
+function touchRecentGroup(groupId, groupData) {
+  try {
+    const r = getRecentGroups();
+    r[groupId] = { ts: Date.now(), name: groupData.name, members: (groupData.members || []).slice(0, 4) };
+    localStorage.setItem(userKey('cm_recents_groups'), JSON.stringify(r));
+  } catch (_) {}
+  renderSidebarChats();
+}
 function touchRecentChat(charId) {
   const now = Date.now();
   // Chatting again brings a character back even if it was removed from Recents earlier
@@ -3684,36 +3695,58 @@ function renderSidebarChats() {
   if (!list) return;
   const hidden = getHiddenRecents();
   const recents = getRecentChats();
+  const recentGroups = getRecentGroups();
 
-  // Also include characters with saved local history even if no explicit open-timestamp
-  let histKeys = {};
-  try { histKeys = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}'); } catch {}
+  const charItems = characters
+    .filter(c => !hidden.has(c.id) && recents[c.id])
+    .map(c => ({ type: 'char', id: c.id, ts: recents[c.id], data: c }));
 
-  const chatted = characters
-    .filter(c => !hidden.has(c.id) && recents[c.id]) // only characters you have actually sent a message to
-    .sort((a, b) => (recents[b.id] || 0) - (recents[a.id] || 0));
+  const groupItems = Object.entries(recentGroups)
+    .filter(([gid]) => !hidden.has(gid))
+    .map(([gid, info]) => ({ type: 'group', id: gid, ts: info.ts, data: info }));
 
-  if (chatted.length === 0) { list.innerHTML = ''; return; }
+  const all = [...charItems, ...groupItems].sort((a, b) => b.ts - a.ts);
+  if (all.length === 0) { list.innerHTML = ''; return; }
 
-  const now = Date.now();
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-  const yestStart = new Date(todayStart); yestStart.setDate(yestStart.getDate() - 1);
-  const weekStart = new Date(todayStart); weekStart.setDate(weekStart.getDate() - 7);
+  const yestStart  = new Date(todayStart); yestStart.setDate(yestStart.getDate() - 1);
+  const weekStart  = new Date(todayStart); weekStart.setDate(weekStart.getDate() - 7);
 
   const buckets = [
-    { label: 'Today',         chars: chatted.filter(c => recents[c.id] >= todayStart.getTime()) },
-    { label: 'Yesterday',     chars: chatted.filter(c => recents[c.id] >= yestStart.getTime() && recents[c.id] < todayStart.getTime()) },
-    { label: 'Last week',     chars: chatted.filter(c => recents[c.id] >= weekStart.getTime() && recents[c.id] < yestStart.getTime()) },
-    { label: 'Long time ago', chars: chatted.filter(c => recents[c.id] < weekStart.getTime()) },
+    { label: 'Today',         items: all.filter(i => i.ts >= todayStart.getTime()) },
+    { label: 'Yesterday',     items: all.filter(i => i.ts >= yestStart.getTime() && i.ts < todayStart.getTime()) },
+    { label: 'Last week',     items: all.filter(i => i.ts >= weekStart.getTime() && i.ts < yestStart.getTime()) },
+    { label: 'Long time ago', items: all.filter(i => i.ts < weekStart.getTime()) },
   ];
 
-  list.innerHTML = buckets.filter(b => b.chars.length).map(b => `
-    <div class="sidebar-section-label">${b.label}</div>
-    ${b.chars.map(c => `
-      <div class="chat-item ${currentChar?.id===c.id?'active':''}" data-id="${escHtml(c.id)}" onclick="openChat(this.dataset.id)">
+  function renderItem(item) {
+    if (item.type === 'char') {
+      const c = item.data;
+      return `<div class="chat-item ${currentChar?.id===c.id?'active':''}" data-id="${escHtml(c.id)}" onclick="openChat(this.dataset.id)">
         ${charAvatarHtml(c, 'chat-item-avatar')}
         <div class="chat-item-info"><div class="chat-item-name">${colorizeNameHtml(c.name, c.color)}</div></div>
-      </div>`).join('')}
+      </div>`;
+    }
+    const g = item.data; const gid = item.id;
+    const m = (g.members || [])[0];
+    const color = safeColor((m && m.color) || '#7c3aed');
+    const avatarHtml = m
+      ? (m.image
+          ? `<div class="chat-item-avatar" style="background:${color}"><img src="/api/characters/${m.id}/image" onerror="this.style.display='none'"></div>`
+          : `<div class="chat-item-avatar" style="background:${color}">${escHtml((m.name||'?').charAt(0).toUpperCase())}</div>`)
+      : `<div class="chat-item-avatar" style="background:#7c3aed">G</div>`;
+    return `<div class="chat-item ${currentGroupId===gid?'active':''}" data-id="${escHtml(gid)}" data-type="group" onclick="openGroupChat(this.dataset.id)">
+      ${avatarHtml}
+      <div class="chat-item-info">
+        <div class="chat-item-name">${escHtml(g.name)}</div>
+        <div class="chat-item-sub">Group · ${(g.members||[]).length} member${(g.members||[]).length!==1?'s':''}</div>
+      </div>
+    </div>`;
+  }
+
+  list.innerHTML = buckets.filter(b => b.items.length).map(b => `
+    <div class="sidebar-section-label">${b.label}</div>
+    ${b.items.map(renderItem).join('')}
   `).join('');
 }
 
@@ -11125,11 +11158,12 @@ function openGroupChat(groupId, groupData) {
   if (groupData) {
     currentGroupData = groupData;
     setupGroupChatUI(groupData);
+    touchRecentGroup(groupId, groupData);
   } else {
     // Load from server
     fetch('/api/groups').then(r => r.json()).then(d => {
       const g = (d.groups || []).find(g => g.id === groupId);
-      if (g) { currentGroupData = g; setupGroupChatUI(g); }
+      if (g) { currentGroupData = g; setupGroupChatUI(g); touchRecentGroup(groupId, g); }
     }).catch(() => {});
   }
 
