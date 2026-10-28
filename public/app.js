@@ -1889,22 +1889,197 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
-  '368': { date: 'October 2026', items: ['Complete UI layout overhaul — horizontal topbar replaces left-sidebar navigation', 'Logo, Home/Discover/Feed/Groups nav, Plans/Usage/Compete/Quiz/Safety features, Create button and user account all moved to topbar', 'Sidebar converted to a pure chat history rail (Chats label + search + recent list)', 'Unique platform layout unlike any existing AI chat interface', 'User dropdown now anchors to topbar user badge'] },
-  '366': { date: 'October 2026', items: ['New brand palette — deeper dark backgrounds, subtle purple sidebar accent', 'Sidebar navigation expanded: 9-item 3-column grid (Plans, Usage, Compete, Quiz, Safety, Settings, Contact, Policies, Profile)', 'Policies nav button opens quick-access popover with Terms + Privacy links', 'Changelog tab added to Settings with this version picker', 'Terms of Service and Privacy Policy updated for Group Chat and Push Notifications'] },
-  '365': { date: 'October 2026', items: ['Push notifications when characters finish responding (regular chat & group chat)', 'Distinct double-pulse vibration for group chat notifications', 'Notifications suppressed automatically while app tab is visible', 'Server-side 45-second throttle prevents notification spam', 'Stale push subscriptions auto-removed on 410/404'] },
-  '364': { date: 'October 2026', items: ['Group chats — up to 15 characters chatting together in one thread', 'Multi-character SSE streaming — each speaker labeled by name and color', 'Auto-Chat mode — characters talk to each other in the background automatically', 'Per-round responder count — type exactly how many characters speak per turn', 'Auto-chat costs 2× tokens; more speakers per round costs proportionally more', 'Limit modal with group-specific message when session/weekly cap is hit', 'Send while streaming — aborts auto-chat cleanly so your message goes through'] },
-  '363': { date: 'September 2026', items: ['"Continue chatting" section on Home — jump back to recent characters', '"Discover more" section shows characters you haven\'t talked to yet', 'Empty state for Discover with prompt to create your first character', 'Card hover glow polished across character grid', 'Dead Halloween CSS removed from codebase'] },
-  '360': { date: 'August 2026', items: ['14 official Poppy Playtime characters seeded with real profile pictures', 'Teal "✓ Official" badge on verified Mob Entertainment characters', 'Bunzo Bunny and PJ Pug-a-Pillar added as full character templates', 'Canonical Smiling Critter names corrected (PickyPiggy, DogDay, etc.)', 'Rainbow colorize effect removed — clean white chat text'] },
-  '355': { date: 'July 2026', items: ['All 6 Smiling Critter templates rewritten from scratch with accurate CH3 lore', 'Bobby BearHug, CatNap, DogDay, Hopscotch, Kickin\' Chicken, Picky Piggy', 'Each character now reflects their true role and personality from the game', 'Improved response quality across all official characters'] },
-  '340': { date: 'June 2026', items: ['C.M. Coins virtual currency — earn by chatting, playing games, and quizzes', 'Idle coin farming with hardware upgrade tree (Seeds → GPU Boost)', 'In-app character quiz to earn bonus coins', 'Session boosts — spend coins to extend call credits when you hit your limit', 'Competitions and leaderboards', 'Coin giveaway system for admins'] },
-  '330': { date: 'October 2026', items: ['Halloween 2026 seasonal theme — pumpkins, fog, atmosphere', 'Halloween sale: 40% off all plans, extended through November 5', 'No billing-month gate — sale applies to any subscriber during the window', 'Halloween gift — claim a free full limit reset once during the event'] },
-  '320': { date: 'May 2026', items: ['Five subscription tiers: Free → opes → opis → opos → opus → opys', 'PayPal monthly and annual billing with automatic receipts', 'Session credits toggle — keep chatting after your limit with prepaid credits', 'Per-tier session and weekly token limits', 'Settings → Account shows current plan, usage bars, and upgrade options'] },
-  '310': { date: 'April 2026', items: ['Voice calls — AI calls with your character (infrastructure built, "coming soon" UI)', 'Wellness check-ins — opt-in periodic messages from your favorite character', 'Configurable check-in frequency (3 days, weekly, biweekly)', 'Phone number opt-in for future voice call features', 'Safety / Resources panel — crisis lines, AI disclaimer, support links'] },
-  '300': { date: 'March 2026', items: ['Web Push Notification infrastructure — VAPID keys and service worker', 'Push subscription registration and management in Settings', 'Re-engagement reminders when you haven\'t chatted in 2+ days', 'Crisis-aware push messaging — toned-down reminders during sensitive periods'] },
-  '285': { date: 'February 2026', items: ['Discover page — browse all available characters at a glance', 'Feed / notifications panel in the sidebar', 'Character profile images and per-character accent colors', 'Conversation history archive — scroll back through past chats anytime'] },
-  '272': { date: 'January 2026', items: ['PayPal subscription integration — monthly and annual plans', 'Subscription management: cancel, upgrade, or downgrade anytime', 'Settings modal introduced: Public Profile, Preferences, Account tabs', 'Public display name and avatar upload'] },
-  '261': { date: 'December 2025', items: ['User-created characters — custom name, personality, and profile picture', 'Character editor with full system prompt customization', 'AI image generation for character avatars', 'Character visibility controls (private or public)'] },
-  '254': { date: 'November 2025', items: ['First public release of Character.Mind', 'AI character chat powered by Google Gemini', 'Google Sign-In for secure, frictionless authentication', 'Single character per conversation with persistent message history', 'Dark theme, Inter typeface, minimal clean UI'] },
+  '369': {
+    date: 'October 2026',
+    added: ['Version history now shows Added / Changed / Fixed / Removed categories per build', 'v367 (Sidebar Redesign) added to the version picker — previously skipped'],
+    fixed: ['Changelog entries were missing categorization — every change looked like a new feature', 'Version picker missing v367 intermediate build'],
+  },
+  '368': {
+    date: 'October 2026',
+    added: [
+      'Full-width horizontal topbar containing all navigation',
+      'Primary nav in topbar: Home / Discover / Feed / Groups with icons',
+      'Features nav in topbar: Plans / Usage / Compete / Quiz / Safety',
+      'Create button and user badge/dropdown moved into the topbar',
+      'Mobile hamburger button in topbar to toggle the chat history rail',
+    ],
+    changed: [
+      'App layout changed from row to column — topbar sits above the body',
+      'Sidebar is now a pure chat history rail: "Chats" label, search, recent list only',
+      'Sidebar width reduced to 220px (no longer holds nav labels)',
+      'Sidebar-expand button repositioned below the topbar when sidebar is collapsed',
+      'User dropdown now opens downward from the topbar badge instead of upward from sidebar bottom',
+    ],
+    removed: [
+      'Sidebar navigation items — Home / Discover / Feed / Groups moved to topbar',
+      'Sidebar features section — Plans / Usage / Compete / Quiz / Safety moved to topbar',
+      'Sidebar logo, Create button, and user badge (all in topbar now)',
+    ],
+  },
+  '367': {
+    date: 'October 2026',
+    added: [
+      '"Features" section in sidebar for Plans / Usage / Compete / Quiz / Safety',
+      '"Chats" divider label above the recent chat list',
+      'Vertical nav layout for all sidebar navigation items',
+    ],
+    changed: [
+      '3×3 compact grid nav replaced with vertical nav item list',
+      'Settings / Contact / Policies / Profile removed from sidebar grid (user dropdown only)',
+    ],
+    removed: ['3×3 grid layout for sidebar navigation'],
+  },
+  '366': {
+    date: 'October 2026',
+    added: [
+      'Policies nav button with quick-access popover (Terms + Privacy links)',
+      'Changelog tab added to Settings — this version picker',
+      '9-item sidebar grid: Plans, Usage, Compete, Quiz, Safety, Settings, Contact, Policies, Profile',
+    ],
+    changed: [
+      'Brand palette deepened — darker backgrounds, stronger purple accent',
+      'Terms of Service and Privacy Policy updated for Group Chat and Push Notifications',
+    ],
+  },
+  '365': {
+    date: 'October 2026',
+    added: [
+      'Push notifications when characters finish responding (chat & group chat)',
+      'Distinct double-pulse vibration for group chat notifications',
+      'Server-side 45-second throttle to prevent notification spam',
+    ],
+    changed: ['Notifications automatically suppressed while the app tab is visible'],
+    fixed: ['Stale push subscriptions auto-removed on 410/404 responses'],
+  },
+  '364': {
+    date: 'October 2026',
+    added: [
+      'Group chats — up to 15 characters in one thread',
+      'Multi-character SSE streaming — each speaker labeled by name and color',
+      'Auto-Chat mode — characters talk to each other automatically in the background',
+      'Per-round responder count — set exactly how many characters speak per turn',
+      'Auto-chat costs 2× tokens; more speakers per round scales proportionally',
+      'Limit modal with group-specific message when session/weekly cap is hit',
+    ],
+    fixed: ['Sending while streaming aborts auto-chat cleanly so your message goes through'],
+  },
+  '363': {
+    date: 'September 2026',
+    added: [
+      '"Continue chatting" section on Home — jump back to recent characters',
+      '"Discover more" section shows characters you haven\'t talked to yet',
+      'Empty state for Discover with prompt to create your first character',
+    ],
+    changed: ['Card hover glow polished across character grid'],
+    removed: ['Dead Halloween CSS removed from production codebase'],
+  },
+  '360': {
+    date: 'August 2026',
+    added: [
+      '14 official Poppy Playtime characters seeded with real profile pictures',
+      'Teal "✓ Official" badge on verified Mob Entertainment characters',
+      'Bunzo Bunny and PJ Pug-a-Pillar added as full character templates',
+    ],
+    fixed: ['Canonical Smiling Critter names corrected (PickyPiggy, DogDay, etc.)'],
+    removed: ['Rainbow colorize effect on chat text — clean white text restored'],
+  },
+  '355': {
+    date: 'July 2026',
+    added: [
+      'All 6 Smiling Critter templates rewritten from scratch with accurate CH3 lore',
+      'Bobby BearHug, CatNap, DogDay, Hopscotch, Kickin\' Chicken, Picky Piggy',
+    ],
+    changed: [
+      'Each Critter now reflects their true role and personality from the game',
+      'Improved response quality across all official characters',
+    ],
+  },
+  '340': {
+    date: 'June 2026',
+    added: [
+      'C.M. Coins virtual currency — earn by chatting, playing games, and quizzes',
+      'Idle coin farming with hardware upgrade tree (Seeds → GPU Boost)',
+      'In-app character quiz to earn bonus coins',
+      'Session boosts — spend coins to extend call credits when you hit your limit',
+      'Competitions and leaderboards',
+      'Coin giveaway system for admins',
+    ],
+  },
+  '330': {
+    date: 'October 2026',
+    added: [
+      'Halloween 2026 seasonal theme — pumpkins, fog, spooky atmosphere',
+      'Halloween sale: 40% off all plans, extended through November 5',
+      'Halloween gift — claim a free full limit reset once during the event',
+    ],
+    changed: ['No billing-month gate — Halloween sale applies to any subscriber during the window'],
+  },
+  '320': {
+    date: 'May 2026',
+    added: [
+      'Five subscription tiers: Free → opes → opis → opos → opus → opys',
+      'PayPal monthly and annual billing with automatic receipts',
+      'Session credits toggle — keep chatting past your limit with prepaid credits',
+      'Per-tier session and weekly token limits',
+    ],
+    changed: ['Settings → Account shows current plan, usage bars, and upgrade options'],
+  },
+  '310': {
+    date: 'April 2026',
+    added: [
+      'Voice calls infrastructure — AI calls with your character ("coming soon" UI)',
+      'Wellness check-ins — opt-in periodic messages from your favorite character',
+      'Configurable check-in frequency (3 days, weekly, biweekly)',
+      'Phone number opt-in for future voice call features',
+      'Safety / Resources panel — crisis lines, AI disclaimer, support links',
+    ],
+  },
+  '300': {
+    date: 'March 2026',
+    added: [
+      'Web Push Notification infrastructure — VAPID keys and service worker',
+      'Push subscription registration and management in Settings',
+      'Re-engagement reminders when you haven\'t chatted in 2+ days',
+      'Crisis-aware push messaging — toned-down reminders during sensitive periods',
+    ],
+  },
+  '285': {
+    date: 'February 2026',
+    added: [
+      'Discover page — browse all available characters at a glance',
+      'Feed / notifications panel in the sidebar',
+      'Character profile images and per-character accent colors',
+      'Conversation history archive — scroll back through past chats anytime',
+    ],
+  },
+  '272': {
+    date: 'January 2026',
+    added: [
+      'PayPal subscription integration — monthly and annual plans',
+      'Subscription management: cancel, upgrade, or downgrade anytime',
+      'Settings modal: Public Profile, Preferences, Account tabs',
+      'Public display name and avatar upload',
+    ],
+  },
+  '261': {
+    date: 'December 2025',
+    added: [
+      'User-created characters — custom name, personality, and profile picture',
+      'Character editor with full system prompt customization',
+      'AI image generation for character avatars',
+      'Character visibility controls (private or public)',
+    ],
+  },
+  '254': {
+    date: 'November 2025',
+    added: [
+      'First public release of Character.Mind',
+      'AI character chat powered by Google Gemini',
+      'Google Sign-In for secure, frictionless authentication',
+      'Single character per conversation with persistent message history',
+      'Dark theme, Inter typeface, minimal clean UI',
+    ],
+  },
 };
 
 function showChangelogVersion(ver) {
@@ -1912,15 +2087,26 @@ function showChangelogVersion(ver) {
   if (!el) return;
   const entry = CHANGELOG_DATA[ver];
   if (!entry) { el.innerHTML = ''; return; }
+  const defs = [
+    { key: 'added',   label: 'Added',   cls: 'cl-added',   sym: '+' },
+    { key: 'changed', label: 'Changed', cls: 'cl-changed', sym: '~' },
+    { key: 'fixed',   label: 'Fixed',   cls: 'cl-fixed',   sym: '✓' },
+    { key: 'removed', label: 'Removed', cls: 'cl-removed', sym: '−' },
+  ];
+  const sections = defs.filter(d => entry[d.key]?.length).map(d => `
+    <div class="cl-section ${d.cls}">
+      <div class="cl-section-label">${d.sym} ${d.label}</div>
+      <ul class="changelog-list">${entry[d.key].map(i => `<li>${i}</li>`).join('')}</ul>
+    </div>`).join('');
+  const fallback = !sections && entry.items?.length
+    ? `<ul class="changelog-list">${entry.items.map(i => `<li>${i}</li>`).join('')}</ul>` : '';
   el.innerHTML = `
     <div class="changelog-entry">
       <div class="changelog-entry-meta">
         <span class="changelog-ver">v${ver}</span>
         <span class="changelog-date">${entry.date}</span>
       </div>
-      <ul class="changelog-list">
-        ${entry.items.map(i => `<li>${i}</li>`).join('')}
-      </ul>
+      ${sections || fallback}
     </div>`;
 }
 
