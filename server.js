@@ -1931,7 +1931,8 @@ async function maybeExtractMemories(userId, charId, key, apiKey) {
     for (const rawFact of facts.slice(0, 3)) {
       const fact = sanitizeNote(String(rawFact || ''), 200);
       if (!fact || fact.length < 4) continue;
-      const exists = await db.query('SELECT 1 FROM user_memories WHERE user_id=$1 AND LOWER(fact) LIKE $2 LIMIT 1', [userId, '%' + fact.slice(0, 25).toLowerCase() + '%']);
+      const factSnip = fact.slice(0, 25).toLowerCase().replace(/%/g, '\\%').replace(/_/g, '\\_');
+      const exists = await db.query('SELECT 1 FROM user_memories WHERE user_id=$1 AND LOWER(fact) LIKE $2 ESCAPE $3 LIMIT 1', [userId, '%' + factSnip + '%', '\\']);
       if (exists.rows.length > 0) continue;
       await db.query('INSERT INTO user_memories (user_id, fact, source_char) VALUES ($1, $2, $3)', [userId, fact, charId || null]);
     }
@@ -7597,14 +7598,18 @@ app.post('/api/stripe/subscribe', requireAuth, async (req, res) => {
   }
 });
 
-// Stripe webhook — verifies signature when STRIPE_WEBHOOK_SECRET is set
+// Stripe webhook — always verifies signature (required in production)
 app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
   if (!stripe) return res.sendStatus(503);
   const sig = req.headers['stripe-signature'];
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!secret) {
+    console.error('[stripe-webhook] STRIPE_WEBHOOK_SECRET not set — refusing unsigned webhook');
+    return res.sendStatus(503);
+  }
   let event;
   try {
-    event = secret ? stripe.webhooks.constructEvent(req.body, sig, secret) : JSON.parse(req.body.toString());
+    event = stripe.webhooks.constructEvent(req.body, sig, secret);
   } catch (e) {
     console.error('[stripe-webhook] bad signature', e.message);
     return res.sendStatus(400);

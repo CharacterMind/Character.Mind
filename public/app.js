@@ -2236,7 +2236,8 @@ async function loadMemories() {
 
 async function deleteMemory(id) {
   try {
-    await fetch(`/api/memory/${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/memory/${id}`, { method: 'DELETE' });
+    if (!res.ok) return;
     const item = document.querySelector(`.memory-item[data-id="${id}"]`);
     if (item) item.remove();
     const list = document.getElementById('memoriesList');
@@ -2261,11 +2262,13 @@ async function clearAllMemories() {
   btn.textContent = 'Clearing…';
   btn.disabled = true;
   try {
-    await fetch('/api/memories', { method: 'DELETE' });
-    const list = document.getElementById('memoriesList');
-    if (list) { list.innerHTML = ''; list.style.display = 'none'; }
-    const empty = document.getElementById('memoriesEmpty');
-    if (empty) { empty.textContent = 'No memories saved yet. Chat more and your characters will start remembering you.'; empty.style.display = 'block'; }
+    const res = await fetch('/api/memories', { method: 'DELETE' });
+    if (res.ok) {
+      const list = document.getElementById('memoriesList');
+      if (list) { list.innerHTML = ''; list.style.display = 'none'; }
+      const empty = document.getElementById('memoriesEmpty');
+      if (empty) { empty.textContent = 'No memories saved yet. Chat more and your characters will start remembering you.'; empty.style.display = 'block'; }
+    }
   } catch (_) {}
   btn.textContent = 'Clear all memories';
   btn.disabled = false;
