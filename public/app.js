@@ -10707,7 +10707,7 @@ async function claimHalloweenGift() {
     setTimeout(() => toast.remove(), 6200);
   }
 
-  // ── Toggle: disable all effects inline (re-enable requires page reload) ──────
+  // ── Toggle: disable all effects inline; swap self to re-enable on next click ──
   window._hwToggleTheme = function() {
     localStorage.setItem('hw_disabled', '1');
     document.body.classList.remove('halloween');
@@ -10719,6 +10719,8 @@ async function claimHalloweenGift() {
     document.querySelectorAll('.halloween-web').forEach(e => e.remove());
     document.querySelectorAll('.logo-text').forEach(restoreHwLogo);
     hwLogoObserver.disconnect();
+    // Swap to re-enable so the next click turns it back on
+    window._hwToggleTheme = function() { localStorage.removeItem('hw_disabled'); location.reload(); };
   };
 })();
 
