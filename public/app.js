@@ -2485,14 +2485,12 @@ function homeCard(c) {
     ? `<div class="hc-avatar"><img src="${c.image}" style="width:100%;height:100%;object-fit:cover;border-radius:10px"></div>`
     : `<div class="hc-avatar" style="background:${safeColor(c.color)}">${escHtml((c.name||'?')[0])}</div>`;
   const creator = (c.creator || 'anonymous').replace(/^@/, '');
-  const officialBadge = c.isOfficial ? `<span class="hc-official-badge" title="Official Character Mind character">✓ Official</span>` : '';
   const ownerEdit = c.isMine ? `<button class="hc-edit-btn" onclick="event.stopPropagation();editCharacter('${escHtml(c.id)}')" title="Edit">✏️</button>` : '';
   return `<div class="hc" onclick="openChat('${escHtml(c.id)}')">
     ${av}
     <div class="hc-info">
       <div class="hc-name-row">
         <span class="hc-name">${escHtml(c.name)}</span>
-        ${officialBadge}
         ${ownerEdit}
       </div>
       <div class="hc-creator">${c.isOfficial ? '<span class="hc-creator-official">By Character Mind Playtime Co</span>' : escHtml('By ' + (c.creator || 'a community creator'))}</div>

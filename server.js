@@ -208,7 +208,7 @@ app.listen(PORT, () => {
 });
 
 // ── Official character seeder ─────────────────────────────────────────────────
-async function seedOfficialChar(id, matchKey, imgUrl) {
+async function seedOfficialChar(id, matchKey, imgUrl, isHidden = false) {
   if (!db) return;
   const tpl = matchCharacterTemplate(matchKey);
   if (!tpl) return console.error(`[SEED] No template: ${matchKey}`);
@@ -216,13 +216,13 @@ async function seedOfficialChar(id, matchKey, imgUrl) {
     const ow = await db.query(`SELECT google_id FROM users WHERE email = 'support.charactermind@gmail.com' LIMIT 1`);
     if (!ow.rows.length) return console.warn(`[SEED] Owner not found, skipping ${matchKey}`);
     await db.query(
-      `INSERT INTO characters (id, name, tagline, description, system_prompt, greeting, greeting_mode, color, tags, creator_name, device_id)
-       VALUES ($1,$2,$3,$3,$4,$5,$6,$7,$8,'Character Mind Playtime Co',$9)
+      `INSERT INTO characters (id, name, tagline, description, system_prompt, greeting, greeting_mode, color, tags, creator_name, device_id, is_hidden)
+       VALUES ($1,$2,$3,$3,$4,$5,$6,$7,$8,'Character Mind Playtime Co',$9,$10)
        ON CONFLICT (id) DO UPDATE SET
          system_prompt=EXCLUDED.system_prompt, tagline=EXCLUDED.tagline,
          greeting=EXCLUDED.greeting, greeting_mode=EXCLUDED.greeting_mode,
-         color=EXCLUDED.color, tags=EXCLUDED.tags`,
-      [id, tpl.name, tpl.tagline, tpl.systemPrompt, tpl.greeting, tpl.greetingMode, tpl.color, JSON.stringify(tpl.tags), ow.rows[0].google_id]
+         color=EXCLUDED.color, tags=EXCLUDED.tags, is_hidden=EXCLUDED.is_hidden`,
+      [id, tpl.name, tpl.tagline, tpl.systemPrompt, tpl.greeting, tpl.greetingMode, tpl.color, JSON.stringify(tpl.tags), ow.rows[0].google_id, isHidden]
     );
     console.log(`[SEED] ${tpl.name} upserted`);
     if (!imgUrl) return;
@@ -278,7 +278,7 @@ if (db) {
       'custom_1790895671421_yarnaby','custom_1790895671422_craftycorn','custom_1790895671423_pickypiggy',
       'custom_1790895671424_kickin','custom_1790895671425_bobby','custom_1790895671426_hoppy',
       'custom_1790895746935_elliot','custom_1790895746936_stella','custom_1790895746937_leith'
-    ) AND NOT is_hidden`))
+    ) AND is_hidden = FALSE`))
     .then(r => { if (r && r.rowCount > 0) { console.log(`[MIGRATION] Hid ${r.rowCount} ch2/ch3 character(s)`); invalidateCharList(); } })
     .catch(err => console.error('is_hidden migration error:', err));
 
@@ -313,10 +313,14 @@ if (db) {
 
   // Seed all official Poppy Playtime characters with PFPs
   const WIKI = 'https://poppyplaytime.wiki.gg/images/thumb/';
+  // Chapter 1 — visible
   [
-    ['poppy',            'poppy',            `${WIKI}PoppyPlaytimeHD.png/300px-PoppyPlaytimeHD.png`],
-    ['huggy_wuggy',      'huggy wuggy',      `${WIKI}PPT_Huggy_Wuggy_Passive_Render.png/300px-PPT_Huggy_Wuggy_Passive_Render.png`],
-    ['kissy_missy',      'kissy missy',      `${WIKI}Female_huggie_colored.png/300px-Female_huggie_colored.png`],
+    ['poppy',           'poppy',           `${WIKI}PoppyPlaytimeHD.png/300px-PoppyPlaytimeHD.png`],
+    ['huggy_wuggy',     'huggy wuggy',     `${WIKI}PPT_Huggy_Wuggy_Passive_Render.png/300px-PPT_Huggy_Wuggy_Passive_Render.png`],
+    ['kissy_missy',     'kissy missy',     `${WIKI}Female_huggie_colored.png/300px-Female_huggie_colored.png`],
+  ].forEach(([id, key, img]) => seedOfficialChar(id, key, img, false));
+  // Chapter 2 & 3 — hidden until re-enabled
+  [
     ['mommy_long_legs',  'mommy long legs',  `${WIKI}PPT_Mommy_Long_Legs_Render.png/300px-PPT_Mommy_Long_Legs_Render.png`],
     ['catnap',           'catnap',           `${WIKI}PPT_CatNap_Render.png/300px-PPT_CatNap_Render.png`],
     ['dogday',           'dogday',           `${WIKI}Belts_dogday.png/300px-Belts_dogday.png`],
@@ -328,7 +332,7 @@ if (db) {
     ['kickin_chicken',   'kickin chicken',   `${WIKI}SmilingCritters-YellowBird.png/300px-SmilingCritters-YellowBird.png`],
     ['crafty_corn',      'crafty corn',      `${WIKI}SmilingCritters-WhiteUnicorn.png/300px-SmilingCritters-WhiteUnicorn.png`],
     ['bobby_bearhug',    'bobby bearhug',    `${WIKI}SmilingCritters-RedBear.png/300px-SmilingCritters-RedBear.png`],
-  ].forEach(([id, key, img]) => seedOfficialChar(id, key, img));
+  ].forEach(([id, key, img]) => seedOfficialChar(id, key, img, true));
 
   // Fetch Miss Delight's image on startup if missing
   (async () => {
