@@ -351,10 +351,26 @@
           <svg viewBox="0 0 24 24" fill="currentColor" width="17" height="17"><path d="M18.41 16.59L13.82 12l4.59-4.59L17 6l-6 6 6 6zM6 6h2v12H6z"/></svg>
         </button>
       </div>
-      <button class="btn-create-top" onclick="showCreate()">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-        Create
-      </button>
+      <div class="create-dropdown-wrap" id="createDropdownWrap">
+        <button class="btn-create-top" id="createDropdownBtn" onclick="toggleCreateDropdown(event)">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          Create
+        </button>
+        <div class="create-dropdown" id="createDropdown" style="display:none">
+          <button class="create-dropdown-item" onclick="closeCreateDropdown();showCreate()">
+            <span class="create-dropdown-icon">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/><path d="M19 8h2v2h-2z M20 7h-2V5h-2V3h2V1h2v2h2v2h-2z" opacity=".0"/><circle cx="19" cy="8" r="1" opacity="0"/></svg>
+            </span>
+            Character
+          </button>
+          <button class="create-dropdown-item" onclick="closeCreateDropdown();openGroupPicker()">
+            <span class="create-dropdown-icon">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+            </span>
+            Group Chat
+          </button>
+        </div>
+      </div>
       <nav class="sidebar-nav">
         <button class="nav-item active" onclick="showHome()">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>

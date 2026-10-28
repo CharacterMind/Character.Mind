@@ -196,16 +196,68 @@ html, body {
 .app-loading-logo .logo-bracket { font-size: 22px; color: #a78bfa; opacity: 0.9; }
 
 /* Create button — prominent like c.ai */
+.create-dropdown-wrap { position: relative; margin-bottom: 10px; }
+
 .btn-create-top {
   display: flex; align-items: center; gap: 8px;
   padding: 9px 14px; border-radius: 22px;
   border: 1px solid var(--border2); background: var(--bg3);
   color: var(--text); font-size: 13px; font-weight: 600;
-  cursor: pointer; width: 100%; margin-bottom: 10px;
+  cursor: pointer; width: 100%; margin-bottom: 0;
   transition: background .15s, border-color .15s; font-family: inherit;
 }
-.btn-create-top:hover { background: var(--bg4); border-color: var(--accent); color: var(--accent-l); }
+.btn-create-top:hover,
+.btn-create-top.open { background: var(--bg4); border-color: var(--accent); color: var(--accent-l); }
 .btn-create-top svg { width: 16px; height: 16px; color: var(--accent-l); flex-shrink: 0; }
+
+.create-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 200px;
+  background: #1a1629;
+  border: 1px solid #2d2545;
+  border-radius: 14px;
+  padding: 6px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.55);
+  z-index: 300;
+  animation: fadeDropdown .12s ease;
+}
+@keyframes fadeDropdown {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.create-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: none;
+  background: none;
+  color: #e2d8f5;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .1s;
+  text-align: left;
+}
+.create-dropdown-item:hover { background: rgba(124,58,237,.18); color: #fff; }
+
+.create-dropdown-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(124,58,237,.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #a78bfa;
+}
 
 .sidebar-nav { display: flex; flex-direction: column; gap: 1px; }
 .nav-coin-display {

@@ -2057,6 +2057,7 @@ function closeSidebarMobile() {
 }
 
 function showView(id) {
+  closeCreateDropdown();
   closeSidebarMobile();
   document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
   document.getElementById(id).classList.remove('hidden');
@@ -2071,6 +2072,26 @@ function showView(id) {
   const mobBar = document.getElementById('mobNavBar');
   if (mobBar) mobBar.hidden = (id === 'chatView' || id === 'groupChatView');
 }
+function toggleCreateDropdown(e) {
+  e.stopPropagation();
+  const drop = document.getElementById('createDropdown');
+  const btn  = document.getElementById('createDropdownBtn');
+  if (!drop) return;
+  const open = drop.style.display !== 'none';
+  drop.style.display = open ? 'none' : 'block';
+  if (btn) btn.classList.toggle('open', !open);
+}
+function closeCreateDropdown() {
+  const drop = document.getElementById('createDropdown');
+  const btn  = document.getElementById('createDropdownBtn');
+  if (drop) drop.style.display = 'none';
+  if (btn)  btn.classList.remove('open');
+}
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('createDropdownWrap');
+  if (wrap && !wrap.contains(e.target)) closeCreateDropdown();
+});
+
 function showHome() { showView('homeView'); setNavActive(0); }
 function showDiscover() { showView('discoverView'); setNavActive(1); renderDiscover(); }
 function showFeed() { showView('feedView'); setNavActive(2); }
