@@ -5554,6 +5554,29 @@ async function generatePushMessage(row) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
+// ── Real-time push (fire-and-forget after AI response) ────────────────────────
+const _pushThrottle = {}; // userId → last push ms
+const PUSH_THROTTLE_MS = 45_000;
+
+async function sendPushToUser(userId, payload) {
+  if (!VAPID_PRIVATE || !db) return;
+  const now = Date.now();
+  if (_pushThrottle[userId] && now - _pushThrottle[userId] < PUSH_THROTTLE_MS) return;
+  try {
+    const { rows } = await db.query('SELECT subscription FROM push_subscriptions WHERE google_id=$1', [userId]);
+    if (!rows.length || !rows[0].subscription) return;
+    const sub = typeof rows[0].subscription === 'string'
+      ? JSON.parse(rows[0].subscription)
+      : rows[0].subscription;
+    await webpush.sendNotification(sub, JSON.stringify(payload));
+    _pushThrottle[userId] = now;
+  } catch (err) {
+    if (err.statusCode === 410 || err.statusCode === 404) {
+      db.query('DELETE FROM push_subscriptions WHERE google_id=$1', [userId]).catch(() => {});
+    }
+  }
+}
+
 async function sendPushReminders() {
   if (!db) return;
   try {
@@ -6029,6 +6052,19 @@ app.post('/api/chat', requireAuth, async (req, res) => {
           'UPDATE push_subscriptions SET last_character_name=$2, last_context=$3, crisis_context=(crisis_context OR $4), last_chat_mode=$5, updated_at=NOW() WHERE google_id=$1',
           [userId, dbChar.name, ctx || null, crisis, isRpMode ? 'rp' : 'chat']
         ).catch(() => {});
+        // Real-time push notification when character finishes responding
+        if (!callMode) {
+          const preview = (text || '').replace(/\*[^*]*\*/g, '').trim().slice(0, 100).trim();
+          sendPushToUser(userId, {
+            type: 'message',
+            title: dbChar.name,
+            body: preview || `${dbChar.name} sent you a message`,
+            icon: '/logo.png',
+            url: '/',
+            charId,
+            tag: `chat-${charId}`
+          }).catch(() => {});
+        }
       }
       // Deduct swear words used from today's budget; signal if this response just exhausted it
       if (isLilyChar && text && userId) {
@@ -6198,6 +6234,19 @@ app.post('/api/groups/:id/chat', requireAuth, async (req, res) => {
   const processNext = (idx) => {
     if (groupAborted || idx >= responders.length || res.destroyed || res.writableEnded) {
       clearInterval(pingTimer);
+      if (!groupAborted && roundResponses.length > 0) {
+        const last = roundResponses[roundResponses.length - 1];
+        const preview = (last.content || '').replace(/\*[^*]*\*/g, '').trim().slice(0, 80);
+        sendPushToUser(userId, {
+          type: 'group',
+          title: group.name,
+          body: `${last.charName}: ${preview || '...'}`,
+          icon: '/logo.png',
+          url: '/',
+          groupId: gid,
+          tag: `group-${gid}`
+        }).catch(() => {});
+      }
       const usage = buildUsagePayload(getLimits(userId), userId);
       send({ done: true, usage });
       try { res.end(); } catch (_) {}
@@ -6386,6 +6435,16 @@ app.post('/api/groups/:id/autochat', requireAuth, async (req, res) => {
       send({ type: 'speaker_end', charId: char.id });
       conv.history.push({ role: 'assistant', speaker: char.name, charId: char.id, content: charResponse.trim() });
       if (conv.history.length > 40) conv.history = conv.history.slice(-40);
+      const preview = charResponse.replace(/\*[^*]*\*/g, '').trim().slice(0, 80);
+      sendPushToUser(userId, {
+        type: 'group',
+        title: group.name,
+        body: `${char.name}: ${preview || '...'}`,
+        icon: '/logo.png',
+        url: '/',
+        groupId: gid,
+        tag: `group-${gid}`
+      }).catch(() => {});
       send({ done: true, usage: buildUsagePayload(getLimits(userId), userId) });
       try { res.end(); } catch (_) {}
     },
