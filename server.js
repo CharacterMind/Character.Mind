@@ -7272,7 +7272,9 @@ app.get('/api/paypal/config', (req, res) => {
     for (const [k, v] of Object.entries(saleOn ? PAYPAL_PLAN_IDS_HALLOWEEN_YEARLY : PAYPAL_PLAN_IDS_YEARLY)) if (v) yearlyPlanIds[k] = v;
     if (saleOn) for (const [k, v] of Object.entries(PAYPAL_PLAN_IDS_YEARLY)) if (v && !yearlyPlanIds[k]) yearlyPlanIds[k] = v;
   }
-  res.json({ clientId: process.env.PAYPAL_CLIENT_ID || '', env: process.env.PAYPAL_ENV || 'sandbox', planIds, yearlyAvailable: yearlyAvailable(), yearlyPlanIds });
+  // halloweenSale is true only when Halloween plan IDs are actually configured (so the client only shows discounts that are real)
+  const hwSaleConfigured = saleOn && Object.values(PAYPAL_PLAN_IDS_HALLOWEEN).some(v => !!v);
+  res.json({ clientId: process.env.PAYPAL_CLIENT_ID || '', env: process.env.PAYPAL_ENV || 'sandbox', planIds, yearlyAvailable: yearlyAvailable(), yearlyPlanIds, halloweenSale: hwSaleConfigured });
 });
 
 async function cancelPayPalSubscription(subId, reason) {

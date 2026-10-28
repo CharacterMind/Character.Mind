@@ -453,7 +453,8 @@ function renderPricingCards() {
     rateEl.innerHTML = `🪙 1 C.M. Coin&nbsp;≈&nbsp;<strong>${localOneCoins === 'Free' ? '$0.01' : localOneCoins}</strong>&nbsp;— shown in your local currency`;
   }
 
-  const saleOn = halloweenSaleActive();
+  // saleOn requires both the date window AND actual discounted plan IDs being configured in PayPal
+  const saleOn = halloweenSaleActive() && _halloweenSaleConfigured;
 
   // Keep annual button label in sync with whether the Halloween sale is active
   const annualToggle = document.getElementById('pricingBtnAnnual');
@@ -576,6 +577,7 @@ const PAYPAL_PLAN_IDS = {};
 
 // Yearly plans exist only once their PayPal plans are set up on the server (it tells us in /api/paypal/config)
 let yearlyAvailable = false;
+let _halloweenSaleConfigured = false;
 let paypalConfigLoaded = null;
 function loadPaypalConfig() {
   if (!paypalConfigLoaded) {
@@ -583,6 +585,7 @@ function loadPaypalConfig() {
       if (cfg && cfg.planIds) Object.assign(PAYPAL_PLAN_IDS, cfg.planIds);
       if (cfg && cfg.yearlyPlanIds) Object.assign(PAYPAL_PLAN_IDS_YEARLY, cfg.yearlyPlanIds);
       yearlyAvailable = !!(cfg && cfg.yearlyAvailable);
+      _halloweenSaleConfigured = !!(cfg && cfg.halloweenSale);
       document.body.classList.toggle('yearly-on', yearlyAvailable);
       return cfg;
     }).catch(() => { paypalConfigLoaded = null; return null; });
@@ -617,7 +620,7 @@ async function openPaypalCheckout(planKey, period) {
   const yearly = currentCheckoutPeriod === 'annual';
 
   document.getElementById('paypalCheckoutTitle').textContent = `${plan.name} Plan${yearly ? ' (yearly)' : ''}`;
-  const saleOn = halloweenSaleActive();
+  const saleOn = halloweenSaleActive() && _halloweenSaleConfigured;
   const basePrice = yearly ? plan.annual : plan.monthly;
   const price = (saleOn && basePrice > 0) ? Math.round(basePrice * (1 - HALLOWEEN_SALE.discount) * 100) / 100 : basePrice;
   const periodLabel = yearly ? 'yr' : 'mo';
@@ -1241,7 +1244,7 @@ function renderSettingsTiers(currentTier) {
     <div class="st2-cards-wrap">
       ${PLAN_DATA.filter(p => ACTIVE_PLANS.includes(p.key)).map(p=>{
         const isCurrent = p.key === t;
-        const saleOn = halloweenSaleActive();
+        const saleOn = halloweenSaleActive() && _halloweenSaleConfigured;
         const basePrice = period === 'annual' ? p.annual : p.monthly;
         const price = (saleOn && basePrice > 0) ? Math.round(basePrice * (1 - HALLOWEEN_SALE.discount) * 100) / 100 : basePrice;
         const origPriceHtml = (saleOn && basePrice > 0) ? `<div class="st2-orig-price">$${basePrice}</div>` : '';
@@ -10487,8 +10490,8 @@ async function claimHalloweenGift() {
   // ── Theme is ON ──────────────────────────────────────────────────────────────
   document.body.classList.add('halloween');
 
-  // Update annual toggle label to reflect combined savings during Halloween sale
-  if (halloweenSaleActive()) {
+  // Update annual toggle label to reflect combined savings during Halloween sale (only if discounted plans are configured)
+  if (halloweenSaleActive() && _halloweenSaleConfigured) {
     const annualBtn = document.getElementById('pricingBtnAnnual');
     if (annualBtn) {
       const lbl = annualBtn.querySelector('.pt-save-label');
