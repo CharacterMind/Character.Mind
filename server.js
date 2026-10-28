@@ -6135,6 +6135,27 @@ app.post('/api/groups', requireAuth, async (req, res) => {
   res.json({ id, name: name.trim(), memberIds, respondersPerRound: rpr });
 });
 
+app.put('/api/groups/:id', requireAuth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'DB unavailable' });
+  const userId = req.user.googleId;
+  const gid = req.params.id;
+  if (!/^grp_\d+_[0-9a-f]+$/.test(gid)) return res.status(400).json({ error: 'Invalid group ID' });
+  const { memberIds } = req.body || {};
+  if (!Array.isArray(memberIds) || memberIds.length < 1 || memberIds.length > 15)
+    return res.status(400).json({ error: 'Groups need 1–15 members.' });
+  if (!memberIds.every(id => VALID_ID.test(id)))
+    return res.status(400).json({ error: 'Invalid member ID.' });
+  const { rowCount } = await db.query(
+    'UPDATE groups SET member_ids=$1 WHERE id=$2 AND user_id=$3',
+    [JSON.stringify(memberIds), gid, userId]
+  ).catch(() => ({ rowCount: 0 }));
+  if (!rowCount) return res.status(404).json({ error: 'Group not found.' });
+  const { rows: chars } = await db.query(
+    'SELECT id, name, color, image FROM characters WHERE id = ANY($1)', [memberIds]
+  ).catch(() => ({ rows: [] }));
+  res.json({ ok: true, memberIds, members: memberIds.map(id => chars.find(c => c.id === id)).filter(Boolean) });
+});
+
 app.delete('/api/groups/:id', requireAuth, async (req, res) => {
   if (!db) return res.status(503).json({ error: 'DB unavailable' });
   const userId = req.user.googleId;

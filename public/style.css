@@ -4824,6 +4824,38 @@ body.hw-screaming::after {
   text-overflow: ellipsis;
   padding-left: 8px;
 }
+.group-manage-btn {
+  background: none; border: none; color: var(--text3); cursor: pointer;
+  width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+  border-radius: 8px; flex-shrink: 0; transition: background .15s, color .15s;
+}
+.group-manage-btn:hover { background: var(--bg3); color: var(--text); }
+/* Manage Members Modal */
+.mm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1200; display: flex; align-items: center; justify-content: center; }
+.mm-inner { background: var(--bg2); border: 1px solid var(--border2); border-radius: 14px; width: 360px; max-width: calc(100vw - 32px); max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 16px 48px rgba(0,0,0,.5); }
+.mm-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; flex-shrink: 0; border-bottom: 1px solid var(--border); }
+.mm-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.mm-close-btn { background: none; border: none; color: var(--text3); cursor: pointer; padding: 4px; border-radius: 6px; display: flex; transition: background .15s, color .15s; }
+.mm-close-btn:hover { background: var(--bg3); color: var(--text); }
+.mm-section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text3); padding: 10px 16px 4px; flex-shrink: 0; }
+.mm-section-add { border-top: 1px solid var(--border); padding-top: 10px; }
+.mm-current-list { padding: 2px 8px; max-height: 160px; overflow-y: auto; flex-shrink: 0; }
+.mm-search-wrap { display: flex; align-items: center; gap: 8px; padding: 4px 12px 6px; flex-shrink: 0; color: var(--text3); }
+.mm-search-wrap input { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; color: var(--text); font-size: 13px; outline: none; }
+.mm-search-wrap input:focus { border-color: var(--accent); }
+.mm-add-list { flex: 1; overflow-y: auto; padding: 2px 8px; }
+.mm-member-row, .mm-add-row { display: flex; align-items: center; gap: 10px; padding: 5px 8px; border-radius: 8px; }
+.mm-add-row { cursor: pointer; }
+.mm-add-row:hover { background: var(--bg3); }
+.mm-avatar { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; overflow: hidden; }
+.mm-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.mm-member-name { flex: 1; font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mm-remove-btn { background: none; border: none; color: var(--text3); cursor: pointer; padding: 3px; border-radius: 5px; display: flex; flex-shrink: 0; transition: color .15s, background .15s; }
+.mm-remove-btn:hover { color: #ef4444; background: rgba(239,68,68,.1); }
+.mm-add-icon { color: var(--text3); flex-shrink: 0; }
+.mm-add-row:hover .mm-add-icon { color: var(--accent-l); }
+.mm-empty { font-size: 12px; color: var(--text3); padding: 8px 8px; }
+.mm-footer { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 16px; flex-shrink: 0; border-top: 1px solid var(--border); }
 .group-delete-btn {
   background: none;
   border: none;

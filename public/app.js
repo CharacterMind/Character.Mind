@@ -11337,6 +11337,113 @@ async function sendGroupMessage() {
   }
 }
 
+// ── Manage Members ────────────────────────────────────────────────────────────
+let _mmPendingIds = [];
+
+function openMemberManager() {
+  if (!currentGroupData) return;
+  _mmPendingIds = [...(currentGroupData.memberIds || currentGroupData.members?.map(m => m.id) || [])];
+  renderMmCurrentList();
+  renderMmAddList();
+  document.getElementById('mmSearchInput').value = '';
+  document.getElementById('manageMembersModal').style.display = 'flex';
+}
+
+function closeMemberManager() {
+  document.getElementById('manageMembersModal').style.display = 'none';
+}
+
+function renderMmCurrentList() {
+  const el = document.getElementById('mmCurrentList');
+  if (!el) return;
+  if (!_mmPendingIds.length) {
+    el.innerHTML = '<div class="mm-empty">No members yet.</div>';
+    return;
+  }
+  el.innerHTML = _mmPendingIds.map(id => {
+    const c = characters.find(ch => ch.id === id);
+    if (!c) return '';
+    const color = safeColor(c.color || '#7c3aed');
+    const avatar = c.image
+      ? `<div class="mm-avatar" style="background:${color}"><img src="/api/characters/${c.id}/image" onerror="this.style.display='none'"></div>`
+      : `<div class="mm-avatar" style="background:${color}">${escHtml((c.name||'?').charAt(0).toUpperCase())}</div>`;
+    return `<div class="mm-member-row" data-id="${escHtml(id)}">
+      ${avatar}
+      <span class="mm-member-name">${colorizeNameHtml(c.name, c.color)}</span>
+      <button class="mm-remove-btn" onclick="mmRemoveMember('${escHtml(id)}')" title="Remove">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+    </div>`;
+  }).join('');
+}
+
+function renderMmAddList() {
+  const el = document.getElementById('mmAddList');
+  if (!el) return;
+  const q = (document.getElementById('mmSearchInput')?.value || '').toLowerCase();
+  const available = characters.filter(c => !_mmPendingIds.includes(c.id) && (!q || c.name.toLowerCase().includes(q)));
+  if (!available.length) {
+    el.innerHTML = `<div class="mm-empty">${q ? 'No matches.' : 'All characters already added.'}</div>`;
+    return;
+  }
+  el.innerHTML = available.slice(0, 30).map(c => {
+    const color = safeColor(c.color || '#7c3aed');
+    const avatar = c.image
+      ? `<div class="mm-avatar" style="background:${color}"><img src="/api/characters/${c.id}/image" onerror="this.style.display='none'"></div>`
+      : `<div class="mm-avatar" style="background:${color}">${escHtml((c.name||'?').charAt(0).toUpperCase())}</div>`;
+    return `<div class="mm-add-row" onclick="mmAddMember('${escHtml(c.id)}')">
+      ${avatar}
+      <span class="mm-member-name">${colorizeNameHtml(c.name, c.color)}</span>
+      <svg class="mm-add-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+    </div>`;
+  }).join('');
+}
+
+function mmAddMember(id) {
+  if (_mmPendingIds.length >= 15) { showWarning('Groups can have at most 15 members.'); return; }
+  if (!_mmPendingIds.includes(id)) _mmPendingIds.push(id);
+  renderMmCurrentList();
+  renderMmAddList();
+}
+
+function mmRemoveMember(id) {
+  if (_mmPendingIds.length <= 1) { showWarning('A group needs at least 1 member.'); return; }
+  _mmPendingIds = _mmPendingIds.filter(i => i !== id);
+  renderMmCurrentList();
+  renderMmAddList();
+}
+
+async function saveMemberChanges() {
+  if (!currentGroupId || !_mmPendingIds.length) return;
+  const btn = document.querySelector('#manageMembersModal .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    const res = await fetch(`/api/groups/${currentGroupId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memberIds: _mmPendingIds })
+    });
+    const data = await res.json();
+    if (!res.ok) { showWarning(data.error || 'Failed to save.'); return; }
+    currentGroupData = { ...currentGroupData, memberIds: data.memberIds, members: data.members };
+    const avatarsEl = document.getElementById('groupHeaderAvatars');
+    if (avatarsEl) {
+      avatarsEl.innerHTML = (data.members || []).slice(0, 5).map(m => {
+        const color = safeColor(m.color || '#7c3aed');
+        return m.image
+          ? `<div class="group-header-avatar" style="background:${color}"><img src="/api/characters/${m.id}/image" onerror="this.style.display='none'"></div>`
+          : `<div class="group-header-avatar" style="background:${color}">${escHtml((m.name||'?').charAt(0).toUpperCase())}</div>`;
+      }).join('');
+    }
+    touchRecentGroup(currentGroupId, currentGroupData);
+    closeMemberManager();
+  } catch (e) {
+    showWarning('Failed to save member changes.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+  }
+}
+
 async function deleteCurrentGroup() {
   if (!currentGroupId) return;
   if (!confirm('Delete this group? This cannot be undone.')) return;
