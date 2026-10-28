@@ -267,8 +267,10 @@ if (db) {
     .catch(err => console.error('DB init error:', err));
 
   db.query(`ALTER TABLE characters ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT FALSE`)
-    .then(() => db.query(`UPDATE characters SET is_hidden = TRUE WHERE id IN ('custom_1790897425575_lily', 'custom_1790776698867', 'custom_1790895746938_gracie', 'custom_1790774765927', 'custom_1791126206092_doey') AND NOT is_hidden`))
+    .then(() => db.query(`UPDATE characters SET is_hidden = TRUE WHERE id IN ('custom_1790897425575_lily', 'custom_1790895746938_gracie', 'custom_1790774765927', 'custom_1791126206092_doey') AND NOT is_hidden`))
     .then(r => { if (r && r.rowCount > 0) { console.log(`[MIGRATION] Hid ${r.rowCount} character(s)`); invalidateCharList(); } })
+    .then(() => db.query(`UPDATE characters SET is_hidden = FALSE WHERE id = 'custom_1790776698867' AND is_hidden`))
+    .then(r => { if (r && r.rowCount > 0) { console.log('[MIGRATION] Un-hid Poppy (ch1)'); invalidateCharList(); } })
     .then(() => db.query(`UPDATE characters SET is_hidden = TRUE WHERE id IN (
       'custom_1790894243872_mll','custom_1790894243873_catnap','custom_1790894243874_dogday',
       'custom_1790894243875_prototype','custom_1790895433252_bunzo','custom_1790895433253_pj',
