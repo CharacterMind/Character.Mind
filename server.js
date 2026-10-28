@@ -484,6 +484,7 @@ if (db) {
 
   db.query(`CREATE INDEX IF NOT EXISTS groups_user_idx ON groups (user_id)`)
     .catch(() => {});
+  db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS responders_per_round INTEGER NOT NULL DEFAULT 3`).catch(() => {});
 
   db.query(`
     CREATE TABLE IF NOT EXISTS chat_moderation (
@@ -6055,7 +6056,7 @@ app.get('/api/groups', requireAuth, async (req, res) => {
   if (!db) return res.json({ groups: [] });
   const userId = req.user.googleId;
   const { rows } = await db.query(
-    'SELECT id, name, member_ids, created_at FROM groups WHERE user_id=$1 ORDER BY created_at DESC LIMIT 50',
+    'SELECT id, name, member_ids, responders_per_round, created_at FROM groups WHERE user_id=$1 ORDER BY created_at DESC LIMIT 50',
     [userId]
   ).catch(() => ({ rows: [] }));
   if (!rows.length) return res.json({ groups: [] });
@@ -6072,6 +6073,7 @@ app.get('/api/groups', requireAuth, async (req, res) => {
       id: r.id,
       name: r.name,
       memberIds: r.member_ids,
+      respondersPerRound: r.responders_per_round || 3,
       members: (r.member_ids || []).map(id => charMap[id]).filter(Boolean),
       createdAt: r.created_at
     }))
@@ -6081,19 +6083,20 @@ app.get('/api/groups', requireAuth, async (req, res) => {
 app.post('/api/groups', requireAuth, async (req, res) => {
   if (!db) return res.status(503).json({ error: 'DB unavailable' });
   const userId = req.user.googleId;
-  const { name, memberIds } = req.body || {};
+  const { name, memberIds, respondersPerRound } = req.body || {};
   if (!name || typeof name !== 'string' || name.trim().length < 1 || name.trim().length > 80)
     return res.status(400).json({ error: 'Group name must be 1–80 characters.' });
   if (!Array.isArray(memberIds) || memberIds.length < 1 || memberIds.length > 15)
     return res.status(400).json({ error: 'Groups need 1–15 members.' });
   if (!memberIds.every(id => VALID_ID.test(id)))
     return res.status(400).json({ error: 'Invalid member ID.' });
+  const rpr = Math.min(15, Math.max(1, parseInt(respondersPerRound) || 3));
   const id = `grp_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
   await db.query(
-    'INSERT INTO groups (id, user_id, name, member_ids) VALUES ($1,$2,$3,$4)',
-    [id, userId, name.trim(), JSON.stringify(memberIds)]
+    'INSERT INTO groups (id, user_id, name, member_ids, responders_per_round) VALUES ($1,$2,$3,$4,$5)',
+    [id, userId, name.trim(), JSON.stringify(memberIds), rpr]
   );
-  res.json({ id, name: name.trim(), memberIds });
+  res.json({ id, name: name.trim(), memberIds, respondersPerRound: rpr });
 });
 
 app.delete('/api/groups/:id', requireAuth, async (req, res) => {
@@ -6122,7 +6125,7 @@ app.post('/api/groups/:id/chat', requireAuth, async (req, res) => {
   let group;
   if (db) {
     const { rows } = await db.query(
-      'SELECT id, name, member_ids FROM groups WHERE id=$1 AND user_id=$2', [gid, userId]
+      'SELECT id, name, member_ids, responders_per_round FROM groups WHERE id=$1 AND user_id=$2', [gid, userId]
     ).catch(() => ({ rows: [] }));
     group = rows[0];
   }
@@ -6149,14 +6152,14 @@ app.post('/api/groups/:id/chat', requireAuth, async (req, res) => {
   const charsByIdMap = Object.fromEntries(chars.map(c => [c.id, c]));
   const orderedChars = memberIds.map(id => charsByIdMap[id]).filter(Boolean);
 
-  // Decide which characters respond: all if ≤4, else pick 2-4 randomly
+  // Use the group's stored responders_per_round setting
+  const rpr = Math.min(orderedChars.length, Math.max(1, group.responders_per_round || 3));
   let responders;
-  if (orderedChars.length <= 4) {
+  if (orderedChars.length <= rpr) {
     responders = [...orderedChars];
   } else {
     const shuffled = [...orderedChars].sort(() => Math.random() - 0.5);
-    const count = 2 + Math.floor(Math.random() * 3); // 2–4
-    responders = shuffled.slice(0, count);
+    responders = shuffled.slice(0, rpr);
   }
 
   // Conversation key and history
@@ -6271,6 +6274,133 @@ app.post('/api/groups/:id/chat', requireAuth, async (req, res) => {
   };
 
   processNext(0);
+});
+
+app.post('/api/groups/:id/autochat', requireAuth, async (req, res) => {
+  if (!serverReady) return res.status(503).json({ error: 'Server starting up. Please try again.' });
+  const userId = req.user.googleId;
+  const gid = req.params.id;
+  if (!/^grp_\d+_[0-9a-f]+$/.test(gid)) return res.status(400).json({ error: 'Invalid group ID' });
+
+  let group;
+  if (db) {
+    const { rows } = await db.query(
+      'SELECT id, name, member_ids, responders_per_round FROM groups WHERE id=$1 AND user_id=$2', [gid, userId]
+    ).catch(() => ({ rows: [] }));
+    group = rows[0];
+  }
+  if (!group) return res.status(404).json({ error: 'Group not found.' });
+
+  const memberIds = Array.isArray(group.member_ids) ? group.member_ids : [];
+  if (!memberIds.length) return res.status(400).json({ error: 'Group has no members.' });
+
+  const limitCheck = checkLimits(userId);
+  if (limitCheck.blocked) return res.status(429).json({ error: 'Chat limit reached. Please wait.' });
+
+  let chars = [];
+  if (db) {
+    const { rows } = await db.query(
+      'SELECT id, name, color, image, system_prompt FROM characters WHERE id = ANY($1)', [memberIds]
+    ).catch(() => ({ rows: [] }));
+    chars = rows;
+  }
+  if (!chars.length) return res.status(400).json({ error: 'No characters found.' });
+
+  const charsByIdMap = Object.fromEntries(chars.map(c => [c.id, c]));
+  const orderedChars = memberIds.map(id => charsByIdMap[id]).filter(Boolean);
+
+  const convKey = `${userId}:grp:${gid}`;
+  if (!groupConversations[convKey]) groupConversations[convKey] = { history: [], ts: Date.now() };
+  const conv = groupConversations[convKey];
+  conv.ts = Date.now();
+
+  // Pick 1 character to speak — avoid repeating the last speaker
+  const lastSpeakerId = conv.history.length > 0
+    ? (conv.history.slice().reverse().find(m => m.role === 'assistant') || {}).charId
+    : null;
+  const candidates = orderedChars.length > 1
+    ? orderedChars.filter(c => c.id !== lastSpeakerId)
+    : orderedChars;
+  const char = candidates[Math.floor(Math.random() * candidates.length)];
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'AI service not configured.' });
+
+  const otherNames = orderedChars.filter(c => c.id !== char.id).map(c => c.name).join(', ');
+  const groupCtx = `[GROUP CHAT — You are in a group conversation with: ${otherNames}. You are all chatting together without any user prompt — this is an auto-chat where the characters talk to each other naturally. Stay fully in character as ${char.name}. React to what was just said. Keep it brief — 1-2 sentences. No asterisk actions. Speak naturally as your character would.]`;
+
+  // Build message history
+  const histMsgs = [];
+  for (const m of conv.history) {
+    if (m.role === 'user') histMsgs.push({ role: 'user', content: m.content });
+    else if (m.role === 'assistant') histMsgs.push({ role: 'model', content: `[${m.speaker || 'Character'}]: ${m.content}` });
+  }
+
+  // Auto-chat continuation prompt
+  const continuation = conv.history.length === 0
+    ? `[Start a conversation — introduce yourself or say something in character.]`
+    : `[Auto-chat: continue the conversation naturally as ${char.name}.]`;
+  histMsgs.push({ role: 'user', content: continuation });
+
+  // Merge consecutive same-role messages
+  const cleanedHist = [];
+  for (const m of histMsgs) {
+    const last = cleanedHist[cleanedHist.length - 1];
+    if (last && last.role === m.role) last.content += '\n' + m.content;
+    else cleanedHist.push({ role: m.role, content: m.content });
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const send = (obj) => { try { res.write('data: ' + JSON.stringify(obj) + '\n\n'); } catch (_) {} };
+  const pingTimer = setInterval(() => { try { if (!res.writableEnded) res.write(': still here\n\n'); } catch (_) {} }, 10000);
+  if (pingTimer.unref) pingTimer.unref();
+
+  let aborted = false;
+  res.on('close', () => { aborted = true; });
+
+  send({ type: 'speaker_start', charId: char.id, charName: char.name, charColor: char.color || '#7c3aed', charImage: char.image || null });
+
+  // Auto-chat costs 2x normal — characters generating content proactively
+  addTokens(userId, messageCost('opas', 'medium') * 2);
+
+  let charResponse = '';
+  const ctx = { aborted: false };
+
+  callGeminiStream(
+    apiKey,
+    groupCtx + '\n\n' + (char.system_prompt || `You are ${char.name}. Chat naturally in a group conversation.`),
+    cleanedHist,
+    (token) => {
+      if (aborted) { ctx.aborted = true; return; }
+      charResponse += token;
+      send({ type: 'token', token });
+    },
+    () => {
+      clearInterval(pingTimer);
+      if (!charResponse.trim()) charResponse = '...';
+      send({ type: 'speaker_end', charId: char.id });
+      conv.history.push({ role: 'assistant', speaker: char.name, charId: char.id, content: charResponse.trim() });
+      if (conv.history.length > 40) conv.history = conv.history.slice(-40);
+      send({ done: true, usage: buildUsagePayload(getLimits(userId), userId) });
+      try { res.end(); } catch (_) {}
+    },
+    (err) => {
+      clearInterval(pingTimer);
+      console.error('[autochat] AI error for', char.name, ':', err && err.message);
+      send({ type: 'speaker_end', charId: char.id });
+      send({ done: true, usage: buildUsagePayload(getLimits(userId), userId) });
+      try { res.end(); } catch (_) {}
+    },
+    undefined,
+    EFFORT_CONFIG.opas.medium,
+    GROQ_FAST_MODELS,
+    ctx
+  );
 });
 
 // ── Email helpers ─────────────────────────────────────────────────────────────

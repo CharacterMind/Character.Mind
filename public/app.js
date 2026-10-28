@@ -10725,6 +10725,8 @@ let currentGroupId = null;
 let currentGroupData = null;
 let groupPickerSelected = new Set();
 let groupIsStreaming = false;
+let groupAutoChat = false;
+let groupAutoChatTimer = null;
 
 async function loadGroups() {
   const list = document.getElementById('groupsList');
@@ -10840,12 +10842,12 @@ async function createGroupFromPicker() {
     const res = await fetch('/api/groups', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, memberIds: [...groupPickerSelected] })
+      body: JSON.stringify({ name, memberIds: [...groupPickerSelected], respondersPerRound: Math.min(15, Math.max(1, parseInt(document.getElementById('groupRprInput')?.value) || 3)) })
     });
     const data = await res.json();
     if (!res.ok) { alert(data.error || 'Failed to create group.'); return; }
     closeGroupPicker();
-    openGroupChat(data.id, { id: data.id, name: data.name, memberIds: data.memberIds, members: [...groupPickerSelected].map(id => characters.find(c => c.id === id)).filter(Boolean) });
+    openGroupChat(data.id, { id: data.id, name: data.name, memberIds: data.memberIds, respondersPerRound: data.respondersPerRound || 3, members: [...groupPickerSelected].map(id => characters.find(c => c.id === id)).filter(Boolean) });
   } catch (e) {
     alert('Failed to create group. Please try again.');
   }
@@ -10854,6 +10856,10 @@ async function createGroupFromPicker() {
 function openGroupChat(groupId, groupData) {
   currentGroupId = groupId;
   groupIsStreaming = false;
+  groupAutoChat = false;
+  if (groupAutoChatTimer) { clearTimeout(groupAutoChatTimer); groupAutoChatTimer = null; }
+  const acBtn = document.getElementById('groupAutoChatBtn');
+  if (acBtn) acBtn.classList.remove('active');
 
   if (groupData) {
     currentGroupData = groupData;
@@ -11016,15 +11022,115 @@ async function sendGroupMessage() {
     hideGroupTyping();
     _currentGroupBubble = null;
     if (sendBtn) sendBtn.disabled = false;
+    if (groupAutoChat) scheduleAutoChat();
   }
 }
 
 async function deleteCurrentGroup() {
   if (!currentGroupId) return;
   if (!confirm('Delete this group? This cannot be undone.')) return;
+  groupAutoChat = false;
+  if (groupAutoChatTimer) { clearTimeout(groupAutoChatTimer); groupAutoChatTimer = null; }
   await fetch(`/api/groups/${currentGroupId}`, { method: 'DELETE' }).catch(() => {});
   currentGroupId = null;
   currentGroupData = null;
   showGroups();
 }
+
+function toggleGroupAutoChat() {
+  groupAutoChat = !groupAutoChat;
+  const btn = document.getElementById('groupAutoChatBtn');
+  if (btn) btn.classList.toggle('active', groupAutoChat);
+  if (groupAutoChat && !groupIsStreaming) scheduleAutoChat();
+  else if (!groupAutoChat && groupAutoChatTimer) {
+    clearTimeout(groupAutoChatTimer);
+    groupAutoChatTimer = null;
+  }
+}
+
+function scheduleAutoChat(delayMs) {
+  if (groupAutoChatTimer) { clearTimeout(groupAutoChatTimer); groupAutoChatTimer = null; }
+  if (!groupAutoChat || !currentGroupId) return;
+  const delay = delayMs !== undefined ? delayMs : (2000 + Math.random() * 2000); // 2-4s
+  groupAutoChatTimer = setTimeout(() => {
+    groupAutoChatTimer = null;
+    if (groupAutoChat && !groupIsStreaming) runGroupAutoChat();
+  }, delay);
+}
+
+async function runGroupAutoChat() {
+  if (!groupAutoChat || groupIsStreaming || !currentGroupId) return;
+  groupIsStreaming = true;
+  _currentGroupBubble = null;
+  let autoChatError = false;
+
+  try {
+    const res = await fetch(`/api/groups/${currentGroupId}/autochat`, { method: 'POST' });
+    if (!res.ok) {
+      autoChatError = true;
+      groupAutoChat = false;
+      const btn = document.getElementById('groupAutoChatBtn');
+      if (btn) btn.classList.remove('active');
+      groupIsStreaming = false;
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let streamDone = false;
+
+    while (!streamDone) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (!raw) continue;
+        let evt;
+        try { evt = JSON.parse(raw); } catch (_) { continue; }
+
+        if (evt.type === 'speaker_start') {
+          showGroupTyping(evt.charName, evt.charColor);
+          startGroupCharBubble(evt.charId, evt.charName, evt.charColor, evt.charImage);
+        } else if (evt.type === 'token') {
+          hideGroupTyping();
+          if (evt.token) appendGroupToken(evt.token);
+        } else if (evt.type === 'speaker_end') {
+          _currentGroupBubble = null;
+          hideGroupTyping();
+        } else if (evt.done) {
+          streamDone = true;
+          break;
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[autochat] stream error:', e);
+    autoChatError = true;
+    groupAutoChat = false;
+    const btn = document.getElementById('groupAutoChatBtn');
+    if (btn) btn.classList.remove('active');
+  } finally {
+    groupIsStreaming = false;
+    hideGroupTyping();
+    _currentGroupBubble = null;
+    if (groupAutoChat && !autoChatError) scheduleAutoChat();
+  }
+}
+
+// Pause auto-chat while user is typing, resume when they stop
+(function wireGroupInputFocus() {
+  const inp = document.getElementById('groupMessageInput');
+  if (!inp) return;
+  inp.addEventListener('focus', () => {
+    if (groupAutoChatTimer) { clearTimeout(groupAutoChatTimer); groupAutoChatTimer = null; }
+  });
+  inp.addEventListener('blur', () => {
+    if (groupAutoChat && !groupIsStreaming) scheduleAutoChat(1500);
+  });
+}());
 
