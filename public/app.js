@@ -725,7 +725,7 @@ async function openPaypalCheckout(planKey, period) {
       }
       await new Promise((resolve, reject) => {
         const s = document.createElement('script');
-        s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(cfg.clientId)}&vault=true&components=buttons`;
+        s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(cfg.clientId)}&vault=true&components=buttons,hosted-fields`;
         s.onload = resolve;
         s.onerror = reject;
         document.head.appendChild(s);
@@ -858,7 +858,9 @@ function switchPayTab(tab) {
   document.getElementById('co-tab-paypal').classList.toggle('active', tab === 'paypal');
   document.getElementById('co-tab-card').classList.toggle('active',   tab === 'card');
   const footer = document.getElementById('co-footer-text');
-  if (footer) footer.textContent = 'Secured by PayPal · Cancel anytime · No hidden fees';
+  if (footer) footer.textContent = tab === 'card'
+    ? 'Card secured by PayPal · Cancel anytime · No hidden fees'
+    : 'Secured by PayPal · Cancel anytime · No hidden fees';
 }
 
 let _hostedFieldsInstance = null;
@@ -1147,7 +1149,7 @@ async function selectCoinPack(pack) {
       if (!cfg || !cfg.clientId) throw new Error('No config');
       await new Promise((resolve, reject) => {
         const s = document.createElement('script');
-        s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(cfg.clientId)}&vault=true&components=buttons`;
+        s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(cfg.clientId)}&vault=true&components=buttons,hosted-fields`;
         s.onload = resolve; s.onerror = reject;
         document.head.appendChild(s);
       });
