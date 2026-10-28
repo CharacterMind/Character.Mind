@@ -3942,6 +3942,7 @@ async function openChat(charId) {
   // Never leave the previous character's messages on screen while the new chat loads
   const welcomeNow = document.getElementById('chatWelcome');
   document.getElementById('messages').innerHTML = '';
+  gameIframeMap.clear();
   if (liteObserver) liteObserver.disconnect();
   if (welcomeNow) welcomeNow.innerHTML = '<div class="chat-loading">Loading…</div>';
   // Show this chat's saved copy straight away; the server copy is checked afterwards
@@ -4060,6 +4061,7 @@ async function openChat(charId) {
       }).catch(() => {});
     } else {
       messagesDiv.innerHTML = '';
+      gameIframeMap.clear();
       document.getElementById('chatWelcome').innerHTML = '';
       generateGreeting();
     }
@@ -7760,6 +7762,7 @@ async function resumePastChat(msgs) {
   }
   const messagesEl = document.getElementById('messages');
   if (messagesEl) messagesEl.innerHTML = '';
+  gameIframeMap.clear();
   const welcome = document.getElementById('chatWelcome');
   if (welcome) welcome.innerHTML = '';
   msgs.forEach((m, i) => appendHistoryItem(m, i < msgs.length - LIVE_COLOUR_MESSAGES));
@@ -9431,6 +9434,7 @@ async function newChat() {
       localStorage.setItem(userKey('cm_history'), JSON.stringify(all));
     } catch(_) {}
     document.getElementById('messages').innerHTML = '';
+    gameIframeMap.clear();
     document.getElementById('chatWelcome').innerHTML = '';
     warnedThresholds.clear();
     generateGreeting();
