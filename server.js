@@ -6248,11 +6248,8 @@ app.post('/api/groups/:id/chat', requireAuth, async (req, res) => {
   if (orderedChars.length <= rpr) {
     responders = [...orderedChars];
   } else if (mentioned.length > 0) {
-    // Guaranteed responders = mentioned chars (up to rpr), then fill randomly
-    const guaranteed = mentioned.slice(0, rpr);
-    const guaranteedIds = new Set(guaranteed.map(c => c.id));
-    const rest = orderedChars.filter(c => !guaranteedIds.has(c.id)).sort(() => Math.random() - 0.5);
-    responders = [...guaranteed, ...rest].slice(0, rpr);
+    // User addressed specific characters — only they respond, no random fill
+    responders = mentioned.slice(0, rpr);
   } else {
     const shuffled = [...orderedChars].sort(() => Math.random() - 0.5);
     responders = shuffled.slice(0, rpr);
@@ -6435,8 +6432,15 @@ app.post('/api/groups/:id/autochat', requireAuth, async (req, res) => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(503).json({ error: 'AI service not configured.' });
 
-  const otherNames = orderedChars.filter(c => c.id !== char.id).map(c => c.name).join(', ');
-  const groupCtx = `[GROUP CHAT — You are in a group conversation with: ${otherNames}. You are all chatting together without any user prompt — this is an auto-chat where the characters talk to each other naturally. Stay fully in character as ${char.name}. React to what was just said. Keep it brief — 1-2 sentences. No asterisk actions. Speak naturally as your character would.]`;
+  const otherNames = orderedChars.filter(c => c.id !== char.id).map(c => c.name);
+  const otherNamesStr = otherNames.join(', ');
+
+  // Find the last thing said (and by whom) to give the AI clear context
+  const lastEntry = conv.history.slice().reverse().find(m => m.role === 'assistant');
+  const lastSpeaker = lastEntry ? lastEntry.speaker : null;
+  const addressTarget = otherNames.find(n => n !== lastSpeaker) || (otherNames[0] || '');
+
+  const groupCtx = `[GROUP AUTO-CHAT — You are ${char.name}. The other characters here are: ${otherNamesStr}. You are all chatting freely among yourselves — no user prompt. Stay fully in character. Address one of the others by name in your reply (e.g. start with "${addressTarget}," or mention their name naturally). Keep it brief — 1-2 sentences. No asterisk actions.]`;
 
   // Build message history
   const histMsgs = [];
@@ -6445,10 +6449,11 @@ app.post('/api/groups/:id/autochat', requireAuth, async (req, res) => {
     else if (m.role === 'assistant') histMsgs.push({ role: 'model', content: `[${m.speaker || 'Character'}]: ${m.content}` });
   }
 
-  // Auto-chat continuation prompt
+  // Auto-chat continuation prompt — tell the char exactly what happened last
+  const recentLine = lastEntry ? `${lastEntry.speaker} just said: "${lastEntry.content.slice(0, 120)}${lastEntry.content.length > 120 ? '…' : ''}"` : 'The conversation is just starting.';
   const continuation = conv.history.length === 0
-    ? `[Start a conversation — introduce yourself or say something in character.]`
-    : `[Auto-chat: continue the conversation naturally as ${char.name}.]`;
+    ? `[Start the conversation — introduce yourself or say something in character to ${otherNamesStr}.]`
+    : `[Auto-chat: ${recentLine} Now it's your turn, ${char.name}. Reply to the group naturally.]`;
   histMsgs.push({ role: 'user', content: continuation });
 
   // Merge consecutive same-role messages

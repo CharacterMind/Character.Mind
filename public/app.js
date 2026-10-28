@@ -11084,6 +11084,8 @@ let groupIsStreaming = false;
 let groupAutoChat = false;
 let groupAutoChatTimer = null;
 let groupAutoChatAbort = null;
+let groupAutoRoundLimit = 0;
+let groupAutoRoundCount = 0;
 
 async function loadGroups() {
   const list = document.getElementById('groupsList');
@@ -11397,6 +11399,7 @@ async function sendGroupMessage() {
           _pendingGroupBubbleStarted = false;
         } else if (evt.done) {
           streamDone = true;
+          if (evt.usage) updateUsageBars(evt.usage);
           break;
         }
       }
@@ -11570,8 +11573,12 @@ function toggleGroupAutoChat() {
   groupAutoChat = !groupAutoChat;
   const btn = document.getElementById('groupAutoChatBtn');
   if (btn) btn.classList.toggle('active', groupAutoChat);
-  if (groupAutoChat && !groupIsStreaming) scheduleAutoChat();
-  else if (!groupAutoChat && groupAutoChatTimer) {
+  if (groupAutoChat && !groupIsStreaming) {
+    groupAutoRoundCount = 0;
+    const inp = document.getElementById('groupAutoRoundInput');
+    groupAutoRoundLimit = inp ? (parseInt(inp.value) || 0) : 0;
+    scheduleAutoChat();
+  } else if (!groupAutoChat && groupAutoChatTimer) {
     clearTimeout(groupAutoChatTimer);
     groupAutoChatTimer = null;
   }
@@ -11647,6 +11654,7 @@ async function runGroupAutoChat() {
           _pendingGroupBubbleStarted = false;
         } else if (evt.done) {
           streamDone = true;
+          if (evt.usage) updateUsageBars(evt.usage);
           break;
         }
       }
@@ -11666,7 +11674,16 @@ async function runGroupAutoChat() {
     _currentGroupBubble = null;
     _pendingGroupChar = null;
     _pendingGroupBubbleStarted = false;
-    if (groupAutoChat && !autoChatError) scheduleAutoChat();
+    if (groupAutoChat && !autoChatError) {
+      groupAutoRoundCount++;
+      if (groupAutoRoundLimit > 0 && groupAutoRoundCount >= groupAutoRoundLimit) {
+        groupAutoChat = false;
+        const btn = document.getElementById('groupAutoChatBtn');
+        if (btn) btn.classList.remove('active');
+      } else {
+        scheduleAutoChat();
+      }
+    }
   }
 }
 

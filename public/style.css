@@ -4924,6 +4924,18 @@ body:not(.halloween) .hw-off-label { display: inline; }
 .group-autochat-btn.active .icon-play  { display: none; }
 .group-autochat-btn.active .icon-pause { display: block; }
 
+.group-autoround-input {
+  width: 44px; height: 28px;
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: 6px; color: var(--text2); font-size: 12px;
+  text-align: center; padding: 0 4px;
+  flex-shrink: 0;
+  appearance: textfield;
+}
+.group-autoround-input::-webkit-inner-spin-button,
+.group-autoround-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+.group-autoround-input:focus { outline: none; border-color: var(--accent, #7c3aed); }
+
 #groupChatView {
   display: flex;
   flex-direction: column;
