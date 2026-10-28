@@ -4414,6 +4414,29 @@ body.hw-screaming::after {
   box-shadow: 0 0 24px rgba(220,38,38,0.45);
 }
 
+/* ── Halloween extras: bottom-corner webs ─────────────────────────────────── */
+.halloween-web.web-bl { top: auto; bottom: 0; left: 0;  transform: scaleY(-1);           transform-origin: bottom left;  }
+.halloween-web.web-br { top: auto; bottom: 0; right: 0; transform: scale(-1, -1);         transform-origin: bottom right; }
+
+/* ── Halloween eyeballs ────────────────────────────────────────────────────── */
+.hw-eyeball {
+  position: absolute; pointer-events: none;
+  opacity: 0; line-height: 1;
+  animation: hwEyeBlink var(--eye-dur, 4s) var(--eye-delay, 0s) ease-in-out infinite;
+  filter: drop-shadow(0 0 10px rgba(255,60,0,0.95)) drop-shadow(0 0 20px rgba(255,100,0,0.6));
+}
+@keyframes hwEyeBlink {
+  0%,  8%, 92%, 100% { opacity: 0; transform: scale(0.3) rotate(-15deg); }
+  18%, 82%            { opacity: 0.7; transform: scale(1); }
+  50%                 { opacity: 0.95; transform: scale(1.2) rotate(6deg); }
+}
+
+/* ── Halloween theme toggle button labels ──────────────────────────────────── */
+.hw-on-label  { display: inline; }
+.hw-off-label { display: none; }
+body:not(.halloween) .hw-on-label  { display: none; }
+body:not(.halloween) .hw-off-label { display: inline; }
+
 /* ── AFK Coin Farm ───────────────────────────────────────────────────────── */
 .settings-farm-card {
   background: rgba(255,255,255,0.04);
