@@ -3671,6 +3671,14 @@ function touchRecentGroup(groupId, groupData) {
   } catch (_) {}
   renderSidebarChats();
 }
+function removeGroupFromRecents(groupId) {
+  try {
+    const r = getRecentGroups();
+    delete r[groupId];
+    localStorage.setItem(userKey('cm_recents_groups'), JSON.stringify(r));
+  } catch (_) {}
+  renderSidebarChats();
+}
 function touchRecentChat(charId) {
   const now = Date.now();
   // Chatting again brings a character back even if it was removed from Recents earlier
@@ -11259,7 +11267,7 @@ function appendUserGroupMsg(text) {
   if (!msgs) return;
   const div = document.createElement('div');
   div.className = 'group-msg group-msg-user';
-  div.innerHTML = `<div class="group-msg-bubble">${escHtml(text)}</div>`;
+  div.innerHTML = `<button class="group-msg-del-btn" onclick="deleteGroupMsg(this.closest('.group-msg'))" title="Delete">×</button><div class="group-msg-bubble">${escHtml(text)}</div>`;
   msgs.appendChild(div);
   const body = document.getElementById('groupChatBody');
   if (body) body.scrollTop = body.scrollHeight;
@@ -11296,7 +11304,7 @@ function startGroupCharBubble(charId, charName, charColor, charImage) {
   const avatarHtml = charImage
     ? `<div class="group-msg-avatar" style="background:${color}"><img src="/api/characters/${charId}/image" onerror="this.style.display='none'"></div>`
     : `<div class="group-msg-avatar" style="background:${color}">${escHtml(charName.charAt(0).toUpperCase())}</div>`;
-  div.innerHTML = `${avatarHtml}<div class="group-msg-content"><div class="group-msg-name" style="color:${color}">${escHtml(charName)}</div><div class="group-msg-text"></div></div>`;
+  div.innerHTML = `${avatarHtml}<div class="group-msg-content"><div class="group-msg-name" style="color:${color}">${escHtml(charName)}</div><div class="group-msg-text"></div></div><button class="group-msg-del-btn" onclick="deleteGroupMsg(this.closest('.group-msg'))" title="Delete">×</button>`;
   msgs.appendChild(div);
   _currentGroupBubble = div.querySelector('.group-msg-text');
   const chatBody = document.getElementById('groupChatBody');
@@ -11518,10 +11526,44 @@ async function deleteCurrentGroup() {
   if (!confirm('Delete this group? This cannot be undone.')) return;
   groupAutoChat = false;
   if (groupAutoChatTimer) { clearTimeout(groupAutoChatTimer); groupAutoChatTimer = null; }
-  await fetch(`/api/groups/${currentGroupId}`, { method: 'DELETE' }).catch(() => {});
+  const deletedId = currentGroupId;
+  await fetch(`/api/groups/${deletedId}`, { method: 'DELETE' }).catch(() => {});
+  removeGroupFromRecents(deletedId);
   currentGroupId = null;
   currentGroupData = null;
   showGroups();
+}
+
+function deleteGroupMsg(el) {
+  if (!el) return;
+  el.style.transition = 'opacity .15s, transform .15s';
+  el.style.opacity = '0';
+  el.style.transform = 'scale(0.95)';
+  setTimeout(() => el.remove(), 160);
+}
+
+async function rewindGroupChat() {
+  if (groupIsStreaming || !currentGroupId) return;
+  const msgs = document.getElementById('groupMessages');
+  if (!msgs) return;
+  const allMsgs = [...msgs.children];
+  let lastUserIdx = -1;
+  for (let i = allMsgs.length - 1; i >= 0; i--) {
+    if (allMsgs[i].classList.contains('group-msg-user')) { lastUserIdx = i; break; }
+  }
+  if (lastUserIdx === -1) return;
+  const toRemove = allMsgs.slice(lastUserIdx);
+  toRemove.forEach(el => { el.style.transition = 'opacity .12s'; el.style.opacity = '0'; });
+  setTimeout(() => toRemove.forEach(el => el.remove()), 130);
+  fetch(`/api/groups/${currentGroupId}/rewind`, { method: 'POST' }).catch(() => {});
+}
+
+async function clearGroupHistory() {
+  if (groupIsStreaming || !currentGroupId) return;
+  if (!confirm('Clear all messages in this group? This cannot be undone.')) return;
+  const msgs = document.getElementById('groupMessages');
+  if (msgs) msgs.innerHTML = '';
+  fetch(`/api/groups/${currentGroupId}/history`, { method: 'DELETE' }).catch(() => {});
 }
 
 function toggleGroupAutoChat() {

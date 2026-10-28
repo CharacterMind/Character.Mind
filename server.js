@@ -6169,6 +6169,30 @@ app.delete('/api/groups/:id', requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// Rewind: remove last user message + all AI responses that followed it
+app.post('/api/groups/:id/rewind', requireAuth, (req, res) => {
+  const userId = req.user.googleId;
+  const gid = req.params.id;
+  if (!/^grp_\d+_[0-9a-f]+$/.test(gid)) return res.status(400).json({ error: 'Invalid group ID' });
+  const conv = groupConversations[`${userId}:grp:${gid}`];
+  if (conv && conv.history.length) {
+    for (let i = conv.history.length - 1; i >= 0; i--) {
+      if (conv.history[i].role === 'user') { conv.history = conv.history.slice(0, i); break; }
+    }
+  }
+  res.json({ ok: true });
+});
+
+// Clear all group conversation history (keeps the group, just wipes messages)
+app.delete('/api/groups/:id/history', requireAuth, (req, res) => {
+  const userId = req.user.googleId;
+  const gid = req.params.id;
+  if (!/^grp_\d+_[0-9a-f]+$/.test(gid)) return res.status(400).json({ error: 'Invalid group ID' });
+  const conv = groupConversations[`${userId}:grp:${gid}`];
+  if (conv) conv.history = [];
+  res.json({ ok: true });
+});
+
 app.post('/api/groups/:id/chat', requireAuth, async (req, res) => {
   if (!serverReady) return res.status(503).json({ error: 'Server starting up. Please try again.' });
   const userId = req.user.googleId;

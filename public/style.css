@@ -4847,12 +4847,24 @@ body:not(.halloween) .hw-off-label { display: inline; }
   text-overflow: ellipsis;
   padding-left: 8px;
 }
-.group-manage-btn {
+.group-manage-btn, .group-rewind-btn, .group-clear-btn {
   background: none; border: none; color: var(--text3); cursor: pointer;
   width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
   border-radius: 8px; flex-shrink: 0; transition: background .15s, color .15s;
 }
-.group-manage-btn:hover { background: var(--bg3); color: var(--text); }
+.group-manage-btn:hover, .group-rewind-btn:hover, .group-clear-btn:hover { background: var(--bg3); color: var(--text); }
+
+/* Per-message delete button (appears on hover) */
+.group-msg { position: relative; }
+.group-msg-del-btn {
+  opacity: 0; pointer-events: none;
+  background: none; border: none; cursor: pointer;
+  color: var(--text3); font-size: 15px; line-height: 1;
+  padding: 2px 6px; border-radius: 4px; flex-shrink: 0;
+  align-self: center; transition: opacity .12s, background .12s, color .12s;
+}
+.group-msg:hover .group-msg-del-btn { opacity: 0.55; pointer-events: auto; }
+.group-msg-del-btn:hover { opacity: 1 !important; background: var(--bg3); color: var(--text); }
 /* Manage Members Modal */
 .mm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1200; display: flex; align-items: center; justify-content: center; }
 .mm-inner { background: var(--bg2); border: 1px solid var(--border2); border-radius: 14px; width: 360px; max-width: calc(100vw - 32px); max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 16px 48px rgba(0,0,0,.5); }
