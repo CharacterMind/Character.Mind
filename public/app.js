@@ -2202,6 +2202,73 @@ function showSettingsTab(tab) {
     const sel = document.getElementById('versionPicker');
     if (sel) showChangelogVersion(sel.value);
   }
+  if (tab === 'memory') loadMemories();
+}
+
+// ── User Memory Management ────────────────────────────────────────────────────
+
+async function loadMemories() {
+  const list = document.getElementById('memoriesList');
+  const empty = document.getElementById('memoriesEmpty');
+  if (!list || !empty) return;
+  list.style.display = 'none';
+  empty.textContent = 'Loading…';
+  empty.style.display = 'block';
+  try {
+    const r = await fetch('/api/memories');
+    if (!r.ok) throw new Error('Failed');
+    const { memories } = await r.json();
+    empty.style.display = memories.length ? 'none' : 'block';
+    if (!memories.length) { empty.textContent = 'No memories saved yet. Chat more and your characters will start remembering you.'; return; }
+    list.innerHTML = memories.map(m => `
+      <li class="memory-item" data-id="${m.id}">
+        <span class="memory-fact">${escHtml(m.fact)}</span>
+        <button class="memory-delete-btn" onclick="deleteMemory(${m.id})" title="Forget this">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </li>`).join('');
+    list.style.display = 'block';
+  } catch (_) {
+    empty.textContent = 'Could not load memories. Please try again.';
+    empty.style.display = 'block';
+  }
+}
+
+async function deleteMemory(id) {
+  try {
+    await fetch(`/api/memory/${id}`, { method: 'DELETE' });
+    const item = document.querySelector(`.memory-item[data-id="${id}"]`);
+    if (item) item.remove();
+    const list = document.getElementById('memoriesList');
+    if (list && !list.children.length) {
+      list.style.display = 'none';
+      const empty = document.getElementById('memoriesEmpty');
+      if (empty) { empty.textContent = 'No memories saved yet. Chat more and your characters will start remembering you.'; empty.style.display = 'block'; }
+    }
+  } catch (_) {}
+}
+
+async function clearAllMemories() {
+  const btn = document.getElementById('memoryClearAllBtn');
+  if (!btn) return;
+  if (btn.dataset.confirm !== '1') {
+    btn.dataset.confirm = '1';
+    btn.textContent = 'Tap again to confirm';
+    setTimeout(() => { btn.dataset.confirm = ''; btn.textContent = 'Clear all memories'; }, 4000);
+    return;
+  }
+  btn.dataset.confirm = '';
+  btn.textContent = 'Clearing…';
+  btn.disabled = true;
+  try {
+    await fetch('/api/memories', { method: 'DELETE' });
+    const list = document.getElementById('memoriesList');
+    if (list) { list.innerHTML = ''; list.style.display = 'none'; }
+    const empty = document.getElementById('memoriesEmpty');
+    if (empty) { empty.textContent = 'No memories saved yet. Chat more and your characters will start remembering you.'; empty.style.display = 'block'; }
+  } catch (_) {}
+  btn.textContent = 'Clear all memories';
+  btn.disabled = false;
 }
 
 // ── Wellness Check-in Settings ────────────────────────────────────────────────
