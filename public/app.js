@@ -2136,6 +2136,53 @@ function showChangelogVersion(ver) {
     </div>`;
 }
 
+function setChangelogView(mode) {
+  const pickerRow = document.getElementById('clVersionPickerRow');
+  const btnSnapshot = document.getElementById('clBtnSnapshot');
+  const btnChanges = document.getElementById('clBtnChanges');
+  if (mode === 'snapshot') {
+    btnSnapshot?.classList.add('active');
+    btnChanges?.classList.remove('active');
+    if (pickerRow) pickerRow.style.display = '';
+    const sel = document.getElementById('versionPicker');
+    if (sel) showChangelogVersion(sel.value);
+  } else {
+    btnSnapshot?.classList.remove('active');
+    btnChanges?.classList.add('active');
+    if (pickerRow) pickerRow.style.display = 'none';
+    showAllChanges();
+  }
+}
+
+function showAllChanges() {
+  const el = document.getElementById('changelogContent');
+  if (!el) return;
+  const allVers = Object.keys(CHANGELOG_DATA).map(Number).sort((a, b) => b - a);
+  const defs = [
+    { key: 'added',   label: 'Added',   cls: 'cl-added',   sym: '+' },
+    { key: 'changed', label: 'Changed', cls: 'cl-changed', sym: '~' },
+    { key: 'fixed',   label: 'Fixed',   cls: 'cl-fixed',   sym: '✓' },
+    { key: 'removed', label: 'Removed', cls: 'cl-removed', sym: '−' },
+  ];
+  el.innerHTML = allVers.map((v, idx) => {
+    const e = CHANGELOG_DATA[String(v)];
+    const sections = defs.filter(d => e[d.key]?.length).map(d => `
+      <div class="cl-section ${d.cls}">
+        <div class="cl-section-label">${d.sym} ${d.label}</div>
+        <ul class="changelog-list">${e[d.key].map(i => `<li>${i}</li>`).join('')}</ul>
+      </div>`).join('');
+    const fallback = !sections && e.items?.length
+      ? `<ul class="changelog-list">${e.items.map(i => `<li>${i}</li>`).join('')}</ul>` : '';
+    return `<div class="changelog-entry">
+      <div class="changelog-entry-meta">
+        <span class="changelog-ver">v${v}</span>
+        <span class="changelog-date">${e.date}</span>
+      </div>
+      ${sections || fallback}
+    </div>${idx < allVers.length - 1 ? '<div style="height:14px"></div>' : ''}`;
+  }).join('');
+}
+
 // ── Contact us ──────────────────────────────────────────────────────────────────
 function openContact() {
   document.getElementById('userDropdown')?.classList.remove('open');
@@ -2218,8 +2265,7 @@ function showSettingsTab(tab) {
   const activePane = document.getElementById(`stab-content-${tab}`);
   if (activePane) activePane.classList.remove('hidden');
   if (tab === 'changelog') {
-    const sel = document.getElementById('versionPicker');
-    if (sel) showChangelogVersion(sel.value);
+    setChangelogView('snapshot');
   }
   if (tab === 'memory') loadMemories();
 }

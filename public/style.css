@@ -3945,6 +3945,10 @@ html, body {
 .cl-changed .changelog-list li::before { background: #60a5fa; }
 .cl-fixed .changelog-list li::before { background: #a78bfa; }
 .cl-removed .changelog-list li::before { background: #f87171; }
+.cl-view-toggle { display: flex; gap: 6px; margin-bottom: 18px; }
+.cl-view-btn { background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; color: var(--text2); cursor: pointer; font-size: 13px; font-weight: 500; padding: 6px 16px; transition: background .15s, color .15s, border-color .15s; }
+.cl-view-btn:hover { background: var(--bg4); color: var(--text1); }
+.cl-view-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .cl-snapshot-headline { font-size: 11px; color: var(--text3); font-style: italic; margin-left: auto; }
 .cl-snapshot-group { padding: 4px 0; }
 .cl-snapshot-current .changelog-list li::before { background: var(--accent-l); opacity: 1; }

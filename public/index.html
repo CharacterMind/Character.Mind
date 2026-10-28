@@ -1662,8 +1662,12 @@
       </div>
       <div id="stab-content-changelog" class="settings-tab-content hidden">
         <h2 class="settings-tab-title">Version History</h2>
-        <p class="settings-field-sub" style="margin-bottom:20px">Browse every version of Character.Mind — from the very first release to today.</p>
-        <div class="settings-field">
+        <p class="settings-field-sub" style="margin-bottom:16px">Browse every version of Character.Mind — from the very first release to today.</p>
+        <div class="cl-view-toggle">
+          <button class="cl-view-btn active" id="clBtnSnapshot" onclick="setChangelogView('snapshot')">Snapshot</button>
+          <button class="cl-view-btn" id="clBtnChanges" onclick="setChangelogView('changes')">All Changes</button>
+        </div>
+        <div class="settings-field" id="clVersionPickerRow">
           <label class="settings-label" for="versionPicker">Version</label>
           <select class="settings-select" id="versionPicker" onchange="showChangelogVersion(this.value)">
             <option value="369">v369 — Categorized Changelog (Latest)</option>
@@ -1686,7 +1690,7 @@
             <option value="254">v254 — First Release</option>
           </select>
         </div>
-        <div id="changelogContent" class="changelog-content"></div>
+        <div id="changelogContent" class="changelog-content" style="margin-top:16px"></div>
       </div>
     </div>
   </div>
