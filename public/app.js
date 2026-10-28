@@ -2067,13 +2067,14 @@ function showView(id) {
   if (_ipExpand) _ipExpand.style.display = 'none';
   const _bd = document.getElementById('info-backdrop');
   if (_bd) _bd.remove();
-  // Hide mobile nav bar inside chatView (it has its own mob-chat-hdr)
+  // Hide mobile nav bar inside chatView / groupChatView (they have their own headers)
   const mobBar = document.getElementById('mobNavBar');
-  if (mobBar) mobBar.hidden = (id === 'chatView');
+  if (mobBar) mobBar.hidden = (id === 'chatView' || id === 'groupChatView');
 }
 function showHome() { showView('homeView'); setNavActive(0); }
 function showDiscover() { showView('discoverView'); setNavActive(1); renderDiscover(); }
 function showFeed() { showView('feedView'); setNavActive(2); }
+function showGroups() { showView('groupsView'); setNavActive(3); loadGroups(); }
 let avatarPreviewDefault = null;
 function showCreate() {
   showView('createView');
@@ -10696,4 +10697,313 @@ async function claimHalloweenGift() {
     }
   }, 1400);
 })();
+
+// ── Group Chat ────────────────────────────────────────────────────────────────
+
+let currentGroupId = null;
+let currentGroupData = null;
+let groupPickerSelected = new Set();
+let groupIsStreaming = false;
+
+async function loadGroups() {
+  const list = document.getElementById('groupsList');
+  if (!list) return;
+  list.innerHTML = '<div class="groups-loading">Loading…</div>';
+  try {
+    const res = await fetch('/api/groups');
+    const data = await res.json();
+    renderGroupsList(data.groups || []);
+  } catch (e) {
+    list.innerHTML = '<div class="groups-error">Failed to load groups.</div>';
+  }
+}
+
+function renderGroupsList(groups) {
+  const list = document.getElementById('groupsList');
+  if (!list) return;
+  if (!groups.length) {
+    list.innerHTML = `
+      <div class="groups-empty">
+        <div class="empty-icon">◆</div>
+        <div class="empty-title">No groups yet</div>
+        <div class="empty-sub">Create a group to chat with multiple characters at once.</div>
+        <button class="btn-primary" onclick="openGroupPicker()" style="margin-top:16px">Create a group</button>
+      </div>`;
+    return;
+  }
+  list.innerHTML = groups.map(g => {
+    const avatars = g.members.slice(0, 4).map(m => {
+      const color = safeColor(m.color || '#7c3aed');
+      if (m.image) return `<div class="group-card-avatar" style="background:${color}"><img src="/api/characters/${m.id}/image" onerror="this.style.display='none'"></div>`;
+      return `<div class="group-card-avatar" style="background:${color}">${escHtml((m.name||'?').charAt(0).toUpperCase())}</div>`;
+    }).join('');
+    const extra = g.members.length > 4 ? `<div class="group-card-avatar group-card-avatar-more">+${g.members.length - 4}</div>` : '';
+    return `
+      <div class="group-card" onclick="openGroupChat('${escHtml(g.id)}')">
+        <div class="group-card-avatars">${avatars}${extra}</div>
+        <div class="group-card-info">
+          <div class="group-card-name">${escHtml(g.name)}</div>
+          <div class="group-card-sub">${g.members.length} member${g.members.length !== 1 ? 's' : ''}</div>
+        </div>
+        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" style="flex-shrink:0;opacity:.3"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+      </div>`;
+  }).join('');
+}
+
+function openGroupPicker() {
+  groupPickerSelected.clear();
+  const modal = document.getElementById('groupPickerModal');
+  const grid = document.getElementById('groupPickerGrid');
+  const nameInput = document.getElementById('groupNameInput');
+  if (nameInput) nameInput.value = '';
+  if (!modal || !grid) return;
+
+  // Populate grid with all characters
+  grid.innerHTML = characters.map(c => {
+    const color = safeColor(c.color || '#7c3aed');
+    const initials = (c.name||'?').charAt(0).toUpperCase();
+    return `
+      <div class="picker-char-card" id="picker-${c.id}" data-id="${c.id}" onclick="togglePickerChar('${c.id}', this)">
+        <div class="picker-char-avatar" style="background:${color}">
+          ${c.image ? `<img src="/api/characters/${c.id}/image" onerror="this.style.display='none'">` : initials}
+        </div>
+        <div class="picker-char-name">${escHtml(c.name)}</div>
+        <div class="picker-check-icon">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+        </div>
+      </div>`;
+  }).join('');
+
+  updatePickerCount();
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeGroupPicker() {
+  const modal = document.getElementById('groupPickerModal');
+  if (modal) modal.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function togglePickerChar(charId, el) {
+  if (groupPickerSelected.has(charId)) {
+    groupPickerSelected.delete(charId);
+    el.classList.remove('selected');
+  } else {
+    if (groupPickerSelected.size >= 15) return;
+    groupPickerSelected.add(charId);
+    el.classList.add('selected');
+  }
+  updatePickerCount();
+}
+
+function updatePickerCount() {
+  const el = document.getElementById('groupPickerCount');
+  if (el) el.textContent = `${groupPickerSelected.size} / 15 selected`;
+}
+
+async function createGroupFromPicker() {
+  if (groupPickerSelected.size < 1) {
+    alert('Select at least 1 character.');
+    return;
+  }
+  const nameInput = document.getElementById('groupNameInput');
+  let name = nameInput ? nameInput.value.trim() : '';
+  if (!name) {
+    const ids = [...groupPickerSelected];
+    const names = ids.map(id => characters.find(c => c.id === id)?.name || '').filter(Boolean);
+    name = names.length <= 3 ? names.join(', ') : names.slice(0, 2).join(', ') + ` +${names.length - 2} more`;
+  }
+
+  try {
+    const res = await fetch('/api/groups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, memberIds: [...groupPickerSelected] })
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Failed to create group.'); return; }
+    closeGroupPicker();
+    openGroupChat(data.id, { id: data.id, name: data.name, memberIds: data.memberIds, members: [...groupPickerSelected].map(id => characters.find(c => c.id === id)).filter(Boolean) });
+  } catch (e) {
+    alert('Failed to create group. Please try again.');
+  }
+}
+
+function openGroupChat(groupId, groupData) {
+  currentGroupId = groupId;
+  groupIsStreaming = false;
+
+  if (groupData) {
+    currentGroupData = groupData;
+    setupGroupChatUI(groupData);
+  } else {
+    // Load from server
+    fetch('/api/groups').then(r => r.json()).then(d => {
+      const g = (d.groups || []).find(g => g.id === groupId);
+      if (g) { currentGroupData = g; setupGroupChatUI(g); }
+    }).catch(() => {});
+  }
+
+  document.getElementById('groupMessages').innerHTML = '';
+  document.getElementById('groupChatBody').scrollTop = 0;
+  showView('groupChatView');
+}
+
+function setupGroupChatUI(group) {
+  const nameEl = document.getElementById('groupChatName');
+  if (nameEl) nameEl.textContent = group.name;
+
+  const avatarsEl = document.getElementById('groupHeaderAvatars');
+  if (avatarsEl) {
+    avatarsEl.innerHTML = (group.members || []).slice(0, 5).map(m => {
+      const color = safeColor(m.color || '#7c3aed');
+      return `<div class="group-hdr-avatar" style="background:${color}">${m.image ? `<img src="/api/characters/${m.id}/image" onerror="this.style.display='none'">` : escHtml((m.name||'?').charAt(0).toUpperCase())}</div>`;
+    }).join('');
+  }
+}
+
+function handleGroupKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendGroupMessage();
+  }
+}
+
+function appendUserGroupMsg(text) {
+  const msgs = document.getElementById('groupMessages');
+  if (!msgs) return;
+  const div = document.createElement('div');
+  div.className = 'group-msg group-msg-user';
+  div.innerHTML = `<div class="group-msg-bubble">${escHtml(text)}</div>`;
+  msgs.appendChild(div);
+  const body = document.getElementById('groupChatBody');
+  if (body) body.scrollTop = body.scrollHeight;
+}
+
+function showGroupTyping(charName, charColor) {
+  const area = document.getElementById('groupTypingArea');
+  const nameEl = document.getElementById('groupTypingName');
+  if (!area || !nameEl) return;
+  nameEl.textContent = charName;
+  nameEl.style.color = safeColor(charColor || '#7c3aed');
+  area.style.display = 'block';
+  const body = document.getElementById('groupChatBody');
+  if (body) body.scrollTop = body.scrollHeight;
+}
+
+function hideGroupTyping() {
+  const area = document.getElementById('groupTypingArea');
+  if (area) area.style.display = 'none';
+}
+
+let _currentGroupBubble = null;
+
+function startGroupCharBubble(charId, charName, charColor, charImage) {
+  hideGroupTyping();
+  const msgs = document.getElementById('groupMessages');
+  if (!msgs) return;
+  const color = safeColor(charColor || '#7c3aed');
+  const div = document.createElement('div');
+  div.className = 'group-msg group-msg-char';
+  div.dataset.charId = charId;
+  const avatarHtml = charImage
+    ? `<div class="group-msg-avatar" style="background:${color}"><img src="/api/characters/${charId}/image" onerror="this.style.display='none'"></div>`
+    : `<div class="group-msg-avatar" style="background:${color}">${escHtml(charName.charAt(0).toUpperCase())}</div>`;
+  div.innerHTML = `${avatarHtml}<div class="group-msg-content"><div class="group-msg-name" style="color:${color}">${escHtml(charName)}</div><div class="group-msg-text"></div></div>`;
+  msgs.appendChild(div);
+  _currentGroupBubble = div.querySelector('.group-msg-text');
+  const chatBody = document.getElementById('groupChatBody');
+  if (chatBody) chatBody.scrollTop = chatBody.scrollHeight;
+}
+
+function appendGroupToken(token) {
+  if (!_currentGroupBubble) return;
+  _currentGroupBubble.textContent += token;
+  const body = document.getElementById('groupChatBody');
+  if (body) body.scrollTop = body.scrollHeight;
+}
+
+async function sendGroupMessage() {
+  if (groupIsStreaming || !currentGroupId) return;
+  const input = document.getElementById('groupMessageInput');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  autoResize(input);
+  appendUserGroupMsg(text);
+  groupIsStreaming = true;
+  _currentGroupBubble = null;
+
+  const sendBtn = document.getElementById('groupSendBtn');
+  if (sendBtn) sendBtn.disabled = true;
+
+  try {
+    const res = await fetch(`/api/groups/${currentGroupId}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text })
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || 'Failed to send message.');
+      groupIsStreaming = false;
+      if (sendBtn) sendBtn.disabled = false;
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let streamDone = false;
+
+    while (!streamDone) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (!raw) continue;
+        let evt;
+        try { evt = JSON.parse(raw); } catch (_) { continue; }
+
+        if (evt.type === 'speaker_start') {
+          showGroupTyping(evt.charName, evt.charColor);
+          startGroupCharBubble(evt.charId, evt.charName, evt.charColor, evt.charImage);
+        } else if (evt.type === 'token') {
+          hideGroupTyping();
+          if (evt.token) appendGroupToken(evt.token);
+        } else if (evt.type === 'speaker_end') {
+          _currentGroupBubble = null;
+          hideGroupTyping();
+        } else if (evt.done) {
+          streamDone = true;
+          break;
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[group-chat] stream error:', e);
+  } finally {
+    groupIsStreaming = false;
+    hideGroupTyping();
+    _currentGroupBubble = null;
+    if (sendBtn) sendBtn.disabled = false;
+  }
+}
+
+async function deleteCurrentGroup() {
+  if (!currentGroupId) return;
+  if (!confirm('Delete this group? This cannot be undone.')) return;
+  await fetch(`/api/groups/${currentGroupId}`, { method: 'DELETE' }).catch(() => {});
+  currentGroupId = null;
+  currentGroupData = null;
+  showGroups();
+}
 

@@ -473,6 +473,19 @@ if (db) {
   `).catch(() => {});
 
   db.query(`
+    CREATE TABLE IF NOT EXISTS groups (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(google_id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      member_ids JSONB NOT NULL DEFAULT '[]',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).catch(err => console.error('groups table init error:', err));
+
+  db.query(`CREATE INDEX IF NOT EXISTS groups_user_idx ON groups (user_id)`)
+    .catch(() => {});
+
+  db.query(`
     CREATE TABLE IF NOT EXISTS chat_moderation (
       user_id TEXT NOT NULL,
       char_id TEXT NOT NULL,
@@ -2920,6 +2933,15 @@ function nsfwDeflect(res, usage, variant) {
 
 const conversations = {};
 const convLastUsed = {};
+
+const groupConversations = {};
+const GROUP_CONV_TTL = 4 * 60 * 60 * 1000;
+setInterval(() => {
+  const now = Date.now();
+  for (const k of Object.keys(groupConversations)) {
+    if (now - (groupConversations[k].ts || 0) > GROUP_CONV_TTL) delete groupConversations[k];
+  }
+}, 20 * 60 * 1000);
 
 // Fetch authoritative system prompt from DB (never trust req.body.systemPrompt)
 // A character's prompt is read for every message and rarely changes, so it is remembered for a minute (and forgotten at once when any
@@ -6025,6 +6047,230 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     },
     logLabel: 'Chat'
   });
+});
+
+// ── Groups ────────────────────────────────────────────────────────────────────
+
+app.get('/api/groups', requireAuth, async (req, res) => {
+  if (!db) return res.json({ groups: [] });
+  const userId = req.user.googleId;
+  const { rows } = await db.query(
+    'SELECT id, name, member_ids, created_at FROM groups WHERE user_id=$1 ORDER BY created_at DESC LIMIT 50',
+    [userId]
+  ).catch(() => ({ rows: [] }));
+  if (!rows.length) return res.json({ groups: [] });
+  const allIds = [...new Set(rows.flatMap(r => Array.isArray(r.member_ids) ? r.member_ids : []))];
+  let charMap = {};
+  if (allIds.length) {
+    const { rows: chars } = await db.query(
+      'SELECT id, name, color, image FROM characters WHERE id = ANY($1)', [allIds]
+    ).catch(() => ({ rows: [] }));
+    charMap = Object.fromEntries(chars.map(c => [c.id, c]));
+  }
+  res.json({
+    groups: rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      memberIds: r.member_ids,
+      members: (r.member_ids || []).map(id => charMap[id]).filter(Boolean),
+      createdAt: r.created_at
+    }))
+  });
+});
+
+app.post('/api/groups', requireAuth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'DB unavailable' });
+  const userId = req.user.googleId;
+  const { name, memberIds } = req.body || {};
+  if (!name || typeof name !== 'string' || name.trim().length < 1 || name.trim().length > 80)
+    return res.status(400).json({ error: 'Group name must be 1–80 characters.' });
+  if (!Array.isArray(memberIds) || memberIds.length < 1 || memberIds.length > 15)
+    return res.status(400).json({ error: 'Groups need 1–15 members.' });
+  if (!memberIds.every(id => VALID_ID.test(id)))
+    return res.status(400).json({ error: 'Invalid member ID.' });
+  const id = `grp_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+  await db.query(
+    'INSERT INTO groups (id, user_id, name, member_ids) VALUES ($1,$2,$3,$4)',
+    [id, userId, name.trim(), JSON.stringify(memberIds)]
+  );
+  res.json({ id, name: name.trim(), memberIds });
+});
+
+app.delete('/api/groups/:id', requireAuth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'DB unavailable' });
+  const userId = req.user.googleId;
+  const gid = req.params.id;
+  if (!/^grp_\d+_[0-9a-f]+$/.test(gid)) return res.status(400).json({ error: 'Invalid group ID' });
+  await db.query('DELETE FROM groups WHERE id=$1 AND user_id=$2', [gid, userId]).catch(() => {});
+  const prefix = `${userId}:grp:${gid}`;
+  for (const k of Object.keys(groupConversations)) {
+    if (k.startsWith(prefix)) delete groupConversations[k];
+  }
+  res.json({ ok: true });
+});
+
+app.post('/api/groups/:id/chat', requireAuth, async (req, res) => {
+  if (!serverReady) return res.status(503).json({ error: 'Server starting up. Please try again.' });
+  const userId = req.user.googleId;
+  const gid = req.params.id;
+  if (!/^grp_\d+_[0-9a-f]+$/.test(gid)) return res.status(400).json({ error: 'Invalid group ID' });
+  const { message } = req.body || {};
+  if (!message || typeof message !== 'string' || message.trim().length < 1 || message.trim().length > 4000)
+    return res.status(400).json({ error: 'Message must be 1–4000 characters.' });
+
+  // Load group
+  let group;
+  if (db) {
+    const { rows } = await db.query(
+      'SELECT id, name, member_ids FROM groups WHERE id=$1 AND user_id=$2', [gid, userId]
+    ).catch(() => ({ rows: [] }));
+    group = rows[0];
+  }
+  if (!group) return res.status(404).json({ error: 'Group not found.' });
+
+  const memberIds = Array.isArray(group.member_ids) ? group.member_ids : [];
+  if (!memberIds.length) return res.status(400).json({ error: 'Group has no members.' });
+
+  // Rate limit check
+  const limitCheck = checkLimits(userId);
+  if (limitCheck.blocked) return res.status(429).json({ error: 'Chat limit reached. Please wait.' });
+
+  // Load characters
+  let chars = [];
+  if (db) {
+    const { rows } = await db.query(
+      'SELECT id, name, color, image, system_prompt FROM characters WHERE id = ANY($1)', [memberIds]
+    ).catch(() => ({ rows: [] }));
+    chars = rows;
+  }
+  if (!chars.length) return res.status(400).json({ error: 'No characters found.' });
+
+  // Keep IDs in original order
+  const charsByIdMap = Object.fromEntries(chars.map(c => [c.id, c]));
+  const orderedChars = memberIds.map(id => charsByIdMap[id]).filter(Boolean);
+
+  // Decide which characters respond: all if ≤4, else pick 2-4 randomly
+  let responders;
+  if (orderedChars.length <= 4) {
+    responders = [...orderedChars];
+  } else {
+    const shuffled = [...orderedChars].sort(() => Math.random() - 0.5);
+    const count = 2 + Math.floor(Math.random() * 3); // 2–4
+    responders = shuffled.slice(0, count);
+  }
+
+  // Conversation key and history
+  const convKey = `${userId}:grp:${gid}`;
+  if (!groupConversations[convKey]) groupConversations[convKey] = { history: [], ts: Date.now() };
+  const conv = groupConversations[convKey];
+  conv.ts = Date.now();
+
+  // Push user message
+  conv.history.push({ role: 'user', content: message.trim() });
+  if (conv.history.length > 40) conv.history = conv.history.slice(-40);
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'AI service not configured.' });
+
+  // Group context for system prompts
+  const allCharNames = orderedChars.map(c => c.name).join(', ');
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const send = (obj) => { try { res.write('data: ' + JSON.stringify(obj) + '\n\n'); } catch (_) {} };
+
+  const pingTimer = setInterval(() => { try { if (!res.writableEnded) res.write(': still here\n\n'); } catch (_) {} }, 10000);
+  if (pingTimer.unref) pingTimer.unref();
+
+  let groupAborted = false;
+  res.on('close', () => { groupAborted = true; });
+
+  // Track responses collected this round (for feeding into later characters' context)
+  const roundResponses = []; // {charName, content}
+
+  const processNext = (idx) => {
+    if (groupAborted || idx >= responders.length || res.destroyed || res.writableEnded) {
+      clearInterval(pingTimer);
+      const usage = buildUsagePayload(getLimits(userId), userId);
+      send({ done: true, usage });
+      try { res.end(); } catch (_) {}
+      return;
+    }
+
+    const char = responders[idx];
+    const otherNames = orderedChars.filter(c => c.id !== char.id).map(c => c.name).join(', ');
+    const groupCtx = `[GROUP CHAT — You are in a group conversation with: ${otherNames}. The user and all these characters are chatting together. Stay fully in character as ${char.name}. React naturally to the conversation. Keep your response brief — 1-3 sentences is ideal for a group chat. Do not use asterisk actions. Speak naturally as your character would in a casual group setting.]`;
+
+    // Build history for this character's call
+    // Previous full rounds: alternate user/model pairs
+    const histMsgs = [];
+    const fullHistory = conv.history.slice(0, -1); // exclude the current user msg we just pushed
+    for (const m of fullHistory) {
+      if (m.role === 'user') histMsgs.push({ role: 'user', content: m.content });
+      else if (m.role === 'assistant') histMsgs.push({ role: 'model', content: `[${m.speaker || 'Character'}]: ${m.content}` });
+    }
+
+    // Current user message + any characters who already responded this round
+    let currentUserContent = message.trim();
+    if (roundResponses.length > 0) {
+      currentUserContent += '\n\n' + roundResponses.map(r => `[${r.charName}]: ${r.content}`).join('\n');
+    }
+    histMsgs.push({ role: 'user', content: currentUserContent });
+
+    // Ensure alternating roles (Gemini requirement)
+    const cleanedHist = [];
+    for (const m of histMsgs) {
+      const last = cleanedHist[cleanedHist.length - 1];
+      if (last && last.role === m.role) {
+        last.content += '\n' + m.content;
+      } else {
+        cleanedHist.push({ role: m.role, content: m.content });
+      }
+    }
+
+    send({ type: 'speaker_start', charId: char.id, charName: char.name, charColor: char.color || '#7c3aed', charImage: char.image || null });
+
+    let charResponse = '';
+
+    addTokens(userId, messageCost('opas', 'medium'));
+
+    const charCtx = { aborted: false };
+    const charAbortCheck = () => { if (groupAborted) charCtx.aborted = true; return charCtx.aborted; };
+
+    callGeminiStream(
+      apiKey,
+      groupCtx + '\n\n' + (char.system_prompt || `You are ${char.name}. Chat naturally in a group conversation.`),
+      cleanedHist,
+      (token) => {
+        if (charAbortCheck()) return;
+        charResponse += token;
+        send({ type: 'token', token });
+      },
+      () => {
+        if (!charResponse.trim()) charResponse = '...';
+        send({ type: 'speaker_end', charId: char.id });
+        roundResponses.push({ charName: char.name, content: charResponse.trim() });
+        conv.history.push({ role: 'assistant', speaker: char.name, charId: char.id, content: charResponse.trim() });
+        if (conv.history.length > 40) conv.history = conv.history.slice(-40);
+        processNext(idx + 1);
+      },
+      (err) => {
+        console.error('[group-chat] AI error for', char.name, ':', err && err.message);
+        send({ type: 'speaker_end', charId: char.id });
+        processNext(idx + 1);
+      },
+      undefined,
+      EFFORT_CONFIG.opas.medium,
+      GROQ_FAST_MODELS,
+      charCtx
+    );
+  };
+
+  processNext(0);
 });
 
 // ── Email helpers ─────────────────────────────────────────────────────────────
