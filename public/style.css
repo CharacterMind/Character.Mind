@@ -5476,3 +5476,50 @@ body.hw-screaming::after {
   .hc-avatar { width: 72px !important; height: 72px !important; font-size: 32px !important; }
   .app-body { order: 1 !important; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v375 — Create after nav links + user badge cleanup
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Reorder nav items: logo | nav | create | spacer | chats | user */
+.rail-logo                          { order: 1 !important; }
+.rail-section:not(.rail-feat-section) { order: 2 !important; }
+.rail-create                        { order: 3 !important; margin-left: 8px !important; margin-right: 0 !important; }
+.rail-spacer                        { order: 4 !important; }
+.rail-chats-btn                     { order: 5 !important; }
+.rail-user-wrap                     { order: 6 !important; }
+
+/* Create button — keep pill style from v374, just slightly smaller gap */
+.rail-create-btn {
+  gap: 7px !important;
+  padding: 0 15px !important;
+}
+
+/* User badge — circle avatar only, hide name/plan/chevron */
+#userBadge {
+  overflow: hidden !important;
+  background: var(--bg3) !important;
+  border: 2px solid var(--border2) !important;
+  gap: 0 !important;
+}
+#userBadge .ub-text-wrap { display: none !important; }
+#userBadge .ub-chevron   { display: none !important; }
+#userBadge .ub-avatar-img {
+  width: 34px !important;
+  height: 34px !important;
+  object-fit: cover !important;
+  border-radius: 50% !important;
+  display: block !important;
+  flex-shrink: 0 !important;
+}
+#userBadge .ub-initial {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  font-size: 14px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
