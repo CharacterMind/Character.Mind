@@ -269,7 +269,15 @@ if (db) {
   db.query(`ALTER TABLE characters ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT FALSE`)
     .then(() => db.query(`UPDATE characters SET is_hidden = TRUE WHERE id IN ('custom_1790897425575_lily', 'custom_1790776698867', 'custom_1790895746938_gracie', 'custom_1790774765927', 'custom_1791126206092_doey') AND NOT is_hidden`))
     .then(r => { if (r && r.rowCount > 0) { console.log(`[MIGRATION] Hid ${r.rowCount} character(s)`); invalidateCharList(); } })
-    .then(() => db.query(`UPDATE characters SET is_hidden = FALSE WHERE name = 'Miss Delight' AND is_hidden`))
+    .then(() => db.query(`UPDATE characters SET is_hidden = TRUE WHERE id IN (
+      'custom_1790894243872_mll','custom_1790894243873_catnap','custom_1790894243874_dogday',
+      'custom_1790894243875_prototype','custom_1790895433252_bunzo','custom_1790895433253_pj',
+      'custom_1790895433254_boxy','cm_miss_delight','custom_1790895433256_bubba',
+      'custom_1790895671421_yarnaby','custom_1790895671422_craftycorn','custom_1790895671423_pickypiggy',
+      'custom_1790895671424_kickin','custom_1790895671425_bobby','custom_1790895671426_hoppy',
+      'custom_1790895746935_elliot','custom_1790895746936_stella','custom_1790895746937_leith'
+    ) AND NOT is_hidden`))
+    .then(r => { if (r && r.rowCount > 0) { console.log(`[MIGRATION] Hid ${r.rowCount} ch2/ch3 character(s)`); invalidateCharList(); } })
     .catch(err => console.error('is_hidden migration error:', err));
 
   // Sync Miss Delight's DB record to the current template on every startup

@@ -8770,10 +8770,12 @@ function toggleCallMute() {
 
 function interruptCall() {
   callGen++;
+  callContextChar = null;
+  callChainCount = 0;
   stopActiveTTS();
   window.speechSynthesis?.cancel();
-  if (callAudio) { stopCallAudio(); if (callModeActive) setTimeout(() => listenForSpeech(), 100); return; }
-  if (callModeActive) listenForSpeech();
+  if (callAudio) { stopCallAudio(); if (callModeActive) { updateCallSpeaker(currentChar); setTimeout(() => listenForSpeech(), 100); } return; }
+  if (callModeActive) { updateCallSpeaker(currentChar); listenForSpeech(); }
 }
 
 function listenForSpeech() {
@@ -8957,7 +8959,7 @@ async function triggerAreYouThere() {
       body: JSON.stringify({ charId: char.id, message: prompt, modelTier: 'opas', effort: 'low', callMode: true, callChained: true })
     });
     if (gen !== callGen) return;
-    if (!r.ok) { if (callModeActive && gen === callGen) listenForSpeech(); return; }
+    if (!r.ok) { callContextChar = null; if (callModeActive && gen === callGen) listenForSpeech(); return; }
     const reader = r.body.getReader();
     const decoder = new TextDecoder();
     let fullText = ''; let buf = '';
@@ -8974,12 +8976,13 @@ async function triggerAreYouThere() {
       }
     }
     if (gen !== callGen) return;
-    if (!fullText.trim()) { if (callModeActive && gen === callGen) listenForSpeech(); return; }
+    if (!fullText.trim()) { callContextChar = null; if (callModeActive && gen === callGen) listenForSpeech(); return; }
     callContextChar = char === currentChar ? null : char;
     callChainCount = 0; // don't chain after "are you there?" — go straight back to listening
     setCallState('responding');
     callModeTTS_server(fullText.trim());
   } catch(_) {
+    callContextChar = null;
     if (callModeActive && gen === callGen) listenForSpeech();
   }
 }
