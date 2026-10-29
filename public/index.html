@@ -1884,24 +1884,13 @@
       <button class="ip-overlay-close" onclick="closeVoicePanel()"><svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
     </div>
 
-    <!-- Section 1: Character.Mind AI System Voices [Default] -->
-    <div class="voice-section">
-      <div class="voice-section-label">Character.Mind AI System Voices <span class="voice-default-badge">Default</span></div>
-      <div class="voice-provider-tabs">
-        <button class="voice-provider-tab" data-provider="gemini" onclick="setTTSProvider('gemini',this)">Gemini</button>
-        <button class="voice-provider-tab" data-provider="edge" onclick="setTTSProvider('edge',this)">Neutral</button>
-        <button class="voice-provider-tab" data-provider="browser" onclick="setTTSProvider('browser',this)">Device</button>
-      </div>
-      <div class="voice-list" id="voiceList"></div>
-    </div>
-
-    <!-- Section 2: Character Voice (hidden unless char has one) -->
+    <!-- Section 1: Character Voice (hidden unless char has one) -->
     <div id="voiceSection_char" class="voice-section" style="display:none">
-      <div class="voice-section-label">Character Voice</div>
+      <div class="voice-section-label">Character.Mind Voices <span class="voice-default-badge">Default</span></div>
       <div id="charVoiceCard"></div>
     </div>
 
-    <!-- Section 3: Your Voices -->
+    <!-- Section 2: Your Voices -->
     <div class="voice-section">
       <div class="voice-section-label">Your Voices</div>
       <p class="voice-section-hint">Record or upload a voice. Tap <strong>Use for</strong> to make it the character's voice.</p>
@@ -1910,6 +1899,16 @@
         <label class="upload-voice-label" title="Upload audio file"><input type="file" id="voiceUploadInput" accept="audio/*" style="display:none" onchange="uploadUserVoiceFile(this)"><span>↑ Upload</span></label>
       </div>
       <div id="userVoiceList" class="voice-list"></div>
+    </div>
+
+    <!-- Section 3: AI System Voices -->
+    <div class="voice-section">
+      <div class="voice-section-label">AI Voices</div>
+      <div class="voice-provider-tabs">
+        <button class="voice-provider-tab" data-provider="gemini" onclick="setTTSProvider('gemini',this)">Gemini</button>
+        <button class="voice-provider-tab" data-provider="edge" onclick="setTTSProvider('edge',this)">Neutral</button>
+      </div>
+      <div class="voice-list" id="voiceList"></div>
     </div>
   </div>
 </div>

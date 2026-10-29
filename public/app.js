@@ -8197,7 +8197,7 @@ function loadCharVoice() {
   try {
     // Global fallback — last voice the user picked on any character
     const gp = localStorage.getItem('cm_tts_prov_global');
-    if (['edge','gemini','browser','character'].includes(gp)) ttsProvider = gp;
+    if (['edge','gemini','character'].includes(gp)) ttsProvider = gp;
     const ggv = localStorage.getItem('cm_gem_voice_global');
     if (GEMINI_TTS_VOICES.includes(ggv)) geminiVoiceName = ggv;
     const gev = localStorage.getItem('cm_edge_voice_global');
@@ -8207,7 +8207,7 @@ function loadCharVoice() {
   try {
     // Per-character overrides take priority over global
     const p = localStorage.getItem(getTTSProviderKey());
-    if (['edge','gemini','browser','character'].includes(p)) ttsProvider = p;
+    if (['edge','gemini','character'].includes(p)) ttsProvider = p;
     const gv = localStorage.getItem(getGeminiVoiceKey());
     if (GEMINI_TTS_VOICES.includes(gv)) geminiVoiceName = gv;
     const ev = localStorage.getItem(getEdgeVoiceKey());
@@ -8472,24 +8472,7 @@ function renderVoiceList() {
     return;
   }
 
-  if (ttsProvider !== 'browser') { list.innerHTML = ''; return; }
-  // Browser / Device voices
-  if (!window.speechSynthesis) { list.innerHTML = '<div class="voice-empty">Browser voices not supported.</div>'; return; }
-  const voices = window.speechSynthesis.getVoices();
-  if (!voices.length) {
-    setTimeout(() => { if (document.getElementById('voiceList')) renderVoiceList(); }, 400);
-    list.innerHTML = '<div class="voice-empty">Loading voices…</div>';
-    return;
-  }
-  const saved = (() => { try { return localStorage.getItem(getCharVoiceKey()); } catch(_) { return null; } })();
-  const english = voices.filter(v => v.lang.startsWith('en'));
-  const displayVoices = english.length ? english : voices;
-  list.innerHTML = `<button class="voice-item${!saved ? ' active' : ''}" onclick="selectVoice(null,this)">
-    <div class="voice-item-main"><div class="voice-item-name">Default</div><div class="voice-item-lang">System default</div></div>
-  </button>` + displayVoices.map(v => `<button class="voice-item${saved === v.voiceURI ? ' active' : ''}" onclick="selectVoice('${escHtml(v.voiceURI)}',this)">
-    <div class="voice-item-main"><div class="voice-item-name">${escHtml(v.name)}</div><div class="voice-item-lang">${escHtml(v.lang)}</div></div>
-    <button class="voice-preview-btn" onclick="previewVoiceURI('${escHtml(v.voiceURI)}',event)" title="Preview">▶</button>
-  </button>`).join('');
+  list.innerHTML = '';
 }
 
 function selectVoice(voiceURI, btn) {
