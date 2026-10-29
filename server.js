@@ -1106,13 +1106,15 @@ const LIMITS = {
 
 // Session token limits. Every paid tier is an EXACT multiple of FREE_SESSION_TOKENS
 // so that "X20" really means 20×, "X50" really means 50×, etc.
-// Free = ~18 avg messages per 2-hr session. Advanced = 3× that, etc.
-// AVG_MESSAGE_TOKENS is kept for reference and UI estimates only.
+// Free = ~83 Opes (Medium) messages or ~357 Opas messages per 2-hr session. Advanced = 3× that, etc.
+// Weekly = WEEKLY_SESSIONS full sessions for EVERY plan (free included), so a paid plan is never worse than free
+// over a week, and there's headroom: ~1.4 full sessions a day, every day.
+// AVG_MESSAGE_TOKENS (one Opes Medium reply) is kept for reference and UI estimates only.
 const FREE_SESSION_TOKENS = 150000;
-const AVG_MESSAGE_TOKENS  = 3600;
-const WEEKLY_SESSIONS     = 3;
+const AVG_MESSAGE_TOKENS  = 1800;
+const WEEKLY_SESSIONS     = 10;
 const TIER_TOKEN_LIMITS = {
-  free:     { session: FREE_SESSION_TOKENS,        weekly: Infinity },
+  free:     { session: FREE_SESSION_TOKENS,        weekly: FREE_SESSION_TOKENS       * WEEKLY_SESSIONS },
   advanced: { session: FREE_SESSION_TOKENS * 3,    weekly: FREE_SESSION_TOKENS * 3   * WEEKLY_SESSIONS },
   x20:      { session: FREE_SESSION_TOKENS * 20,   weekly: FREE_SESSION_TOKENS * 20  * WEEKLY_SESSIONS },
   x50:      { session: FREE_SESSION_TOKENS * 50,   weekly: FREE_SESSION_TOKENS * 50  * WEEKLY_SESSIONS },
@@ -1559,6 +1561,8 @@ function getLimits(sid) {
   }
   const u = userLimits[sid];
   if (u.subscriptionTier === undefined) u.subscriptionTier = 'free';
+  // Weekly limits were rebalanced (free had none, paid had only 3 sessions): everyone starts the new rules on a fresh week
+  if (u.weeklyRulesV !== 2) { u.weeklyRulesV = 2; u.weeklyTokens = 0; u.weeklyStart = null; u.warned = {}; saveLimitsToDB(sid); }
   if (u.memosToday === undefined) u.memosToday = 0;
   if (u.msgTokensToday === undefined) u.msgTokensToday = 0;
   // Session window expired (time-based, like Anthropic) → reset for next message
