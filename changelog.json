@@ -1,5 +1,17 @@
 [
   {
+    "id": "v366-call-fix",
+    "version": "v366",
+    "date": "Oct 2026",
+    "title": "📞 Call & Voice Fixes",
+    "subtitle": "Calls now reliably play audio, the speaking state shows at the right time, and the read-aloud button responds faster.",
+    "changed": [
+      "Fixed: call audio never playing — browser autoplay lock lifted at call-start before any async delays",
+      "Fixed: character shown as 'speaking' before audio is ready — state now switches only when audio starts",
+      "Read-aloud button: when on Gemini voice, races Edge TTS in parallel and plays whichever arrives first (~300 ms vs 1-2 s)"
+    ]
+  },
+  {
     "id": "v365-voice",
     "version": "v365",
     "date": "Oct 2026",

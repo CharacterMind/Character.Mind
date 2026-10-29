@@ -9320,18 +9320,28 @@ async function toggleTTS(btn) {
     return;
   }
 
-  // Fire TTS and memo check in parallel — don't wait for memo before starting TTS
+  // Fire TTS and memo check in parallel — don't wait for memo before starting TTS.
+  // When provider is gemini, also race an Edge TTS request so the fastest one wins
+  // (Edge is ~300 ms; Gemini is ~1-2 s — this cuts the perceived delay significantly).
   const ttsAbort = new AbortController();
-  const ttsFetchPromise = fetch('/api/tts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    signal: ttsAbort.signal,
-    body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined })
-  });
+  const edgeRaceAbort = new AbortController();
+  const ttsBody = { text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined };
+  const primaryFetch = fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ttsAbort.signal, body: JSON.stringify(ttsBody) });
+  let ttsFetchPromise;
+  if (ttsProvider === 'gemini') {
+    const edgeFetch = fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: edgeRaceAbort.signal, body: JSON.stringify({ ...ttsBody, provider: 'edge' }) });
+    ttsFetchPromise = Promise.race([
+      primaryFetch.then(r => { edgeRaceAbort.abort(); return r; }),
+      edgeFetch.then(r => { if (r.ok) { ttsAbort.abort(); return r; } return primaryFetch; }).catch(() => primaryFetch)
+    ]);
+  } else {
+    edgeRaceAbort.abort();
+    ttsFetchPromise = primaryFetch;
+  }
   try {
     const memoR = await fetch('/api/memo/use', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ textLen: text.length }) });
     if (!memoR.ok) {
-      ttsAbort.abort();
+      ttsAbort.abort(); edgeRaceAbort.abort();
       stopActiveTTS();
       const memoData = await memoR.json().catch(() => ({}));
       if (memoR.status === 429 && memoData.type === 'memo_daily_limit') {
@@ -9402,7 +9412,7 @@ function callModeTTS(bubble) {
   const text = (bubble.innerText || bubble.textContent).trim();
   if (!text) { afterCallTTSDone(); return; }
   resetCallInactivityTimer();
-  setCallState('responding');
+  setCallState('thinking'); // stays 'thinking' until audio actually starts playing
   stopCallAudio();
   // Stop mic before TTS starts — prevents audio overlap and mic confusion
   if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
@@ -9605,6 +9615,7 @@ async function callModeTTS_server(text) {
       const prefetch = (i + 1 < sentences.length) ? fetchBlob(sentences[i + 1]) : null;
       const blob = await nextFetch;
       if (gen !== callGen) return;
+      if (i === 0) setCallState('responding'); // switch to 'responding' only when audio is ready
       if (i < sentences.length - 1) {
         await playBlobOnly(blob);
       } else {
@@ -9731,6 +9742,17 @@ async function startCallMode() {
   }
 }
 async function _doStartCall(overlay) {
+  // Unlock audio NOW — we're still inside the user gesture (no await yet).
+  // Without this, AudioContext stays suspended and audio.play() gets blocked
+  // by the browser's autoplay policy after the ~4-5s async setup completes.
+  try {
+    const ctx = getAudioCtx();
+    ctx.resume().catch(() => {});
+    const silentBuf = ctx.createBuffer(1, 1, 22050);
+    const silentSrc = ctx.createBufferSource();
+    silentSrc.buffer = silentBuf; silentSrc.connect(ctx.destination); silentSrc.start(0);
+  } catch(_) {}
+
   const startGen = callGen;
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { callStarting = false; showWarning('Voice calls need a browser with speech recognition — try Chrome.', 5000); return; }
@@ -10574,7 +10596,7 @@ async function sendCallCharResponse(charObj, userText) {
     callContextChar = charObj; // keep this character's voice for the whole reply
     if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
     resetCallInactivityTimer();
-    setCallState('responding');
+    // 'responding' state set inside callModeTTS_server when audio actually starts
     callModeTTS_server(fullText.trim());
   } catch(_) {
     if (callModeActive && gen === callGen) afterCallTTSDone();
