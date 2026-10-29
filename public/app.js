@@ -8983,14 +8983,15 @@ async function callModeTTS_browser(text, gen) {
   u.voice = selectedVoice || bestBrowserVoice();
   u.rate = 1.0;
   u.pitch = 1.0;
-  const done = () => { if (gen === callGen && callModeActive) afterCallTTSDone(); };
+  let fired = false;
+  const done = () => { if (fired || gen !== callGen || !callModeActive) return; fired = true; afterCallTTSDone(); };
   u.onend = done;
   u.onerror = done;
   // Resume on mobile where synth can get paused
   if (window.speechSynthesis.paused) window.speechSynthesis.resume();
   window.speechSynthesis.speak(u);
-  // Watchdog: if nothing fires in 12s, move on
-  setTimeout(() => { if (gen === callGen && callModeActive && u.speaking !== true) done(); }, 12000);
+  // Watchdog: if synth not speaking after 12s, move on (u has no .speaking; check the synth itself)
+  setTimeout(() => { if (!window.speechSynthesis.speaking) done(); }, 12000);
 }
 
 async function callModeTTS_server(text) {
