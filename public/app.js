@@ -4532,7 +4532,7 @@ function saveHistoryLocal() {
       const imgEl = el.querySelector('.msg-img');
       const content = bubble ? bubbleToRaw(bubble) : (imgEl ? '[image]' : '');
       return { role, content, ...(el.dataset.sig ? { sig: el.dataset.sig } : {}) };
-    }).filter(m => (m.content || m.card) && !(m.role === 'ai' && /^\s*⚠️/.test(m.content)) && !(m.role === 'user' && typeof m.content === 'string' && /^\[.+\]$/s.test(m.content.trim())));
+    }).filter(m => (m.content || m.card) && !(m.role === 'ai' && /^\s*⚠️/.test(m.content)) && !(m.role === 'user' && typeof m.content === 'string' && m.content.trim() !== '[image]' && /^\[.+\]$/s.test(m.content.trim())));
     const all = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}');
     all[currentChar.id] = items.slice(-150);
     localStorage.setItem(userKey('cm_history'), JSON.stringify(all));
@@ -7710,7 +7710,7 @@ function appendHistoryItem(m, lite) {
   if (m && m.card === 'nsfw') { appendNsfwCard(m.variant); return; }
   const isAi = m.role === 'assistant' || m.role === 'ai';
   // Skip system context messages stored as user messages (e.g. inactivity prompts, call mode context)
-  if (!isAi && typeof m.content === 'string' && /^\[.+\]$/.test(m.content.trim())) return;
+  if (!isAi && typeof m.content === 'string' && m.content.trim() !== '[image]' && /^\[.+\]$/s.test(m.content.trim())) return;
   const el = appendMessage(isAi ? 'ai' : 'user', m.content, undefined, lite);
   if (isAi && m.sig && el) el.dataset.sig = m.sig;
 }

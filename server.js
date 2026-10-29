@@ -2981,7 +2981,7 @@ function persistConv(key) {
     if (conversations[key] && conversations[key].length > CONV_MAX_MESSAGES + 100) {
       conversations[key] = conversations[key].slice(-CONV_MAX_MESSAGES);
     }
-    const msgs = (conversations[key] || []).filter(m => !(m.role === 'user' && typeof m.content === 'string' && /^\[.+\]$/s.test(m.content.trim())));
+    const msgs = (conversations[key] || []).filter(m => !(m.role === 'user' && typeof m.content === 'string' && m.content.trim() !== '[image]' && /^\[.+\]$/s.test(m.content.trim())));
     try {
       if (!msgs.length) {
         await db.query('DELETE FROM chat_current WHERE user_id=$1 AND char_id=$2', [uid, charId]);
@@ -5336,7 +5336,7 @@ app.get('/api/conversations/:charId', requireAuth, async (req, res) => {
   if (!(await characterExists(req.params.charId))) return res.json([]);
   const key = `${req.user.googleId}:${req.params.charId}`;
   if (!(await ensureConvLoaded(key))) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
-  const visibleMsgs = (conversations[key] || []).filter(m => !(m.role === 'user' && typeof m.content === 'string' && /^\[.+\]$/s.test(m.content.trim())));
+  const visibleMsgs = (conversations[key] || []).filter(m => !(m.role === 'user' && typeof m.content === 'string' && m.content.trim() !== '[image]' && /^\[.+\]$/s.test(m.content.trim())));
   res.json(withSigs(req.user.googleId, req.params.charId, visibleMsgs));
 });
 
