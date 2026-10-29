@@ -40,6 +40,35 @@ from pathlib import Path
 # Store XTTS-v2 model in the tts_server folder, not deep in AppData
 os.environ.setdefault("TTS_HOME", str(Path(__file__).resolve().parent / "model"))
 
+def _patch_torchaudio_load():
+    """torchaudio 2.9+ routes torchaudio.load through torchcodec, which needs FFmpeg.
+    If FFmpeg is absent (typical Windows dev setup), substitute a soundfile-based loader."""
+    try:
+        import soundfile as sf
+        import torch
+        import torchaudio
+
+        _orig = torchaudio.load
+
+        def _sf_load(uri, frame_offset=0, num_frames=-1, normalize=True, channels_first=True, **kwargs):
+            try:
+                data, sr = sf.read(str(uri), dtype='float32', always_2d=True)
+            except Exception:
+                return _orig(uri, frame_offset=frame_offset, num_frames=num_frames,
+                             normalize=normalize, channels_first=channels_first, **kwargs)
+            waveform = torch.from_numpy(data.T if channels_first else data)
+            if frame_offset > 0:
+                waveform = waveform[..., frame_offset:]
+            if num_frames > 0:
+                waveform = waveform[..., :num_frames]
+            return waveform, int(sr)
+
+        torchaudio.load = _sf_load
+    except Exception as e:
+        print(f"[voice-ai] torchaudio patch skipped: {e}", flush=True)
+
+_patch_torchaudio_load()
+
 from flask import Flask, request, send_file, jsonify
 from werkzeug.utils import secure_filename
 
