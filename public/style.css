@@ -6282,3 +6282,6 @@ body:not(.halloween) .hw-off-label { display: inline; }
   justify-content: center !important;
   flex-shrink: 0 !important;
 }
+
+/* Shown under a chat message when the character has the user blocked */
+.msg-undelivered { align-self: flex-end; text-align: right; margin-top: 3px; font-size: 11px; color: var(--text3, #8a8799); letter-spacing: .02em; }

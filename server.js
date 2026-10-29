@@ -1589,6 +1589,25 @@ function getLimits(sid) {
   return u;
 }
 
+// Character blocks: a character who hangs up on you blocks you. Each offense makes the next block longer (capped at 1 week).
+// Stored per user in user_limits.data.charBlocks = { [charId]: { offenses, until } }
+const CHAR_BLOCK_STEPS_MS = [1, 4, 24, 72, 168].map(h => h * 60 * 60 * 1000);
+const HANGUP_TAG_RE = /\[\s*HANG\s*-?\s*UP\s*\]/i;
+function charBlockUntil(userId, charId) {
+  const b = getLimits(userId).charBlocks?.[charId];
+  return b && b.until > Date.now() ? b.until : 0;
+}
+function addCharBlock(userId, charId) {
+  const u = getLimits(userId);
+  if (!u.charBlocks || typeof u.charBlocks !== 'object') u.charBlocks = {};
+  const b = u.charBlocks[charId] || { offenses: 0, until: 0 };
+  b.offenses = (b.offenses || 0) + 1;
+  b.until = Date.now() + CHAR_BLOCK_STEPS_MS[Math.min(b.offenses, CHAR_BLOCK_STEPS_MS.length) - 1];
+  u.charBlocks[charId] = b;
+  saveLimitsToDB(userId);
+  return b;
+}
+
 function checkLimits(sid) {
   const u = getLimits(sid);
   if (u.neverLimit) return { blocked: false };
@@ -2763,6 +2782,26 @@ async function setModStatus(userId, charId, strikes, locked) {
 const SLUR_WARNING_1 = "⚠️ That's a slur, and slurs aren't allowed on Character Mind — full stop. Hate speech violates our platform rules regardless of context or who you're directing it at. [Strike 1 of 3 — three strikes permanently ends this chat]";
 const SLUR_WARNING_2 = "⚠️ Final warning. Slurs and hate speech are not tolerated here — not toward the AI, not toward anyone. One more violation and this chat will be permanently closed. [Strike 2 of 3]";
 
+// On a call, a slur or abuse aimed at the character makes them hang up (and block) instead of giving a warning
+const CALL_HANGUP_LINES = [
+  "Wow. No. I'm not doing this. Bye.",
+  "You don't get to talk to me like that. I'm hanging up.",
+  "Okay, we're done here. Don't call me.",
+  "I'm not listening to this. Goodbye."
+];
+function callHangupDeflect(res, userId, charId) {
+  const b = addCharBlock(userId, charId);
+  const line = CALL_HANGUP_LINES[Math.floor(Math.random() * CALL_HANGUP_LINES.length)];
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+  res.write(`data: ${JSON.stringify({ text: line })}\n\n`);
+  res.write(`data: ${JSON.stringify({ done: true, usage: buildUsagePayload(getLimits(userId), userId), responseTokens: 0, warnings: [], hangup: true, blockedUntil: b.until })}\n\n`);
+  res.end();
+}
+
 function slurDeflect(res, warning, usage, sig) {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -3450,6 +3489,9 @@ function startReplyStream(o) {
         fail(new Error('empty reply')); return;
       }
       finished = true;
+      // On calls the character can end its reply with [HANGUP]: strip it so it is never shown, spoken or saved
+      const hungUp = !!isCallMode && HANGUP_TAG_RE.test(fullResponse);
+      if (hungUp) fullResponse = fullResponse.replace(new RegExp(HANGUP_TAG_RE.source, 'gi'), '').trim() || "I'm done. Bye.";
       if (!released) {
         if (isBareRefusal(fullResponse)) fullResponse = buildRefusalExplanation();
         released = true;
@@ -3457,9 +3499,10 @@ function startReplyStream(o) {
         held = '';
       }
       let extra = {};
-      try { extra = onComplete(fullResponse) || {}; } catch (oc) { console.error(logLabel + ' onComplete error:', oc && oc.message); } // Bug 6 fix: don't let onComplete throw suppress done event
+      try { extra = onComplete(fullResponse, { hungUp }) || {}; } catch (oc) { console.error(logLabel + ' onComplete error:', oc && oc.message); } // Bug 6 fix: don't let onComplete throw suppress done event
       const usage = Object.assign({}, buildUsagePayload(getLimits(userId), userId));
       const doneExtra = extra.swearBudgetHit ? { swearBudgetHit: true } : {};
+      if (extra.hangup) { doneExtra.hangup = true; doneExtra.blockedUntil = extra.blockedUntil; }
       send({ done: true, usage, responseTokens: cost, warnings: reservation.warnings, sig: signReply(userId, charId, fullResponse), ...doneExtra });
       close();
     } catch (e) {
@@ -3881,6 +3924,11 @@ app.post('/api/call/start', requireAuth, (req, res) => {
   if (callSecsLimit !== Infinity && (u.callSecondsToday || 0) >= callSecsLimit) {
     const minsLimit = Math.round(callSecsLimit / 60);
     return res.status(429).json({ allowed: false, type: 'call_daily_limit', callSecondsToday: u.callSecondsToday || 0, callSecondsLimit: callSecsLimit, minsLimit, resetsAt: getCallWindowStart() + 8 * 60 * 60 * 1000 });
+  }
+  // A character who blocked this user won't pick up
+  const { charId } = req.body || {};
+  if (typeof charId === 'string' && VALID_ID.test(charId) && charBlockUntil(userId, charId)) {
+    return res.status(403).json({ allowed: false, type: 'char_blocked' });
   }
   if (!u.callDayStart) u.callDayStart = Date.now();
   saveLimitsToDB(userId);
@@ -6018,6 +6066,24 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     return;
   }
 
+  // ── Character block — they hung up on this user and are ignoring them for now ──
+  const charBlockedUntil = charBlockUntil(userId, charId);
+  if (charBlockedUntil) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    // A real chat message is kept (it was "sent", just never answered); hidden call prompts are not
+    if (!callMode && typeof message === 'string' && message.trim() && !/^\[.+\]$/s.test(message.trim())) {
+      conversations[key].push({ role: 'user', content: message });
+      persistConv(key);
+    }
+    res.write(`data: ${JSON.stringify({ charBlocked: true, until: charBlockedUntil })}\n\n`);
+    res.end();
+    return;
+  }
+
   // ── Image safety: explicit-content check ──────────────────────────────────────
   let imageDescription = '';
   if (image && !isContinuation) {
@@ -6068,12 +6134,14 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       return;
     }
     await setModStatus(userId, charId, newStrikes, false);
+    if (callMode && !callChained) return callHangupDeflect(res, userId, charId);
     const warning = newStrikes === 1 ? SLUR_WARNING_1 : SLUR_WARNING_2;
     return slurDeflect(res, warning, buildUsagePayload(getLimits(userId), userId));
   }
 
   // ── Abuse / dehumanizing language toward the AI ──────────────────────────────
   if (!isContinuation && message && AI_ABUSE_RE.test(msgNorm)) {
+    if (callMode && !callChained) return callHangupDeflect(res, userId, charId);
     const reply = AI_ABUSE_RESPONSES[Math.floor(Math.random() * AI_ABUSE_RESPONSES.length)];
     return slurDeflect(res, reply, buildUsagePayload(getLimits(userId), userId));
   }
@@ -6210,7 +6278,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     ? req.body.callTranscript.replace(/[\[\]]/g, '').slice(-1500).trim()
     : '';
   const callModeDirective = callMode
-    ? `\n\n[CALL MODE — You are on a live voice call${otherCharNames ? ` with ${otherCharNames} also on the call` : ''}. Keep your reply SHORT: 1-2 sentences, under 30 words. Speak naturally — no asterisks, no markdown, no action text in parentheses. Plain conversational words only. Express genuine emotion when it fits: surprise, frustration, excitement, curiosity — whatever your character would actually feel. Speak only as yourself — never write lines for anyone else on the call. ${callTranscript ? `\nWhat was just said on the call (you heard all of it):\n${callTranscript}\n` : ''}${callChained ? 'You are reacting to what another character just said, not addressing the user directly.' : ''}]`
+    ? `\n\n[CALL MODE — You are on a live voice call${otherCharNames ? ` with ${otherCharNames} also on the call` : ''}. Keep your reply SHORT: 1-2 sentences, under 30 words. Speak naturally — no asterisks, no markdown, no action text in parentheses. Plain conversational words only. Express genuine emotion when it fits: surprise, frustration, excitement, curiosity — whatever your character would actually feel. Speak only as yourself — never write lines for anyone else on the call. ${!callChained ? 'HANG-UP RULE: if the user just said something your character genuinely would not put up with — cruel insults aimed at you, slurs, threats, sexual harassment, or deliberately vile remarks — reply with ONE short in-character goodbye that shows how you feel, then end your reply with the exact tag [HANGUP]. Teasing, disagreeing, casual swearing, sad or dark topics are NOT reasons to hang up. Never use or mention the tag otherwise. ' : ''}${callTranscript ? `\nWhat was just said on the call (you heard all of it):\n${callTranscript}\n` : ''}${callChained ? 'You are reacting to what another character just said, not addressing the user directly.' : ''}]`
     : '';
 
   const chatModeDirective = !isRpMode
@@ -6250,8 +6318,14 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     res, apiKey,
     system: applyEffortDirective(IMAGE_CAPABILITY_PREFIX + characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement + swearDirective + gameKnowledgeDirective(modelTier), effort, modelTier),
     messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId, callMode,
-    onComplete: (text) => {
+    onComplete: (text, meta) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
+      // The character hung up on the user mid-call → they block them (escalating)
+      let hangInfo = {};
+      if (meta && meta.hungUp && callMode && !callChained) {
+        const b = addCharBlock(userId, charId);
+        hangInfo = { hangup: true, blockedUntil: b.until };
+      }
       if (bookPlanState) saveBookState(key, { ...bookPlanState, outline: String(text || '').slice(0, 4000) });
       maybeUpdateStorySummary(key, apiKey, (dbChar && dbChar.name) || charId, modelTier);
       maybeExtractMemories(userId, charId, key, apiKey).catch(() => {});
@@ -6290,7 +6364,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
           }
         }
       }
-      return _swearBudgetJustHit ? { swearBudgetHit: true } : {};
+      return { ...(_swearBudgetJustHit ? { swearBudgetHit: true } : {}), ...hangInfo };
     },
     logLabel: 'Chat'
   });

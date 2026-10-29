@@ -5267,7 +5267,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
     let msgEl = null, bubble = null, gotFirst = false;
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, streamCharCount = 0;
+    let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, streamCharCount = 0, streamBlocked = false;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -5302,7 +5302,8 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
           }
           break;
         }
-        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; if (data.swearBudgetHit) showSwearLimitModal(); }
+        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; if (data.swearBudgetHit) showSwearLimitModal(); if (data.hangup && callModeActive) callHangupChar = currentChar; }
+        if (data.charBlocked) { showTyping(false); streamBlocked = true; }
         if (data.text) {
           if (!gotFirst) {
             gotFirst = true;
@@ -5349,6 +5350,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
       } else if (callModeActive) {
         setTimeout(() => listenForSpeech(), 500);
       }
+      if (streamBlocked) markLastMessageNotDelivered();
       saveHistoryLocal();
     });
   } catch (err) {
@@ -8993,6 +8995,7 @@ async function speakAndHangUp(text, resetsAt) {
 
 function cleanTTSText(text) {
   return text
+    .replace(/\[\s*HANG\s*-?\s*UP\s*\]/gi, '') // never speak the hang-up tag
     .replace(/\*[^*]*\*/g, '')        // strip *action* blocks
     .replace(/\([^)]*\)/g, '')        // strip (parentheticals)
     .replace(/["""'']/g, '')          // strip quote chars so TTS won't say "quote"
@@ -9122,6 +9125,7 @@ let callCharacters = [];        // all chars currently on the call
 let callConversation = [];      // rolling log [{role:'user'|'char', text, charId, charName}]
 let callContextChar = null;     // secondary char currently generating (null = primary)
 let callChainCount = 0;         // chain slots remaining after current TTS ends
+let callHangupChar = null;      // character who is saying goodbye and hangs up once their TTS ends
 let callUserSilenceTimer = null;
 const CALL_USER_SILENCE_MS = 10000; // 10 s before asking "are you there?"
 
@@ -9249,10 +9253,17 @@ async function _doStartCall(overlay) {
 
   // Check server-side blocks (token limits, bans, service offline)
   try {
-    const r = await fetch('/api/call/start', { method: 'POST' });
+    const r = await fetch('/api/call/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ charId: currentChar.id }) });
     if (!r.ok) {
       const data = await r.json().catch(() => ({}));
       callStarting = false;
+      if (data.type === 'char_blocked') {
+        // Blocked: the call just fails, like a real blocked number
+        const statusEl = document.getElementById('callStatus');
+        if (statusEl) statusEl.textContent = 'Call failed';
+        setTimeout(() => { if (!callModeActive && !callStarting && overlay) overlay.style.display = 'none'; }, 2200);
+        return;
+      }
       if (overlay) overlay.style.display = 'none';
       if (r.status === 429) {
         showCallLimitModal(data.resetsAt || data.cooldownUntil || Date.now() + 3600000, null, data.minsLimit);
@@ -9274,6 +9285,7 @@ async function _doStartCall(overlay) {
   callConversation = [];
   callContextChar = null;
   callChainCount = 0;
+  callHangupChar = null;
   clearTimeout(callUserSilenceTimer); callUserSilenceTimer = null;
   startCallDurationTimer();
   resetCallInactivityTimer();
@@ -9557,6 +9569,7 @@ function endCallMode() {
   callConversation = [];
   callContextChar = null;
   callChainCount = 0;
+  callHangupChar = null;
   callSpeakerActive = false;
   document.getElementById('callSpeakerBtn')?.classList.remove('active');
   document.getElementById('callBtn')?.classList.remove('active');
@@ -9620,8 +9633,23 @@ function interruptCall() {
   callChainCount = 0;
   stopActiveTTS();
   window.speechSynthesis?.cancel();
-  if (callAudio) { stopCallAudio(); if (callModeActive) { updateCallSpeaker(currentChar); setTimeout(() => listenForSpeech(), 100); } return; }
-  if (callModeActive) { updateCallSpeaker(currentChar); listenForSpeech(); }
+  // Cutting off a goodbye doesn't stop the hang-up
+  if (callHangupChar && callModeActive) { stopCallAudio(); const c = callHangupChar; callHangupChar = null; callCharHungUp(c); return; }
+  const speaker = callCharacters[0] || currentChar;
+  if (callAudio) { stopCallAudio(); if (callModeActive) { updateCallSpeaker(speaker); setTimeout(() => listenForSpeech(), 100); } return; }
+  if (callModeActive) { updateCallSpeaker(speaker); listenForSpeech(); }
+}
+
+// Blocked characters never answer: mark the user's last chat message "Not delivered", like a phone does
+function markLastMessageNotDelivered() {
+  const msgs = document.querySelectorAll('#messages .msg.user');
+  const last = msgs[msgs.length - 1];
+  if (!last || last.querySelector('.msg-undelivered')) return;
+  const note = document.createElement('div');
+  note.className = 'msg-undelivered';
+  note.textContent = 'Not delivered';
+  last.appendChild(note);
+  scrollToBottom();
 }
 
 function listenForSpeech() {
@@ -9729,10 +9757,11 @@ function sendCallMessage(text, addressed) {
   setCallState('thinking');
   playSound('call-send');
   if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
-  if (callCharacters.length > 1) {
-    // Group call: the named character answers; otherwise whoever spoke last keeps talking
+  // Group call (or the person you called left and someone else is still on): route to a call member, never the chat's character
+  if (callCharacters.length > 1 || (callCharacters[0] && callCharacters[0].id !== currentChar?.id)) {
+    // The named character answers; otherwise whoever spoke last keeps talking
     const lastSpoke = [...callConversation].reverse().find(e => e.role === 'char');
-    const responder = addressed || callCharacters.find(c => c.id === lastSpoke?.charId) || currentChar;
+    const responder = addressed || callCharacters.find(c => c.id === lastSpoke?.charId) || callCharacters[0];
     sendCallCharResponse(responder, text);
     return;
   }
@@ -9760,6 +9789,8 @@ function callTranscriptText(skipLast) {
 // response or return to listening.
 function afterCallTTSDone() {
   if (!callModeActive) return;
+  // The character just said goodbye because of something the user said → they hang up now
+  if (callHangupChar) { const c = callHangupChar; callHangupChar = null; callCharHungUp(c); return; }
   if (callCharacters.length > 1 && callChainCount > 0) {
     callChainCount--;
     const justSpoke = callContextChar || currentChar;
@@ -9774,9 +9805,44 @@ function afterCallTTSDone() {
   }
   callChainCount = 0;
   callContextChar = null;
-  updateCallSpeaker(currentChar);
+  updateCallSpeaker(callCharacters[0] || currentChar);
   // Brief delay lets the browser audio session settle after TTS playback ends
   setTimeout(() => { if (callModeActive) listenForSpeech(); }, 150);
+}
+
+// Takes a character off the call. Returns true if nobody is left.
+function removeCharFromCall(charObj) {
+  callCharacters = callCharacters.filter(c => c.id !== charObj.id);
+  updateCallPartyRow();
+  if (callCharacters[0]) updateCallSpeaker(callCharacters[0]);
+  return callCharacters.length === 0;
+}
+
+// Brief status line on the call screen ("Poppy hung up"); the normal state text comes back on the next state change
+function showCallNotice(text) {
+  const statusEl = document.getElementById('callStatus');
+  if (!statusEl) return;
+  statusEl.classList.remove('interruptable');
+  statusEl.onclick = null;
+  statusEl.textContent = text;
+}
+
+// The character hung up on the user (they're now blocked for a while). Alone → the call ends; in a group → they leave.
+function callCharHungUp(charObj) {
+  callChainCount = 0;
+  callContextChar = null;
+  if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
+  clearTimeout(callUserSilenceTimer); callUserSilenceTimer = null;
+  const name = charObj?.name || 'They';
+  if (removeCharFromCall(charObj)) {
+    callGen++; // nothing else may start talking or listening
+    showCallNotice(`${name} hung up`);
+    playSound('call-send');
+    setTimeout(() => { if (callModeActive) endCallMode(); }, 1800);
+    return;
+  }
+  showCallNotice(`${name} left the call`);
+  setTimeout(() => { if (callModeActive) listenForSpeech(); }, 1500);
 }
 
 // Group-call reply from one character. With userText it answers the user; without it, it reacts to
@@ -9812,6 +9878,7 @@ async function sendCallCharResponse(charObj, userText) {
     const decoder = new TextDecoder();
     let fullText = '';
     let buf = '';
+    let hungUp = false, blocked = false;
     while (true) {
       const { done, value } = await reader.read();
       if (done || gen !== callGen) break;
@@ -9821,11 +9888,25 @@ async function sendCallCharResponse(charObj, userText) {
         if (!part.startsWith('data: ')) continue;
         const ds = part.slice(6);
         if (ds === '[DONE]') break;
-        try { const { text } = JSON.parse(ds); if (text) fullText += text; } catch (_) {}
+        try {
+          const d = JSON.parse(ds);
+          if (d.text) fullText += d.text;
+          if (d.hangup) hungUp = true;
+          if (d.charBlocked) blocked = true;
+        } catch (_) {}
       }
     }
     if (gen !== callGen) return;
+    // This character has the user blocked: they don't pick up / drop off the call
+    if (blocked) {
+      if (removeCharFromCall(charObj)) { showCallNotice(`${charObj.name || 'They'} didn't pick up`); setTimeout(() => { if (callModeActive) endCallMode(); }, 1800); return; }
+      showCallNotice(`${charObj.name || 'They'} didn't pick up`);
+      callChainCount = 0; callContextChar = null;
+      setTimeout(() => { if (callModeActive && gen === callGen) listenForSpeech(); }, 1500);
+      return;
+    }
     if (!fullText.trim()) { if (callModeActive && gen === callGen) afterCallTTSDone(); return; }
+    if (hungUp) callHangupChar = charObj;
     callConversation.push({ role: 'char', text: fullText.trim(), charId: charObj.id, charName: charObj.name });
     if (callConversation.length > 14) callConversation.shift();
     // After answering the user, sometimes another character chimes in
