@@ -4597,6 +4597,10 @@ function edgeSynthesize(text, voice) {
   });
 }
 
+// User voice recordings directory — declared here so /api/tts can reference it
+const USER_VOICES_DIR = path.join(__dirname, 'uploads/voices');
+fs.mkdirSync(USER_VOICES_DIR, { recursive: true });
+
 app.get('/api/tts/status', requireAuth, (req, res) => res.json({ enabled: true }));
 
 app.post('/api/tts', requireAuth, async (req, res) => {
@@ -4608,18 +4612,37 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   if (!text) return res.status(400).json({ error: 'no_text' });
 
   // Character voice provider — try local XTTS clone server first, fall back to Edge TTS.
-  // Start tts_server/tts_server.py locally to enable voice cloning with Poppy's actual game voice.
+  // Start tts_server/tts_server.py locally to enable voice cloning.
+  // Override clone server URL with TTS_CLONE_URL env var (e.g. for remote GPU machine via tunnel).
   if (provider === 'character') {
     const charEntry = CHARACTER_VOICE_MAP[charId];
-    if (charEntry?.file) {
+    // Also check user-assigned voice recording for this character
+    let speakerFile = charEntry?.file || null;
+    if (!speakerFile) {
+      try {
+        const userId = req.user.googleId.replace(/[^a-z0-9]/gi, '_');
+        const assignedPath = path.join(USER_VOICES_DIR, userId, 'assigned.json');
+        const assigned = JSON.parse(await fs.promises.readFile(assignedPath, 'utf8'));
+        const fname = assigned[charId];
+        if (fname) {
+          const candidate = path.join(USER_VOICES_DIR, userId, fname);
+          await fs.promises.access(candidate);
+          speakerFile = candidate;
+        }
+      } catch { /* no user voice */ }
+    }
+    if (speakerFile) {
       try {
         const clonePort = process.env.TTS_CLONE_PORT || '8765';
+        const cloneBase = process.env.TTS_CLONE_URL
+          ? process.env.TTS_CLONE_URL.replace(/\/tts$/, '')
+          : `http://127.0.0.1:${clonePort}`;
         const ctrl = new AbortController();
         const cloneTimeout = setTimeout(() => ctrl.abort(), 25000);
-        const cloneRes = await fetch(`http://127.0.0.1:${clonePort}/tts`, {
+        const cloneRes = await fetch(`${cloneBase}/tts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, speaker_wav: charEntry.file, language: 'en' }),
+          body: JSON.stringify({ text, speaker_wav: speakerFile, language: 'en' }),
           signal: ctrl.signal,
         }).finally(() => clearTimeout(cloneTimeout));
         if (cloneRes.ok) {
@@ -4761,8 +4784,6 @@ app.get('/api/character-voice/:charId', requireAuth, async (req, res) => {
 });
 
 // User voice recordings
-const USER_VOICES_DIR = path.join(__dirname, 'uploads/voices');
-fs.mkdirSync(USER_VOICES_DIR, { recursive: true });
 
 app.post('/api/user-voices', requireAuth, express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '12mb' }), async (req, res) => {
   if (!req.body?.length) return res.status(400).json({ error: 'no_audio' });
