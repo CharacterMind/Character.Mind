@@ -7847,7 +7847,7 @@ function createAiMessage() {
       ${msgAvatarHtml('msg-avatar')}
       <span class="msg-name">${colorizeNameHtml(currentChar?.name || 'AI', currentChar?.color)}</span>
       <span class="msg-badge">C.M</span>
-      <button class="msg-voice-btn" onclick="msgVoiceBtnClick(this)" title="Play voice"><svg class="gv-play" viewBox="0 0 24 24" fill="currentColor" width="11" height="11"><path d="M8 5v14l11-7z"/></svg><div class="gv-wave" style="display:none"><span></span><span></span><span></span><span></span></div></button>
+      <button class="msg-voice-btn" onclick="msgVoiceBtnClick(this)" title="Play voice"><svg class="gv-play" viewBox="0 0 24 24" fill="currentColor" width="11" height="11"><path d="M8 5v14l11-7z"/></svg><div class="gv-wave"><span></span><span></span><span></span><span></span></div></button>
       ${msgMenuHtml('ai')}
     </div>
     <div class="bubble"></div>
@@ -12878,56 +12878,49 @@ let _currentGroupBubble = null;
 let _pendingGroupChar = null;
 let _pendingGroupBubbleStarted = false;
 let _groupStreamCharCount = 0;
-let _groupSpeakingBtn = null;
 
-function _setGroupVoiceState(btn, speaking) {
-  if (!btn) return;
-  const play = btn.querySelector('.gv-play');
-  const wave = btn.querySelector('.gv-wave');
-  btn.classList.toggle('speaking', speaking);
-  if (play) play.style.display = speaking ? 'none' : '';
-  if (wave) wave.style.display = speaking ? 'flex' : 'none';
-}
-
-function _speakGroupBubble(btn, char, text) {
-  if (!window.speechSynthesis || !text) return;
-  window.speechSynthesis.cancel();
-  if (_groupSpeakingBtn && _groupSpeakingBtn !== btn) _setGroupVoiceState(_groupSpeakingBtn, false);
-  const utt = new SpeechSynthesisUtterance(text);
-  _applyCharVoice(utt, char);
-  _groupSpeakingBtn = btn;
-  _setGroupVoiceState(btn, true);
-  utt.onend = utt.onerror = () => { _setGroupVoiceState(btn, false); if (_groupSpeakingBtn === btn) _groupSpeakingBtn = null; };
-  window.speechSynthesis.speak(utt);
-}
-
-function groupVoiceBtnClick(btn) {
-  if (window.speechSynthesis?.speaking) { window.speechSynthesis.cancel(); _setGroupVoiceState(btn, false); return; }
+async function toggleGroupTTS(btn) {
   const msgEl = btn.closest('.group-msg');
   if (!msgEl) return;
-  const charId = msgEl.dataset.charId;
-  const char = (typeof characters !== 'undefined' && characters?.find(c => c.id === charId))
-    || { id: charId, name: msgEl.querySelector('.group-msg-name')?.textContent || '', color: '' };
-  const text = (msgEl.querySelector('.group-msg-text')?.textContent || '').trim();
-  if (text) _speakGroupBubble(btn, char, text);
+  const textEl = msgEl.querySelector('.group-msg-text');
+  const raw = (textEl?.innerText || textEl?.textContent || '').trim();
+  const text = ttsCleanText(raw);
+  if (!text) return;
+
+  const wasSame = activeTTSBtn === btn;
+  stopActiveTTS();
+  if (wasSame) return;
+
+  btn.classList.add('loading');
+  activeTTSBtn = btn;
+
+  const charId = msgEl.dataset.charId || '';
+  try {
+    const r = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text.slice(0, 400), charId, provider: 'edge' })
+    });
+    if (r.ok && activeTTSBtn === btn) {
+      btn.classList.remove('loading'); btn.classList.add('playing');
+      const blob = await r.blob();
+      if (activeTTSBtn !== btn) return;
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      activeTTSAudio = audio;
+      audio.onended = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
+      audio.onerror = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
+      await audio.play().catch(() => { URL.revokeObjectURL(url); stopActiveTTS(); });
+    }
+  } catch (e) {
+    console.error('[group-tts]', e);
+  }
+  if (activeTTSBtn === btn) btn.classList.remove('loading');
 }
 
-function msgVoiceBtnClick(btn) {
-  // Stop any speech (group or 1-on-1) if already talking
-  if (window.speechSynthesis?.speaking) {
-    window.speechSynthesis.cancel();
-    document.querySelectorAll('.msg-voice-btn.speaking,.group-voice-btn.speaking').forEach(b => _setGroupVoiceState(b, false));
-    return;
-  }
-  const msgEl = btn.closest('.msg.ai');
-  if (!msgEl) return;
-  const bubble = msgEl.querySelector('.bubble');
-  // Use innerText so markdown-rendered HTML collapses cleanly to readable text
-  const text = (bubble?.innerText || bubble?.textContent || '').trim();
-  if (!text) return;
-  const char = currentChar || { id: '', name: 'AI', color: '' };
-  _speakGroupBubble(btn, char, text);
-}
+function groupVoiceBtnClick(btn) { toggleGroupTTS(btn); }
+
+function msgVoiceBtnClick(btn) { toggleTTS(btn); }
 
 function startGroupCharBubble(charId, charName, charColor, charImage) {
   hideGroupTyping();
@@ -12940,7 +12933,7 @@ function startGroupCharBubble(charId, charName, charColor, charImage) {
   const avatarHtml = charImage
     ? `<div class="group-msg-avatar" style="background:${color}"><img src="/api/characters/${charId}/image" onerror="this.style.display='none'"></div>`
     : `<div class="group-msg-avatar" style="background:${color}">${escHtml(charName.charAt(0).toUpperCase())}</div>`;
-  const voiceIconHtml = `<button class="group-voice-btn" onclick="groupVoiceBtnClick(this)" title="Play voice"><svg class="gv-play" viewBox="0 0 24 24" fill="currentColor" width="10" height="10"><path d="M8 5v14l11-7z"/></svg><div class="gv-wave" style="display:none"><span></span><span></span><span></span><span></span></div></button>`;
+  const voiceIconHtml = `<button class="group-voice-btn" onclick="groupVoiceBtnClick(this)" title="Play voice"><svg class="gv-play" viewBox="0 0 24 24" fill="currentColor" width="10" height="10"><path d="M8 5v14l11-7z"/></svg><div class="gv-wave"><span></span><span></span><span></span><span></span></div></button>`;
   div.innerHTML = `${avatarHtml}<div class="group-msg-content"><div class="group-msg-name-row"><div class="group-msg-name">${colorizeNameHtml(charName, charColor)}</div>${voiceIconHtml}<span class="group-tok-counter"></span></div><div class="group-msg-text"></div></div><button class="group-msg-del-btn" onclick="deleteGroupMsg(this.closest('.group-msg'))" title="Delete">×</button>`;
   _groupStreamCharCount = 0;
   msgs.appendChild(div);
@@ -13044,7 +13037,7 @@ async function sendGroupMessage() {
             const _speakText = (_currentGroupBubble.textContent || '').trim();
             const _speakTok = _speakMsgEl?.querySelector('.group-tok-counter');
             if (_speakTok) _speakTok.textContent = '';
-            if (_speakBtn && _speakText) _speakGroupBubble(_speakBtn, _pendingGroupChar, _speakText);
+            if (_speakBtn && _speakText) toggleGroupTTS(_speakBtn);
           }
           _currentGroupBubble = null;
           _pendingGroupChar = null;
@@ -13313,7 +13306,7 @@ async function runGroupAutoChat() {
             const _speakText = (_currentGroupBubble.textContent || '').trim();
             const _speakTok = _speakMsgEl?.querySelector('.group-tok-counter');
             if (_speakTok) _speakTok.textContent = '';
-            if (_speakBtn && _speakText) _speakGroupBubble(_speakBtn, _pendingGroupChar, _speakText);
+            if (_speakBtn && _speakText) toggleGroupTTS(_speakBtn);
           }
           _currentGroupBubble = null;
           _pendingGroupChar = null;

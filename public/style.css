@@ -930,7 +930,10 @@ html, body {
   transition: background .15s, color .15s;
 }
 .msg-voice-btn:hover { background: rgba(255,255,255,.14); }
-.msg-voice-btn.speaking { background: rgba(139,92,246,.22); color: var(--accent-l,#a78bfa); }
+.msg-voice-btn.playing { background: rgba(139,92,246,.22); color: var(--accent-l,#a78bfa); }
+.msg-voice-btn.loading .gv-play, .group-voice-btn.loading .gv-play { opacity: .5; animation: gvPulse .7s ease-in-out infinite alternate; }
+.msg-voice-btn.playing .gv-play, .group-voice-btn.playing .gv-play { display: none; }
+.msg-voice-btn.playing .gv-wave, .group-voice-btn.playing .gv-wave { display: flex; }
 .msg-badge {
   font-size: 9.5px; padding: 1px 6px; border-radius: 10px;
   background: var(--accent-dim); color: var(--accent-l); font-weight: 700; letter-spacing: .3px;
@@ -5702,9 +5705,9 @@ body:not(.halloween) .hw-off-label { display: inline; }
   transition: background .15s, color .15s;
 }
 .group-voice-btn:hover { background: rgba(255,255,255,.16); }
-.group-voice-btn.speaking { background: rgba(77,163,255,.18); color: #4da3ff; }
+.group-voice-btn.playing { background: rgba(77,163,255,.18); color: #4da3ff; }
 .gv-wave {
-  display: flex;
+  display: none;
   align-items: center;
   gap: 2px;
   height: 12px;
@@ -5724,6 +5727,7 @@ body:not(.halloween) .hw-off-label { display: inline; }
   from { transform: scaleY(.35); }
   to   { transform: scaleY(1); }
 }
+@keyframes gvPulse { from { opacity: .3; } to { opacity: .8; } }
 .group-tok-counter {
   font-size: .67rem;
   color: var(--text3,#64748b);
