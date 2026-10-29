@@ -72,6 +72,14 @@ MAX_TEXT_CHARS = 500       # XTTS degrades on very long inputs
 # ---------------------------------------------------------------------------
 def _load_model():
     global _tts, _gpu
+    import torch
+    # PyTorch 2.6+ changed weights_only default to True, which breaks XTTS model loading.
+    # Monkey-patch torch.load to keep the old behaviour for these trusted model files.
+    _orig_torch_load = torch.load
+    def _patched_load(*args, **kwargs):
+        kwargs.setdefault('weights_only', False)
+        return _orig_torch_load(*args, **kwargs)
+    torch.load = _patched_load
     from TTS.api import TTS
     print("[voice-ai] Loading XTTS-v2 model (first run downloads ~1.8 GB)...", flush=True)
     _tts = TTS(model_name="tts_models/multilingual/multi-dataset/xtts_v2", gpu=False)
