@@ -3702,8 +3702,8 @@ html, body {
 .welcome-live-tag { background: #16a34a; }
 
 /* Character text colours: speech is upright, narration is italic; each letter takes a colour from the character's palette */
-.bubble .sp { font-weight: 700; color: var(--sp0, #f4c542); }
-.bubble .nr { font-style: italic; letter-spacing: 0.012em; font-weight: 500; color: var(--nr0, #c4b5fd); }
+.bubble .sp { font-weight: 700; color: var(--text, #fff); }
+.bubble .nr { font-style: italic; letter-spacing: 0.012em; font-weight: 500; color: var(--text2, #c9c9d1); }
 .bubble .sp .k0 { color: var(--sp0, #f4c542); }
 .bubble .sp .k1 { color: var(--sp1, #c090ff); }
 .bubble .sp .k2 { color: var(--sp2, #60dfff); }

@@ -10434,25 +10434,13 @@ function copyCodeBlock(btn) {
 function renderStoryText(text) {
   const raw = String(text == null ? '' : text).replace(/\*\*/g, '');
   const paras = raw.split(/\n\n+/);
+  // Plain text only — the per-letter rainbow was removed (speech is bold, narration italic, both clean white/grey)
   const emit = (kind, str) => {
-    const colors = (activeTheme[kind] && activeTheme[kind].colors) || [];
     const parts = str.split(/(\[[^\]\n]{1,40}\]\((?:\/terms|\/privacy)\))/g);
-    let li = 0;
     return parts.map(part => {
       const lm = /^\[([^\]\n]{1,40})\]\((\/terms|\/privacy)\)$/.exec(part);
       if (lm) return '<a class="chat-link" href="' + lm[2] + '" target="_blank" rel="noopener">' + escHtml(lm[1]) + '</a>';
-      if (!colors.length) return escHtml(part).replace(/\b[A-Z]{3,}\b/g, '<span class="caps-em">$&</span>');
-      // Per-letter coloring: each letter/digit gets a k0/k1/… class; CSS variables --sp0/--nr0 on #messages supply the actual colours
-      let out = '';
-      for (const ch of part) {
-        if (LETTER_RE.test(ch)) {
-          const cls = letterPick(li++, colors.length);
-          out += `<span class="k${cls}">${escHtml(ch)}</span>`;
-        } else {
-          out += escHtml(ch);
-        }
-      }
-      return out;
+      return escHtml(part).replace(/\b[A-Z]{3,}\b/g, '<span class="caps-em">$&</span>');
     }).join('');
   };
   return paras.map(p => {
