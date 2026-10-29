@@ -7883,6 +7883,7 @@ function appendMessage(role, text, imgB64, lite) {
         ${msgAvatarHtml('msg-avatar')}
         <span class="msg-name">${colorizeNameHtml(currentChar?.name || 'AI', currentChar?.color)}</span>
         <span class="msg-badge">C.M</span>
+        <button class="msg-voice-btn" onclick="msgVoiceBtnClick(this)" title="Play voice"><svg class="gv-play" viewBox="0 0 24 24" fill="currentColor" width="11" height="11"><path d="M8 5v14l11-7z"/></svg><div class="gv-wave"><span></span><span></span><span></span><span></span></div></button>
         ${msgMenuHtml('ai')}
       </div>
       <div class="bubble">${renderMarkdown(text, undefined, lite ? { lite: true } : undefined)}</div>
@@ -12831,19 +12832,7 @@ async function claimHalloweenGift() {
       _renderCounter();
       _timerTick();
       _startTick();
-      if (d.initialized && d.canCollect) {
-        try {
-          var cr = await fetch('/api/coins/farm', { method: 'POST' });
-          var cd = await cr.json();
-          if (cd.awarded > 0) {
-            _applyState(cd);
-            _showAwayToast(cd.awarded);
-            _refreshCoinsUI(cd);
-            _renderCounter();
-            _timerTick();
-          }
-        } catch (e2) {}
-      }
+      // Away coins are NOT auto-collected on page load — collect manually with the button
     } catch (e) {}
   }
 

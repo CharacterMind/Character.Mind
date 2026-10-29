@@ -990,10 +990,12 @@ function acquireChatSlot(req, res, userId) {
 
 async function requireAuth(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
-  try { await ensureTierLoaded(req.user); } catch (e) { console.warn('ensureTierLoaded failed:', e.message); }
-  // checkMonthlyCoins is cheap (in-memory guard) and must run even when tierLoaded is already true,
-  // otherwise users active across a month boundary never receive their monthly grant until server restart.
-  checkMonthlyCoins(req.user.googleId, getLimits(req.user.googleId)).catch(() => {});
+  let tierOk = false;
+  try { await ensureTierLoaded(req.user); tierOk = true; } catch (e) { console.warn('ensureTierLoaded failed:', e.message); }
+  // checkMonthlyCoins must run even when tierLoaded is already true (month-boundary grant).
+  // Guard: skip when ensureTierLoaded threw — in-memory coinsMonthlyReset is unreliable
+  // (empty object), which could cause a spurious grant attempt on cold-start DB failures.
+  if (tierOk) checkMonthlyCoins(req.user.googleId, getLimits(req.user.googleId)).catch(() => {});
   maybeTrackLogin(req.user.googleId);
   // Ban check — always allow /api/me/ban-status and auth routes so the frontend can show the ban screen
   const skipBanCheck = req.path.endsWith('/ban-status') || req.path.startsWith('/auth') || req.path === '/logout';
