@@ -3313,18 +3313,14 @@ function boostColor(hex) {
   const clamp = v => Math.max(0, Math.min(255, Math.round(v * 255)));
   return '#' + [h2r(h + 1/3), h2r(h), h2r(h - 1/3)].map(clamp).map(x => x.toString(16).padStart(2, '0')).join('');
 }
-// Build name HTML with each non-space character wrapped in a random-color span.
+// Character name in ONE solid colour (the character's main colour) — no more random colour per letter.
 function colorizeNameHtml(name, c) {
   const cbMode = document.documentElement.dataset.colorblind;
   const cbPal = cbMode && CB_PALETTES[cbMode];
   const rawHexes = cbPal ? cbPal.colors : String(c || '').match(/#[0-9a-fA-F]{6}/gi);
   if (!rawHexes || !rawHexes.length) return escHtml(name || '');
-  const colors = rawHexes.map(boostColor);
-  return [...(name || '')].map(ch => {
-    if (/\s/.test(ch)) return escHtml(ch);
-    const col = colors[Math.floor(Math.random() * colors.length)];
-    return `<span style="color:${col};font-weight:900;text-shadow:0 0 8px ${col}55,0 1px 2px rgba(0,0,0,0.6)">${escHtml(ch)}</span>`;
-  }).join('');
+  const col = boostColor(rawHexes[0]);
+  return `<span style="color:${col};font-weight:900;text-shadow:0 1px 2px rgba(0,0,0,0.6)">${escHtml(name || '')}</span>`;
 }
 function colorizeLetters(bubble, charColor) {
   if (!bubble || !charColor) return;
@@ -3336,7 +3332,9 @@ function colorizeLetters(bubble, charColor) {
 }
 
 // Re-randomize word colors in every visible bubble and all name occurrences — triggered by click in the chat.
+// Turned off: chat text is plain and names are one solid colour, so there is nothing to shuffle.
 function randomizeChatColors() {
+  return;
   if (!currentChar) return;
   const el = document.getElementById('messages');
   if (!el) return;
