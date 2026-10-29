@@ -5872,6 +5872,22 @@ body:not(.halloween) .hw-off-label { display: inline; }
   font-weight: 700;
 }
 
+/* ── Group chat mobile fixes ────────────────────────────────────────────────── */
+/* On touch devices delete buttons are always faintly visible (no hover on mobile) */
+@media (pointer: coarse) {
+  .group-msg-del-btn { opacity: 0.3; pointer-events: auto; }
+  .group-msg-del-btn:active { opacity: 1; background: var(--bg3); color: var(--text); }
+}
+/* On narrow screens compress the header so the group name stays readable */
+@media (max-width: 480px) {
+  .group-chat-header { gap: 4px; padding: 8px 10px; }
+  .group-autoround-input { display: none; } /* hide advanced setting on small screens */
+  .group-manage-btn, .group-rewind-btn, .group-clear-btn,
+  .group-autochat-btn, .group-delete-btn {
+    width: 30px; height: 30px;
+  }
+}
+
 /* ── Group Picker Modal ───────────────────────────────────────────────────────── */
 
 .group-picker-modal {
