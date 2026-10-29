@@ -9331,7 +9331,7 @@ async function toggleTTS(btn) {
   if (ttsProvider === 'gemini') {
     const edgeFetch = fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: edgeRaceAbort.signal, body: JSON.stringify({ ...ttsBody, provider: 'edge' }) });
     ttsFetchPromise = Promise.race([
-      primaryFetch.then(r => { edgeRaceAbort.abort(); return r; }),
+      primaryFetch.then(r => { edgeRaceAbort.abort(); return r; }).catch(() => {}),
       edgeFetch.then(r => { if (r.ok) { ttsAbort.abort(); return r; } return primaryFetch; }).catch(() => primaryFetch)
     ]);
   } else {
@@ -9626,6 +9626,7 @@ async function callModeTTS_server(text) {
   } catch (_) {
     // Server TTS failed — fall back to browser voice so the call doesn't go silent
     if (callModeActive && gen === callGen) {
+      setCallState('responding'); // browser fallback also needs the 'responding' visual
       if (window.speechSynthesis) callModeTTS_browser(text, gen);
       else afterCallTTSDone();
     }
