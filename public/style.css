@@ -2560,6 +2560,295 @@ html, body {
 .settings-coin-monthly { font-size: 11px; color: var(--text3); margin-top: 1px; }
 .settings-coin-slots-btn { margin-left: auto; flex-shrink: 0; background: linear-gradient(135deg, #1e3a5f, #2563eb); color: #fff; border: none; border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .settings-coin-slots-btn:hover { opacity: .88; }
+
+/* ── AFK Coin Farm ───────────────────────────────────────────────────────── */
+.settings-farm-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+  padding: 14px 16px 12px;
+  margin-bottom: 12px;
+}
+.farm-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.farm-card-icon { font-size: 1.45rem; line-height: 1; }
+.farm-card-info { flex: 1; min-width: 0; }
+.farm-card-title { font-size: .82rem; font-weight: 600; color: var(--text-primary, #e2e8f0); }
+.farm-card-sub   { font-size: .72rem; color: var(--text-muted, #718096); margin-top: 2px; }
+.farm-badge {
+  font-size: .63rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: rgba(134,239,172,.12);
+  color: #86efac;
+  border: 1px solid rgba(134,239,172,.2);
+}
+.farm-badge.farm-badge-ready {
+  background: rgba(250,204,21,.13);
+  color: #fde047;
+  border-color: rgba(250,204,21,.25);
+  animation: farmBadgePulse 1.6s ease-in-out infinite;
+}
+@keyframes farmBadgePulse {
+  0%,100% { opacity: 1; }
+  50%      { opacity: .55; }
+}
+.farm-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.farm-progress-track {
+  flex: 1;
+  height: 6px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.farm-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #86efac, #4ade80);
+  border-radius: 4px;
+  transition: width .6s ease;
+}
+.farm-accumulated {
+  font-size: .78rem;
+  font-weight: 700;
+  color: #86efac;
+  min-width: 36px;
+  text-align: right;
+  white-space: nowrap;
+}
+.farm-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.farm-timer {
+  font-size: .72rem;
+  color: var(--text-muted, #718096);
+  flex: 1;
+}
+.farm-collect-btn {
+  font-size: .78rem;
+  font-weight: 600;
+  padding: 6px 16px;
+  border-radius: 7px;
+  border: 1px solid rgba(134,239,172,.3);
+  background: rgba(134,239,172,.1);
+  color: #86efac;
+  cursor: pointer;
+  transition: background .15s, opacity .15s;
+  white-space: nowrap;
+}
+.farm-collect-btn:hover:not(:disabled) { background: rgba(134,239,172,.2); }
+.farm-collect-btn:disabled { opacity: .4; cursor: default; }
+
+/* "While you were away" farm toast */
+.farm-away-toast {
+  position: fixed;
+  bottom: 90px;
+  right: 18px;
+  z-index: 99990;
+  background: rgba(15,15,22,0.94);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(134,239,172,.25);
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  animation: farmToastIn .35s cubic-bezier(.34,1.56,.64,1);
+  max-width: 280px;
+}
+.farm-away-toast.farm-toast-hide {
+  animation: farmToastOut .25s ease forwards;
+}
+@keyframes farmToastIn  { from { opacity:0; transform:translateY(20px) scale(.95); } to { opacity:1; transform:none; } }
+@keyframes farmToastOut { from { opacity:1; } to { opacity:0; transform:translateY(12px); } }
+.farm-toast-icon { font-size: 1.4rem; }
+.farm-toast-body { flex: 1; }
+.farm-toast-title { font-size: .78rem; font-weight: 600; color: #86efac; }
+.farm-toast-sub   { font-size: .7rem; color: var(--text-muted, #718096); margin-top: 2px; }
+.farm-toast-close {
+  background: none;
+  border: none;
+  color: var(--text-muted, #718096);
+  cursor: pointer;
+  font-size: .9rem;
+  padding: 0 2px;
+  line-height: 1;
+}
+/* Farm delta flash */
+.farm-delta-flash {
+  position: absolute;
+  right: 0;
+  top: -4px;
+  font-size: .72rem;
+  font-weight: 700;
+  color: #86efac;
+  pointer-events: none;
+  animation: farm-delta-rise 1.3s ease-out forwards;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+@keyframes farm-delta-rise {
+  0%   { opacity: 0;   transform: translateY(0); }
+  15%  { opacity: 1;   transform: translateY(-4px); }
+  70%  { opacity: 1;   transform: translateY(-14px); }
+  100% { opacity: 0;   transform: translateY(-22px); }
+}
+/* Farm WebGL canvas background */
+.settings-farm-card { position: relative; overflow: hidden; }
+.farm-gl-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: .18;
+  border-radius: inherit;
+}
+/* Farm idle-game additions */
+.farm-counter {
+  position: relative;
+  font-size: 1.55rem;
+  font-weight: 700;
+  color: var(--text-primary, #e2e8f0);
+  letter-spacing: -.01em;
+  line-height: 1.1;
+  padding: 8px 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+.farm-frac {
+  font-size: .72rem;
+  font-weight: 400;
+  color: var(--text-muted, #718096);
+  letter-spacing: 0;
+}
+.farm-rate-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.farm-rate-pill {
+  display: inline-block;
+  background: rgba(134,239,172,.12);
+  color: #86efac;
+  border: 1px solid rgba(134,239,172,.22);
+  border-radius: 99px;
+  font-size: .68rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  font-variant-numeric: tabular-nums;
+}
+.farm-rate-hint {
+  font-size: .67rem;
+  color: var(--text-muted, #718096);
+}
+.farm-upgrade-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,.07);
+}
+.farm-upgrade-info { flex: 1; min-width: 0; }
+.farm-upgrade-name {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+}
+.farm-upgrade-rate {
+  font-size: .68rem;
+  color: #86efac;
+  margin-top: 2px;
+}
+.farm-upgrade-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(134,239,172,.15);
+  border: 1px solid rgba(134,239,172,.3);
+  border-radius: 8px;
+  color: #86efac;
+  font-size: .75rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, opacity .15s;
+}
+.farm-upgrade-btn:hover:not(:disabled) { background: rgba(134,239,172,.25); }
+.farm-upgrade-btn:disabled,
+.farm-upgrade-btn.disabled {
+  opacity: .38;
+  cursor: default;
+}
+.farm-upgrade-arrow {
+  font-size: .85rem;
+  line-height: 1;
+}
+/* Farm GPU boost row */
+.farm-boost-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,.07);
+}
+.farm-boost-info { flex: 1; min-width: 0; }
+.farm-boost-label {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+}
+.farm-boost-sub {
+  font-size: .68rem;
+  color: #fbbf24;
+  margin-top: 2px;
+}
+.farm-boost-btn {
+  background: rgba(251,191,36,.15);
+  border: 1px solid rgba(251,191,36,.3);
+  border-radius: 8px;
+  color: #fbbf24;
+  font-size: .75rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s;
+}
+.farm-boost-btn:hover { background: rgba(251,191,36,.25); }
+.farm-boost-btn.active {
+  background: rgba(251,191,36,.3);
+  border-color: #fbbf24;
+  animation: boost-pulse 1.6s ease-in-out infinite;
+}
+@keyframes boost-pulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(251,191,36,.4); }
+  50%      { box-shadow: 0 0 0 6px rgba(251,191,36,0); }
+}
+
+/* ── Phone view ─────────────────────────────────────────────────────────────── */
+
+#phoneView { display: flex; flex-direction: column; height: 100%; overflow: hidden; position: relative; background: var(--bg); }
+
 /* ── Quiz modal ──────────────────────────────────────────────────────────── */
 .quiz-cat-btn { padding: 14px 12px; background: rgba(124,58,237,0.08); border: 1px solid rgba(124,58,237,0.25); border-radius: 12px; color: var(--text1); font-size: 14px; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s; text-align: center; }
 .quiz-cat-btn:hover { background: rgba(124,58,237,0.18); border-color: rgba(168,85,247,0.5); }
