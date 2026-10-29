@@ -12844,6 +12844,40 @@ function hideGroupTyping() {
 let _currentGroupBubble = null;
 let _pendingGroupChar = null;
 let _pendingGroupBubbleStarted = false;
+let _groupStreamCharCount = 0;
+let _groupSpeakingBtn = null;
+
+function _setGroupVoiceState(btn, speaking) {
+  if (!btn) return;
+  const play = btn.querySelector('.gv-play');
+  const wave = btn.querySelector('.gv-wave');
+  btn.classList.toggle('speaking', speaking);
+  if (play) play.style.display = speaking ? 'none' : '';
+  if (wave) wave.style.display = speaking ? 'flex' : 'none';
+}
+
+function _speakGroupBubble(btn, char, text) {
+  if (!window.speechSynthesis || !text) return;
+  window.speechSynthesis.cancel();
+  if (_groupSpeakingBtn && _groupSpeakingBtn !== btn) _setGroupVoiceState(_groupSpeakingBtn, false);
+  const utt = new SpeechSynthesisUtterance(text);
+  _applyCharVoice(utt, char);
+  _groupSpeakingBtn = btn;
+  _setGroupVoiceState(btn, true);
+  utt.onend = utt.onerror = () => { _setGroupVoiceState(btn, false); if (_groupSpeakingBtn === btn) _groupSpeakingBtn = null; };
+  window.speechSynthesis.speak(utt);
+}
+
+function groupVoiceBtnClick(btn) {
+  if (window.speechSynthesis?.speaking) { window.speechSynthesis.cancel(); _setGroupVoiceState(btn, false); return; }
+  const msgEl = btn.closest('.group-msg');
+  if (!msgEl) return;
+  const charId = msgEl.dataset.charId;
+  const char = (typeof characters !== 'undefined' && characters?.find(c => c.id === charId))
+    || { id: charId, name: msgEl.querySelector('.group-msg-name')?.textContent || '', color: '' };
+  const text = (msgEl.querySelector('.group-msg-text')?.textContent || '').trim();
+  if (text) _speakGroupBubble(btn, char, text);
+}
 
 function startGroupCharBubble(charId, charName, charColor, charImage) {
   hideGroupTyping();
@@ -12856,7 +12890,9 @@ function startGroupCharBubble(charId, charName, charColor, charImage) {
   const avatarHtml = charImage
     ? `<div class="group-msg-avatar" style="background:${color}"><img src="/api/characters/${charId}/image" onerror="this.style.display='none'"></div>`
     : `<div class="group-msg-avatar" style="background:${color}">${escHtml(charName.charAt(0).toUpperCase())}</div>`;
-  div.innerHTML = `${avatarHtml}<div class="group-msg-content"><div class="group-msg-name" style="color:${color}">${escHtml(charName)}</div><div class="group-msg-text"></div></div><button class="group-msg-del-btn" onclick="deleteGroupMsg(this.closest('.group-msg'))" title="Delete">×</button>`;
+  const voiceIconHtml = `<button class="group-voice-btn" onclick="groupVoiceBtnClick(this)" title="Play voice"><svg class="gv-play" viewBox="0 0 24 24" fill="currentColor" width="10" height="10"><path d="M8 5v14l11-7z"/></svg><div class="gv-wave" style="display:none"><span></span><span></span><span></span><span></span></div></button>`;
+  div.innerHTML = `${avatarHtml}<div class="group-msg-content"><div class="group-msg-name-row"><div class="group-msg-name" style="color:${color}">${escHtml(charName)}</div>${voiceIconHtml}<span class="group-tok-counter"></span></div><div class="group-msg-text"></div></div><button class="group-msg-del-btn" onclick="deleteGroupMsg(this.closest('.group-msg'))" title="Delete">×</button>`;
+  _groupStreamCharCount = 0;
   msgs.appendChild(div);
   _currentGroupBubble = div.querySelector('.group-msg-text');
   const chatBody = document.getElementById('groupChatBody');
@@ -12866,6 +12902,10 @@ function startGroupCharBubble(charId, charName, charColor, charImage) {
 function appendGroupToken(token) {
   if (!_currentGroupBubble) return;
   _currentGroupBubble.textContent += token;
+  _groupStreamCharCount += (token || '').length;
+  const msgEl = _currentGroupBubble.closest('.group-msg');
+  const tokEl = msgEl?.querySelector('.group-tok-counter');
+  if (tokEl) tokEl.textContent = Math.round(_groupStreamCharCount / 4) + ' tok';
   const body = document.getElementById('groupChatBody');
   if (body) body.scrollTop = body.scrollHeight;
 }
@@ -12948,6 +12988,14 @@ async function sendGroupMessage() {
           }
         } else if (evt.type === 'speaker_end') {
           if (!_pendingGroupBubbleStarted) hideGroupTyping();
+          if (_pendingGroupChar && _currentGroupBubble) {
+            const _speakMsgEl = _currentGroupBubble.closest('.group-msg');
+            const _speakBtn = _speakMsgEl?.querySelector('.group-voice-btn');
+            const _speakText = (_currentGroupBubble.textContent || '').trim();
+            const _speakTok = _speakMsgEl?.querySelector('.group-tok-counter');
+            if (_speakTok) _speakTok.textContent = '';
+            if (_speakBtn && _speakText) _speakGroupBubble(_speakBtn, _pendingGroupChar, _speakText);
+          }
           _currentGroupBubble = null;
           _pendingGroupChar = null;
           _pendingGroupBubbleStarted = false;
@@ -13209,6 +13257,14 @@ async function runGroupAutoChat() {
           }
         } else if (evt.type === 'speaker_end') {
           if (!_pendingGroupBubbleStarted) hideGroupTyping();
+          if (_pendingGroupChar && _currentGroupBubble) {
+            const _speakMsgEl = _currentGroupBubble.closest('.group-msg');
+            const _speakBtn = _speakMsgEl?.querySelector('.group-voice-btn');
+            const _speakText = (_currentGroupBubble.textContent || '').trim();
+            const _speakTok = _speakMsgEl?.querySelector('.group-tok-counter');
+            if (_speakTok) _speakTok.textContent = '';
+            if (_speakBtn && _speakText) _speakGroupBubble(_speakBtn, _pendingGroupChar, _speakText);
+          }
           _currentGroupBubble = null;
           _pendingGroupChar = null;
           _pendingGroupBubbleStarted = false;
