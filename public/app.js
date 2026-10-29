@@ -7705,6 +7705,8 @@ const liteObserver = (typeof IntersectionObserver !== 'undefined')
 function appendHistoryItem(m, lite) {
   if (m && m.card === 'nsfw') { appendNsfwCard(m.variant); return; }
   const isAi = m.role === 'assistant' || m.role === 'ai';
+  // Skip system context messages stored as user messages (e.g. inactivity prompts, call mode context)
+  if (!isAi && typeof m.content === 'string' && /^\[.+\]$/.test(m.content.trim())) return;
   const el = appendMessage(isAi ? 'ai' : 'user', m.content, undefined, lite);
   if (isAi && m.sig && el) el.dataset.sig = m.sig;
 }
@@ -8031,7 +8033,7 @@ function loadCharVoice() {
   try {
     // Global fallback — last voice the user picked on any character
     const gp = localStorage.getItem('cm_tts_prov_global');
-    if (['edge','gemini'].includes(gp)) ttsProvider = gp;
+    if (['edge','gemini','browser'].includes(gp)) ttsProvider = gp;
     const ggv = localStorage.getItem('cm_gem_voice_global');
     if (GEMINI_TTS_VOICES.includes(ggv)) geminiVoiceName = ggv;
     const gev = localStorage.getItem('cm_edge_voice_global');
@@ -8041,7 +8043,7 @@ function loadCharVoice() {
   try {
     // Per-character overrides take priority over global
     const p = localStorage.getItem(getTTSProviderKey());
-    if (['edge','gemini'].includes(p)) ttsProvider = p;
+    if (['edge','gemini','browser'].includes(p)) ttsProvider = p;
     const gv = localStorage.getItem(getGeminiVoiceKey());
     if (GEMINI_TTS_VOICES.includes(gv)) geminiVoiceName = gv;
     const ev = localStorage.getItem(getEdgeVoiceKey());
@@ -8081,6 +8083,14 @@ function setTTSProvider(p, btn) {
     localStorage.setItem('cm_tts_prov_global', p);
   } catch(_) {}
   document.querySelectorAll('.voice-provider-tab').forEach(b => b.classList.toggle('active', b.dataset.provider === p));
+  // Auto-pick best browser voice when user switches to browser provider
+  if (p === 'browser' && !selectedVoice) {
+    const autoVoice = bestBrowserVoice();
+    if (autoVoice) {
+      selectedVoice = autoVoice;
+      try { localStorage.setItem(getCharVoiceKey(), autoVoice.voiceURI); } catch(_) {}
+    }
+  }
   renderVoiceList();
 }
 
@@ -8746,8 +8756,8 @@ async function toggleTTS(btn) {
   if (ttsProvider === 'browser') {
     btn.classList.remove('loading'); btn.classList.add('playing');
     if (window.speechSynthesis) {
-      const u = new SpeechSynthesisUtterance(text.slice(0, 300));
-      if (selectedVoice) u.voice = selectedVoice;
+      const u = new SpeechSynthesisUtterance(cleanTTSText(text).slice(0, 300));
+      u.voice = selectedVoice || bestBrowserVoice();
       activeTTSUtterance = u;
       u.onend = () => stopActiveTTS(); u.onerror = () => stopActiveTTS();
       window.speechSynthesis.speak(u);
@@ -8842,8 +8852,7 @@ function callModeTTS(bubble) {
   if (callConversation.length > 14) callConversation.shift();
   // Decide if a secondary char will react after this TTS
   callChainCount = (callCharacters.length > 1 && Math.random() < 0.45) ? 1 : 0;
-  if (serverTTSOk) { callModeTTS_server(text); return; }
-  if (callModeActive) afterCallTTSDone();
+  callModeTTS_server(text);
 }
 
 let serverTTSOk = true;
@@ -8914,7 +8923,7 @@ async function speakAndHangUp(text, resetsAt) {
   stopCallAudio();
   window.speechSynthesis?.cancel();
   const gen = callGen;
-  const clean = text.replace(/\*[^*]*\*/g, '').replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim().slice(0, 250);
+  const clean = cleanTTSText(text).slice(0, 250);
   const finish = () => {
     if (gen !== callGen) return;
     endCallMode();
@@ -8939,12 +8948,57 @@ async function speakAndHangUp(text, resetsAt) {
   } catch (_) { finish(); }
 }
 
+function cleanTTSText(text) {
+  return text
+    .replace(/\*[^*]*\*/g, '')        // strip *action* blocks
+    .replace(/\([^)]*\)/g, '')        // strip (parentheticals)
+    .replace(/["""'']/g, '')          // strip quote chars so TTS won't say "quote"
+    .replace(/[^\S\r\n]{2,}/g, ' ')   // collapse whitespace
+    .trim();
+}
+
+// Pick the best free browser voice: prefer Google/Microsoft network voices, then any non-local English voice
+function bestBrowserVoice() {
+  if (!window.speechSynthesis) return null;
+  const voices = window.speechSynthesis.getVoices().filter(v => v.lang.startsWith('en'));
+  const rank = v => {
+    if (/google us english/i.test(v.name)) return 10;
+    if (/google uk english female/i.test(v.name)) return 9;
+    if (/google uk english male/i.test(v.name)) return 8;
+    if (/google/i.test(v.name)) return 7;
+    if (/microsoft.*natural/i.test(v.name)) return 6;
+    if (/microsoft/i.test(v.name) && !v.localService) return 5;
+    if (!v.localService) return 4;
+    if (/en-us/i.test(v.lang)) return 3;
+    return 1;
+  };
+  return voices.sort((a, b) => rank(b) - rank(a))[0] || null;
+}
+
+async function callModeTTS_browser(text, gen) {
+  const clean = cleanTTSText(text);
+  if (!clean || !window.speechSynthesis) { if (callModeActive && gen === callGen) afterCallTTSDone(); return; }
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(clean);
+  u.voice = selectedVoice || bestBrowserVoice();
+  u.rate = 1.0;
+  u.pitch = 1.0;
+  const done = () => { if (gen === callGen && callModeActive) afterCallTTSDone(); };
+  u.onend = done;
+  u.onerror = done;
+  // Resume on mobile where synth can get paused
+  if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+  window.speechSynthesis.speak(u);
+  // Watchdog: if nothing fires in 12s, move on
+  setTimeout(() => { if (gen === callGen && callModeActive && u.speaking !== true) done(); }, 12000);
+}
+
 async function callModeTTS_server(text) {
   const gen = callGen;
-  const clean = text.replace(/\*[^*]*\*/g, '').replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim();
+  const clean = cleanTTSText(text);
   if (!clean) { if (callModeActive && gen === callGen) afterCallTTSDone(); return; }
 
-  if (ttsProvider === 'browser') { if (callModeActive && gen === callGen) afterCallTTSDone(); return; }
+  if (ttsProvider === 'browser') { callModeTTS_browser(text, gen); return; }
 
   // Split into sentences so we can start playing the first sentence immediately
   // while pre-fetching the next one — reduces the "falling behind" latency.
@@ -8994,7 +9048,11 @@ async function callModeTTS_server(text) {
       nextFetch = prefetch;
     }
   } catch (_) {
-    if (callModeActive && gen === callGen) afterCallTTSDone();
+    // Server TTS failed — fall back to browser voice so the call doesn't go silent
+    if (callModeActive && gen === callGen) {
+      if (window.speechSynthesis) callModeTTS_browser(text, gen);
+      else afterCallTTSDone();
+    }
   }
 }
 
