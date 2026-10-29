@@ -232,78 +232,79 @@ function selectOrUpgrade(tier) {
 function showUpgradeModal() { openPricingModal(); }
 
 // ── Subscription tier data ────────────────────────────────────────────────────
+// callsPerDay = minutes of voice calls per day (matches TIER_CALL_SECOND_LIMITS on the server)
 const PLAN_DATA = [
   {
     key: 'free', name: 'Free', monthly: 0, annual: 0, coinsPerMonth: 0,
-    callsPerDay: 6, memosPerDay: 50, imagesPerDay: 3,
+    callsPerDay: 90, memosPerDay: 50, imagesPerDay: 3,
     features: [
       'Opas — fast & punchy: snappy replies, zero filler, straight to the point',
       'Opes — the step-up: richer storytelling, replies ~60% longer, deeper natural banter (costs more session tokens)',
       '~80 Opes messages (or ~350 Opas) per session · resets every 2 hrs · 10 sessions’ worth per week',
       'All characters unlocked — no gatekeeping',
-      '10 regenerations · 3 image uploads · 50 memos per day · 30 min of calls every 8 hrs',
+      '90 min of calls per day · 3 image uploads per day · 10 regenerations & 50 memos every 8 hrs',
     ],
   },
   {
     key: 'advanced', name: 'Advanced Plus', monthly: 9.99, annual: 59.99, coinsPerMonth: 2000,
-    callsPerDay: 18, memosPerDay: 150, imagesPerDay: 9,
+    callsPerDay: 270, memosPerDay: 150, imagesPerDay: 9,
     features: [
       'Opis — sharper logic: built for mystery and intrigue, never loses the thread',
       'Opos — full GM mode: runs the whole room, drives plot, voices every NPC',
       '~250 Opes messages per session — 3× free · 10 sessions’ worth per week',
       '2,000 C.M. Coins every month',
-      '30 regenerations · 9 image uploads · 150 memos per day · 90 min of calls every 8 hrs',
+      '4.5 hrs of calls per day · 9 image uploads per day · 30 regenerations & 150 memos every 8 hrs',
       'Everything in Free, including Opas & Opes',
     ],
   },
   {
     key: 'x20', name: 'X20', badge: 'Recommended', monthly: 39.99, annual: 239.99, coinsPerMonth: 8000,
-    callsPerDay: 120, memosPerDay: 1000, imagesPerDay: 60,
+    callsPerDay: 720, memosPerDay: 1000, imagesPerDay: 60,
     features: [
       'Opus: proper emotional weight — subtext, inner conflict, the whole thing',
       'Up to ~1,650 Opes messages per session — 20× free · 10 sessions’ worth per week',
-      'Up to 200 regenerations per day — 20× free',
-      'Up to 4 hrs of calls every 8 hrs · up to 60 image uploads per day',
-      'Up to 1,000 memos per day',
+      'Up to 200 regenerations every 8 hrs — 20× free',
+      'Up to 12 hrs of calls per day · up to 60 image uploads per day',
+      'Up to 1,000 memos every 8 hrs',
       'Everything in Advanced Plus',
     ],
   },
   {
     key: 'x50', name: 'X50', badge: 'Best Value', monthly: 79.99, annual: 479.99, coinsPerMonth: 20000,
-    callsPerDay: 300, memosPerDay: 2500, imagesPerDay: 150,
+    callsPerDay: 1080, memosPerDay: 2500, imagesPerDay: 150,
     features: [
       'Opys: plans the scene before it writes it — tension beats, pacing, full arcs',
       'Replies run 1.9× longer with multi-chapter stamina',
       'Up to ~4,150 Opes messages per session — 50× free',
-      'Up to 6 hrs of calls every 8 hrs · up to 150 image uploads · up to 2,500 memos per day',
-      'Up to 500 regenerations per day — 50× free',
+      'Up to 18 hrs of calls per day · up to 150 image uploads per day · up to 2,500 memos every 8 hrs',
+      'Up to 500 regenerations every 8 hrs — 50× free',
       'Everything in X20',
     ],
   },
   {
     key: 'x100', name: 'X100', badge: 'Ultimate', monthly: 159.99, annual: 959.99, coinsPerMonth: 50000,
-    callsPerDay: 600, memosPerDay: 5000, imagesPerDay: 300,
+    callsPerDay: 1260, memosPerDay: 5000, imagesPerDay: 300,
     features: [
       'Opys 5: the flagship model, gated here on purpose',
       '3.5× longer replies with multi-pass refinement — it rewrites itself until it\'s right',
       '⚡ Ultra Code: ships real production code for Unity, Roblox, and web — not pseudocode',
       'Up to ~8,300 Opes messages per session — 100× free',
-      'Up to 7 hrs of calls every 8 hrs · up to 300 image uploads · up to 5,000 memos per day',
-      'Up to 1,000 regenerations per day — 100× free',
+      'Up to 21 hrs of calls per day · up to 300 image uploads per day · up to 5,000 memos every 8 hrs',
+      'Up to 1,000 regenerations every 8 hrs — 100× free',
       'Everything in X50',
     ],
   },
   {
     key: 'x200', name: 'X200', badge: 'Legend', monthly: 399.99, annual: 2399.99, coinsPerMonth: 150000,
-    callsPerDay: 1200, memosPerDay: 10000, imagesPerDay: 600,
+    callsPerDay: Infinity, memosPerDay: 10000, imagesPerDay: 600,
     features: [
       'Opys 6: next-generation, exclusive — nothing else gets you here',
       '5× longer replies with cinematic depth most models can\'t approach',
       '⚡ Ultra Code at full scale — pipelines, multi-system architecture, the works',
       'World-building mode: lore, faction maps, and character arcs that survive every session',
       'Up to ~16,600 Opes messages per session — 200× free',
-      'Calls all day (8 hrs every 8 hrs) · up to 600 image uploads · up to 10,000 memos per day',
-      'Up to 2,000 regenerations per day — 200× free',
+      'Unlimited calls · up to 600 image uploads per day · up to 10,000 memos every 8 hrs',
+      'Up to 2,000 regenerations every 8 hrs — 200× free',
       'Everything in X100',
     ],
   },
@@ -3317,14 +3318,16 @@ function boostColor(hex) {
   const clamp = v => Math.max(0, Math.min(255, Math.round(v * 255)));
   return '#' + [h2r(h + 1/3), h2r(h), h2r(h - 1/3)].map(clamp).map(x => x.toString(16).padStart(2, '0')).join('');
 }
-// Character name in ONE solid colour (the character's main colour) — no more random colour per letter.
 function colorizeNameHtml(name, c) {
   const cbMode = document.documentElement.dataset.colorblind;
   const cbPal = cbMode && CB_PALETTES[cbMode];
   const rawHexes = cbPal ? cbPal.colors : String(c || '').match(/#[0-9a-fA-F]{6}/gi);
-  if (!rawHexes || !rawHexes.length) return escHtml(name || '');
-  const col = boostColor(rawHexes[0]);
-  return `<span style="color:${col};font-weight:900;text-shadow:0 1px 2px rgba(0,0,0,0.6)">${escHtml(name || '')}</span>`;
+  if (!rawHexes || !rawHexes.length) return `<span style="font-weight:900">${escHtml(name || '')}</span>`;
+  const boosted = rawHexes.map(boostColor);
+  return [...(name || '')].map(ch => {
+    const col = boosted[Math.floor(Math.random() * boosted.length)];
+    return `<span style="color:${col};font-weight:900;text-shadow:0 1px 2px rgba(0,0,0,0.6)">${escHtml(ch)}</span>`;
+  }).join('');
 }
 function colorizeLetters(bubble, charColor) {
   if (!bubble || !charColor) return;
@@ -3335,10 +3338,8 @@ function colorizeLetters(bubble, charColor) {
   }
 }
 
-// Re-randomize word colors in every visible bubble and all name occurrences — triggered by click in the chat.
-// Turned off: chat text is plain and names are one solid colour, so there is nothing to shuffle.
+// Re-randomize letter colors in all visible character name labels — triggered by click in the chat.
 function randomizeChatColors() {
-  return;
   if (!currentChar) return;
   const el = document.getElementById('messages');
   if (!el) return;
