@@ -1,0 +1,4 @@
+TTS>=0.22.0
+flask>=2.3.0
+torch>=2.0.0
+torchaudio>=2.0.0

@@ -4607,10 +4607,34 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   const clientEdgeVoice = req.body?.edgeVoice && typeof req.body.edgeVoice === 'string' ? req.body.edgeVoice : null;
   if (!text) return res.status(400).json({ error: 'no_text' });
 
-  // Character voice provider — synthesize the text with the character's assigned Edge voice.
-  // (The character's WAV file is a voice sample/preview; it cannot speak arbitrary text —
-  //  that would require a paid voice-cloning service. The preview is served by /api/character-voice/:charId.)
+  // Character voice provider — try local XTTS clone server first, fall back to Edge TTS.
+  // Start tts_server/tts_server.py locally to enable voice cloning with Poppy's actual game voice.
   if (provider === 'character') {
+    const charEntry = CHARACTER_VOICE_MAP[charId];
+    if (charEntry?.file) {
+      try {
+        const clonePort = process.env.TTS_CLONE_PORT || '8765';
+        const ctrl = new AbortController();
+        const cloneTimeout = setTimeout(() => ctrl.abort(), 25000);
+        const cloneRes = await fetch(`http://127.0.0.1:${clonePort}/tts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, speaker_wav: charEntry.file, language: 'en' }),
+          signal: ctrl.signal,
+        }).finally(() => clearTimeout(cloneTimeout));
+        if (cloneRes.ok) {
+          const cloneAudio = Buffer.from(await cloneRes.arrayBuffer());
+          res.setHeader('Content-Type', 'audio/wav');
+          res.setHeader('Cache-Control', 'no-store');
+          res.setHeader('X-TTS-Provider', 'character-clone');
+          return res.send(cloneAudio);
+        }
+      } catch (e) {
+        // Clone server not running or timed out — fall through to Edge TTS
+        if (e.name !== 'AbortError') console.warn('[char-tts] clone server unavailable:', e.message);
+      }
+    }
+    // Fallback: Edge TTS with the character's assigned voice
     const charEdgeVoice = EDGE_VOICE_MAP[charId] || EDGE_DEFAULT_VOICE;
     try {
       const audio = await edgeSynthesize(text, charEdgeVoice);
