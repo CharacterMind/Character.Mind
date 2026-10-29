@@ -7442,9 +7442,12 @@ async function openUsageModal() {
       (async () => {
         try {
           const anns = window._announcements || await fetch('/api/announcements').then(r => r.json());
-          const latest = (anns[0]?.version || '');
-          const m = latest.match(/v?(\d+)/i);
-          if (m && !annV.value) annV.value = 'v' + (parseInt(m[1], 10) + 1);
+          let maxVer = 0;
+          for (const a of anns) {
+            const vm = (a.version || '').match(/v?(\d+)/i);
+            if (vm) maxVer = Math.max(maxVer, parseInt(vm[1], 10));
+          }
+          if (maxVer > 0 && !annV.value) annV.value = 'v' + (maxVer + 1);
         } catch (_) {}
       })();
     }
@@ -8241,6 +8244,13 @@ function renderCharVoiceSection() {
     .then(r => {
       if (r.ok) {
         section.style.display = '';
+        // Auto-default to this character's authentic voice if the user hasn't overridden it
+        const perCharKey = getTTSProviderKey();
+        if (perCharKey && !localStorage.getItem(perCharKey) && ttsProvider !== 'character') {
+          ttsProvider = 'character';
+          try { localStorage.setItem(perCharKey, 'character'); } catch (_) {}
+          document.querySelectorAll('.voice-provider-tab').forEach(b => b.classList.remove('active'));
+        }
         const isActive = ttsProvider === 'character';
         card.innerHTML = `<button class="char-voice-card-btn${isActive ? ' active' : ''}" onclick="setTTSProvider('character',this)">
           <div class="char-voice-info">
@@ -8259,14 +8269,40 @@ function renderCharVoiceSection() {
     .catch(() => { section.style.display = 'none'; });
 }
 
+let _charVoicePreviewAudio = null;
+
 async function previewCharVoice(e) {
   e?.stopPropagation();
+  const btn = e?.currentTarget || e?.target;
+  // If already playing, stop it
+  if (_charVoicePreviewAudio) {
+    try { _charVoicePreviewAudio.pause(); } catch (_) {}
+    _charVoicePreviewAudio = null;
+    if (btn) btn.textContent = '▶';
+    return;
+  }
   if (!currentChar) return;
   try {
     const r = await fetch(`/api/character-voice/${encodeURIComponent(currentChar.id)}`);
     if (!r.ok) return;
     const url = URL.createObjectURL(await r.blob());
-    const a = new Audio(url); a.onended = () => URL.revokeObjectURL(url); a.play().catch(() => {});
+    const a = new Audio(url);
+    _charVoicePreviewAudio = a;
+    if (btn) btn.textContent = '■';
+    a.onended = () => {
+      URL.revokeObjectURL(url);
+      if (_charVoicePreviewAudio === a) _charVoicePreviewAudio = null;
+      if (btn) btn.textContent = '▶';
+    };
+    a.onerror = () => {
+      URL.revokeObjectURL(url);
+      if (_charVoicePreviewAudio === a) _charVoicePreviewAudio = null;
+      if (btn) btn.textContent = '▶';
+    };
+    a.play().catch(() => {
+      if (_charVoicePreviewAudio === a) _charVoicePreviewAudio = null;
+      if (btn) btn.textContent = '▶';
+    });
   } catch (_) {}
 }
 
