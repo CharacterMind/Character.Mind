@@ -8124,7 +8124,7 @@ function loadCharVoice() {
   try {
     // Global fallback — last voice the user picked on any character
     const gp = localStorage.getItem('cm_tts_prov_global');
-    if (['edge','gemini','browser'].includes(gp)) ttsProvider = gp;
+    if (['edge','gemini','browser','character'].includes(gp)) ttsProvider = gp;
     const ggv = localStorage.getItem('cm_gem_voice_global');
     if (GEMINI_TTS_VOICES.includes(ggv)) geminiVoiceName = ggv;
     const gev = localStorage.getItem('cm_edge_voice_global');
@@ -8134,7 +8134,7 @@ function loadCharVoice() {
   try {
     // Per-character overrides take priority over global
     const p = localStorage.getItem(getTTSProviderKey());
-    if (['edge','gemini','browser'].includes(p)) ttsProvider = p;
+    if (['edge','gemini','browser','character'].includes(p)) ttsProvider = p;
     const gv = localStorage.getItem(getGeminiVoiceKey());
     if (GEMINI_TTS_VOICES.includes(gv)) geminiVoiceName = gv;
     const ev = localStorage.getItem(getEdgeVoiceKey());
@@ -8158,7 +8158,9 @@ function openVoicePanel() {
   if (!overlay) return;
   const nameEl = document.getElementById('voicePanelCharName');
   if (nameEl) nameEl.textContent = currentChar?.name || 'this character';
+  renderCharVoiceSection();
   renderVoiceList();
+  renderUserVoiceList();
   overlay.style.display = 'flex';
 }
 
@@ -8167,28 +8169,150 @@ function closeVoicePanel() {
   if (overlay) overlay.style.display = 'none';
 }
 
+// ── Character voice section ───────────────────────────────────────────────────
+
+function renderCharVoiceSection() {
+  const section = document.getElementById('voiceSection_char');
+  const card = document.getElementById('charVoiceCard');
+  if (!section || !card || !currentChar) { if (section) section.style.display = 'none'; return; }
+  fetch(`/api/character-voice/${encodeURIComponent(currentChar.id)}`, { method: 'HEAD' })
+    .then(r => {
+      if (r.ok) {
+        section.style.display = '';
+        const isActive = ttsProvider === 'character';
+        card.innerHTML = `<button class="char-voice-card-btn${isActive ? ' active' : ''}" onclick="setTTSProvider('character',this)">
+          <div class="char-voice-info">
+            <div class="char-voice-name">${escHtml(currentChar.name)}</div>
+            <div class="char-voice-desc">Authentic character voice</div>
+          </div>
+          <div class="char-voice-right">
+            <button class="voice-preview-btn" onclick="previewCharVoice(event)" title="Preview sample">▶</button>
+            ${isActive ? '<span class="char-voice-badge">Active</span>' : ''}
+          </div>
+        </button>`;
+      } else {
+        section.style.display = 'none';
+      }
+    })
+    .catch(() => { section.style.display = 'none'; });
+}
+
+async function previewCharVoice(e) {
+  e?.stopPropagation();
+  if (!currentChar) return;
+  try {
+    const r = await fetch(`/api/character-voice/${encodeURIComponent(currentChar.id)}`);
+    if (!r.ok) return;
+    const url = URL.createObjectURL(await r.blob());
+    const a = new Audio(url); a.onended = () => URL.revokeObjectURL(url); a.play().catch(() => {});
+  } catch (_) {}
+}
+
+// ── User voice recordings ─────────────────────────────────────────────────────
+
+let _voiceMediaRecorder = null;
+let _voiceChunks = [];
+let _voiceStream = null;
+
+async function toggleVoiceRecording(btn) {
+  if (_voiceMediaRecorder?.state === 'recording') {
+    _voiceMediaRecorder.stop();
+    return;
+  }
+  try {
+    _voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    _voiceChunks = [];
+    _voiceMediaRecorder = new MediaRecorder(_voiceStream);
+    _voiceMediaRecorder.ondataavailable = e => { if (e.data.size > 0) _voiceChunks.push(e.data); };
+    _voiceMediaRecorder.onstop = async () => {
+      _voiceStream?.getTracks().forEach(t => t.stop()); _voiceStream = null;
+      const recBtn = document.getElementById('recordVoiceBtn');
+      if (recBtn) { recBtn.innerHTML = '<span class="rec-dot"></span>Record'; recBtn.classList.remove('recording'); }
+      if (!_voiceChunks.length) return;
+      const blob = new Blob(_voiceChunks, { type: 'audio/webm' });
+      try {
+        await fetch('/api/user-voices', { method: 'POST', headers: { 'Content-Type': 'audio/webm' }, body: blob });
+        renderUserVoiceList();
+      } catch (_) {}
+    };
+    _voiceMediaRecorder.start();
+    if (btn) { btn.innerHTML = '<span class="rec-dot rec-pulse"></span>Stop'; btn.classList.add('recording'); }
+  } catch (_) {
+    alert('Microphone access was denied. Please allow mic access in your browser settings.');
+  }
+}
+
+async function uploadUserVoiceFile(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  try {
+    await fetch('/api/user-voices', { method: 'POST', headers: { 'Content-Type': file.type || 'audio/webm' }, body: file });
+    renderUserVoiceList();
+  } catch (_) {}
+  input.value = '';
+}
+
+async function renderUserVoiceList() {
+  const list = document.getElementById('userVoiceList');
+  if (!list) return;
+  list.innerHTML = '<div class="voice-empty" style="font-size:.75rem;padding:6px 0">Loading…</div>';
+  try {
+    const r = await fetch('/api/user-voices');
+    const voices = r.ok ? await r.json() : [];
+    if (!voices.length) {
+      list.innerHTML = '<div class="voice-empty" style="font-size:.75rem;padding:6px 0;color:var(--text3)">No recordings yet — hit Record to start.</div>';
+      return;
+    }
+    list.innerHTML = voices.map(v => {
+      const d = new Date(v.ts); const label = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return `<div class="user-voice-row">
+        <span class="user-voice-label">${escHtml(label)}</span>
+        <div class="user-voice-actions">
+          <button class="voice-preview-btn" onclick="playUserVoice('${escHtml(v.filename)}')" title="Play">▶</button>
+          <button class="user-voice-del-btn" onclick="deleteUserVoice('${escHtml(v.filename)}',this)" title="Delete">×</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (_) {
+    list.innerHTML = '';
+  }
+}
+
+async function playUserVoice(filename) {
+  try {
+    const r = await fetch(`/api/user-voices/file/${encodeURIComponent(filename)}`);
+    if (!r.ok) return;
+    const url = URL.createObjectURL(await r.blob());
+    const a = new Audio(url); a.onended = () => URL.revokeObjectURL(url); a.play().catch(() => {});
+  } catch (_) {}
+}
+
+async function deleteUserVoice(filename, btn) {
+  btn.disabled = true;
+  try {
+    await fetch(`/api/user-voices/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+    renderUserVoiceList();
+  } catch (_) { btn.disabled = false; }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function setTTSProvider(p, btn) {
   ttsProvider = p;
   try {
     if (getTTSProviderKey()) localStorage.setItem(getTTSProviderKey(), p);
     localStorage.setItem('cm_tts_prov_global', p);
   } catch(_) {}
-  document.querySelectorAll('.voice-provider-tab').forEach(b => b.classList.toggle('active', b.dataset.provider === p));
-  // Auto-pick best browser voice when user switches to browser provider
-  if (p === 'browser' && !selectedVoice) {
-    const autoVoice = bestBrowserVoice();
-    if (autoVoice) {
-      selectedVoice = autoVoice;
-      try { localStorage.setItem(getCharVoiceKey(), autoVoice.voiceURI); } catch(_) {}
-    }
-  }
+  document.querySelectorAll('.voice-provider-tab').forEach(b => b.classList.toggle('active', b.dataset.provider === (p === 'character' || p === 'browser' ? '' : p)));
+  renderCharVoiceSection();
   renderVoiceList();
 }
 
 function renderVoiceList() {
   const list = document.getElementById('voiceList');
   if (!list) return;
-  document.querySelectorAll('.voice-provider-tab').forEach(b => b.classList.toggle('active', b.dataset.provider === ttsProvider));
+  const aiProvider = (ttsProvider === 'character' || ttsProvider === 'browser') ? '' : ttsProvider;
+  document.querySelectorAll('.voice-provider-tab').forEach(b => b.classList.toggle('active', b.dataset.provider === aiProvider));
 
   if (ttsProvider === 'gemini') {
     list.innerHTML = GEMINI_TTS_VOICES.map(v =>

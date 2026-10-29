@@ -11,6 +11,7 @@ const { Pool } = require('pg');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const crypto = require('crypto');
+const fs = require('fs');
 const { matchCharacterTemplate, TEMPLATES } = require('./characterTemplates');
 const webpush = require('web-push');
 const WebSocket = require('ws');
@@ -4323,6 +4324,11 @@ const EDGE_VOICE_MAP = {
 };
 const EDGE_DEFAULT_VOICE = 'en-US-AriaNeural';
 
+// Hardcoded character voice map — these chars have a real voice sample file
+const CHARACTER_VOICE_MAP = {
+  'custom_1790776698867': { name: 'Poppy', file: path.join(__dirname, 'public/assets/voices/poppy.wav'), edgeFallback: 'en-US-AvaNeural' },
+};
+
 // All 30 prebuilt Gemini 2.5 Flash TTS voices
 const GEMINI_TTS_VOICES = new Set([
   'Zephyr','Puck','Charon','Kore','Fenrir','Leda','Orus','Aoede','Callirrhoe','Autonoe',
@@ -4542,6 +4548,23 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   const clientEdgeVoice = req.body?.edgeVoice && typeof req.body.edgeVoice === 'string' ? req.body.edgeVoice : null;
   if (!text) return res.status(400).json({ error: 'no_text' });
 
+  // Character voice provider — uses the character's assigned Edge Neural voice
+  if (provider === 'character') {
+    const charEntry = CHARACTER_VOICE_MAP[charId];
+    const charEdgeVoice = charEntry?.edgeFallback || EDGE_VOICE_MAP[charId] || EDGE_DEFAULT_VOICE;
+    try {
+      const audio = await edgeSynthesize(text, charEdgeVoice);
+      if (!audio || !audio.length) throw new Error('empty');
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('X-TTS-Provider', 'character-edge');
+      return res.send(audio);
+    } catch (e) {
+      console.warn('[char-tts] failed:', e.message);
+      return res.status(503).json({ error: 'tts_failed' });
+    }
+  }
+
   // Gemini TTS path — try legacy generateContent API first, then new Interactions API
   if (provider === 'gemini') {
     const gKey = process.env.GEMINI_API_KEY;
@@ -4622,6 +4645,65 @@ app.post('/api/tts', requireAuth, async (req, res) => {
     }
     res.status(502).json({ error: 'tts_failed' });
   }
+});
+
+// Character voice preview — serves the original WAV sample
+app.get('/api/character-voice/:charId', requireAuth, async (req, res) => {
+  const entry = CHARACTER_VOICE_MAP[req.params.charId];
+  if (!entry) return res.status(404).end();
+  try {
+    await fs.promises.access(entry.file);
+    res.setHeader('Content-Type', 'audio/wav');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.sendFile(entry.file);
+  } catch { res.status(404).end(); }
+});
+
+// User voice recordings
+const USER_VOICES_DIR = path.join(__dirname, 'uploads/voices');
+fs.mkdirSync(USER_VOICES_DIR, { recursive: true });
+
+app.post('/api/user-voices', requireAuth, express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '12mb' }), async (req, res) => {
+  if (!req.body?.length) return res.status(400).json({ error: 'no_audio' });
+  const userId = req.user.googleId.replace(/[^a-z0-9]/gi, '_');
+  const dir = path.join(USER_VOICES_DIR, userId);
+  await fs.promises.mkdir(dir, { recursive: true });
+  const ts = Date.now();
+  const filename = `rec_${ts}.webm`;
+  await fs.promises.writeFile(path.join(dir, filename), req.body);
+  res.json({ id: ts, filename });
+});
+
+app.get('/api/user-voices', requireAuth, async (req, res) => {
+  const userId = req.user.googleId.replace(/[^a-z0-9]/gi, '_');
+  const dir = path.join(USER_VOICES_DIR, userId);
+  try {
+    const files = await fs.promises.readdir(dir);
+    const voices = files.filter(f => /^rec_\d+\.webm$/.test(f)).map(f => ({ filename: f, ts: parseInt(f.slice(4, -5)) || 0 })).sort((a, b) => b.ts - a.ts);
+    res.json(voices);
+  } catch { res.json([]); }
+});
+
+app.get('/api/user-voices/file/:filename', requireAuth, async (req, res) => {
+  const filename = req.params.filename.replace(/[^a-z0-9_.]/gi, '');
+  if (!/^rec_\d+\.webm$/.test(filename)) return res.status(400).end();
+  const userId = req.user.googleId.replace(/[^a-z0-9]/gi, '_');
+  const filePath = path.join(USER_VOICES_DIR, userId, filename);
+  try {
+    await fs.promises.access(filePath);
+    res.setHeader('Content-Type', 'audio/webm');
+    return res.sendFile(filePath);
+  } catch { res.status(404).end(); }
+});
+
+app.delete('/api/user-voices/:filename', requireAuth, async (req, res) => {
+  const filename = req.params.filename.replace(/[^a-z0-9_.]/gi, '');
+  if (!/^rec_\d+\.webm$/.test(filename)) return res.status(400).end();
+  const userId = req.user.googleId.replace(/[^a-z0-9]/gi, '_');
+  try {
+    await fs.promises.unlink(path.join(USER_VOICES_DIR, userId, filename));
+    res.json({ ok: true });
+  } catch { res.status(404).json({ error: 'not_found' }); }
 });
 
 app.post('/api/memo/use', requireAuth, (req, res) => {
