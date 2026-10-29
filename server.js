@@ -3153,6 +3153,8 @@ const convLastUsed = {};
 
 const groupConversations = {};
 const GROUP_CONV_TTL = 4 * 60 * 60 * 1000;
+// Tracks last call exchange timestamp per user for incremental duration billing
+const callDurationMap = {};
 
 // ── Phone contact unlock store ─────────────────────────────────────────────
 // Characters who have given the user their number. Saved in user_limits.data.phoneUnlocked (an array of charIds)
@@ -6689,12 +6691,25 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     return `\n\n[PROFANITY BUDGET: ${budgetStr}. Strong words that count: fuck/fucking/fucker, shit/shitty, bitch/bitching, bastard, dick/dickhead, cock, cunt, twat, whore, slut, piss/pissed, asshole. Mild words (damn, hell, crap, ass) don't count and are always allowed. ${usePrompt} NEVER use slurs of any kind — racial, ethnic, homophobic, transphobic, ableist — ever, under any circumstances, no matter how provoked.]`;
   })();
 
+  // Duration billing for call mode: charge incrementally for time between exchanges (capped at 30s)
+  if (callMode) {
+    const _now = Date.now();
+    if (!callChained) delete callDurationMap[userId]; // fresh call — no duration charge for first exchange
+    const _lastMs = callDurationMap[userId];
+    const _gapSec = _lastMs ? Math.min((_now - _lastMs) / 1000, 30) : 0;
+    callDurationMap[userId] = _now;
+    const _durationTokens = Math.round(_gapSec * 2);
+    if (_durationTokens > 0) addTokens(userId, _durationTokens);
+  }
+
   startReplyStream({
     res, apiKey,
     system: applyEffortDirective(IMAGE_CAPABILITY_PREFIX + characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + (callMode || bookReq ? '' : phoneDirective(userId, charId, conversations[key])) + chatModeDirective + chatBlockDirective + characterEnforcement + swearDirective + gameKnowledgeDirective(modelTier), effort, modelTier),
     messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId, callMode,
     onComplete: (text, meta) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
+      // Response-size billing for call mode: longer replies cost proportionally more
+      if (callMode) { const _st = Math.ceil(text.length / 4); if (_st > 0) addTokens(userId, _st); }
       // The character hung up on the user mid-call → they block them (escalating)
       let hangInfo = {};
       if (meta && meta.hungUp && callMode && !callChained) {
@@ -7199,8 +7214,9 @@ app.post('/api/groups/:id/autochat', requireAuth, async (req, res) => {
 
   send({ type: 'speaker_start', charId: char.id, charName: char.name, charColor: char.color || '#7c3aed', charImage: char.image || null });
 
-  // Auto-chat costs 2x normal — characters generating content proactively
-  addTokens(userId, messageCost('opas', 'medium') * 2);
+  // Auto-chat costs 2× group-chat base rate (proactive generation)
+  const autochatCost = messageCost('opas', 'low') * 2;
+  addTokens(userId, autochatCost);
 
   let charResponse = '';
   const ctx = { aborted: false };
@@ -7236,12 +7252,13 @@ app.post('/api/groups/:id/autochat', requireAuth, async (req, res) => {
     (err) => {
       clearInterval(pingTimer);
       console.error('[autochat] AI error for', char.name, ':', err && err.message);
+      refundTokens(userId, autochatCost);
       send({ type: 'speaker_end', charId: char.id });
       send({ done: true, usage: buildUsagePayload(getLimits(userId), userId) });
       try { res.end(); } catch (_) {}
     },
     undefined,
-    EFFORT_CONFIG.opas.medium,
+    EFFORT_CONFIG.opas.low,
     GROQ_FAST_MODELS,
     ctx
   );

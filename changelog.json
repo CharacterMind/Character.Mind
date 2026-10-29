@@ -1,5 +1,20 @@
 [
   {
+    "id": "v363-fair-billing",
+    "version": "v363",
+    "date": "Oct 2026",
+    "title": "⚖️ Fairer Billing",
+    "subtitle": "Calls now bill by duration and response length. Group chat and auto-chat costs corrected.",
+    "fixed": [
+      "Call mode was overcharging by ~37% — server now matches the low-effort cost the client displays (264 tokens base)",
+      "Group chat was charging up to 5× too much per character response — now correctly 264 tokens per character",
+      "Auto-chat was billing at medium effort instead of low, and missing an error refund — both fixed",
+      "Voice calls now bill incrementally for duration (~2 tokens/sec) and response length in addition to the base per-exchange cost",
+      "Terms of Service updated: token costs, call billing, group chat, and auto-chat descriptions now match the actual billing code",
+      "Privacy Policy updated: removed incorrect statement that Gemini API handles text-to-speech"
+    ]
+  },
+  {
     "id": "v362-voice-off",
     "version": "v362",
     "date": "Oct 2026",

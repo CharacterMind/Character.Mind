@@ -195,7 +195,7 @@
 <div class="hero">
   <div class="hero-badge">Legal Document</div>
   <h1 class="hero-title">Terms of Service</h1>
-  <p class="hero-meta">Effective <span>October 3, 2026</span> &nbsp;·&nbsp; Last updated <span>October 29, 2026</span></p>
+  <p class="hero-meta">Effective <span>October 3, 2026</span> &nbsp;·&nbsp; Last updated <span>October 29, 2026</span> (v363)</p>
 </div>
 
 <div class="layout">
@@ -350,35 +350,37 @@
 
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Plan</th><th>Session Tokens</th><th>Approx. Messages</th><th>Weekly Tokens</th></tr></thead>
+          <thead><tr><th>Plan</th><th>Session Tokens</th><th>Up to (Opas low effort)</th><th>Weekly Tokens</th></tr></thead>
           <tbody>
-            <tr><td>Free</td><td>150,000</td><td>~83 Opes or ~357 Opas messages</td><td>1,500,000</td></tr>
-            <tr><td>Advanced</td><td>450,000</td><td>~250 Opes messages</td><td>4,500,000</td></tr>
+            <tr><td>Free</td><td>150,000</td><td>~568 messages</td><td>1,500,000</td></tr>
+            <tr><td>Advanced</td><td>450,000</td><td>~1,704 messages</td><td>4,500,000</td></tr>
           </tbody>
         </table>
       </div>
 
-      <div class="callout">Each AI reply costs a fixed number of tokens set by the model and effort level you choose (see the table below), so message counts are predictable. Counts above are for Medium effort; Low effort stretches further, and higher effort levels cost more per reply.</div>
+      <div class="callout"><strong>Message counts are an upper bound, not a guarantee.</strong> Each reply costs tokens based on the model and effort level you choose — Low effort is cheapest (the numbers above), Medium effort uses ~60% more per reply, and higher efforts cost proportionally more. Voice calls also charge tokens for call duration and response length on top of the base per-exchange cost. You will always get at least as many messages as the token math allows at your chosen settings.</div>
 
       <p><strong>Model token costs:</strong> Different AI models cost different amounts per message. Choosing a more capable model produces richer output but uses your session budget faster.</p>
 
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Model</th><th>Tokens / message</th><th>Available on</th></tr></thead>
+          <thead><tr><th>Model</th><th>Low effort</th><th>Medium effort</th><th>Available on</th></tr></thead>
           <tbody>
-            <tr><td>Opas</td><td>~420</td><td>Free and above</td></tr>
-            <tr><td>Opes</td><td>~1,800</td><td>Free and above</td></tr>
-            <tr><td>Opis</td><td>~2,250</td><td>Advanced and above</td></tr>
-            <tr><td>Opos</td><td>~2,700</td><td>Advanced and above</td></tr>
+            <tr><td>Opas</td><td>264</td><td>420</td><td>Free and above</td></tr>
+            <tr><td>Opes</td><td>1,050</td><td>1,800</td><td>Free and above</td></tr>
+            <tr><td>Opis</td><td>1,313</td><td>2,250</td><td>Advanced and above</td></tr>
+            <tr><td>Opos</td><td>1,575</td><td>2,700</td><td>Advanced and above</td></tr>
           </tbody>
         </table>
       </div>
 
-      <p><strong>Group chat:</strong> In group conversations, each character that responds costs <strong>2× the standard token rate</strong> for that model. This reflects the extra context and coordination required to keep multiple characters in sync.</p>
+      <p><strong>Group chat:</strong> In group conversations, each character that responds costs <strong>264 tokens</strong> (Opas low-effort rate) — the same as a single Opas message at low effort. Higher responder counts multiply this per character per round.</p>
 
-      <p><strong>Auto-Chat:</strong> When Auto-Chat is running, characters continue the conversation without user input. Each Auto-Chat round consumes tokens at the same 2× group rate. You can pause or stop Auto-Chat at any time. Tokens used during Auto-Chat count toward your session and weekly limits exactly the same as regular messages.</p>
+      <p><strong>Auto-Chat:</strong> When Auto-Chat is running, characters continue the conversation without user input. Each Auto-Chat message costs <strong>528 tokens</strong> (2× the group chat base rate), because the AI is generating content proactively with no user prompt to constrain it. You can pause or stop Auto-Chat at any time.</p>
 
-      <p><strong>Feature limits:</strong> Voice call time resets once a day at 00:00 UTC. Memos and regenerations reset every 8 hours (00:00, 08:00 and 16:00 UTC). Image uploads reset 24 hours after your first upload. Each reply a character speaks during a call counts toward your session and weekly limits like an Opas message; there is no extra charge for the call itself.</p>
+      <p><strong>Voice call billing:</strong> Calls are billed per exchange (each time you speak and the character replies). Each exchange costs: the base model+effort rate (Opas low by default) <strong>plus</strong> tokens proportional to the length of the character's reply <strong>plus</strong> a small charge for call duration (~2 tokens per second of active call, capped at 30 seconds per exchange). A short exchange costs ~276 tokens; a longer one with more dialogue costs more. Voice call time resets once a day at 00:00 UTC.</p>
+
+      <p><strong>Other feature limits:</strong> Memos and regenerations reset every 8 hours (00:00, 08:00 and 16:00 UTC). Image uploads reset 24 hours after your first upload.</p>
 
       <div class="table-wrap">
         <table>
@@ -400,8 +402,8 @@
       <h2>AI Models Explained</h2>
       <p>Character.Mind uses a ladder of AI model tiers, each with different writing styles, reply lengths, and token costs. You choose your model from the model bar in the app; some models require a paid plan.</p>
       <ul>
-        <li><strong>Opas</strong> — The quick responder. Short, punchy replies with fast pacing and snappy dialogue. Great for rapid back-and-forth conversations. Costs ~420 tokens per message. Available on all plans.</li>
-        <li><strong>Opes</strong> — The storyteller. A step up from Opas: richer, more natural dialogue with replies around 60% longer. Better suited to everyday chatting and more descriptive scenes. Costs ~1,800 tokens per message. Available on all plans.</li>
+        <li><strong>Opas</strong> — The quick responder. Short, punchy replies with fast pacing and snappy dialogue. Great for rapid back-and-forth conversations. Costs 264–1,440 tokens per message depending on effort level (low to max). Available on all plans.</li>
+        <li><strong>Opes</strong> — The storyteller. A step up from Opas: richer, more natural dialogue with replies around 60% longer. Better suited to everyday chatting and more descriptive scenes. Costs 1,050–6,000 tokens per message depending on effort level. Available on all plans.</li>
         <li><strong>Opis</strong> — Sharper reasoning and deeper logic. Built for mystery, intrigue, and complex storylines that need to stay consistent over long conversations. Available on Advanced and above.</li>
         <li><strong>Opos</strong> — Full Game Master mode. Drives plots, voices multiple NPCs simultaneously, and runs entire scenes. Designed for collaborative tabletop-style roleplay. Available on Advanced and above.</li>
       </ul>
