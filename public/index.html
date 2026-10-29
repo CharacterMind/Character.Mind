@@ -1964,6 +1964,9 @@
           <div class="co-express-label">Pay with PayPal</div>
           <div id="paypal-button-container" class="co-express-btns"></div>
         </div>
+        <div style="margin-top:10px;text-align:center;font-size:12px;color:var(--text3)">
+          Don't have PayPal? Use the <button class="co-inline-link" onclick="switchPayTab('card')">Credit Card tab</button> to pay directly with your card.
+        </div>
       </div>
 
       <!-- Card panel — PayPal Hosted Fields -->
@@ -1986,8 +1989,13 @@
           <div id="co-card-error" class="stripe-error-msg" style="display:none"></div>
           <button id="co-card-submit-btn" class="co-card-submit-btn" onclick="submitStripeCardPayment()">Subscribe with Card</button>
         </div>
+        <!-- PayPal card button (shown when Stripe is unavailable) -->
+        <div id="co-card-paypal-fallback" style="display:none">
+          <p style="font-size:12px;color:var(--text3);text-align:center;margin:0 0 10px">Pay securely with your debit or credit card via PayPal — no PayPal account required.</p>
+          <div id="co-card-paypal-btn-container"></div>
+        </div>
         <div id="co-card-unavail" style="display:none;font-size:13px;color:var(--text3);text-align:center;padding:10px 0">
-          Card payments aren't available yet on this account.<br>Please use the PayPal tab — PayPal accepts all major cards.
+          Card payments aren't available right now. Please use the PayPal tab.
         </div>
       </div>
       <div id="card-button-container" style="display:none"></div>
@@ -2066,6 +2074,7 @@
 
 /* Payment tabs */
 .co-pay-tabs { display: flex; gap: 8px; }
+.co-inline-link { background: none; border: none; color: var(--accent-l); text-decoration: underline; cursor: pointer; font-size: inherit; padding: 0; }
 .co-pay-tab {
   flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
   padding: 10px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;

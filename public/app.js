@@ -815,6 +815,8 @@ function closePaypalCheckout() {
   if (_stripeCardNumber) { try { _stripeCardNumber.unmount(); } catch (_) {} _stripeCardNumber = null; }
   if (_stripeCardExpiry) { try { _stripeCardExpiry.unmount(); } catch (_) {} _stripeCardExpiry = null; }
   if (_stripeCardCvc)    { try { _stripeCardCvc.unmount();    } catch (_) {} _stripeCardCvc    = null; }
+  const fallback = document.getElementById('co-card-paypal-fallback');
+  if (fallback) { fallback.style.display = 'none'; const bc = document.getElementById('co-card-paypal-btn-container'); if (bc) bc.innerHTML = ''; }
   const payTabs    = document.getElementById('co-pay-tabs');
   const payPanelPaypal = document.getElementById('payment-panel-paypal');
   const payPanelCard   = document.getElementById('payment-panel-card');
@@ -936,8 +938,39 @@ async function initStripeCardForm(planKey) {
     if (errEl)     errEl.style.display = 'none';
   } catch (e) {
     if (form)    form.style.display = 'none';
-    if (unavail) { unavail.textContent = 'Card payment unavailable right now. Please use the PayPal tab.'; unavail.style.display = ''; }
     console.error('[Stripe init]', e);
+    // Stripe not available — render a PayPal CARD button in its place
+    const fallback = document.getElementById('co-card-paypal-fallback');
+    const unavail  = document.getElementById('co-card-unavail');
+    if (fallback && typeof paypal !== 'undefined') {
+      const planId = (currentCheckoutPeriod === 'annual' ? PAYPAL_PLAN_IDS_YEARLY : PAYPAL_PLAN_IDS)[planKey];
+      if (planId) {
+        const btnContainer = document.getElementById('co-card-paypal-btn-container');
+        if (btnContainer) btnContainer.innerHTML = '';
+        try {
+          paypal.Buttons({
+            fundingSource: paypal.FUNDING.CARD,
+            style: { layout: 'vertical', shape: 'rect', label: 'subscribe' },
+            createSubscription(data, actions) {
+              if (!currentUser) throw new Error('Session expired — please refresh and sign in again');
+              return actions.subscription.create({ plan_id: planId, custom_id: String(currentUser.googleId) });
+            },
+            onApprove(data) { return verifyAndActivateSubscription(data.subscriptionID, planKey); },
+            onError(err) {
+              const statusEl = document.getElementById('paypal-checkout-status');
+              if (statusEl) statusEl.textContent = 'Card payment failed. Please try again or use the PayPal tab.';
+              console.error('[PayPal card fallback]', err);
+            },
+          }).render('#co-card-paypal-btn-container');
+          if (fallback) fallback.style.display = '';
+          if (unavail)  unavail.style.display = 'none';
+          return;
+        } catch (ppErr) {
+          console.error('[PayPal card fallback render]', ppErr);
+        }
+      }
+    }
+    if (unavail) { unavail.textContent = 'Card payment unavailable right now. Please use the PayPal tab.'; unavail.style.display = ''; }
   }
 }
 
@@ -3245,7 +3278,14 @@ function colorizeNameHtml(name, c) {
     return `<span style="color:${col};font-weight:900;text-shadow:0 0 8px ${col}55,0 1px 2px rgba(0,0,0,0.6)">${escHtml(ch)}</span>`;
   }).join('');
 }
-function colorizeLetters() {}
+function colorizeLetters(bubble, charColor) {
+  if (!bubble || !charColor) return;
+  // Re-render the bubble's content so renderStoryText applies the character's activeTheme colors.
+  // Called after lite-observer upgrades old off-screen bubbles.
+  if (typeof bubble.dataset?.raw === 'string') {
+    bubble.innerHTML = renderMarkdown(bubble.dataset.raw);
+  }
+}
 
 // Re-randomize word colors in every visible bubble and all name occurrences — triggered by click in the chat.
 function randomizeChatColors() {
