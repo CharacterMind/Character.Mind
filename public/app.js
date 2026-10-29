@@ -9025,7 +9025,9 @@ async function callModeTTS_browser(text, gen) {
   const u = new SpeechSynthesisUtterance(clean);
   u.voice = selectedVoice || bestBrowserVoice();
   u.rate = 1.0;
-  u.pitch = 1.0;
+  // Group calls: each character gets their own pitch so you can tell who is talking
+  const speakerIdx = callCharacters.findIndex(c => c.id === (callContextChar || currentChar)?.id);
+  u.pitch = callCharacters.length > 1 && speakerIdx >= 0 ? [1.0, 1.3, 0.8, 1.15, 0.9][speakerIdx % 5] : 1.0;
   let fired = false;
   const done = () => { if (fired || gen !== callGen || !callModeActive) return; fired = true; afterCallTTSDone(); };
   u.onend = done;
@@ -9648,21 +9650,15 @@ function listenForSpeech() {
     if (text) {
       resetCallInactivityTimer();
       // If user directly addresses a character by name, route to them
+      let addressed = null;
       if (callModeActive && callCharacters.length > 1) {
         const lc = text.toLowerCase();
-        const addressed = callCharacters.find(c => {
-          const name = (c.name || '').toLowerCase();
-          return lc === name || lc.startsWith(name + ' ') || lc.startsWith(name + ',') ||
-                 lc.startsWith('hi ' + name) || lc.startsWith('hey ' + name) ||
-                 lc.startsWith('hello ' + name) || lc.startsWith('ok ' + name) ||
-                 lc.startsWith('okay ' + name);
-        });
-        if (addressed) callContextChar = addressed;
+        addressed = callCharacters.find(c => callNameMentioned(lc, c.name)) || null;
       }
       // Record user utterance to conversation log
       callConversation.push({ role: 'user', text });
       if (callConversation.length > 14) callConversation.shift();
-      sendCallMessage(text);
+      sendCallMessage(text, addressed);
     }
     else if (callModeActive && !callMuted) setTimeout(() => listenForSpeech(), 300);
   };
@@ -9726,12 +9722,36 @@ function listenForSpeech() {
   try { callRecognition.start(); } catch(_) { clearTimeout(startTimeout); setTimeout(() => listenForSpeech(), isAndroid ? 800 : 1000); }
 }
 
-function sendCallMessage(text) {
+function sendCallMessage(text, addressed) {
   if (!callModeActive || !text.trim()) return;
   setCallState('thinking');
   playSound('call-send');
   if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
+  if (callCharacters.length > 1) {
+    // Group call: the named character answers; otherwise whoever spoke last keeps talking
+    const lastSpoke = [...callConversation].reverse().find(e => e.role === 'char');
+    const responder = addressed || callCharacters.find(c => c.id === lastSpoke?.charId) || currentChar;
+    sendCallCharResponse(responder, text);
+    return;
+  }
   sendMessage(text);
+}
+
+// True when the character's full or first name appears as a whole word ("hey Poppy", "what do you think, Lily?")
+function callNameMentioned(lc, name) {
+  const full = String(name || '').toLowerCase().trim();
+  if (!full) return false;
+  const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const first = full.split(/\s+/)[0];
+  const words = first.length > 2 && first !== full ? [full, first] : [full];
+  return words.some(w => new RegExp('(^|[^\\p{L}\\p{N}])' + esc(w) + '($|[^\\p{L}\\p{N}])', 'u').test(lc));
+}
+
+// Recent call lines as "Name: text", so each character knows what everyone else said
+function callTranscriptText(skipLast) {
+  const userName = getDisplayName() || 'the user';
+  const lines = callConversation.slice(skipLast ? -9 : -8, skipLast ? -1 : undefined);
+  return lines.map(e => `${e.role === 'user' ? userName : e.charName}: "${e.text}"`).join('\n');
 }
 
 // Called after every TTS playback ends — decides whether to chain a secondary char
@@ -9757,20 +9777,22 @@ function afterCallTTSDone() {
   setTimeout(() => { if (callModeActive) listenForSpeech(); }, 150);
 }
 
-// Sends a chat request for a secondary call character and plays the TTS response.
-async function sendCallCharResponse(charObj) {
+// Group-call reply from one character. With userText it answers the user; without it, it reacts to
+// what was just said (or greets, if the call has no lines yet). Face, name and voice all follow charObj.
+async function sendCallCharResponse(charObj, userText) {
   if (!callModeActive) return;
   const gen = callGen;
   const userName = getDisplayName() || 'the user';
-  const recentConv = callConversation.slice(-6);
-  const contextLines = recentConv.map(e =>
-    e.role === 'user' ? `${userName}: "${e.text}"` : `${e.charName}: "${e.text}"`
-  ).join('\n');
+  const answering = typeof userText === 'string' && userText.trim();
+  const transcript = callTranscriptText(answering);
   const otherNames = callCharacters.filter(c => c.id !== charObj.id).map(c => c.name).join(', ');
-  const prompt = contextLines
-    ? `[Group voice call with ${userName}${otherNames ? ' and ' + otherNames : ''}.\nConversation so far:\n${contextLines}\n\nReact naturally to what was just said — 1-2 sentences, your own personality and emotion.]`
-    : `[You just joined a voice call with ${userName}. Say something to greet them — 1 sentence.]`;
+  const prompt = answering ? userText
+    : transcript
+    ? `[Group voice call with ${userName}${otherNames ? ' and ' + otherNames : ''}. React naturally to what was just said — 1-2 sentences, your own personality and emotion.]`
+    : `[You just joined a voice call with ${userName}${otherNames ? ' and ' + otherNames : ''}. Say hi — 1 sentence.]`;
 
+  callContextChar = charObj;
+  updateCallSpeaker(charObj);
   setCallState('thinking');
   try {
     const r = await fetch('/api/chat', {
@@ -9778,7 +9800,7 @@ async function sendCallCharResponse(charObj) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         charId: charObj.id, message: prompt, modelTier: 'opas', effort: 'low',
-        callMode: true, callChained: true,
+        callMode: true, callChained: !answering, callTranscript: transcript,
         otherChars: callCharacters.filter(c => c.id !== charObj.id).map(c => ({ id: c.id, name: c.name }))
       })
     });
@@ -9804,6 +9826,11 @@ async function sendCallCharResponse(charObj) {
     if (!fullText.trim()) { if (callModeActive && gen === callGen) afterCallTTSDone(); return; }
     callConversation.push({ role: 'char', text: fullText.trim(), charId: charObj.id, charName: charObj.name });
     if (callConversation.length > 14) callConversation.shift();
+    // After answering the user, sometimes another character chimes in
+    if (answering) callChainCount = Math.random() < 0.5 ? 1 : 0;
+    callContextChar = charObj; // keep this character's voice for the whole reply
+    if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
+    resetCallInactivityTimer();
     setCallState('responding');
     callModeTTS_server(fullText.trim());
   } catch(_) {
@@ -9939,6 +9966,14 @@ function addCharToCall(charObj) {
   if (callCharacters.find(c => c.id === charObj.id)) return;
   callCharacters.push(charObj);
   updateCallPartyRow();
+  // The new character says hi as soon as the line is free (not while someone is talking)
+  const overlay = document.getElementById('callOverlay');
+  if (callModeActive && !callAudio && overlay?.dataset.state === 'listening') {
+    if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
+    clearTimeout(callUserSilenceTimer); callUserSilenceTimer = null;
+    callChainCount = 0;
+    sendCallCharResponse(charObj);
+  }
 }
 
 function openImagePicker() {

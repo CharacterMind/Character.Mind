@@ -6205,8 +6205,12 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   const otherCharNames = Array.isArray(otherChars) && otherChars.length
     ? otherChars.map(c => c.name).filter(Boolean).join(', ')
     : null;
+  // Group calls send the last few lines spoken by everyone, so each character hears the others
+  const callTranscript = callMode && otherCharNames && typeof req.body.callTranscript === 'string'
+    ? req.body.callTranscript.replace(/[\[\]]/g, '').slice(-1500).trim()
+    : '';
   const callModeDirective = callMode
-    ? `\n\n[CALL MODE — You are on a live voice call${otherCharNames ? ` with ${otherCharNames} also on the call` : ''}. Keep your reply SHORT: 1-2 sentences, under 30 words. Speak naturally — no asterisks, no markdown, no action text in parentheses. Plain conversational words only. Express genuine emotion when it fits: surprise, frustration, excitement, curiosity — whatever your character would actually feel. ${callChained ? 'You are reacting to what another character just said, not addressing the user directly.' : ''}]`
+    ? `\n\n[CALL MODE — You are on a live voice call${otherCharNames ? ` with ${otherCharNames} also on the call` : ''}. Keep your reply SHORT: 1-2 sentences, under 30 words. Speak naturally — no asterisks, no markdown, no action text in parentheses. Plain conversational words only. Express genuine emotion when it fits: surprise, frustration, excitement, curiosity — whatever your character would actually feel. Speak only as yourself — never write lines for anyone else on the call. ${callTranscript ? `\nWhat was just said on the call (you heard all of it):\n${callTranscript}\n` : ''}${callChained ? 'You are reacting to what another character just said, not addressing the user directly.' : ''}]`
     : '';
 
   const chatModeDirective = !isRpMode
