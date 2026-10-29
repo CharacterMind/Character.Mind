@@ -3004,6 +3004,33 @@ function charAvailability(charId) {
   return { busy, nextFreeMs: msUntilNext };
 }
 
+function checkIdleCall(charId) {
+  if (callModeActive) return;
+  if (!_phoneContacts || !_phoneContacts.some(c => c.id === charId)) return;
+  let lastChat = 0;
+  try { lastChat = parseInt(localStorage.getItem('cm_last_chat_' + charId) || '0', 10) || 0; } catch (_) {}
+  if (!lastChat) return; // never chatted — don't cold-call
+  const idleMs = Date.now() - lastChat;
+  // Per-char idle threshold: 3–14 days, seeded from charId hash
+  let h = 5381;
+  for (let i = 0; i < charId.length; i++) h = ((h << 5) + h + charId.charCodeAt(i)) | 0;
+  h = Math.abs(h);
+  const minDays = 3, maxDays = 14;
+  const thresholdDays = minDays + (h % (maxDays - minDays + 1));
+  const thresholdMs = thresholdDays * 24 * 60 * 60 * 1000;
+  if (idleMs < thresholdMs) return;
+  // Only trigger once per threshold window (store that we fired this cycle)
+  const fireKey = 'cm_idle_fired_' + charId;
+  try {
+    const lastFired = parseInt(localStorage.getItem(fireKey) || '0', 10) || 0;
+    if (Date.now() - lastFired < thresholdMs) return;
+    localStorage.setItem(fireKey, String(Date.now()));
+  } catch (_) {}
+  const char = (characters || []).find(c => c.id === charId);
+  if (!char) return;
+  setTimeout(() => { if (!callModeActive) showIncomingCall(char); }, 1500);
+}
+
 // ── Calling from Phone ───────────────────────────────────────────────────────
 
 async function callCharFromPhone(charId, e) {
@@ -4932,6 +4959,7 @@ async function openChat(charId) {
   document.getElementById('messageInput').focus();
   scrollToBottom();
   restoreActiveGame(currentChar.id);
+  checkIdleCall(charId);
 }
 
 function showLockedBar() {
@@ -5394,7 +5422,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
     let msgEl = null, bubble = null, gotFirst = false;
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, streamCharCount = 0, streamBlocked = false, streamPhoneUnlocked = null, streamJustBlocked = false, streamBlockedUntil = 0;
+    let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, streamCharCount = 0, streamBlocked = false, streamPhoneUnlocked = null, streamJustBlocked = false, streamBlockedUntil = 0, streamCallMe = false;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -5429,7 +5457,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
           }
           break;
         }
-        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; if (data.swearBudgetHit) showSwearLimitModal(); if (data.hangup && callModeActive) callHangupChar = currentChar; if (data.textBlocked && !callModeActive) { streamJustBlocked = true; streamBlockedUntil = data.blockedUntil || 0; } if (data.phoneUnlocked) streamPhoneUnlocked = data.phoneUnlocked; }
+        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; if (data.swearBudgetHit) showSwearLimitModal(); if (data.hangup && callModeActive) callHangupChar = currentChar; if (data.textBlocked && !callModeActive) { streamJustBlocked = true; streamBlockedUntil = data.blockedUntil || 0; } if (data.phoneUnlocked) streamPhoneUnlocked = data.phoneUnlocked; if (data.callMe && !callModeActive) streamCallMe = true; }
         if (data.charBlocked) { showTyping(false); streamBlocked = true; }
         if (data.text) {
           if (!gotFirst) {
@@ -5485,6 +5513,8 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
       }
       if (streamBlocked) markLastMessageNotDelivered();
       if (streamJustBlocked) showCharBlockedNote(streamBlockedUntil);
+      if (currentChar) { try { localStorage.setItem('cm_last_chat_' + currentChar.id, String(Date.now())); } catch (_) {} }
+      if (streamCallMe && currentChar) { const _sc = currentChar; setTimeout(() => { if (!callModeActive) showIncomingCall(_sc); }, 2500); }
       saveHistoryLocal();
     });
   } catch (err) {

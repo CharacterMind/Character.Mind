@@ -1620,6 +1620,7 @@ function getLimits(sid) {
 const CHAR_BLOCK_STEPS_MS = [1, 4, 24, 72, 168].map(h => h * 60 * 60 * 1000);
 const HANGUP_TAG_RE = /\[\s*HANG\s*-?\s*UP\s*\]/i;
 const BLOCK_TAG_RE_CHAT = /\[\s*BLOCK\s*\]/i;
+const CALL_ME_TAG_RE = /\[\s*CALL[\s_-]*ME\s*\]/i;
 function charBlockUntil(userId, charId) {
   const b = getLimits(userId).charBlocks?.[charId];
   return b && b.until > Date.now() ? b.until : 0;
@@ -3191,7 +3192,7 @@ function addFriendship(userId, charId) {
 function phoneDirective(userId, charId, history) {
   const phone = userCharPhone(userId, charId);
   if (isPhoneUnlocked(userId, charId)) {
-    return `\n\n[PHONE — In Character.Mind you have your own phone. The user already has your number, ${phone}. If they ask again, you can repeat it exactly.]`;
+    return `\n\n[PHONE — In Character.Mind you have your own phone. The user already has your number, ${phone}. If they ask again, you can repeat it exactly. CALL RULE: If the user asks you to call them (e.g. "call me", "give me a call", "can you call me?"), respond naturally in character agreeing to call, then end your reply with the exact tag [CALL_ME]. Never use that tag at any other time.]`;
   }
   if (friendshipScore(userId, charId, history) >= PHONE_FRIENDSHIP_AT) {
     return `\n\n[PHONE — In Character.Mind you have your own phone, and you've grown close to this user. Your number is ${phone}. If they ask for it, or once when it feels natural, give it to them in your own voice, writing it exactly as ${phone}, and end that reply with the tag [GIVE_NUMBER]. Never use that tag at any other time.]`;
@@ -3618,6 +3619,9 @@ function startReplyStream(o) {
       // In text chat the character can end with [BLOCK] to trigger a block (extreme cases only)
       const textBlocked = !isCallMode && BLOCK_TAG_RE_CHAT.test(fullResponse);
       if (textBlocked) fullResponse = fullResponse.replace(new RegExp(BLOCK_TAG_RE_CHAT.source, 'gi'), '').trim();
+      // In text chat the character can end with [CALL_ME] to initiate an incoming call
+      const callMe = !isCallMode && CALL_ME_TAG_RE.test(fullResponse);
+      if (callMe) fullResponse = fullResponse.replace(new RegExp(CALL_ME_TAG_RE.source, 'gi'), '').trim();
       if (!released) {
         if (isBareRefusal(fullResponse)) fullResponse = buildRefusalExplanation();
         released = true;
@@ -3625,12 +3629,13 @@ function startReplyStream(o) {
         held = '';
       }
       let extra = {};
-      try { extra = onComplete(fullResponse, { hungUp, gaveNumber, textBlocked }) || {}; } catch (oc) { console.error(logLabel + ' onComplete error:', oc && oc.message); } // Bug 6 fix: don't let onComplete throw suppress done event
+      try { extra = onComplete(fullResponse, { hungUp, gaveNumber, textBlocked, callMe }) || {}; } catch (oc) { console.error(logLabel + ' onComplete error:', oc && oc.message); } // Bug 6 fix: don't let onComplete throw suppress done event
       const usage = Object.assign({}, buildUsagePayload(getLimits(userId), userId));
       const doneExtra = extra.swearBudgetHit ? { swearBudgetHit: true } : {};
       if (extra.hangup) { doneExtra.hangup = true; doneExtra.blockedUntil = extra.blockedUntil; }
       if (extra.textBlocked) { doneExtra.textBlocked = true; doneExtra.blockedUntil = extra.blockedUntil; }
       if (extra.phoneUnlocked) doneExtra.phoneUnlocked = extra.phoneUnlocked;
+      if (extra.callMe) doneExtra.callMe = true;
       send({ done: true, usage, responseTokens: cost, warnings: reservation.warnings, sig: signReply(userId, charId, fullResponse), ...doneExtra });
       close();
     } catch (e) {
@@ -6665,6 +6670,10 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         const b = addCharBlock(userId, charId);
         hangInfo.textBlocked = true;
         hangInfo.blockedUntil = b.until;
+      }
+      // The character agreed to call the user → emit callMe flag so the client triggers an incoming call
+      if (meta && meta.callMe && !callMode && isPhoneUnlocked(userId, charId)) {
+        hangInfo.callMe = true;
       }
       // The character shared their number (tag, or wrote the exact number) and they're close enough → it goes in Phone contacts
       if (!callMode && !isPhoneUnlocked(userId, charId)) {
