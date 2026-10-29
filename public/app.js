@@ -8229,12 +8229,30 @@ function applyVoice(utterance) {
 function openVoicePanel() {
   const overlay = document.getElementById('voicePanelOverlay');
   if (!overlay) return;
-  const nameEl = document.getElementById('voicePanelCharName');
-  if (nameEl) nameEl.textContent = currentChar?.name || 'this character';
+  const initialTab = (ttsProvider === 'gemini' || ttsProvider === 'edge') ? ttsProvider : 'character';
+  _switchVoiceTabUI(initialTab);
   renderCharVoiceSection();
-  renderVoiceList();
   renderUserVoiceList();
   overlay.style.display = 'flex';
+}
+
+function _switchVoiceTabUI(tab) {
+  document.querySelectorAll('.voice-provider-tab[data-tab]').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === tab));
+  const charPane = document.getElementById('voiceSection_char');
+  const userPane = document.getElementById('voiceSection_user');
+  const aiPane  = document.getElementById('voiceSection_ai');
+  if (charPane) charPane.style.display = tab === 'character' ? '' : 'none';
+  if (userPane) userPane.style.display = tab === 'user' ? '' : 'none';
+  if (aiPane)  aiPane.style.display = (tab === 'gemini' || tab === 'edge') ? '' : 'none';
+  if (tab === 'gemini' || tab === 'edge') renderVoiceList();
+}
+
+function switchVoiceTab(tab) {
+  _switchVoiceTabUI(tab);
+  if (tab === 'character') setTTSProvider('character', null);
+  else if (tab === 'gemini' || tab === 'edge') setTTSProvider(tab, null);
+  // 'user' tab — don't change ttsProvider; user picks a specific voice to activate
 }
 
 function closeVoicePanel() {
@@ -8245,19 +8263,18 @@ function closeVoicePanel() {
 // ── Character voice section ───────────────────────────────────────────────────
 
 function renderCharVoiceSection() {
-  const section = document.getElementById('voiceSection_char');
   const card = document.getElementById('charVoiceCard');
-  if (!section || !card || !currentChar) { if (section) section.style.display = 'none'; return; }
+  if (!card) return;
+  if (!currentChar) { card.innerHTML = '<div class="voice-empty">Open a character to see their voice.</div>'; return; }
   fetch(`/api/character-voice/${encodeURIComponent(currentChar.id)}`, { method: 'HEAD' })
     .then(r => {
       if (r.ok) {
-        section.style.display = '';
-        // Auto-default to this character's authentic voice if the user hasn't overridden it
+        // Auto-default to char voice on first visit for this character
         const perCharKey = getTTSProviderKey();
         if (perCharKey && !localStorage.getItem(perCharKey) && ttsProvider !== 'character') {
           ttsProvider = 'character';
           try { localStorage.setItem(perCharKey, 'character'); } catch (_) {}
-          document.querySelectorAll('.voice-provider-tab').forEach(b => b.classList.remove('active'));
+          _switchVoiceTabUI('character');
         }
         const isActive = ttsProvider === 'character';
         card.innerHTML = `<button class="char-voice-card-btn${isActive ? ' active' : ''}" onclick="setTTSProvider('character',this)">
@@ -8271,10 +8288,13 @@ function renderCharVoiceSection() {
           </div>
         </button>`;
       } else {
-        section.style.display = 'none';
+        // No voice file — if on char tab, redirect to gemini
+        const activeTab = document.querySelector('.voice-provider-tab[data-tab].active');
+        if (activeTab?.dataset.tab === 'character') _switchVoiceTabUI('gemini');
+        card.innerHTML = '<div class="voice-empty">No character voice available.</div>';
       }
     })
-    .catch(() => { section.style.display = 'none'; });
+    .catch(() => { card.innerHTML = '<div class="voice-empty">No character voice available.</div>'; });
 }
 
 let _charVoicePreviewAudio = null;
@@ -8440,7 +8460,6 @@ function setTTSProvider(p, btn) {
     if (getTTSProviderKey()) localStorage.setItem(getTTSProviderKey(), p);
     localStorage.setItem('cm_tts_prov_global', p);
   } catch(_) {}
-  document.querySelectorAll('.voice-provider-tab').forEach(b => b.classList.toggle('active', b.dataset.provider === (p === 'character' ? '' : p)));
   renderCharVoiceSection();
   renderVoiceList();
 }
@@ -8448,8 +8467,6 @@ function setTTSProvider(p, btn) {
 function renderVoiceList() {
   const list = document.getElementById('voiceList');
   if (!list) return;
-  const aiProvider = ttsProvider === 'character' ? '' : ttsProvider;
-  document.querySelectorAll('.voice-provider-tab').forEach(b => b.classList.toggle('active', b.dataset.provider === aiProvider));
 
   if (ttsProvider === 'gemini') {
     list.innerHTML = GEMINI_TTS_VOICES.map(v =>

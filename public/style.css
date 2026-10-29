@@ -1563,8 +1563,10 @@ html, body {
   line-height: 1.5; flex-shrink: 0;
 }
 
-/* Voice panel v2 — 3 sections */
+/* Voice panel v2 — tabbed */
 .voice-panel-v2 { display: flex; flex-direction: column; max-height: 88vh; overflow: hidden; }
+.voice-main-tabs { padding: 12px 14px 0; }
+.voice-tab-pane { flex: 1; overflow-y: auto; padding: 10px 14px 16px; min-height: 0; }
 .voice-section { border-top: 1px solid var(--border2); padding: 12px 14px 0; }
 .voice-section:first-of-type { border-top: none; }
 .voice-section-label { font-size: .68rem; font-weight: 700; letter-spacing: .08em; color: var(--text3); text-transform: uppercase; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
