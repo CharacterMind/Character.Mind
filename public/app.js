@@ -12687,9 +12687,6 @@ async function claimHalloweenGift() {
 })();
 
 
-// ── Group Chat ────────────────────────────────────────────────────────────────
-
-let currentGroupId = null;
 (function initFarm() {
   var _st = {
     initialized: false, lastCollect: 0, nextCollect: 0,
