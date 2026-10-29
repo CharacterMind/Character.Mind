@@ -8362,18 +8362,28 @@ async function renderUserVoiceList() {
   if (!list) return;
   list.innerHTML = '<div class="voice-empty" style="font-size:.75rem;padding:6px 0">Loading…</div>';
   try {
-    const r = await fetch('/api/user-voices');
-    const voices = r.ok ? await r.json() : [];
+    const [voiceRes, assignedRes] = await Promise.all([
+      fetch('/api/user-voices'),
+      fetch('/api/user-voices/assigned')
+    ]);
+    const voices = voiceRes.ok ? await voiceRes.json() : [];
+    const assigned = assignedRes.ok ? await assignedRes.json() : {};
+    const charId = currentChar?.id || '';
+    const activeFile = assigned[charId] || null;
     if (!voices.length) {
       list.innerHTML = '<div class="voice-empty" style="font-size:.75rem;padding:6px 0;color:var(--text3)">No recordings yet — hit Record to start.</div>';
       return;
     }
+    const charName = currentChar?.name || 'Character';
     list.innerHTML = voices.map(v => {
-      const d = new Date(v.ts); const label = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      return `<div class="user-voice-row">
+      const d = new Date(v.ts);
+      const label = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const isActive = v.filename === activeFile;
+      return `<div class="user-voice-row${isActive ? ' active-voice' : ''}">
         <span class="user-voice-label">${escHtml(label)}</span>
         <div class="user-voice-actions">
-          <button class="voice-preview-btn" onclick="playUserVoice('${escHtml(v.filename)}')" title="Play">▶</button>
+          <button class="voice-preview-btn" onclick="playUserVoice('${escHtml(v.filename)}')" title="Preview">▶</button>
+          <button class="user-voice-use-btn${isActive ? ' in-use' : ''}" onclick="setCharVoice('${escHtml(v.filename)}',${isActive},this)" title="${isActive ? 'Remove from character' : 'Use for '+escHtml(charName)}">${isActive ? '✓ In use' : 'Use for '+escHtml(charName)}</button>
           <button class="user-voice-del-btn" onclick="deleteUserVoice('${escHtml(v.filename)}',this)" title="Delete">×</button>
         </div>
       </div>`;
@@ -8381,6 +8391,27 @@ async function renderUserVoiceList() {
   } catch (_) {
     list.innerHTML = '';
   }
+}
+
+async function setCharVoice(filename, isCurrentlyActive, btn) {
+  const charId = currentChar?.id;
+  if (!charId) return;
+  if (btn) btn.disabled = true;
+  try {
+    await fetch('/api/user-voices/set-char', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: isCurrentlyActive ? null : filename, charId })
+    });
+    // If assigning, auto-switch to 'character' provider
+    if (!isCurrentlyActive) {
+      setTTSProvider('character', null);
+      renderCharVoiceSection();
+    } else {
+      setTTSProvider('gemini', null);
+    }
+    renderUserVoiceList();
+  } catch (_) { if (btn) btn.disabled = false; }
 }
 
 async function playUserVoice(filename) {
@@ -8408,7 +8439,7 @@ function setTTSProvider(p, btn) {
     if (getTTSProviderKey()) localStorage.setItem(getTTSProviderKey(), p);
     localStorage.setItem('cm_tts_prov_global', p);
   } catch(_) {}
-  document.querySelectorAll('.voice-provider-tab').forEach(b => b.classList.toggle('active', b.dataset.provider === (p === 'character' || p === 'browser' ? '' : p)));
+  document.querySelectorAll('.voice-provider-tab').forEach(b => b.classList.toggle('active', b.dataset.provider === (p === 'character' ? '' : p)));
   renderCharVoiceSection();
   renderVoiceList();
 }
@@ -8416,7 +8447,7 @@ function setTTSProvider(p, btn) {
 function renderVoiceList() {
   const list = document.getElementById('voiceList');
   if (!list) return;
-  const aiProvider = (ttsProvider === 'character' || ttsProvider === 'browser') ? '' : ttsProvider;
+  const aiProvider = ttsProvider === 'character' ? '' : ttsProvider;
   document.querySelectorAll('.voice-provider-tab').forEach(b => b.classList.toggle('active', b.dataset.provider === aiProvider));
 
   if (ttsProvider === 'gemini') {
@@ -8440,7 +8471,8 @@ function renderVoiceList() {
     return;
   }
 
-  // Browser voices
+  if (ttsProvider !== 'browser') { list.innerHTML = ''; return; }
+  // Browser / Device voices
   if (!window.speechSynthesis) { list.innerHTML = '<div class="voice-empty">Browser voices not supported.</div>'; return; }
   const voices = window.speechSynthesis.getVoices();
   if (!voices.length) {

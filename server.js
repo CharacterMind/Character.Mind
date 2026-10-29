@@ -4686,14 +4686,31 @@ app.post('/api/tts', requireAuth, async (req, res) => {
 
 // Character voice preview — serves the original WAV sample
 app.get('/api/character-voice/:charId', requireAuth, async (req, res) => {
-  const entry = CHARACTER_VOICE_MAP[req.params.charId];
-  if (!entry) return res.status(404).end();
+  const charId = req.params.charId;
+  // Check official character voice map first
+  const entry = CHARACTER_VOICE_MAP[charId];
+  if (entry) {
+    try {
+      await fs.promises.access(entry.file);
+      res.setHeader('Content-Type', 'audio/wav');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      return res.sendFile(entry.file);
+    } catch { /* fall through to user-assigned */ }
+  }
+  // Check user-assigned voice for this character
+  const userId = req.user.googleId.replace(/[^a-z0-9]/gi, '_');
+  const assignedPath = path.join(USER_VOICES_DIR, userId, 'assigned.json');
   try {
-    await fs.promises.access(entry.file);
-    res.setHeader('Content-Type', 'audio/wav');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    return res.sendFile(entry.file);
-  } catch { res.status(404).end(); }
+    const assigned = JSON.parse(await fs.promises.readFile(assignedPath, 'utf8'));
+    const filename = assigned[charId];
+    if (filename) {
+      const filePath = path.join(USER_VOICES_DIR, userId, filename);
+      await fs.promises.access(filePath);
+      res.setHeader('Content-Type', 'audio/webm');
+      return res.sendFile(filePath);
+    }
+  } catch { /* no user-assigned voice */ }
+  res.status(404).end();
 });
 
 // User voice recordings
@@ -4739,8 +4756,45 @@ app.delete('/api/user-voices/:filename', requireAuth, async (req, res) => {
   const userId = req.user.googleId.replace(/[^a-z0-9]/gi, '_');
   try {
     await fs.promises.unlink(path.join(USER_VOICES_DIR, userId, filename));
+    // Remove from any char assignments too
+    const assignedPath = path.join(USER_VOICES_DIR, userId, 'assigned.json');
+    try {
+      const assigned = JSON.parse(await fs.promises.readFile(assignedPath, 'utf8'));
+      let changed = false;
+      for (const k of Object.keys(assigned)) { if (assigned[k] === filename) { delete assigned[k]; changed = true; } }
+      if (changed) await fs.promises.writeFile(assignedPath, JSON.stringify(assigned));
+    } catch { /* ok */ }
     res.json({ ok: true });
   } catch { res.status(404).json({ error: 'not_found' }); }
+});
+
+// Assign a user voice recording to a character
+app.post('/api/user-voices/set-char', requireAuth, express.json(), async (req, res) => {
+  const { filename, charId } = req.body || {};
+  if (!charId) return res.status(400).json({ error: 'missing_charId' });
+  const userId = req.user.googleId.replace(/[^a-z0-9]/gi, '_');
+  const dir = path.join(USER_VOICES_DIR, userId);
+  await fs.promises.mkdir(dir, { recursive: true });
+  const assignedPath = path.join(dir, 'assigned.json');
+  let assigned = {};
+  try { assigned = JSON.parse(await fs.promises.readFile(assignedPath, 'utf8')); } catch { /* ok */ }
+  if (!filename) { delete assigned[charId]; }
+  else {
+    const clean = filename.replace(/[^a-z0-9_.]/gi, '');
+    if (!/^rec_\d+\.webm$/.test(clean)) return res.status(400).json({ error: 'invalid_filename' });
+    assigned[charId] = clean;
+  }
+  await fs.promises.writeFile(assignedPath, JSON.stringify(assigned));
+  res.json({ ok: true });
+});
+
+// Get all char-voice assignments for the current user
+app.get('/api/user-voices/assigned', requireAuth, async (req, res) => {
+  const userId = req.user.googleId.replace(/[^a-z0-9]/gi, '_');
+  try {
+    const data = JSON.parse(await fs.promises.readFile(path.join(USER_VOICES_DIR, userId, 'assigned.json'), 'utf8'));
+    res.json(data);
+  } catch { res.json({}); }
 });
 
 app.post('/api/memo/use', requireAuth, (req, res) => {
