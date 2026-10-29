@@ -2593,7 +2593,7 @@ function renderHome() {
   const forYou   = characters.filter(c => recentIds.has(c.id))
                      .sort((a,b) => (recents[b.id]||0) - (recents[a.id]||0))
                      .slice(0, 10);
-  const featured = characters.filter(c => !recentIds.has(c.id)).slice(0, 10);
+  const featured = characters.filter(c => c.isOfficial || !recentIds.has(c.id)).slice(0, 10);
   // If user hasn't chatted with anyone yet, just show all as Featured
   const showForYou = forYou.length > 0;
   const featuredList = showForYou ? featured : characters.slice(0, 10);

@@ -5009,7 +5009,7 @@ body:not(.halloween) .hw-off-label { display: inline; }
   overflow: hidden;
   flex-shrink: 0;
 }
-.group-card-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.group-card-avatar img { width: 100%; height: 100%; object-fit: cover; object-position: top center; display: block; }
 .group-card-avatar-more { background: var(--surface3, #1a1729); color: var(--muted, #64748b); font-size: .65rem; }
 
 .group-card-info { flex: 1; min-width: 0; padding-left: 10px; }
