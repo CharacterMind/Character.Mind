@@ -964,34 +964,50 @@
             <strong>We can't hear you</strong>
             <p>If this problem persists, press here and toggle your microphone permissions off and back on.</p>
           </div>
-          <!-- Main content — Pixel-style layout -->
+          <!-- More tray — Android bottom-sheet style -->
+          <div class="call-more-tray" id="callMoreTray">
+            <div class="call-more-tray-head">
+              <span class="call-more-tray-title">More</span>
+              <button class="call-more-tray-close" onclick="hideCallMoreMenu()" aria-label="Close">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+              </button>
+            </div>
+            <button class="call-more-tray-item" onclick="hideCallMoreMenu(); showCallCharPicker()">
+              <span class="call-more-tray-ico"><svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg></span>
+              Add call
+            </button>
+          </div>
+          <!-- Main content — Android Phone style -->
           <div class="call-content">
-            <!-- Top: branding + character info -->
+            <!-- Top: status, then name, then phone -->
             <div class="call-top">
-              <div class="call-cm-brand">(character.mind)</div>
+              <div class="call-status" id="callStatus">Calling...</div>
               <div class="call-char-name" id="callCharName"></div>
               <div class="call-char-phone" id="callCharPhone"></div>
-              <div class="call-status" id="callStatus">Calling...</div>
               <div id="callVoiceOnBadge" class="call-voice-on-badge" style="display:none">Voice On</div>
             </div>
-            <!-- Middle: avatar -->
+            <!-- Middle: avatar with no-photo placeholder -->
             <div class="call-avatar-wrap">
-              <div class="call-char-img" id="callCharImg"></div>
+              <div class="call-char-img" id="callCharImg">
+                <div class="call-no-photo" id="callNoPhoto">
+                  <svg viewBox="0 0 60 60" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.8" width="72" height="72"><circle cx="30" cy="30" r="24"/><line x1="11" y1="11" x2="49" y2="49"/></svg>
+                </div>
+              </div>
             </div>
             <!-- Bottom: icon buttons + pill hang-up -->
             <div class="call-controls">
               <div class="call-icon-row">
-                <div class="call-btn-wrap" id="callMuteBtnWrap">
-                  <button class="call-icon-btn call-mute-btn" id="callMuteBtn" onclick="toggleCallMute()">
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M12 15c1.66 0 2.99-1.34 2.99-3L15 6c0-1.66-1.34-3-3-3S9 4.34 9 6v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 15 6.7 12H5c0 3.42 2.72 6.23 6 6.72V22h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
-                  </button>
-                  <span class="call-btn-label" id="callMuteLabel">Mute</span>
-                </div>
                 <div class="call-btn-wrap" id="callKeypadBtnWrap">
                   <button class="call-icon-btn" id="callKeypadBtn" onclick="openCallKeypad()" aria-label="Keypad">
                     <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><circle cx="6" cy="4.5" r="1.9"/><circle cx="12" cy="4.5" r="1.9"/><circle cx="18" cy="4.5" r="1.9"/><circle cx="6" cy="10.5" r="1.9"/><circle cx="12" cy="10.5" r="1.9"/><circle cx="18" cy="10.5" r="1.9"/><circle cx="6" cy="16.5" r="1.9"/><circle cx="12" cy="16.5" r="1.9"/><circle cx="18" cy="16.5" r="1.9"/><circle cx="12" cy="22" r="1.9"/></svg>
                   </button>
                   <span class="call-btn-label">Keypad</span>
+                </div>
+                <div class="call-btn-wrap" id="callMuteBtnWrap">
+                  <button class="call-icon-btn call-mute-btn" id="callMuteBtn" onclick="toggleCallMute()">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M12 15c1.66 0 2.99-1.34 2.99-3L15 6c0-1.66-1.34-3-3-3S9 4.34 9 6v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 15 6.7 12H5c0 3.42 2.72 6.23 6 6.72V22h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
+                  </button>
+                  <span class="call-btn-label" id="callMuteLabel">Mute</span>
                 </div>
                 <div class="call-btn-wrap" id="callSpeakerBtnWrap">
                   <button class="call-icon-btn call-speaker-btn" id="callSpeakerBtn" onclick="toggleCallSpeaker()">
@@ -999,14 +1015,7 @@
                   </button>
                   <span class="call-btn-label">Speaker</span>
                 </div>
-                <div class="call-btn-wrap call-more-wrap" id="callMoreBtnWrap">
-                  <!-- Pop-up menu that opens above the ⋮ button -->
-                  <div class="call-more-menu" id="callMoreMenu" style="display:none">
-                    <button class="call-more-item" onclick="hideCallMoreMenu(); showCallCharPicker()">
-                      <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                      Add call
-                    </button>
-                  </div>
+                <div class="call-btn-wrap" id="callMoreBtnWrap">
                   <button class="call-icon-btn" id="callMoreBtn" onclick="toggleCallMoreMenu(event)" aria-label="More options">
                     <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
                   </button>

@@ -1207,30 +1207,30 @@ html, body {
 @keyframes tts-pulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
 @keyframes tts-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-/* ── Call overlay — Pixel phone style ─────────────────────────────────────── */
+/* ── Call overlay — Android Phone style ──────────────────────────────────── */
 .call-overlay {
   position: fixed; inset: 0; z-index: 900;
   overflow: hidden;
-  background: #06060f;
+  background: #13141f;
 }
 .call-brand-logo { display: none; }
 .call-bg {
   position: absolute; inset: 0; z-index: 0;
   overflow: hidden;
-  background: #06060f;
+  background: #13141f;
 }
-/* ── Call screen orb animations ──────────────────────────────────────────── */
+/* ── Call screen orb animations (very subtle character color hints) ── */
 .call-orb {
   position: absolute; border-radius: 50%;
   width: 150%; padding-top: 150%;
-  filter: blur(55px); opacity: 0.95;
+  filter: blur(55px); opacity: 0.10;
   will-change: transform, opacity;
   pointer-events: none; mix-blend-mode: screen;
 }
 .call-orb-1 { background: var(--co1, #7c3aed); top: -50%; left: -50%; animation: callOrb1 5s ease-in-out infinite; }
 .call-orb-2 { background: var(--co2, #3a8ced); bottom: -50%; right: -50%; animation: callOrb2 4s ease-in-out infinite; }
 .call-orb-3 { background: var(--co3, #ed3a7c); top: 5%; left: 0%; width: 100%; padding-top: 100%; animation: callOrb3 7s ease-in-out infinite; }
-.call-orb-4 { background: var(--co1, #7c3aed); top: 20%; right: -40%; width: 110%; padding-top: 110%; filter: blur(80px); opacity: 0.6; animation: callOrb4 6s ease-in-out infinite 1.2s; }
+.call-orb-4 { background: var(--co1, #7c3aed); top: 20%; right: -40%; width: 110%; padding-top: 110%; filter: blur(80px); opacity: 0.06; animation: callOrb4 6s ease-in-out infinite 1.2s; }
 @keyframes callOrb1 {
   0%,100% { transform: translate(0,0) scale(1); opacity: 0.85; }
   20%  { transform: translate(75%,-55%) scale(1.4); opacity: 1; }
@@ -1275,16 +1275,16 @@ html, body {
   letter-spacing: .10em; text-transform: uppercase; margin-bottom: 2px;
 }
 .call-char-name {
-  font-size: 28px; font-weight: 700; color: #fff;
-  letter-spacing: -.01em; line-height: 1.15;
+  font-size: 36px; font-weight: 700; color: #fff;
+  letter-spacing: -.01em; line-height: 1.12;
 }
 .call-char-phone {
   font-size: 13px; color: rgba(255,255,255,.5); letter-spacing: .04em;
   min-height: 16px; margin-top: 2px;
 }
 .call-status {
-  font-size: 15px; font-weight: 400; color: rgba(255,255,255,.65);
-  letter-spacing: .01em; min-height: 22px;
+  font-size: 14px; font-weight: 400; color: rgba(255,255,255,.50);
+  letter-spacing: .02em; min-height: 20px;
 }
 .call-status.interruptable {
   color: #fff; font-weight: 600; cursor: pointer;
@@ -1310,13 +1310,21 @@ html, body {
 .call-avatar-wrap {
   flex: 1; display: flex; align-items: center; justify-content: center;
 }
-/* Big centered caller photo, like a real phone call; shrinks on short screens so the controls always fit */
+/* Big centered caller photo — Android octagonal shape */
 .call-char-img {
-  width: min(66vw, 38vh, 260px); height: min(66vw, 38vh, 260px); border-radius: 50%;
-  background-color: rgba(255,255,255,0.08);
+  width: min(66vw, 38vh, 240px); height: min(66vw, 38vh, 240px);
+  border-radius: 28%;
+  background-color: rgba(255,255,255,0.07);
   background-size: cover; background-position: center;
-  border: 3px solid rgba(255,255,255,0.22);
-  box-shadow: 0 12px 60px rgba(0,0,0,0.6);
+  border: none;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+/* No-photo placeholder (hidden when background-image is set via JS) */
+.call-no-photo {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%;
 }
 /* Soft pulse while it's ringing */
 .call-overlay[data-state="calling"] .call-char-img { animation: callRingPulse 1.6s ease-out infinite; }
@@ -6422,23 +6430,46 @@ body:not(.halloween) .hw-off-label { display: inline; }
 /* Shown in chat after a character blocks the user via [BLOCK] */
 .char-blocked-note { text-align: center; font-size: 12px; color: var(--text3, #8a8799); padding: 10px 16px; margin: 8px 0; letter-spacing: .02em; }
 
-/* ── Call: ⋮ menu (opens above the button) ── */
-.call-more-wrap { position: relative; }
-.call-more-menu {
-  position: absolute; bottom: calc(100% + 10px); right: -6px; z-index: 5;
-  min-width: 168px; padding: 6px;
-  background: rgba(30,30,38,.96); backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,.12); border-radius: 14px;
-  box-shadow: 0 12px 40px rgba(0,0,0,.55);
-  animation: callMenuIn .14s ease;
+/* ── Call: More tray (Android bottom-sheet style) ── */
+.call-more-tray {
+  position: absolute; left: 16px; right: 16px;
+  bottom: 188px; /* sits just above the controls row */
+  z-index: 15;
+  background: #1e2030;
+  border-radius: 16px;
+  padding: 18px 16px 20px;
+  box-shadow: 0 -4px 28px rgba(0,0,0,.45);
+  transform: translateY(calc(100% + 210px));
+  opacity: 0;
+  transition: transform 0.26s cubic-bezier(0.33,1,0.68,1), opacity 0.2s ease;
+  pointer-events: none;
 }
-@keyframes callMenuIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.call-more-item {
-  display: flex; align-items: center; gap: 10px; width: 100%;
-  padding: 11px 12px; border: none; border-radius: 10px; background: none;
-  color: #fff; font-size: 15px; font-weight: 500; text-align: left; cursor: pointer;
+.call-overlay.more-open .call-more-tray {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
 }
-.call-more-item:hover, .call-more-item:active { background: rgba(255,255,255,.1); }
+.call-more-tray-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.call-more-tray-title { font-size: 16px; font-weight: 600; color: rgba(255,255,255,.9); }
+.call-more-tray-close {
+  background: none; border: none; cursor: pointer;
+  color: rgba(255,255,255,.6); padding: 4px; display: flex;
+  border-radius: 50%; transition: background .15s;
+}
+.call-more-tray-close:hover { background: rgba(255,255,255,.1); color: #fff; }
+.call-more-tray-item {
+  width: 100%; background: rgba(255,255,255,.07);
+  border: none; border-radius: 12px; cursor: pointer;
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px;
+  font-size: 15px; font-weight: 500; color: rgba(255,255,255,.9);
+  text-align: left; transition: background .15s;
+}
+.call-more-tray-item:hover, .call-more-tray-item:active { background: rgba(255,255,255,.13); }
+.call-more-tray-ico { color: rgba(255,255,255,.65); display: flex; flex-shrink: 0; }
 
 /* ── Call: keypad (everything else hides while it's open) ── */
 .call-overlay.keypad-open .call-top,

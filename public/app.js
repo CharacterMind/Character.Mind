@@ -3071,7 +3071,10 @@ function showPhoneRingingThenVoicemail(char, prevChar) {
     const [co1, co2, co3] = (typeof getCharCallColors === 'function') ? getCharCallColors(char) : ['#7c3aed','#4f46e5','#a78bfa'];
     if (bgEl) { bgEl.style.setProperty('--co1', co1); bgEl.style.setProperty('--co2', co2); bgEl.style.setProperty('--co3', co3); }
     const imgEl = document.getElementById('callCharImg');
-    if (imgEl) imgEl.style.backgroundImage = (isCharImg && isCharImg(char.image)) ? `url('${char.image}')` : '';
+    const hasImg = isCharImg && isCharImg(char.image);
+    if (imgEl) imgEl.style.backgroundImage = hasImg ? `url('${char.image}')` : '';
+    const noPhoto0 = document.getElementById('callNoPhoto');
+    if (noPhoto0) noPhoto0.style.display = hasImg ? 'none' : '';
     overlay.style.display = 'flex';
   }
   startRingtone();
@@ -9458,7 +9461,10 @@ async function _doStartCall(overlay) {
     const bgEl = document.getElementById('callBg');
     if (bgEl) { bgEl.style.setProperty('--co1', co1); bgEl.style.setProperty('--co2', co2); bgEl.style.setProperty('--co3', co3); }
     const imgEl = document.getElementById('callCharImg');
-    if (imgEl) { imgEl.style.backgroundImage = isCharImg(currentChar.image) ? `url('${currentChar.image}')` : ''; }
+    const _hasImg = isCharImg(currentChar.image);
+    if (imgEl) imgEl.style.backgroundImage = _hasImg ? `url('${currentChar.image}')` : '';
+    const _noPhoto = document.getElementById('callNoPhoto');
+    if (_noPhoto) _noPhoto.style.display = _hasImg ? 'none' : '';
     const nameEl = document.getElementById('callCharName');
     if (nameEl) { nameEl.innerHTML = colorizeNameHtml(currentChar.name || '', currentChar.color); }
     const phoneEl = document.getElementById('callCharPhone');
@@ -9818,7 +9824,7 @@ function endCallMode() {
   callChainCount = 0;
   callHangupChar = null;
   callSpeakerActive = false;
-  if (callBoostGain) callBoostGain.gain.value = 1;
+  if (callBoostGain) callBoostGain.gain.value = CALL_BASE_GAIN;
   document.getElementById('callSpeakerBtn')?.classList.remove('active');
   document.getElementById('callMuteBtn')?.classList.remove('muted');
   const muteLabel = document.getElementById('callMuteLabel');
@@ -9833,6 +9839,8 @@ function endCallMode() {
   if (overlay) overlay.style.display = 'none';
   const imgEl = document.getElementById('callCharImg');
   if (imgEl) imgEl.style.backgroundImage = '';
+  const _noPhotoReset = document.getElementById('callNoPhoto');
+  if (_noPhotoReset) _noPhotoReset.style.display = '';
   clearTimeout(callVobTimer); callVobTimer = null;
   const vob = document.getElementById('callVoiceOnBadge');
   if (vob) { vob.style.display = 'none'; vob.style.top = ''; }
@@ -9865,8 +9873,9 @@ function setCallState(state) {
 }
 
 // Speaker: call audio runs through this gain, so Speaker can make the voice ~3× louder (about +10 dB).
-// A compressor after it stops the boosted voice from crackling.
-const CALL_SPEAKER_GAIN = 3;
+// Base gain makes all calls feel phone-loud; speaker mode adds more on top.
+const CALL_BASE_GAIN = 2;
+const CALL_SPEAKER_GAIN = 4.5;
 let callBoostGain = null;
 function callBoost(audio) {
   try {
@@ -9878,7 +9887,7 @@ function callBoost(audio) {
       comp.threshold.value = -6; comp.knee.value = 6; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.15;
       callBoostGain.connect(comp); comp.connect(ctx.destination);
     }
-    callBoostGain.gain.value = callSpeakerActive ? CALL_SPEAKER_GAIN : 1;
+    callBoostGain.gain.value = callSpeakerActive ? CALL_SPEAKER_GAIN : CALL_BASE_GAIN;
     ctx.createMediaElementSource(audio).connect(callBoostGain);
   } catch (_) {}
   return audio;
@@ -9890,22 +9899,21 @@ function toggleCallSpeaker() {
   if (btn) btn.classList.toggle('active', callSpeakerActive);
   try { getAudioCtx().resume(); } catch (_) {}
   // Changes the volume right away, even mid-sentence
-  if (callBoostGain) { try { callBoostGain.gain.setTargetAtTime(callSpeakerActive ? CALL_SPEAKER_GAIN : 1, getAudioCtx().currentTime, 0.03); } catch (_) {} }
+  if (callBoostGain) { try { callBoostGain.gain.setTargetAtTime(callSpeakerActive ? CALL_SPEAKER_GAIN : CALL_BASE_GAIN, getAudioCtx().currentTime, 0.03); } catch (_) {} }
 }
 
-// ⋮ menu above the More button
+// More tray (Android bottom-sheet slide-up)
 function toggleCallMoreMenu(e) {
   if (e) e.stopPropagation();
-  const menu = document.getElementById('callMoreMenu');
-  if (!menu) return;
-  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+  const overlay = document.getElementById('callOverlay');
+  if (overlay) overlay.classList.toggle('more-open');
 }
 function hideCallMoreMenu() {
-  const menu = document.getElementById('callMoreMenu');
-  if (menu) menu.style.display = 'none';
+  document.getElementById('callOverlay')?.classList.remove('more-open');
 }
 document.addEventListener('click', (e) => {
-  if (!e.target.closest || !e.target.closest('#callMoreBtnWrap')) hideCallMoreMenu();
+  if (!e.target.closest) return;
+  if (!e.target.closest('#callMoreBtnWrap') && !e.target.closest('#callMoreTray')) hideCallMoreMenu();
 });
 
 // Keypad: hides everything but the keys, the typed digits, Hide and hang up
@@ -9943,8 +9951,8 @@ function playDtmf(key) {
     const t = ctx.currentTime, dur = 0.16;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.12, t + 0.008);
-    g.gain.setValueAtTime(0.12, t + dur - 0.02);
+    g.gain.linearRampToValueAtTime(0.4, t + 0.008);
+    g.gain.setValueAtTime(0.4, t + dur - 0.02);
     g.gain.linearRampToValueAtTime(0, t + dur);
     g.connect(ctx.destination);
     f.forEach(freq => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = freq; o.connect(g); o.start(t); o.stop(t + dur + 0.01); });
@@ -10333,7 +10341,10 @@ function updateCallSpeaker(charObj) {
   const nameEl = document.getElementById('callCharName');
   if (nameEl) nameEl.innerHTML = colorizeNameHtml(charObj.name || '', charObj.color);
   const imgEl = document.getElementById('callCharImg');
-  if (imgEl) imgEl.style.backgroundImage = isCharImg(charObj.image) ? `url('${charObj.image}')` : '';
+  const _spkHasImg = isCharImg(charObj.image);
+  if (imgEl) imgEl.style.backgroundImage = _spkHasImg ? `url('${charObj.image}')` : '';
+  const _spkNoPhoto = document.getElementById('callNoPhoto');
+  if (_spkNoPhoto) _spkNoPhoto.style.display = _spkHasImg ? 'none' : '';
   const [co1, co2, co3] = getCharCallColors(charObj);
   const bgEl = document.getElementById('callBg');
   if (bgEl) {
