@@ -246,7 +246,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'advanced', name: 'Advanced Plus', monthly: 9.99, annual: 59.99, coinsPerMonth: 2000,
+    key: 'advanced', name: 'Advanced', monthly: 9.99, annual: 59.99, coinsPerMonth: 2000,
     callsPerDay: 270, memosPerDay: 150, imagesPerDay: 9,
     features: [
       'Opis — sharper logic: built for mystery and intrigue, never loses the thread',
@@ -266,7 +266,7 @@ const PLAN_DATA = [
       'Up to 200 regenerations every 8 hrs — 20× free',
       'Up to 12 hrs of calls per day · up to 60 image uploads per day',
       'Up to 1,000 memos every 8 hrs',
-      'Everything in Advanced Plus',
+      'Everything in Advanced',
     ],
   },
   {
@@ -317,7 +317,7 @@ const MONTHLY_COIN_GRANT = { free: 20, advanced: 30, x20: 600, x50: 1800, x100: 
 const PLAN_LABELS = { free: 'Free', advanced: 'Advanced', x20: 'X20', x50: 'X50', x100: 'X100', x200: 'X200' };
 const PLAN_SUBS = {
   free:     'Free plan',
-  advanced: 'Advanced Plus plan',
+  advanced: 'Advanced plan',
   x20:      'X20 plan',
   x50:      'X50 plan',
   x100:     'X100 plan',

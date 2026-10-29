@@ -92,10 +92,10 @@
     <p class="usage-headline" id="usageHeadline">Loading your usage...</p>
     <div class="usage-modal-rule"></div>
 
-    <!-- Call Credits (session usage expressed as call-equivalent %) -->
+    <!-- Session (session usage expressed as call-equivalent %) -->
     <div class="usage-section">
       <div class="usage-sec-label-row">
-        <span class="usage-sec-label">Call Credits</span>
+        <span class="usage-sec-label">Session</span>
         <span class="usage-sec-pct" id="usageSessionPct">0%</span>
       </div>
       <div class="usage-track-modal" style="margin-top:8px"><div class="usage-fill-modal green" id="usageSessionBar"></div></div>
@@ -1098,7 +1098,7 @@
             </button>
             <button class="md-item" id="optOpis" onclick="selectOrUpgrade('opis')">
               <div class="md-item-body">
-                <div class="md-item-name">Opis <span class="md-item-plan-tag">Adv. Plus</span></div>
+                <div class="md-item-name">Opis <span class="md-item-plan-tag">Advanced</span></div>
                 <div class="md-item-sub">Sharper logic — built for mystery, never loses the thread</div>
               </div>
               <span class="md-upgrade-btn" onclick="event.stopPropagation();openPricingModal()">Upgrade</span>
@@ -1106,13 +1106,13 @@
             </button>
             <button class="md-item" id="optOpos" onclick="selectOrUpgrade('opos')">
               <div class="md-item-body">
-                <div class="md-item-name">Opos <span class="md-item-plan-tag">Adv. Plus</span></div>
+                <div class="md-item-name">Opos <span class="md-item-plan-tag">Advanced</span></div>
                 <div class="md-item-sub">Plays GM — drives plot, voices every NPC</div>
               </div>
               <span class="md-upgrade-btn" onclick="event.stopPropagation();openPricingModal()">Upgrade</span>
               <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-            <button class="md-item" id="optOpus" onclick="selectOrUpgrade('opus')">
+            <button class="md-item" id="optOpus" onclick="selectOrUpgrade('opus')" hidden>
               <div class="md-item-body">
                 <div class="md-item-name">Opus <span class="md-item-plan-tag">X20+</span></div>
                 <div class="md-item-sub">Proper emotional weight — subtext, inner conflict, the whole thing</div>
@@ -1120,7 +1120,7 @@
               <span class="md-upgrade-btn" onclick="event.stopPropagation();openPricingModal()">Upgrade</span>
               <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-            <button class="md-item" id="optOpys" onclick="selectOrUpgrade('opys')">
+            <button class="md-item" id="optOpys" onclick="selectOrUpgrade('opys')" hidden>
               <div class="md-item-body">
                 <div class="md-item-name">Opys <span class="md-item-plan-tag">X50+</span></div>
                 <div class="md-item-sub">Plans the scene before it writes it — tension beats, pacing, full arcs</div>
@@ -1840,7 +1840,7 @@
         <div id="settingsTiersSection" class="settings-tiers-section"></div>
         <div class="settings-usage-section">
           <div class="settings-usage-row">
-            <span class="settings-usage-label">Call Credits</span>
+            <span class="settings-usage-label">Session</span>
             <span class="settings-usage-pct" id="settingsSessionPct">—</span>
           </div>
           <div class="settings-usage-bar-track"><div class="settings-usage-bar-fill" id="settingsSessionBar"></div></div>

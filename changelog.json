@@ -1,5 +1,18 @@
 [
   {
+    "id": "v364-polish",
+    "version": "v364",
+    "date": "Oct 2026",
+    "title": "🧹 Clean Slate",
+    "subtitle": "Renamed labels, fairer game billing, cleaner model picker.",
+    "changed": [
+      "Usage modal: 'Call Credits' renamed to 'Session' — the label now matches what it tracks",
+      "Plan name updated from 'Advanced Plus' to 'Advanced' across the entire app",
+      "Model picker now shows only Free and Advanced models — Opus and Opys tiers hidden",
+      "Games now cost a flat 264-token entry fee instead of max-effort cost (was up to 1,440+ tokens per game)"
+    ]
+  },
+  {
     "id": "v363-fair-billing",
     "version": "v363",
     "date": "Oct 2026",

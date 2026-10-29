@@ -7285,7 +7285,7 @@ async function sendResendEmail(to, subject, html, text) {
 
 async function sendReceiptEmail(userName, email, planKey, subscriptionId, period) {
   if (!email) return;
-  const planNames  = { advanced: 'Advanced Plus Plan', x20: 'X20 Plan', x50: 'X50 Plan', x100: 'X100 Plan', x200: 'X200 Plan' };
+  const planNames  = { advanced: 'Advanced Plan', x20: 'X20 Plan', x50: 'X50 Plan', x100: 'X100 Plan', x200: 'X200 Plan' };
   const planPrices = { advanced: '$9.99/month', x20: '$39.99/month', x50: '$79.99/month', x100: '$159.99/month', x200: '$399.99/month' };
   const planName  = planNames[planKey]  || planKey;
   const planPrice = period === 'annual' ? (({ advanced: '$59.99/year', x20: '$239.99/year', x50: '$479.99/year', x100: '$959.99/year', x200: '$2,399.99/year' })[planKey] || '') : (planPrices[planKey] || '');
@@ -7328,7 +7328,7 @@ async function sendPlanWelcomeEmail(userName, email, planKey, period) {
 
   const plans = {
     advanced: {
-      name: 'Advanced Plus',
+      name: 'Advanced',
       tagline: 'More time with the characters you love.',
       color: '#7c5cbf',
       perks: [
@@ -7441,7 +7441,7 @@ async function sendPlanWelcomeEmail(userName, email, planKey, period) {
 async function sendSubscriptionSuspendedEmail(userName, email, planKey) {
   if (!email) return;
   const firstName = (userName || 'there').split(' ')[0];
-  const planNames = { advanced: 'Advanced Plus', x20: 'X20', x50: 'X50', x100: 'X100', x200: 'X200' };
+  const planNames = { advanced: 'Advanced', x20: 'X20', x50: 'X50', x100: 'X100', x200: 'X200' };
   const planName = planNames[planKey] || planKey;
   const siteUrl = process.env.SITE_URL || 'https://charactermind.onrender.com';
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -7470,7 +7470,7 @@ async function sendSubscriptionSuspendedEmail(userName, email, planKey) {
 async function sendSubscriptionExpiredEmail(userName, email, planKey) {
   if (!email) return;
   const firstName = (userName || 'there').split(' ')[0];
-  const planNames = { advanced: 'Advanced Plus', x20: 'X20', x50: 'X50', x100: 'X100', x200: 'X200' };
+  const planNames = { advanced: 'Advanced', x20: 'X20', x50: 'X50', x100: 'X100', x200: 'X200' };
   const planName = planNames[planKey] || planKey;
   const siteUrl = process.env.SITE_URL || 'https://charactermind.onrender.com';
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -9123,10 +9123,8 @@ app.get('/api/game/hangman/word', requireAuthGame, (req, res) => {
   // Stamp cooldown before charging — if addTokens somehow throws, the cooldown prevents a free retry
   gameLastPlayed.set(userId, Date.now());
 
-  // Charge upfront game session fee (equivalent to one max-effort message)
-  const u = getLimits(userId);
-  const modelTier = resolveModelTier(userId, u.subscriptionTier === 'free' ? 'opas' : 'opes');
-  const fee = messageCost(modelTier, 'max');
+  // Charge upfront game session fee
+  const fee = messageCost('opas', 'low');
   addTokens(userId, fee);
 
   // Higher tiers get longer/harder words; free gets short easy words
@@ -9155,9 +9153,7 @@ app.get('/api/game/wordle/word', requireAuthGame, (req, res) => {
 
   gameLastPlayed.set(userId, Date.now());
 
-  const u = getLimits(userId);
-  const modelTier = resolveModelTier(userId, u.subscriptionTier === 'free' ? 'opas' : 'opes');
-  const fee = messageCost(modelTier, 'max');
+  const fee = messageCost('opas', 'low');
   addTokens(userId, fee);
 
   const word = WORDLE_WORDS[Math.floor(Math.random() * WORDLE_WORDS.length)];
@@ -9462,9 +9458,7 @@ app.post('/api/game/tictactoe/move', requireAuthGame, (req, res) => {
     // Stamp cooldown before charging — if addTokens somehow throws, the cooldown prevents a free retry
     gameLastPlayed.set(userId, Date.now());
 
-    const u = getLimits(userId);
-    const modelTier = resolveModelTier(userId, u.subscriptionTier === 'free' ? 'opas' : 'opes');
-    const fee = messageCost(modelTier, 'max');
+    const fee = messageCost('opas', 'low');
     addTokens(userId, fee);
   }
 
