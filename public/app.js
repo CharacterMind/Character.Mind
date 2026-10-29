@@ -9218,6 +9218,8 @@ async function _doStartCall(overlay) {
 
   // Show overlay immediately for instant visual response
   if (overlay) {
+    // Ensure overlay is at body level so it shows from any view (phone, home, etc.)
+    if (overlay.parentElement !== document.body) document.body.appendChild(overlay);
     const [co1, co2, co3] = getCharCallColors(currentChar);
     const bgEl = document.getElementById('callBg');
     if (bgEl) { bgEl.style.setProperty('--co1', co1); bgEl.style.setProperty('--co2', co2); bgEl.style.setProperty('--co3', co3); }
