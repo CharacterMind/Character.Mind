@@ -225,6 +225,7 @@ function setModelTier(tier) {
 
 function selectOrUpgrade(tier) {
   if (modelAllowedForPlan(tier)) { setModelTier(tier); return; }
+  closeAllPickers();
   openPricingModal();
 }
 
