@@ -5136,6 +5136,7 @@ function updateRpModeUI() {
   if (toggle) toggle.classList.toggle('rp-active', rpMode);
   const desc = document.getElementById('rpModeDesc');
   if (desc) desc.textContent = rpMode ? 'Playtime Co. roleplay' : 'Everyday chat';
+  document.getElementById('chatBody')?.classList.toggle('chat-mode', !rpMode);
 }
 
 function initRpMode() {
