@@ -5070,12 +5070,12 @@ function updateRpModeUI() {
   if (btn) {
     btn.style.display = show ? '' : 'none';
     btn.textContent = rpMode ? 'RP' : 'Chat';
-    btn.title = rpMode ? 'Switch to normal chat mode' : 'Switch to RP mode';
+    btn.title = rpMode ? 'Switch to everyday chat mode' : 'Switch to Playtime Co. roleplay';
   }
   const toggle = document.getElementById('rpToggle');
   if (toggle) toggle.classList.toggle('rp-active', rpMode);
   const desc = document.getElementById('rpModeDesc');
-  if (desc) desc.textContent = rpMode ? 'Immersive roleplay' : 'Regular chat';
+  if (desc) desc.textContent = rpMode ? 'Playtime Co. roleplay' : 'Everyday chat';
 }
 
 function initRpMode() {
