@@ -404,6 +404,11 @@ if (db) {
     .then(() => db.query('CREATE UNIQUE INDEX IF NOT EXISTS users_paypal_sub_uniq ON users (paypal_subscription_id) WHERE paypal_subscription_id IS NOT NULL'))
     .catch(err => console.error('Add paypal_subscription_id column/index error:', err));
 
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_start_date TIMESTAMPTZ`)
+    .catch(err => console.error('Add subscription_start_date column error:', err));
+  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_period TEXT`)
+    .catch(err => console.error('Add subscription_period column error:', err));
+
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS cm_coins INTEGER NOT NULL DEFAULT 0`)
     .catch(err => console.error('Add cm_coins column error:', err));
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS cm_tokens INTEGER NOT NULL DEFAULT 0`)
@@ -6811,11 +6816,14 @@ async function sendReceiptEmail(userName, email, planKey, subscriptionId, period
   if (ok) console.log('[email] Receipt sent to', email);
 }
 
-async function sendPlanWelcomeEmail(userName, email, planKey) {
+async function sendPlanWelcomeEmail(userName, email, planKey, period) {
   if (!email) return;
   const firstName = (userName || 'there').split(' ')[0];
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const siteUrl = process.env.SITE_URL || 'https://charactermind.onrender.com';
+  const renewalDays = period === 'annual' ? 365 : 30;
+  const renewalDate = new Date(Date.now() + renewalDays * 24 * 60 * 60 * 1000)
+    .toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
   const plans = {
     advanced: {
@@ -6912,6 +6920,9 @@ async function sendPlanWelcomeEmail(userName, email, planKey) {
           </tr>
         </table>
 
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;border:1px solid #1e1e1e;border-radius:8px;padding:14px 16px;margin:0 0 20px">
+          <tr><td style="font-size:13px;color:#aaaaaa">Your subscription renews on</td><td align="right" style="font-size:13px;font-weight:600;color:#f0f0f0">${esc(renewalDate)}</td></tr>
+        </table>
         <p style="margin:0 0 8px;font-size:13px;color:#555555;line-height:1.6">Your limits are active right now — no restart needed. Cancel anytime through PayPal or by contacting us at <a href="mailto:support.charactermind@gmail.com" style="color:${plan.color};text-decoration:none">support.charactermind@gmail.com</a>.</p>
         <p style="margin:20px 0 0;font-size:12px;color:#3a3a3a">This is an automated message. Please do not reply directly to this email.</p>
       </td></tr>
@@ -6920,10 +6931,73 @@ async function sendPlanWelcomeEmail(userName, email, planKey) {
 </table></body></html>`;
 
   const perksText = plan.perks.map(p => `  • ${p.label} — ${p.sub}`).join('\n');
-  const text = `Welcome to ${plan.name}, ${firstName}.\n\n${plan.tagline}\n\nWhat's unlocked:\n${perksText}\n\nYour limits are active right now. Start chatting: ${siteUrl}\n\nCancel anytime via PayPal or email support.charactermind@gmail.com.\n\n— Character.Mind\n\n(This is an automated message. Please do not reply directly to this email.)`;
+  const text = `Welcome to ${plan.name}, ${firstName}.\n\n${plan.tagline}\n\nWhat's unlocked:\n${perksText}\n\nYour subscription renews on: ${renewalDate}\n\nYour limits are active right now. Start chatting: ${siteUrl}\n\nCancel anytime via PayPal or email support.charactermind@gmail.com.\n\n— Character.Mind\n\n(This is an automated message. Please do not reply directly to this email.)`;
 
   const ok = await sendResendEmail(email, `Welcome to ${plan.name} — here's what you unlocked`, html, text);
   if (ok) console.log('[email] Plan welcome sent to', email);
+}
+
+async function sendSubscriptionSuspendedEmail(userName, email, planKey) {
+  if (!email) return;
+  const firstName = (userName || 'there').split(' ')[0];
+  const planNames = { advanced: 'Advanced', x20: 'X20', x50: 'X50', x100: 'X100', x200: 'X200' };
+  const planName = planNames[planKey] || planKey;
+  const siteUrl = process.env.SITE_URL || 'https://charactermind.onrender.com';
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:40px 16px">
+  <tr><td align="center">
+    <table width="100%" style="max-width:520px;background:#111111;border-radius:12px;border:1px solid #2a1a1a;padding:40px">
+      <tr><td>
+        <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#ef4444">Character.Mind · Heads up</p>
+        <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;color:#f0f0f0">Your subscription payment failed, ${esc(firstName)}.</h1>
+        <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">We weren't able to renew your <strong style="color:#f0f0f0">${esc(planName)}</strong> subscription. Your access is still active for now, but you may lose your plan soon if this isn't resolved.</p>
+        <table cellpadding="0" cellspacing="0" style="margin:0 0 24px">
+          <tr><td><a href="https://www.paypal.com" style="display:inline-block;padding:12px 28px;background:#ef4444;color:#fff;text-decoration:none;border-radius:8px;font-size:15px;font-weight:600">Update payment in PayPal →</a></td></tr>
+        </table>
+        <p style="margin:0 0 8px;font-size:13px;color:#666;line-height:1.5">Once your payment is updated, your subscription will resume automatically. Questions? Contact us at <a href="mailto:support.charactermind@gmail.com" style="color:#7c5cbf;text-decoration:none">support.charactermind@gmail.com</a>.</p>
+        <p style="margin:20px 0 0;font-size:12px;color:#3a3a3a">This is an automated message. Please do not reply directly to this email.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table></body></html>`;
+  const text = `Heads up, ${firstName}.\n\nYour ${planName} subscription payment failed. Update your payment method in PayPal to keep your access: https://www.paypal.com\n\nQuestions? Email support.charactermind@gmail.com.\n\n— Character.Mind\n\n(This is an automated message. Please do not reply directly.)`;
+  const ok = await sendResendEmail(email, `Action needed: your Character.Mind subscription payment failed`, html, text);
+  if (ok) console.log('[email] Subscription suspended warning sent to', email);
+}
+
+async function sendSubscriptionExpiredEmail(userName, email, planKey) {
+  if (!email) return;
+  const firstName = (userName || 'there').split(' ')[0];
+  const planNames = { advanced: 'Advanced', x20: 'X20', x50: 'X50', x100: 'X100', x200: 'X200' };
+  const planName = planNames[planKey] || planKey;
+  const siteUrl = process.env.SITE_URL || 'https://charactermind.onrender.com';
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:40px 16px">
+  <tr><td align="center">
+    <table width="100%" style="max-width:520px;background:#111111;border-radius:12px;border:1px solid #222222;padding:40px">
+      <tr><td>
+        <p style="margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#7c5cbf">Character.Mind</p>
+        <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;color:#f0f0f0">Your ${esc(planName)} subscription has ended.</h1>
+        <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6">Hi ${esc(firstName)}, your <strong style="color:#f0f0f0">${esc(planName)}</strong> subscription has expired and you've been moved back to the <strong style="color:#f0f0f0">Free tier</strong>. Your chats and memories are safe — you've just returned to the standard free limits.</p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;border:1px solid #1e1e1e;border-radius:8px;padding:16px;margin:0 0 24px">
+          <tr><td style="font-size:14px;color:#aaaaaa;padding:4px 0">✓ Your conversation history is intact</td></tr>
+          <tr><td style="font-size:14px;color:#aaaaaa;padding:4px 0">✓ Your character.mind account is active</td></tr>
+          <tr><td style="font-size:14px;color:#888888;padding:4px 0">↓ Daily call and message limits are back to Free tier</td></tr>
+        </table>
+        <table cellpadding="0" cellspacing="0" style="margin:0 0 24px">
+          <tr><td><a href="${siteUrl}/?upgrade=1" style="display:inline-block;padding:12px 28px;background:#7c5cbf;color:#fff;text-decoration:none;border-radius:8px;font-size:15px;font-weight:600">Resubscribe →</a></td></tr>
+        </table>
+        <p style="margin:0 0 8px;font-size:13px;color:#555;line-height:1.5">Miss your characters? Resubscribe anytime to restore full access instantly. Questions? <a href="mailto:support.charactermind@gmail.com" style="color:#7c5cbf;text-decoration:none">support.charactermind@gmail.com</a></p>
+        <p style="margin:20px 0 0;font-size:12px;color:#3a3a3a">This is an automated message. Please do not reply directly to this email.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table></body></html>`;
+  const text = `Hi ${firstName},\n\nYour ${planName} subscription has ended and you've been moved back to the Free tier. Your chats and memories are safe.\n\nResubscribe anytime: ${siteUrl}/?upgrade=1\n\nQuestions? Email support.charactermind@gmail.com.\n\n— Character.Mind\n\n(This is an automated message. Please do not reply directly.)`;
+  const ok = await sendResendEmail(email, `Your ${planName} subscription has ended — you've been moved to Free`, html, text);
+  if (ok) console.log('[email] Subscription expired email sent to', email);
 }
 
 async function sendWelcomeEmail(userName, email) {
@@ -7452,8 +7526,8 @@ app.post('/api/paypal/verify-subscription', requireAuth, paypalVerifyLimiter, as
       return res.json({ ok: true, tier: planKey });
     }
     const upd = await db.query(
-      'UPDATE users SET subscription_tier = $1, paypal_subscription_id = $2 WHERE google_id = $3',
-      [planKey, subscriptionId, req.user.googleId]
+      'UPDATE users SET subscription_tier = $1, paypal_subscription_id = $2, subscription_start_date = NOW(), subscription_period = $4 WHERE google_id = $3',
+      [planKey, subscriptionId, req.user.googleId, period]
     );
     if (!upd.rowCount) return res.status(500).json({ error: 'Could not activate subscription' });
     // Changing plans must not leave the old subscription billing in the background
@@ -7470,7 +7544,7 @@ app.post('/api/paypal/verify-subscription', requireAuth, paypalVerifyLimiter, as
     paidLimits.regenCount = 0;
     saveLimitsToDB(req.user.googleId);
     sendReceiptEmail(req.user.name, req.user.email, planKey, subscriptionId, period).catch(() => {});
-    sendPlanWelcomeEmail(req.user.name, req.user.email, planKey).catch(() => {});
+    sendPlanWelcomeEmail(req.user.name, req.user.email, planKey, period).catch(() => {});
     res.json({ ok: true, tier: planKey });
   } catch (err) {
     console.error('PayPal verify error:', err);
@@ -7606,8 +7680,9 @@ app.post('/api/webhooks/paypal', async (req, res) => {
   const cancelEvents = [...endEvents, 'BILLING.SUBSCRIPTION.SUSPENDED'];
   if (cancelEvents.includes(eventType) && subId && db) {
     const clearId = endEvents.includes(eventType);
+    const isSuspend = eventType === 'BILLING.SUBSCRIPTION.SUSPENDED';
     const cancelled = await db.query(
-      "UPDATE users SET subscription_tier = 'free'" + (clearId ? ', paypal_subscription_id = NULL' : '') + ' WHERE paypal_subscription_id = $1 RETURNING google_id', [subId])
+      "UPDATE users SET subscription_tier = 'free'" + (clearId ? ', paypal_subscription_id = NULL' : '') + ' WHERE paypal_subscription_id = $1 RETURNING google_id, name, email, subscription_tier AS old_tier', [subId])
       .catch(err => { console.error('Webhook DB error:', err); return null; });
     if (!cancelled) return res.sendStatus(500); // let PayPal retry
     for (const row of cancelled.rows) {
@@ -7622,6 +7697,14 @@ app.post('/api/webhooks/paypal', async (req, res) => {
       lim.imagesDay = 0; lim.imageDayStart = null; lim.imageFirstUsedAt = null;
       lim.regenCount = 0;
       saveLimitsToDB(row.google_id);
+      // Send appropriate expiry email
+      if (row.email) {
+        if (isSuspend) {
+          sendSubscriptionSuspendedEmail(row.name, row.email, row.old_tier).catch(() => {});
+        } else {
+          sendSubscriptionExpiredEmail(row.name, row.email, row.old_tier).catch(() => {});
+        }
+      }
     }
   }
   res.sendStatus(200);

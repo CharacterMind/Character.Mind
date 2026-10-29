@@ -2549,9 +2549,161 @@ function showHome() { showView('homeView'); setNavActive(0); }
 function showDiscover() { showView('discoverView'); setNavActive(1); renderDiscover(); }
 function showFeed() { showView('feedView'); setNavActive(2); }
 function showGroups() { showView('groupsView'); setNavActive(3); loadGroups(); }
-function showPhone()  { showView('phoneView');  setNavActive(4); renderPhoneContacts(''); }
+function showPhone()  { showView('phoneView');  setNavActive(4); renderPhoneContacts(''); showPhoneTab('contacts'); }
 
 // ── Phone / Contacts ─────────────────────────────────────────────────────────
+
+// ── Character voice profiles (Web Speech API) ─────────────────────────────────
+// Maps character name keywords → voice search terms + prosody.
+// Falls back to a stable default so every character still sounds distinct.
+const _VOICE_PROFILES = [
+  // Keyword match → { names: [...voice search terms], pitch, rate }
+  { keys: ['poppy','sunny','aria','luna','nova','star','sky','dawn','rose','lily'],
+    profile: { names: ['zira','samantha','karen','moira','tessa','victoria'], pitch: 1.25, rate: 1.05 } },
+  { keys: ['alex','ryan','jake','max','hunter','tyler','ethan','noah','liam'],
+    profile: { names: ['daniel','alex','fred','google uk english male'], pitch: 0.95, rate: 1.0 } },
+  { keys: ['jessica','emma','sophie','bella','chloe','grace','mia','zoe','kate'],
+    profile: { names: ['samantha','karen','victoria','tessa','moira'], pitch: 1.15, rate: 1.08 } },
+  { keys: ['shadow','raven','storm','titan','drake','blaze','void','ghost','zero'],
+    profile: { names: ['daniel','fred','google uk english male'], pitch: 0.8, rate: 0.92 } },
+  { keys: ['sage','river','quinn','rowan','morgan','jamie','robin','casey','blake'],
+    profile: { names: ['karen','tessa','zira'], pitch: 1.05, rate: 1.02 } },
+  { keys: ['miko','sakura','yuki','hana','rei','ami','nana','kira','mei'],
+    profile: { names: ['google japanese','kyoko','siri japan','otoya'], pitch: 1.3, rate: 1.1 } },
+];
+
+const _PITCH_OFFSETS = [0, 0.1, -0.1, 0.2, -0.2, 0.15, -0.15, 0.05, -0.05, 0.25];
+const _RATE_OFFSETS  = [0, 0.05, -0.05, 0.08, -0.08, 0.12, -0.03, 0.1, -0.1, 0.07];
+
+function _getCharVoiceProfile(char) {
+  const nameLow = (char.name || '').toLowerCase();
+  for (const vp of _VOICE_PROFILES) {
+    if (vp.keys.some(k => nameLow.includes(k))) return vp.profile;
+  }
+  // Deterministic fallback: hash char.id → stable pitch/rate offset
+  let h = 0;
+  for (let i = 0; i < char.id.length; i++) h = (Math.imul(31, h) + char.id.charCodeAt(i)) | 0;
+  const idx = Math.abs(h) % 10;
+  const baseNames = ['samantha','zira','karen','daniel','tessa','fred','victoria','alex','moira','kyoko'];
+  return {
+    names: [baseNames[idx]],
+    pitch: 1.0 + _PITCH_OFFSETS[idx],
+    rate:  1.0 + _RATE_OFFSETS[idx],
+  };
+}
+
+function _applyCharVoice(utt, char) {
+  if (!window.speechSynthesis) return;
+  const vp = _getCharVoiceProfile(char);
+  const voices = window.speechSynthesis.getVoices();
+  const match = voices.find(v => vp.names.some(n => v.name.toLowerCase().includes(n)));
+  if (match) utt.voice = match;
+  utt.pitch = vp.pitch;
+  utt.rate  = vp.rate;
+}
+
+// ── Call log (localStorage) ───────────────────────────────────────────────────
+const CM_CALL_LOG_KEY = 'cm_call_log';
+const CM_CALL_LOG_MAX = 200;
+function _getCallLog() {
+  try { return JSON.parse(localStorage.getItem(CM_CALL_LOG_KEY) || '[]'); } catch { return []; }
+}
+function _saveCallLog(log) {
+  try { localStorage.setItem(CM_CALL_LOG_KEY, JSON.stringify(log.slice(0, CM_CALL_LOG_MAX))); } catch {}
+}
+function _logCall(char, type, extraData) {
+  if (!char) return;
+  const log = _getCallLog();
+  log.unshift({
+    charId: char.id, charName: char.name,
+    charImage: char.image || null, charColor: char.color || '#7c3aed',
+    ts: Date.now(), type, ...extraData
+  });
+  _saveCallLog(log);
+}
+
+let _callLogStartTs = 0;
+
+// ── Phone tab state ───────────────────────────────────────────────────────────
+let _phoneActiveTab = 'contacts';
+
+function showPhoneTab(tab) {
+  _phoneActiveTab = tab;
+  ['contacts','recent','missed','voicemail'].forEach(t => {
+    const panel = document.getElementById('phPanel_' + t);
+    const btn   = document.getElementById('phTab_' + t);
+    if (panel) panel.hidden = (t !== tab);
+    if (btn) btn.classList.toggle('ph-tab-active', t === tab);
+  });
+  if (tab === 'recent')    renderRecentCalls();
+  else if (tab === 'missed')   renderMissedCalls();
+  else if (tab === 'voicemail') renderPhoneVoicemails();
+}
+
+function _callListHtml(entries, emptyMsg) {
+  if (!entries.length) return `<div class="ph-empty">${emptyMsg}</div>`;
+  return entries.map(e => {
+    const dt = new Date(e.ts);
+    const dateStr = dt.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    const timeStr = dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    const icon = e.type === 'voicemail' ? '📞' : e.type === 'missed' ? '↙' : '↗';
+    const iconCls = e.type === 'missed' ? 'ph-call-icon-missed' : 'ph-call-icon-out';
+    const color = safeColor(e.charColor || '#7c3aed');
+    const hasImg = isCharImg && isCharImg(e.charImage);
+    const avatarContent = hasImg ? `<img src="${escHtml(e.charImage)}" alt="" onerror="this.style.display='none'">` : escHtml((e.charName||'?').charAt(0));
+    const vmBtn = e.type === 'voicemail' ? `<button class="ph-call-vm-btn" onclick="playCallLogVoicemail('${escHtml(e.charId)}','${escHtml((e.vmText||'').replace(/'/g,"\\'"))}')">▶ Play</button>` : '';
+    const dur = e.duration ? ` · ${Math.floor(e.duration/60)}:${String(e.duration%60).padStart(2,'0')}` : '';
+    return `<div class="ph-call-entry">
+      <div class="ph-call-avatar" style="background:${escHtml(color)}">${avatarContent}</div>
+      <div class="ph-call-info">
+        <div class="ph-call-name">${escHtml(e.charName||'Unknown')}</div>
+        <div class="ph-call-meta"><span class="${iconCls}">${icon}</span> ${dateStr}, ${timeStr}${dur}</div>
+      </div>
+      <div class="ph-call-actions">
+        ${vmBtn}
+        <button class="ph-contact-btn ph-contact-btn-call" onclick="callCharFromPhone('${escHtml(e.charId)}',event)">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="11" height="11"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+          Call
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderRecentCalls() {
+  const el = document.getElementById('phoneRecentList');
+  if (!el) return;
+  const log = _getCallLog();
+  el.innerHTML = _callListHtml(log, 'No recent calls');
+}
+
+function renderMissedCalls() {
+  const el = document.getElementById('phoneMissedList');
+  if (!el) return;
+  const log = _getCallLog().filter(e => e.type === 'missed' || e.type === 'voicemail');
+  el.innerHTML = _callListHtml(log, 'No missed calls');
+}
+
+function renderPhoneVoicemails() {
+  const el = document.getElementById('phoneVoicemailList');
+  if (!el) return;
+  const log = _getCallLog().filter(e => e.type === 'voicemail');
+  el.innerHTML = _callListHtml(log, 'No voicemails');
+}
+
+function playCallLogVoicemail(charId, vmText) {
+  const char = (characters||[]).find(c=>c.id===charId);
+  if (!char || !vmText) return;
+  if (!window.speechSynthesis) { showWarning('TTS not available.', 2500); return; }
+  window.speechSynthesis.cancel();
+  const utt = new SpeechSynthesisUtterance(vmText);
+  const vp = _getCharVoiceProfile(char);
+  const voices = window.speechSynthesis.getVoices();
+  const match = voices.find(v => vp.names.some(n => v.name.toLowerCase().includes(n)));
+  if (match) utt.voice = match;
+  utt.pitch = vp.pitch; utt.rate = vp.rate; utt.volume = 1;
+  window.speechSynthesis.speak(utt);
+}
 
 function charPhone(id) {
   let h = 0;
@@ -2675,6 +2827,7 @@ function callCharFromPhone(charId, e) {
   if (Math.random() < 0.25) {
     showPhoneRingingThenVoicemail(char, prevChar);
   } else {
+    _callLogStartTs = Date.now();
     startCallMode();
   }
 }
@@ -2773,6 +2926,7 @@ function charVoicemailText(char) {
 function showVoicemailOverlay(char) {
   vmChar = char;
   vmSpeaking = false;
+  _logCall(char, 'voicemail', { vmText: charVoicemailText(char) });
   const overlay = document.getElementById('voicemailOverlay');
   if (!overlay) return;
   const color = safeColor(char.color || '#7c3aed');
@@ -2806,7 +2960,7 @@ function playVoicemailAudio() {
   }
   const text = charVoicemailText(vmChar);
   const u = new SpeechSynthesisUtterance(text);
-  u.rate = 0.95; u.pitch = 1.05;
+  _applyCharVoice(u, vmChar);
   u.onstart = () => { vmSpeaking = true; if (playBtn) playBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> Stop`; };
   u.onend = u.onerror = () => { vmSpeaking = false; if (playBtn) playBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M8 5v14l11-7z"/></svg> Play`; };
   window.speechSynthesis.speak(u);
@@ -6692,6 +6846,21 @@ function updateUsageModal(u) {
   const wSubEl = document.getElementById('usageWeeklySub');
   if (wSubEl) { const wT = u.weeklyLimit && u.weeklyResetsAt ? formatResetTime(u.weeklyResetsAt) : null; wSubEl.textContent = u.weeklyLimit ? (wT ? 'Resets ' + wT : 'Resets weekly') : 'No weekly limit on the free tier'; }
 
+  const wStartEl = document.getElementById('usageWeeklyStarted');
+  if (wStartEl) {
+    if (u.weeklyStart) {
+      const startDt = new Date(u.weeklyStart);
+      const opts = { weekday: 'long', month: 'long', day: 'numeric' };
+      const timeOpts = { hour: 'numeric', minute: '2-digit' };
+      const dateStr = startDt.toLocaleDateString('en-US', opts);
+      const timeStr = startDt.toLocaleTimeString('en-US', timeOpts);
+      wStartEl.textContent = `Started ${dateStr} at ${timeStr}`;
+      wStartEl.style.display = '';
+    } else {
+      wStartEl.style.display = 'none';
+    }
+  }
+
   // ── Daily bars ────────────────────────────────────────────────────────────
 
   function setBar(barId, pctId, subId, pct, subText, unlimited) {
@@ -7061,7 +7230,7 @@ async function checkWhatsNewDot() {
       if (mobDot2) mobDot2.hidden = false;
       const railDot2 = document.getElementById('railWhatsNewDot');
       if (railDot2) railDot2.hidden = false;
-      setTimeout(() => openWhatsNew(), 1800);
+      if (currentUser) setTimeout(() => openWhatsNew(), 1800);
     }
   } catch (_) {}
 }
@@ -7846,7 +8015,12 @@ function loadCharVoice() {
 }
 
 function applyVoice(utterance) {
-  if (selectedVoice) utterance.voice = selectedVoice;
+  if (selectedVoice) {
+    utterance.voice = selectedVoice;
+  } else if (currentChar) {
+    // No user-picked voice — apply character's auto-profile for a distinct sound
+    _applyCharVoice(utterance, currentChar);
+  }
 }
 
 function openVoicePanel() {
@@ -9203,6 +9377,11 @@ function endCallMode() {
   callModeActive = false;
   callStarting = false;
   callMuted = false;
+  if (_callLogStartTs > 0 && currentChar) {
+    const dur = Math.round((Date.now() - _callLogStartTs) / 1000);
+    _logCall(currentChar, 'outgoing', { duration: dur });
+    _callLogStartTs = 0;
+  }
   stopCallDurationTimer();
   clearCallInactivityTimer();
   stopCallAudio();
@@ -11256,15 +11435,15 @@ async function claimHalloweenGift() {
   const _now = new Date(); const _m = _now.getMonth(); const _d = _now.getDate();
   if (!(_m === 9 || (_m === 10 && _d <= 5))) return;
 
-  // ── Toggle: expose globally so the dropdown button can call it ───────────────
-  let _hwActive = localStorage.getItem('hw_disabled') !== '1';
+  // ── State vars hoisted so re-enable works without page reload ───────────────
+  let confettiLoopId = null;
+  let paradeLoopId   = null;
+  let emberLoopId    = null;
+  let hwStage        = null;
+  let hwLogoObserver = null;
+  let hwCardObserver = null;
 
-  if (!_hwActive) {
-    // Theme is off — just expose the re-enable function and exit
-    window._hwToggleTheme = function() { localStorage.removeItem('hw_disabled'); location.reload(); };
-    return;
-  }
-
+  function enableHalloween() {
   // ── Theme is ON ──────────────────────────────────────────────────────────────
   document.body.classList.add('halloween');
 
@@ -11404,12 +11583,8 @@ async function claimHalloweenGift() {
     '🐀','🪦','🫀','🌚','🌋','🩺','🧬','🫁','🐉','🌊',
   ];
 
-  // ── Settings state ──────────────────────────────────────────────────────────
-  let confettiLoopId = null;
-  let paradeLoopId   = null;
-  let emberLoopId    = null;
 
-  const hwStage = document.createElement('div');
+  hwStage = document.createElement('div');
   hwStage.id = 'hw-stage';
   document.body.appendChild(hwStage);
 
@@ -11491,7 +11666,7 @@ async function claimHalloweenGift() {
     el.textContent = 'character.mind';
     delete el.dataset.hwDone;
   }
-  let hwLogoObserver = new MutationObserver(muts => {
+  hwLogoObserver = new MutationObserver(muts => {
     muts.forEach(m => m.addedNodes.forEach(n => {
       if (n.nodeType !== 1) return;
       if (n.classList?.contains('logo-text')) applyHwLogo(n);
@@ -11500,6 +11675,43 @@ async function claimHalloweenGift() {
   });
   document.querySelectorAll('.logo-text').forEach(applyHwLogo);
   hwLogoObserver.observe(document.body, { childList: true, subtree: true });
+
+  // ── Extreme card decorations ─────────────────────────────────────────────────
+  const CARD_BADGES = [
+    { e: '💀', cls: 'hw-card-decor-skull', s: 'top:6px;left:6px;',     sz: 14 },
+    { e: '🦇', cls: 'hw-card-decor-bat',   s: 'top:6px;left:26px;',    sz: 12 },
+    { e: '🕷️', cls: '',                    s: 'bottom:7px;left:7px;',   sz: 12 },
+  ];
+  function _decorateCard(card) {
+    if (card.dataset.hwDecorated) return;
+    card.dataset.hwDecorated = '1';
+    // blood strip at top
+    const blood = document.createElement('div');
+    blood.className = 'hw-card-blood';
+    card.appendChild(blood);
+    // emoji badges
+    const cardIdx = [...document.querySelectorAll('.hc,.char-card')].indexOf(card);
+    CARD_BADGES.forEach((b, i) => {
+      if ((cardIdx + i) % 5 === 2) return;
+      const el = document.createElement('span');
+      el.className = 'hw-card-decor' + (b.cls ? ' ' + b.cls : '');
+      el.textContent = b.e;
+      el.style.cssText = b.s + 'font-size:' + b.sz + 'px;opacity:0.78;';
+      card.appendChild(el);
+    });
+  }
+  function _decorateAllCards() {
+    document.querySelectorAll('.hc, .char-card').forEach(_decorateCard);
+  }
+  hwCardObserver = new MutationObserver(muts => {
+    muts.forEach(m => m.addedNodes.forEach(n => {
+      if (n.nodeType !== 1) return;
+      if (n.classList?.contains('hc') || n.classList?.contains('char-card')) _decorateCard(n);
+      n.querySelectorAll?.('.hc, .char-card').forEach(_decorateCard);
+    }));
+  });
+  hwCardObserver.observe(document.body, { childList: true, subtree: true });
+  _decorateAllCards();
 
   // ── One-time welcome toast ──────────────────────────────────────────────────
   if (!sessionStorage.getItem('hw_toast_shown')) {
@@ -11511,21 +11723,29 @@ async function claimHalloweenGift() {
     setTimeout(() => toast.remove(), 6200);
   }
 
-  // ── Toggle: disable all effects inline; swap self to re-enable on next click ──
+  // ── Toggle: disable all effects inline ──────────────────────────────────────
   window._hwToggleTheme = function() {
     localStorage.setItem('hw_disabled', '1');
     document.body.classList.remove('halloween');
-    hwStage.remove();
+    if (hwStage) { hwStage.remove(); hwStage = null; }
     removeHwAtmosphere();
     clearInterval(confettiLoopId); confettiLoopId = null;
     clearInterval(emberLoopId);    emberLoopId    = null;
     clearTimeout(paradeLoopId);    paradeLoopId   = null;
     document.querySelectorAll('.halloween-web').forEach(e => e.remove());
     document.querySelectorAll('.logo-text').forEach(restoreHwLogo);
-    hwLogoObserver.disconnect();
-    // Swap to re-enable so the next click turns it back on
-    window._hwToggleTheme = function() { localStorage.removeItem('hw_disabled'); location.reload(); };
+    if (hwLogoObserver) { hwLogoObserver.disconnect(); hwLogoObserver = null; }
+    if (hwCardObserver) { hwCardObserver.disconnect(); hwCardObserver = null; }
+    document.querySelectorAll('.hw-card-decor, .hw-card-blood').forEach(e => e.remove());
+    document.querySelectorAll('[data-hw-decorated]').forEach(e => { delete e.dataset.hwDecorated; });
+    // Swap to re-enable without page reload
+    window._hwToggleTheme = function() { localStorage.removeItem('hw_disabled'); enableHalloween(); };
   };
+  } // end enableHalloween
+
+  // ── Initial activation ───────────────────────────────────────────────────────
+  window._hwToggleTheme = function() { localStorage.removeItem('hw_disabled'); enableHalloween(); };
+  if (localStorage.getItem('hw_disabled') !== '1') enableHalloween();
 })();
 
 // -- AFK Coin Farm --

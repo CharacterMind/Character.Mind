@@ -112,6 +112,7 @@
       </div>
       <div class="usage-track-modal" style="margin-top:8px"><div class="usage-fill-modal green" id="usageWeeklyBar"></div></div>
       <div class="usage-sec-sub" id="usageWeeklySub" style="margin-top:6px"></div>
+      <div class="usage-weekly-started" id="usageWeeklyStarted" style="display:none"></div>
     </div>
 
     <!-- Variable limits: calls, memos, images -->
@@ -550,7 +551,29 @@
           <input id="phoneSearch" class="ph-search" placeholder="Search contacts…" oninput="renderPhoneContacts(this.value)">
         </div>
       </div>
-      <div id="phoneContacts" class="ph-contacts"></div>
+      <!-- Tab bar -->
+      <div class="ph-tabs" id="phTabs">
+        <button class="ph-tab ph-tab-active" id="phTab_contacts" onclick="showPhoneTab('contacts')">Contacts</button>
+        <button class="ph-tab" id="phTab_recent"   onclick="showPhoneTab('recent')">Recent</button>
+        <button class="ph-tab" id="phTab_missed"   onclick="showPhoneTab('missed')">Missed</button>
+        <button class="ph-tab" id="phTab_voicemail" onclick="showPhoneTab('voicemail')">Voicemail</button>
+      </div>
+      <!-- Contacts panel -->
+      <div id="phPanel_contacts">
+        <div id="phoneContacts" class="ph-contacts"></div>
+      </div>
+      <!-- Recent calls panel -->
+      <div id="phPanel_recent" hidden>
+        <div id="phoneRecentList" class="ph-call-list"></div>
+      </div>
+      <!-- Missed calls panel -->
+      <div id="phPanel_missed" hidden>
+        <div id="phoneMissedList" class="ph-call-list"></div>
+      </div>
+      <!-- Voicemail panel -->
+      <div id="phPanel_voicemail" hidden>
+        <div id="phoneVoicemailList" class="ph-call-list"></div>
+      </div>
       <!-- Floating keypad toggle -->
       <button class="ph-keypad-fab" id="phoneKeypadFab" onclick="togglePhoneKeypad()" aria-label="Keypad">
         <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M12 19c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm-6 0c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm12 0c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zM6 13c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm6 0c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm6 0c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zM6 7c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm6 0c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm6 0c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zM6 1c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm6 0c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm6 0c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2z"/></svg>
