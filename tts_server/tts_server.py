@@ -52,15 +52,24 @@ def _patch_torchaudio_load():
 
         def _sf_load(uri, frame_offset=0, num_frames=-1, normalize=True, channels_first=True, **kwargs):
             try:
-                data, sr = sf.read(str(uri), dtype='float32', always_2d=True)
+                # soundfile accepts paths and file-like objects directly
+                data, sr = sf.read(uri, dtype='float32', always_2d=True)
             except Exception:
-                return _orig(uri, frame_offset=frame_offset, num_frames=num_frames,
-                             normalize=normalize, channels_first=channels_first, **kwargs)
-            waveform = torch.from_numpy(data.T if channels_first else data)
-            if frame_offset > 0:
-                waveform = waveform[..., frame_offset:]
-            if num_frames > 0:
-                waveform = waveform[..., :num_frames]
+                # Non-WAV or truly unreadable — nothing we can do without FFmpeg
+                raise
+            # soundfile: (samples, channels) → torchaudio: (channels, samples) when channels_first
+            if channels_first:
+                waveform = torch.from_numpy(data.T)
+                if frame_offset > 0:
+                    waveform = waveform[:, frame_offset:]
+                if num_frames > 0:
+                    waveform = waveform[:, :num_frames]
+            else:
+                waveform = torch.from_numpy(data)
+                if frame_offset > 0:
+                    waveform = waveform[frame_offset:]
+                if num_frames > 0:
+                    waveform = waveform[:num_frames]
             return waveform, int(sr)
 
         torchaudio.load = _sf_load
