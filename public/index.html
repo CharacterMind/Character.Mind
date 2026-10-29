@@ -1931,30 +1931,31 @@
 
     <!-- Voice option tabs -->
     <div class="voice-provider-tabs voice-main-tabs">
-      <button class="voice-provider-tab" data-tab="character" onclick="switchVoiceTab('character',this)">Character.Mind</button>
-      <button class="voice-provider-tab" data-tab="user" onclick="switchVoiceTab('user',this)">Your Voices</button>
       <button class="voice-provider-tab" data-tab="gemini" onclick="switchVoiceTab('gemini',this)">Gemini</button>
       <button class="voice-provider-tab" data-tab="edge" onclick="switchVoiceTab('edge',this)">Neutral</button>
-    </div>
-
-    <!-- Character.Mind voice pane -->
-    <div id="voiceSection_char" class="voice-tab-pane">
-      <div id="charVoiceCard"></div>
-    </div>
-
-    <!-- Your Voices pane -->
-    <div id="voiceSection_user" class="voice-tab-pane" style="display:none">
-      <p class="voice-section-hint">Record or upload a voice. Tap <strong>Use for</strong> to make it the character's voice.</p>
-      <div class="your-voice-row">
-        <button id="recordVoiceBtn" class="record-voice-btn" onclick="toggleVoiceRecording(this)"><span class="rec-dot"></span>Record</button>
-        <label class="upload-voice-label" title="Upload audio file"><input type="file" id="voiceUploadInput" accept="audio/*" style="display:none" onchange="uploadUserVoiceFile(this)"><span>↑ Upload</span></label>
-      </div>
-      <div id="userVoiceList" class="voice-list"></div>
+      <button class="voice-provider-tab" data-tab="user" onclick="switchVoiceTab('user',this)">Your Voices</button>
+      <button class="voice-provider-tab" data-tab="character" onclick="switchVoiceTab('character',this)">Character.Mind</button>
     </div>
 
     <!-- AI voices pane (Gemini + Neutral share this) -->
     <div id="voiceSection_ai" class="voice-tab-pane" style="display:none">
       <div class="voice-list" id="voiceList"></div>
+    </div>
+
+    <!-- Your Voices pane -->
+    <div id="voiceSection_user" class="voice-tab-pane" style="display:none">
+      <p class="voice-section-hint">Upload WAV, MP3, or any audio file. Tap <strong>Use for</strong> to make it the character's voice.</p>
+      <div class="your-voice-row">
+        <button id="recordVoiceBtn" class="record-voice-btn" onclick="toggleVoiceRecording(this)"><span class="rec-dot"></span>Record</button>
+        <label class="upload-voice-label" title="Upload WAV, MP3, or any audio file"><input type="file" id="voiceUploadInput" accept="audio/*" style="display:none" onchange="uploadUserVoiceFile(this)"><span>↑ Upload</span></label>
+      </div>
+      <div id="userVoiceList" class="voice-list"></div>
+    </div>
+
+    <!-- Character.Mind voice pane -->
+    <div id="voiceSection_char" class="voice-tab-pane" style="display:none">
+      <div class="voice-section-label" style="margin-bottom:10px">Character.Mind AI System Voices <span class="voice-default-badge">Default</span></div>
+      <div id="charVoiceCard"></div>
     </div>
   </div>
 </div>
