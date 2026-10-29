@@ -5455,32 +5455,52 @@ function renderUsageBanners(usage) {
   const wPct = usagePctOf(usage.weeklyTokens, usage.weeklyLimit);
   const userKey = currentUser?.googleId || 'anon';
   const sess90Key = `cm_sess90_week_${usage.weeklyStart || 0}_${userKey}`;
+  const dismissed75Key = `cm_weekly75_dismissed_${usage.weeklyStart || 0}_${userKey}`;
   if (sPct >= 90) { try { localStorage.setItem(sess90Key, '1'); } catch (_) {} }
   const sessionHit90 = sPct >= 90 || localStorage.getItem(sess90Key) === '1';
+  const dismissed75 = (() => { try { return localStorage.getItem(dismissed75Key) === '1'; } catch (_) { return false; } })();
 
   let active = null;
   if (wPct >= 90) {
-    active = { kind: 'weekly',  level: 90, msg: "You\u2019ve reached 90% of your weekly limit."  };
+    active = { kind: 'weekly',  level: 90, msg: `You\u2019ve used ${wPct}% of your weekly limit.`,  critical: true,  dismissible: false };
   } else if (sPct >= 90) {
-    active = { kind: 'session', level: 90, msg: "You\u2019ve reached 90% of your session limit." };
-  } else if (!sessionHit90 && wPct >= 50) {
-    active = { kind: 'weekly',  level: 50, msg: "Approaching your weekly limit."                 };
+    active = { kind: 'session', level: 90, msg: "You\u2019ve reached 90% of your session limit.",    critical: true,  dismissible: false };
+  } else if (!sessionHit90 && wPct >= 75 && !dismissed75) {
+    active = { kind: 'weekly',  level: 75, msg: `You\u2019ve used ${wPct}% of your weekly limit.`,  critical: false, dismissible: true  };
   }
 
   // Remove stale weekly/session banners (never touches the calls banner)
   [...container.querySelectorAll('.warning-banner[data-usage-kind]:not([data-usage-kind="calls"])')].forEach(b => {
     if (!active || b.dataset.usageKind !== active.kind || b.dataset.usageLevel !== String(active.level)) b.remove();
   });
-  if (active && !container.querySelector(`.warning-banner[data-usage-kind="${active.kind}"][data-usage-level="${active.level}"]`)) {
+  const existingActiveBanner = active && container.querySelector(`.warning-banner[data-usage-kind="${active.kind}"][data-usage-level="${active.level}"]`);
+  if (active && !existingActiveBanner) {
     const banner = document.createElement('div');
-    banner.className = 'warning-banner warning-banner-critical';
+    banner.className = 'warning-banner' + (active.critical ? ' warning-banner-critical' : '');
     banner.dataset.usageKind = active.kind;
     banner.dataset.usageLevel = String(active.level);
     banner.dataset.warnMsg = active.msg;
     const text = document.createElement('span');
     text.textContent = active.msg;
     banner.appendChild(text);
+    const btn = document.createElement('button');
+    btn.className = 'warning-banner-btn';
+    btn.textContent = 'Get more usage';
+    btn.onclick = () => openPricingModal();
+    banner.appendChild(btn);
+    if (active.dismissible) {
+      const close = document.createElement('button');
+      close.className = 'warning-banner-close';
+      close.setAttribute('aria-label', 'Dismiss');
+      close.textContent = '\u2715';
+      close.onclick = () => { banner.remove(); try { localStorage.setItem(dismissed75Key, '1'); } catch (_) {} };
+      banner.appendChild(close);
+    }
     container.appendChild(banner);
+  } else if (active && existingActiveBanner) {
+    // Live-update the percentage text as usage ticks up
+    const textEl = existingActiveBanner.querySelector('span');
+    if (textEl && textEl.textContent !== active.msg) textEl.textContent = active.msg;
   }
 }
 

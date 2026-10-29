@@ -3233,6 +3233,13 @@ html, body {
   white-space: nowrap; flex-shrink: 0;
 }
 .warning-upgrade-link:hover { opacity: .8; }
+.warning-banner-btn {
+  background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 8px; color: inherit; cursor: pointer;
+  font-size: 12px; font-weight: 600; padding: 4px 11px;
+  white-space: nowrap; flex-shrink: 0; transition: background .15s;
+}
+.warning-banner-btn:hover { background: rgba(255,255,255,0.28); }
 
 /* ── Settings plan upgrade button ─────────────────────────────────────────── */
 .settings-plan-upgrade-btn {
