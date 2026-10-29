@@ -4772,6 +4772,7 @@ async function openChat(charId) {
   }
   const snapChar = currentChar;
   loadCharVoice();
+  updateAutoSpeakBtn();
 
   showView('chatView');
   document.getElementById('chatView').classList.remove('hidden');
@@ -5065,6 +5066,7 @@ async function generateGreeting() {
             bubble.classList.add('streaming');
             startStreamStats(msgEl);
             startTypewriter(bubble, msgEl);
+            _streamTTSBuffer = ''; _streamTTSQueue = []; _streamTTSPlaying = false;
           }
           streamText += data.text;
           feedTypewriter(data.text);
@@ -5074,6 +5076,7 @@ async function generateGreeting() {
     }
     watch.clear();
     drainTypewriter(() => {
+      _flushAutoSpeak();
       if (msgEl) { if (streamSig) msgEl.dataset.sig = streamSig; else delete msgEl.dataset.sig; }
       if (msgEl) stopStreamStats(msgEl, streamRealTokens);
       isStreaming = false;
@@ -5418,6 +5421,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
             bubble.classList.add('streaming');
             startStreamStats(msgEl);
             startTypewriter(bubble, msgEl);
+            _streamTTSBuffer = ''; _streamTTSQueue = []; _streamTTSPlaying = false;
           }
           streamText += data.text;
           feedTypewriter(data.text);
@@ -5427,6 +5431,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
       if (convEnded) {
         streamTimeout.clear();
         drainTypewriter(() => {
+          _flushAutoSpeak();
           if (msgEl) { if (streamSig) msgEl.dataset.sig = streamSig; else delete msgEl.dataset.sig; }
           if (msgEl) stopStreamStats(msgEl, streamRealTokens);
           isStreaming = false;
@@ -5439,6 +5444,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
     }
     streamTimeout.clear();
     drainTypewriter(() => {
+      _flushAutoSpeak();
       if (msgEl) { if (streamSig) msgEl.dataset.sig = streamSig; else delete msgEl.dataset.sig; }
       if (msgEl) stopStreamStats(msgEl, streamRealTokens);
       isStreaming = false;
@@ -8008,6 +8014,7 @@ function startTypewriter(bubble, msgEl) {
 
 function feedTypewriter(chunk) {
   twQueue += chunk;
+  _feedAutoSpeak(chunk);
 }
 
 // Let the queue drain at normal speed, then call cb. Use for stream-end cleanup.
@@ -8819,6 +8826,99 @@ let activeTTSUtterance = null;
 let activeTTSBtn = null;
 let activeTTSAudio = null;
 
+// ── Streaming TTS (auto-speak during generation) ──────────────────────────────
+let chatAutoSpeak = false;
+try { chatAutoSpeak = localStorage.getItem('cm_autospeak') === '1'; } catch(_) {}
+let _streamTTSBuffer = '';
+let _streamTTSQueue = [];
+let _streamTTSPlaying = false;
+
+function toggleAutoSpeak() {
+  chatAutoSpeak = !chatAutoSpeak;
+  try { localStorage.setItem('cm_autospeak', chatAutoSpeak ? '1' : '0'); } catch(_) {}
+  updateAutoSpeakBtn();
+  if (!chatAutoSpeak) { _streamTTSQueue = []; _streamTTSBuffer = ''; _streamTTSPlaying = false; }
+}
+
+function updateAutoSpeakBtn() {
+  const btn = document.getElementById('autoSpeakBtn');
+  if (!btn) return;
+  btn.classList.toggle('active', chatAutoSpeak);
+  btn.title = chatAutoSpeak ? 'Auto-speak on' : 'Auto-speak off';
+}
+
+function _feedAutoSpeak(chunk) {
+  if (!chatAutoSpeak || callModeActive) return;
+  _streamTTSBuffer += chunk;
+  // Extract complete sentences (ending in .!? followed by whitespace)
+  const buf = _streamTTSBuffer;
+  let start = 0;
+  for (let i = 1; i < buf.length; i++) {
+    const prev = buf[i - 1];
+    const curr = buf[i];
+    if ('.!?'.includes(prev) && (curr === ' ' || curr === '\n')) {
+      const sentence = buf.slice(start, i).trim();
+      if (sentence.length > 2) _streamTTSQueue.push(sentence);
+      start = i;
+      while (start < buf.length && (buf[start] === ' ' || buf[start] === '\n')) start++;
+      i = start;
+    }
+  }
+  _streamTTSBuffer = buf.slice(start);
+  _playStreamTTSQueue();
+}
+
+function _flushAutoSpeak() {
+  if (!chatAutoSpeak || callModeActive) return;
+  const sentence = _streamTTSBuffer.trim();
+  if (sentence.length > 2) { _streamTTSQueue.push(sentence); _playStreamTTSQueue(); }
+  _streamTTSBuffer = '';
+}
+
+async function _playStreamTTSQueue() {
+  if (_streamTTSPlaying || _streamTTSQueue.length === 0) return;
+  _streamTTSPlaying = true;
+  const btn = document.getElementById('autoSpeakBtn');
+  if (btn) btn.classList.add('speaking');
+  while (_streamTTSQueue.length > 0) {
+    if (!_streamTTSPlaying) break;
+    const sentence = _streamTTSQueue.shift();
+    const cleaned = ttsCleanText(sentence);
+    if (cleaned && cleaned.length > 1) await _speakStreamSentence(cleaned);
+  }
+  _streamTTSPlaying = false;
+  if (btn) btn.classList.remove('speaking');
+}
+
+function _speakStreamSentence(text) {
+  return new Promise(resolve => {
+    if (!_streamTTSPlaying) { resolve(); return; }
+    if (ttsProvider === 'browser') {
+      if (!window.speechSynthesis) { resolve(); return; }
+      const u = new SpeechSynthesisUtterance(text.slice(0, 300));
+      u.voice = selectedVoice || bestBrowserVoice();
+      u.onend = resolve; u.onerror = resolve;
+      window.speechSynthesis.speak(u);
+      return;
+    }
+    fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined })
+    }).then(r => {
+      if (!r.ok || !_streamTTSPlaying) { resolve(); return null; }
+      return r.blob();
+    }).then(blob => {
+      if (!blob || !_streamTTSPlaying) { resolve(); return; }
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      const done = () => { URL.revokeObjectURL(url); resolve(); };
+      audio.onended = done; audio.onerror = done;
+      audio.play().catch(done);
+    }).catch(resolve);
+  });
+}
+
 const gameIframeMap = new Map();
 
 function maybeRenderGame(bubble, charColor) {
@@ -9051,6 +9151,12 @@ function stopActiveTTS() {
   if (activeTTSAudio) { activeTTSAudio.pause(); activeTTSAudio = null; }
   if (activeTTSUtterance) { window.speechSynthesis.cancel(); activeTTSUtterance = null; }
   if (activeTTSBtn) { activeTTSBtn.classList.remove('playing', 'loading'); activeTTSBtn = null; }
+  // Stop streaming TTS queue
+  _streamTTSPlaying = false;
+  _streamTTSQueue = [];
+  _streamTTSBuffer = '';
+  const asBtn = document.getElementById('autoSpeakBtn');
+  if (asBtn) asBtn.classList.remove('speaking');
 }
 
 async function toggleTTS(btn) {

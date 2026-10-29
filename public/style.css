@@ -1173,6 +1173,28 @@ html, body {
   flex-shrink: 0; color: var(--text3); transition: background .15s, color .15s;
 }
 .btn-attach:hover { background: var(--bg3); color: var(--text2); }
+.btn-autospeak {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: none; border: 1px solid var(--border2);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; color: var(--text3); transition: background .15s, color .15s, border-color .15s;
+  position: relative;
+}
+.btn-autospeak:hover { background: var(--bg3); color: var(--text2); }
+.btn-autospeak .autospeak-on { display: none; }
+.btn-autospeak .autospeak-off { display: block; }
+.btn-autospeak .autospeak-bars { display: none; position: absolute; bottom: 7px; gap: 2px; align-items: flex-end; justify-content: center; width: 18px; height: 9px; }
+.btn-autospeak .autospeak-bars span { display: block; width: 3px; background: var(--accent); border-radius: 2px; flex-shrink: 0; }
+.btn-autospeak.active { color: var(--accent); border-color: var(--accent); background: rgba(124,58,237,.1); }
+.btn-autospeak.active .autospeak-on { display: none; }
+.btn-autospeak.active .autospeak-off { display: none; }
+.btn-autospeak.active .autospeak-bars { display: flex; }
+.btn-autospeak.active .autospeak-bars span:nth-child(1) { height: 5px; animation: autospeak-bar 0.9s ease-in-out infinite; }
+.btn-autospeak.active .autospeak-bars span:nth-child(2) { height: 9px; animation: autospeak-bar 0.9s ease-in-out infinite .2s; }
+.btn-autospeak.active .autospeak-bars span:nth-child(3) { height: 5px; animation: autospeak-bar 0.9s ease-in-out infinite .4s; }
+@keyframes autospeak-bar { 0%,100% { transform: scaleY(0.5); } 50% { transform: scaleY(1.4); } }
+/* When speaking (mid-stream), pulse the border */
+.btn-autospeak.speaking { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(124,58,237,.25); }
 .btn-attach--limited { color: rgba(239,68,68,0.6) !important; border-color: rgba(239,68,68,0.35) !important; cursor: not-allowed; }
 .btn-attach--limited:hover { background: rgba(239,68,68,0.08) !important; color: rgba(239,68,68,0.8) !important; }
 .btn-call, .btn-img-pick {
