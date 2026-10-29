@@ -1416,14 +1416,6 @@ function closeNewChatWarning() {
 }
 async function confirmNewChat() {
   closeNewChatWarning();
-  // Collapse right panel so the new greeting gets full attention
-  if (window.innerWidth > 768) {
-    const _p = document.getElementById('infoPanel');
-    const _e = document.getElementById('infoPanelExpandBtn');
-    if (_p) { _p.classList.add('ip-collapsed'); }
-    if (_e) _e.style.display = 'flex';
-    try { localStorage.setItem('cm_infopanel_collapsed', '1'); } catch (_) {}
-  }
   await newChat();
 }
 
@@ -4440,15 +4432,14 @@ async function openChat(charId) {
 
   showView('chatView');
   document.getElementById('chatView').classList.remove('hidden');
-  // On desktop show info panel (restoring any user-collapsed state); on mobile start it closed
+  // On desktop show info panel; on mobile start it closed
   const _panel = document.getElementById('infoPanel');
   const _expandBtn = document.getElementById('infoPanelExpandBtn');
   if (window.innerWidth > 768) {
     _panel.style.display = 'flex';
-    let _panelCollapsed = false;
-    try { _panelCollapsed = localStorage.getItem('cm_infopanel_collapsed') === '1'; } catch (_) {}
-    _panel.classList.toggle('ip-collapsed', _panelCollapsed);
-    if (_expandBtn) _expandBtn.style.display = _panelCollapsed ? 'flex' : 'none';
+    _panel.classList.remove('ip-collapsed');
+    if (_expandBtn) _expandBtn.style.display = 'none';
+    try { localStorage.setItem('cm_infopanel_collapsed', '0'); } catch (_) {}
   } else {
     _panel.style.display = 'none';
     _panel.classList.remove('ip-collapsed');
@@ -10082,13 +10073,24 @@ function renderStoryText(text) {
   const raw = String(text == null ? '' : text).replace(/\*\*/g, '');
   const paras = raw.split(/\n\n+/);
   const emit = (kind, str) => {
-    // links to the site's own Terms/Privacy pages stay clickable; everything else is just text
+    const colors = (activeTheme[kind] && activeTheme[kind].colors) || [];
     const parts = str.split(/(\[[^\]\n]{1,40}\]\((?:\/terms|\/privacy)\))/g);
+    let li = 0;
     return parts.map(part => {
       const lm = /^\[([^\]\n]{1,40})\]\((\/terms|\/privacy)\)$/.exec(part);
       if (lm) return '<a class="chat-link" href="' + lm[2] + '" target="_blank" rel="noopener">' + escHtml(lm[1]) + '</a>';
-      // Wrap runs of 3+ ALL-CAPS letters in a caps-em span for visual punch
-      return escHtml(part).replace(/\b[A-Z]{3,}\b/g, '<span class="caps-em">$&</span>');
+      if (!colors.length) return escHtml(part).replace(/\b[A-Z]{3,}\b/g, '<span class="caps-em">$&</span>');
+      // Per-letter coloring: each letter/digit gets its own colour span (inline style so randomizeChatColors can reshuffle on click)
+      let out = '';
+      for (const ch of part) {
+        if (LETTER_RE.test(ch)) {
+          const col = colors[letterPick(li++, colors.length)].c;
+          out += `<span style="color:${col}">${escHtml(ch)}</span>`;
+        } else {
+          out += escHtml(ch);
+        }
+      }
+      return out;
     }).join('');
   };
   return paras.map(p => {
