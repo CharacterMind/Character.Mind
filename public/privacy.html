@@ -191,7 +191,7 @@
 <div class="hero">
   <div class="hero-badge">Legal Document</div>
   <h1 class="hero-title">Privacy Policy</h1>
-  <p class="hero-meta">Effective <span>October 3, 2026</span> &nbsp;·&nbsp; Last updated <span>October 27, 2026</span></p>
+  <p class="hero-meta">Effective <span>October 3, 2026</span> &nbsp;·&nbsp; Last updated <span>October 29, 2026</span></p>
 </div>
 
 <div class="layout">
@@ -240,7 +240,9 @@
         <li><strong>Long-term memory notes:</strong> When you chat with Opys or Opys 5, we keep a short, automatically written summary of the earlier part of that chat so the character can remember it. It is stored with your account, used only for that chat, and deleted when you start a new chat or clear it.</li>
         <li><strong>Data kept in your browser:</strong> To load quickly, your device keeps a copy of your recent chats, past chats, profile picture, display name and preferences in your browser's local storage. Signing out does not erase it. To remove it, clear this site's data in your browser settings.</li>
         <li><strong>Recent chats:</strong> A list of characters you have recently chatted with, stored to populate your sidebar.</li>
-        <li><strong>Usage data:</strong> Token counts, session start times, and weekly usage totals, used to enforce plan limits and display your usage dashboard.</li>
+        <li><strong>Usage data:</strong> Token counts, session start times, and weekly usage totals, used to enforce plan limits and display your usage dashboard. This includes how many minutes of voice calls you have used today.</li>
+        <li><strong>Character relationship data:</strong> For each character, we store how many messages you have sent them (your friendship level), whether they have given you their in-app phone number, and any temporary block (when it ends and how many times they have hung up on you). This powers the Phone contacts, friendship and hang-up features. In-app phone numbers are fictional and are generated from your account ID; they are not real phone numbers.</li>
+        <li><strong>Voice calls:</strong> We do not record or store call audio. Your speech is converted to text by your browser's built-in speech recognition — depending on your browser this may be processed by the browser maker (for example, Google for Chrome) under their own privacy policy. The resulting text is sent to our servers and handled like a chat message, and the character's reply text is sent to a text-to-speech provider (see Third-Party Services) to create the spoken audio.</li>
         <li><strong>Subscription tier and PayPal subscription ID:</strong> Your current plan (Free, Advanced, or X20) and, for paid subscribers, the PayPal subscription identifier linked to your account, stored in our database.</li>
         <li><strong>C.M. Coins balance:</strong> Your virtual coin balance and daily coin-earning activity, stored in our database. Coins have no monetary value and cannot be withdrawn.</li>
         <li><strong>Push notification subscription:</strong> If you enable push notifications, your browser's push subscription endpoint and encryption keys are stored in our database so we can deliver notifications to your device. We also store the name of the character you last spoke with and a summary of the last message context (used to personalize re-engagement reminders). You can revoke this permission in your browser settings at any time. Stale subscriptions (those that return a 410 or 404 error) are automatically deleted from our database.</li>
@@ -312,8 +314,9 @@
       <p>We share data with the following third parties only as necessary to operate the service:</p>
       <ul>
         <li><strong>Google OAuth 2.0</strong> — handles sign-in. We receive your basic profile information as described above.</li>
-        <li><strong>Groq</strong> — our AI inference provider. Your conversation messages are sent to Groq's API to generate character responses. If you attach an image, it is also sent to Groq.</li>
-        <li><strong>Microsoft Edge TTS / Google Translate TTS</strong> — text-to-speech providers used for voice calls and read-aloud. The text of a character's reply is sent to these services to generate spoken audio. No account information is transmitted.</li>
+        <li><strong>Google Gemini API</strong> — our primary AI provider. Your conversation messages (including what you say on voice calls, as text) are sent to Google's Gemini API to generate character responses; images you attach are sent to it for safety checks and replies; and the text of a character's reply is sent to it to create spoken audio for voice calls.</li>
+        <li><strong>Groq</strong> — our backup AI provider. When the primary provider is busy, your conversation messages are sent to Groq's API to generate the character's response instead.</li>
+        <li><strong>Microsoft Edge TTS / Google Translate TTS</strong> — alternative text-to-speech providers used for voice calls and read-aloud. The text of a character's reply is sent to these services to generate spoken audio. No account information is transmitted.</li>
         <li><strong>Neon (PostgreSQL)</strong> — our database host, where user data, conversations, and character definitions are stored.</li>
         <li><strong>Render</strong> — our hosting provider, where the application server runs.</li>
         <li><strong>PayPal</strong> — payment processing for paid subscriptions and C.M. Coin purchases.</li>
@@ -332,6 +335,7 @@
         <li><strong>Archived past conversations</strong> are retained while your account is active and are browsable from the History panel. They are included in account deletion requests.</li>
         <li><strong>Content moderation records</strong> — per-conversation hate speech strikes and account-level real-world violence strikes and ban expiry — are retained while your account is active to enforce our policies.</li>
         <li><strong>Usage data</strong> (daily/weekly counters) is retained for the current billing and limit window, then reset.</li>
+        <li><strong>Character relationship data</strong> (friendship levels, earned phone contacts and block history) is retained while your account is active so your progress with each character is kept. Blocks end automatically when their time is up. This data is deleted when you delete your account.</li>
         <li><strong>Account data</strong> (name, email, subscription tier, PayPal subscription ID) is retained as long as your account exists. The PayPal subscription ID is removed when a subscription is cancelled, expired, or suspended.</li>
         <li><strong>IP geolocation results</strong> are cached in server memory for up to one hour and are never stored in our database. See <a href="#s3a">Section 3a</a>.</li>
         <li>If you request account deletion, we will remove your personal data from our database within 30 days, except where retention is required by law.</li>

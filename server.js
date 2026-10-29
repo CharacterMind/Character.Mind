@@ -1013,7 +1013,7 @@ setInterval(() => {
     const weeklyExpired = !u.weeklyStart || (now - u.weeklyStart) > LIMITS.WEEKLY_MS;
     const cw = getCallWindowStart();
     const imgActive = !!(u.imagesDay && u.imageFirstUsedAt && (now - u.imageFirstUsedAt) < 24 * 60 * 60 * 1000);
-    const dailyActive = ((u.callsToday || u.memosToday) && u.callDayStart >= cw) || imgActive;
+    const dailyActive = ((u.callsToday || u.memosToday) && u.callDayStart >= cw) || imgActive || hasKeepData(u);
     if (sessionExpired && weeklyExpired && !dailyActive && !u.skipCoinDeduct) delete userLimits[sid];
   }
   // Clean conversations idle for more than 4 hours
@@ -1044,7 +1044,7 @@ async function loadLimitsFromDB() {
         const cw = getCallWindowStart();
         const imgActive2 = !!(d.imagesDay > 0 && d.imageFirstUsedAt && (Date.now() - d.imageFirstUsedAt) < 24 * 60 * 60 * 1000);
         const dailyActive = (d.callDayStart >= cw && (d.callsToday > 0 || d.memosToday > 0)) ||
-                            imgActive2 ||
+                            imgActive2 || hasKeepData(d) ||
                             (d.ttsDayStart   >= cw && d.ttsCharsToday > 0) ||
                             (d.lastCheckin === checkinTodayStr());
         if (!dailyActive) continue;
@@ -1076,6 +1076,8 @@ async function loadLimitsFromDB() {
         creditsEnabled: d.creditsEnabled !== false,
         lastCheckin: d.lastCheckin || null,
         checkinStreak: d.checkinStreak || 0,
+        // Long-lived relationship data (blocks, earned phone numbers, friendship) and the weekly-rules marker must survive restarts
+        ...keepFieldsOf(d),
         // tierLoaded intentionally omitted: coins/tokens/tier are authoritative in the users table
         // and must be re-fetched via ensureTierLoaded on first request after restart
       };
@@ -1084,6 +1086,20 @@ async function loadLimitsFromDB() {
   } catch (e) {
     console.error('loadLimitsFromDB error:', e.message);
   }
+}
+
+// Per-user data that must never be dropped from memory or skipped when loading (it isn't "daily" or "weekly")
+const KEEP_FIELDS = ['charBlocks', 'phoneUnlocked', 'friendship', 'weeklyRulesV'];
+function keepFieldsOf(d) {
+  const out = {};
+  for (const k of KEEP_FIELDS) if (d && d[k] !== undefined && d[k] !== null) out[k] = d[k];
+  return out;
+}
+function hasKeepData(d) {
+  if (!d) return false;
+  return (d.charBlocks && Object.keys(d.charBlocks).length > 0) ||
+         (Array.isArray(d.phoneUnlocked) && d.phoneUnlocked.length > 0) ||
+         (d.friendship && Object.keys(d.friendship).length > 0);
 }
 
 function saveLimitsToDB(userId) {
@@ -1209,8 +1225,11 @@ const NSFW_BLOCK_TOKENS = 200;
 
 // Free = base. Advanced = 3× free. X20 = 20× free. X50/X100/X200 scale proportionally.
 const TIER_CALL_LIMITS  = { free: 6,   advanced: 18,  x20: 120,  x50: 300,  x100: 600,  x200: 1200  };
-// Duration-based call limits (seconds per 8-hour window). free=30min, advanced=90min, x20=4h, x50=6h, x100=7h, x200=8h
-const TIER_CALL_SECOND_LIMITS = { free: 1800, advanced: 5400, x20: 14400, x50: 21600, x100: 25200, x200: 28800 };
+// Call time per DAY (seconds; resets at 00:00 UTC). Same daily total the old 8-hour windows allowed (3 × 30 min on free),
+// but usable whenever you like: free=90min, advanced=4.5h, x20=12h, x50=18h, x100=21h, x200=unlimited
+const TIER_CALL_SECOND_LIMITS = { free: 5400, advanced: 16200, x20: 43200, x50: 64800, x100: 75600, x200: Infinity };
+const DAY_MS = 24 * 60 * 60 * 1000;
+function getCallDayStart() { return Math.floor(Date.now() / DAY_MS) * DAY_MS; }
 const TIER_MEMO_LIMITS  = { free: 50,  advanced: 150, x20: 1000, x50: 2500, x100: 5000, x200: 10000 };
 const TIER_IMAGE_LIMITS = { free: 3,   advanced: 9,   x20: 60,   x50: 150,  x100: 300,  x200: 600   };
 const TIER_REGEN_LIMITS = { free: 10,  advanced: 30,  x20: 200,  x50: 500,  x100: 1000, x200: 2000  };
@@ -1580,7 +1599,9 @@ function getLimits(sid) {
   }
   // Daily window resets at 8 AM UTC (calls + memos)
   const callWindow = getCallWindowStart();
-  if (!u.callDayStart  || u.callDayStart  < callWindow) { u.callsToday = 0; u.callSecondsToday = 0; u.callDayStart = callWindow; }
+  // Calls reset once a day (00:00 UTC); memos, messages, regens and swears still use the 8-hour window
+  const callDay = getCallDayStart();
+  if (!u.callDayStart  || u.callDayStart  < callDay) { u.callsToday = 0; u.callSecondsToday = 0; u.callDayStart = callDay; }
   if (!u.memoDayStart  || u.memoDayStart  < callWindow) { u.memosToday     = 0; u.memoDayStart  = callWindow; }
   if (!u.msgDayStart   || u.msgDayStart   < callWindow) { u.msgTokensToday = 0; u.msgDayStart   = callWindow; }
   // Image window is rolling 24h from first use, not a fixed daily window
@@ -1654,7 +1675,7 @@ function buildUsagePayload(u, userId) {
     imageLimit: imgLimit === Infinity ? 9999 : imgLimit,
     imageResetAt: u.imageFirstUsedAt ? u.imageFirstUsedAt + 24 * 60 * 60 * 1000 : null,
     subscriptionTier: u.subscriptionTier || 'free',
-    callWindowResetsAt: getCallWindowStart() + 8 * 60 * 60 * 1000,
+    callWindowResetsAt: getCallDayStart() + DAY_MS,
     softLaunch: SOFT_LAUNCH,
     gameNextAvailableAt: (() => { const last = userId && gameLastPlayed ? gameLastPlayed.get(userId) : null; return last ? last + GAME_COOLDOWN_MS : null; })(),
     cmCoins: u.cmCoins || 0,
@@ -1687,8 +1708,7 @@ function imageTokenCost(sizeBytes) {
   if (sizeBytes < IMAGE_MEDIUM_BYTES) return IMAGE_UNIT_TOKENS * 2;  // 2 units
   return IMAGE_UNIT_TOKENS * 3;                                       // 3 units
 }
-// Call cost: scales with duration at 10 tokens/sec, clamped 200–2000.
-// ~20 s → 200 (min), ~2 min → 1 200, ~5 min → 2 000 (max, ~1 chat msg).
+// Old hang-up charge, no longer used (call replies are charged per message; call time has its own daily limit)
 const CALL_TOKENS_PER_SECOND = 10;
 const CALL_TOKEN_MIN = 200;   // ~20-second call
 const CALL_TOKEN_MAX = 2000;  // 5-minute call (~1 Opes chat message)
@@ -3991,7 +4011,7 @@ app.post('/api/call/start', requireAuth, (req, res) => {
   const callSecsLimit = getCallLimitForUser(userId);
   if (callSecsLimit !== Infinity && (u.callSecondsToday || 0) >= callSecsLimit) {
     const minsLimit = Math.round(callSecsLimit / 60);
-    return res.status(429).json({ allowed: false, type: 'call_daily_limit', callSecondsToday: u.callSecondsToday || 0, callSecondsLimit: callSecsLimit, minsLimit, resetsAt: getCallWindowStart() + 8 * 60 * 60 * 1000 });
+    return res.status(429).json({ allowed: false, type: 'call_daily_limit', callSecondsToday: u.callSecondsToday || 0, callSecondsLimit: callSecsLimit, minsLimit, resetsAt: getCallDayStart() + DAY_MS });
   }
   // A character who blocked this user won't pick up
   const { charId } = req.body || {};
@@ -4014,10 +4034,11 @@ app.post('/api/call/end', requireAuth, (req, res) => {
   }
   u.callSecondsToday = (u.callSecondsToday || 0) + Math.ceil(duration);
   u.callsToday = (u.callsToday || 0) + 1; // kept for mission tracking
-  const callTokenCost = Math.max(CALL_TOKEN_MIN, Math.min(CALL_TOKEN_MAX, Math.ceil(duration * CALL_TOKENS_PER_SECOND)));
-  const usage = addTokens(userId, callTokenCost);
+  // No token charge here: every reply during the call was already charged like a chat message, and call
+  // time has its own daily limit. (It used to charge again for the whole call on hang-up.)
+  saveLimitsToDB(userId);
   trackMissionProgress(userId, 'call').catch(() => {});
-  res.json({ ok: true, ...usage });
+  res.json({ ok: true, ...buildUsagePayload(u, userId) });
 });
 
 // ── Phone contacts (earned numbers) ──────────────────────────────────────────
