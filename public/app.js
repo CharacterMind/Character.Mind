@@ -2848,9 +2848,16 @@ function phoneCallDigits() {
 
 // ── Calling from Phone ───────────────────────────────────────────────────────
 
-function callCharFromPhone(charId, e) {
+async function callCharFromPhone(charId, e) {
   if (e) e.stopPropagation();
-  const char = (characters || []).find(c => c.id === charId);
+  let char = (characters || []).find(c => c.id === charId);
+  if (!char) {
+    try {
+      const r = await fetch('/api/characters');
+      if (r.ok) { characters = await r.json(); }
+      char = (characters || []).find(c => c.id === charId);
+    } catch(_) {}
+  }
   if (!char) return;
   // Set currentChar so startCallMode picks it up
   const prevChar = currentChar;
