@@ -8971,12 +8971,57 @@ async function _playStreamTTSQueue() {
   _streamTTSPlaying = true;
   const btn = document.getElementById('autoSpeakBtn');
   if (btn) btn.classList.add('speaking');
-  while (_streamTTSQueue.length > 0) {
-    if (!_streamTTSPlaying) break;
-    const sentence = _streamTTSQueue.shift();
-    const cleaned = ttsCleanText(sentence);
-    if (cleaned && cleaned.length > 1) await _speakStreamSentence(cleaned);
+
+  const fetchAudio = (text) => {
+    if (ttsProvider === 'browser') return Promise.resolve(null);
+    return fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined })
+    }).then(r => (r.ok && _streamTTSPlaying) ? r.blob() : null).catch(() => null);
+  };
+
+  const nextClean = () => {
+    while (_streamTTSQueue.length > 0) {
+      const t = ttsCleanText(_streamTTSQueue.shift() || '');
+      if (t && t.length > 1) return t;
+    }
+    return null;
+  };
+
+  // Kick off first fetch immediately; then pre-fetch next while current plays
+  let pendingText = nextClean();
+  let pending = pendingText ? fetchAudio(pendingText) : null;
+
+  while (pending !== null && _streamTTSPlaying) {
+    const nextText = nextClean();
+    const futureFetch = nextText ? fetchAudio(nextText) : null;
+
+    const blob = await pending;
+
+    if (_streamTTSPlaying) {
+      if (ttsProvider === 'browser') {
+        await _speakStreamSentence(pendingText);
+      } else if (blob) {
+        await new Promise(resolve => {
+          const url = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+          const done = () => { URL.revokeObjectURL(url); resolve(); };
+          audio.onended = done; audio.onerror = done;
+          audio.play().catch(done);
+        });
+      }
+    }
+
+    pending = futureFetch;
+    pendingText = nextText;
+    // Pick up any sentences that arrived while we were playing
+    if (pending === null) {
+      const t = nextClean();
+      if (t) { pending = fetchAudio(t); pendingText = t; }
+    }
   }
+
   _streamTTSPlaying = false;
   if (btn) btn.classList.remove('speaking');
 }
@@ -9275,10 +9320,18 @@ async function toggleTTS(btn) {
     return;
   }
 
-  // Check + deduct memo before TTS — pass text length for variable cost
+  // Fire TTS and memo check in parallel — don't wait for memo before starting TTS
+  const ttsAbort = new AbortController();
+  const ttsFetchPromise = fetch('/api/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    signal: ttsAbort.signal,
+    body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined })
+  });
   try {
     const memoR = await fetch('/api/memo/use', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ textLen: text.length }) });
     if (!memoR.ok) {
+      ttsAbort.abort();
       stopActiveTTS();
       const memoData = await memoR.json().catch(() => ({}));
       if (memoR.status === 429 && memoData.type === 'memo_daily_limit') {
@@ -9293,11 +9346,7 @@ async function toggleTTS(btn) {
   let serverOk = false;
   let ttsStatus = 0;
   try {
-    const r = await fetch('/api/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined })
-    });
+    const r = await ttsFetchPromise;
     ttsStatus = r.status;
     if (r.ok && activeTTSBtn === btn) {
       serverOk = true;

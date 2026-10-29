@@ -4829,7 +4829,9 @@ app.get('/api/character-voice/:charId', requireAuth, async (req, res) => {
     if (filename) {
       const filePath = path.join(USER_VOICES_DIR, userId, filename);
       await fs.promises.access(filePath);
-      res.setHeader('Content-Type', 'audio/webm');
+      const ext = path.extname(filename).toLowerCase();
+      res.setHeader('Content-Type', VOICE_EXT_MIME[ext] || 'audio/octet-stream');
+      res.setHeader('Cache-Control', 'no-cache');
       return res.sendFile(filePath);
     }
   } catch { /* no user-assigned voice */ }
