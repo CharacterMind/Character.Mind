@@ -5079,6 +5079,73 @@ body:not(.halloween) .hw-off-label { display: inline; }
 .ph-contact-btn-call { color: #4ade80; }
 .ph-contact-btn-call:hover { background: rgba(74,222,128,.12); border-color: rgba(74,222,128,.3); }
 
+/* ── Phone contact profile card ─────────────────────────────────────────── */
+.pcp-overlay {
+  position: fixed; inset: 0; z-index: 3000;
+  background: rgba(0,0,0,.65); backdrop-filter: blur(6px);
+  display: flex; align-items: flex-end; justify-content: center;
+  animation: pcpFadeIn .18s ease;
+}
+@keyframes pcpFadeIn { from { opacity: 0 } to { opacity: 1 } }
+.pcp-sheet {
+  width: 100%; max-width: 440px;
+  background: var(--bg2, #151823);
+  border-radius: 28px 28px 0 0;
+  padding: 0 0 32px;
+  position: relative; overflow: hidden;
+  animation: pcpSlideUp .22s cubic-bezier(.22,1,.36,1);
+}
+@keyframes pcpSlideUp { from { transform: translateY(60px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+.pcp-bg {
+  position: absolute; inset: 0; height: 220px;
+  background: var(--pcp-color, #7c3aed);
+  opacity: .18; pointer-events: none;
+}
+.pcp-close {
+  position: absolute; top: 16px; left: 16px; z-index: 2;
+  width: 36px; height: 36px; border-radius: 50%; border: none;
+  background: rgba(0,0,0,.35); color: #fff; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.pcp-avatar-wrap {
+  display: flex; justify-content: center; padding-top: 48px; position: relative; z-index: 1;
+}
+.pcp-avatar {
+  width: 110px; height: 110px; border-radius: 50%;
+  background: var(--pcp-color, #7c3aed);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 46px; font-weight: 700; color: #fff;
+  overflow: hidden; flex-shrink: 0;
+  box-shadow: 0 8px 32px rgba(0,0,0,.4);
+}
+.pcp-avatar img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+.pcp-name {
+  text-align: center; font-size: 26px; font-weight: 700;
+  color: var(--text, #f1f5f9); margin: 14px 20px 4px;
+  position: relative; z-index: 1;
+}
+.pcp-num {
+  text-align: center; font-size: 14px; color: var(--muted, #64748b);
+  letter-spacing: .5px; margin-bottom: 28px;
+  position: relative; z-index: 1;
+}
+.pcp-actions {
+  display: flex; gap: 16px; justify-content: center; padding: 0 24px;
+  position: relative; z-index: 1;
+}
+.pcp-action {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 18px 12px;
+  border-radius: 18px; border: none; cursor: pointer;
+  font-size: 13px; font-weight: 600;
+  transition: transform .12s, opacity .12s;
+}
+.pcp-action:active { transform: scale(.96); opacity: .8; }
+.pcp-action-call { background: rgba(74,222,128,.15); color: #4ade80; border: 1px solid rgba(74,222,128,.3); }
+.pcp-action-call:hover { background: rgba(74,222,128,.22); }
+.pcp-action-chat { background: rgba(124,58,237,.15); color: #a78bfa; border: 1px solid rgba(124,58,237,.3); }
+.pcp-action-chat:hover { background: rgba(124,58,237,.22); }
+
 /* Keypad FAB */
 .ph-keypad-fab {
   position: absolute; bottom: 24px; right: 20px;

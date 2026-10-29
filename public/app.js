@@ -2770,7 +2770,7 @@ function renderPhoneContacts(query) {
       ? `<img src="${escHtml(c.image)}" alt="" onerror="this.style.display='none'">`
       : escHtml(initial);
     return `<div class="ph-contact-card" style="--ph-color:${escHtml(color)};--ph-glow:${escHtml(color)}">
-      <div class="ph-contact-avatar" style="background:${escHtml(color)}">${avatarContent}</div>
+      <div class="ph-contact-avatar" style="background:${escHtml(color)}" onclick="showPhoneContactProfile('${escHtml(c.id)}',event)">${avatarContent}</div>
       <div class="ph-contact-name">${escHtml(c.name)}</div>
       <div class="ph-contact-num">${escHtml(phone)}</div>
       <div class="ph-contact-btns">
@@ -2785,6 +2785,36 @@ function renderPhoneContacts(query) {
       </div>
     </div>`;
   }).join('');
+}
+
+// ── Phone contact profile card ────────────────────────────────────────────────
+
+function showPhoneContactProfile(charId, e) {
+  if (e) e.stopPropagation();
+  const c = (characters || []).find(x => x.id === charId);
+  if (!c) return;
+  const overlay = document.getElementById('phoneContactProfile');
+  if (!overlay) return;
+  const color = safeColor(c.color || '#7c3aed');
+  const hasImg = isCharImg && isCharImg(c.image);
+  const initial = (c.name || '?').charAt(0).toUpperCase();
+  document.getElementById('pcpBg').style.setProperty('--pcp-color', color);
+  overlay.style.setProperty('--pcp-color', color);
+  const avatarEl = document.getElementById('pcpAvatar');
+  avatarEl.style.background = color;
+  avatarEl.innerHTML = hasImg
+    ? `<img src="${escHtml(c.image)}" alt="" onerror="this.style.display='none'">`
+    : escHtml(initial);
+  document.getElementById('pcpName').textContent = c.name || '';
+  document.getElementById('pcpNum').textContent = charPhone(c.id);
+  document.getElementById('pcpCallBtn').onclick = () => { closePhoneContactProfile(); callCharFromPhone(charId); };
+  document.getElementById('pcpChatBtn').onclick = () => { closePhoneContactProfile(); openChat(charId); };
+  overlay.style.display = 'flex';
+}
+
+function closePhoneContactProfile() {
+  const overlay = document.getElementById('phoneContactProfile');
+  if (overlay) overlay.style.display = 'none';
 }
 
 // ── Keypad ───────────────────────────────────────────────────────────────────

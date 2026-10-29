@@ -911,10 +911,32 @@
           <button class="btn-send" id="sendBtn" onclick="sendMessage(undefined, undefined, true)" title="Send (empty = let the AI keep talking)">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
           </button>
-          <button class="btn-call" id="callBtn" onclick="callCharFromChat()" title="Voice call">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
-          </button>
         </div>
+        <!-- Character profile card (phone contacts avatar click) -->
+        <div id="phoneContactProfile" class="pcp-overlay" style="display:none" onclick="closePhoneContactProfile()">
+          <div class="pcp-sheet" onclick="event.stopPropagation()">
+            <button class="pcp-close" onclick="closePhoneContactProfile()">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+            </button>
+            <div class="pcp-bg" id="pcpBg"></div>
+            <div class="pcp-avatar-wrap">
+              <div class="pcp-avatar" id="pcpAvatar"></div>
+            </div>
+            <div class="pcp-name" id="pcpName"></div>
+            <div class="pcp-num" id="pcpNum"></div>
+            <div class="pcp-actions">
+              <button class="pcp-action pcp-action-call" id="pcpCallBtn">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+                Call
+              </button>
+              <button class="pcp-action pcp-action-chat" id="pcpChatBtn">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+                Message
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Call overlay — Pixel phone style -->
         <div id="callOverlay" class="call-overlay" style="display:none">
           <!-- Animated color orbs — colors set by character palette -->
@@ -1189,12 +1211,6 @@
       <button class="ip-new-chat" onclick="requestNewChat()">
         <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M19 3H5c-1.1 0-2 .9-2 2v14l4-4h12c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
         New chat
-      </button>
-
-      <!-- Voice call -->
-      <button class="ip-row" onclick="callCharFromChat()">
-        <span class="ip-row-ico"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></span>
-        <span class="ip-row-label">Voice call</span>
       </button>
 
       <!-- History -->
