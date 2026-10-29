@@ -5215,6 +5215,16 @@ body:not(.halloween) .hw-off-label { display: inline; }
 .ph-contact-btn svg { flex-shrink: 0; }
 .ph-contact-btn-call { color: #4ade80; }
 .ph-contact-btn-call:hover { background: rgba(74,222,128,.12); border-color: rgba(74,222,128,.3); }
+.ph-contact-btn-busy { color: #f97316; opacity: .7; cursor: default; }
+.ph-contact-btn-busy:hover { background: rgba(249,115,22,.08); border-color: rgba(249,115,22,.25); }
+
+.ph-avail-dot {
+  display: inline-block; vertical-align: middle;
+  width: 8px; height: 8px; border-radius: 50%;
+  margin-right: 5px; flex-shrink: 0;
+}
+.ph-avail-free { background: #4ade80; }
+.ph-avail-busy { background: #f97316; }
 
 /* ── Phone contact profile card ─────────────────────────────────────────── */
 .pcp-overlay {
