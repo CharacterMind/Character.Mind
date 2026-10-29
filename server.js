@@ -1881,7 +1881,18 @@ const summaryBusy = new Set();
 // Persistent user-memory system — facts auto-extracted from conversations
 // Injection limit: how many facts to inject into the system prompt per model tier
 const USER_MEMORY_INJECT = { opas: 1, opes: 3, opis: 6, opos: 10, opus: 16, opys: 25, opys5: 40, opys6: 60 };
-const USER_MEMORY_CAP = 60; // global max facts stored per user
+const USER_MEMORY_CAP = 60; // fallback cap; per-tier caps are in MEMORY_EXTRACT_TIERS
+// Per-tier extraction settings: higher tiers run more often, look at more history, extract more facts, and use a smarter model
+const MEMORY_EXTRACT_TIERS = {
+  opas:  { every: 12, window: 15, maxFacts: 2,  words: 10, model: 'gemini-2.0-flash-lite', cap: 40  },
+  opes:  { every: 10, window: 20, maxFacts: 3,  words: 12, model: 'gemini-2.0-flash-lite', cap: 60  },
+  opis:  { every: 10, window: 20, maxFacts: 4,  words: 14, model: 'gemini-2.0-flash-lite', cap: 80  },
+  opos:  { every: 8,  window: 25, maxFacts: 5,  words: 16, model: 'gemini-2.0-flash-lite', cap: 100 },
+  opus:  { every: 8,  window: 30, maxFacts: 6,  words: 20, model: 'gemini-2.0-flash',      cap: 120 },
+  opys:  { every: 6,  window: 40, maxFacts: 8,  words: 25, model: 'gemini-2.0-flash',      cap: 150 },
+  opys5: { every: 5,  window: 50, maxFacts: 10, words: 30, model: 'gemini-2.0-flash',      cap: 200 },
+  opys6: { every: 4,  window: 60, maxFacts: 12, words: 35, model: 'gemini-2.0-flash',      cap: 250 },
+};
 const memExtractBusy = new Set(); // userId -> extraction in progress
 
 function geminiOnce(apiKey, model, system, user, maxTokens) {
@@ -1985,25 +1996,32 @@ async function maybeUpdateStorySummary(key, apiKey, charName, modelTier) {
 }
 
 // Extracts user facts from a conversation and stores them persistently. Runs in the background after replies.
-// Triggered every 10 user messages. Uses gemini-flash-lite so it's cheap and fast.
-async function maybeExtractMemories(userId, charId, key, apiKey) {
+// Frequency, depth, and model quality scale with modelTier — higher tiers build richer memories faster.
+async function maybeExtractMemories(userId, charId, key, apiKey, modelTier) {
   if (!db || !userId || !apiKey) return;
+  const base = baseOf(modelTier || 'opes');
+  const tier = MEMORY_EXTRACT_TIERS[base] || MEMORY_EXTRACT_TIERS.opes;
   const msgs = aiHistory(conversations[key] || []);
   const userMsgCount = msgs.filter(m => m.role === 'user').length;
-  // Only run every 10 user messages (5, 15, 25, ...) and not too early
-  if (userMsgCount < 5 || userMsgCount % 10 !== 5 % 10) return;
+  // Run every tier.every user messages starting at 5 (e.g. opys6: 5,9,13… opes: 5,15,25…)
+  if (userMsgCount < 5 || (userMsgCount - 5) % tier.every !== 0) return;
   if (memExtractBusy.has(userId)) return;
   memExtractBusy.add(userId);
   try {
     const countR = await db.query('SELECT COUNT(*) FROM user_memories WHERE user_id=$1', [userId]);
-    if (Number(countR.rows[0].count) >= USER_MEMORY_CAP) return;
+    if (Number(countR.rows[0].count) >= tier.cap) return;
 
-    const recent = msgs.slice(-20).map(m => (m.role === 'user' ? 'User' : 'Character') + ': ' + String(m.content).replace(/\s+/g, ' ').slice(0, 400)).join('\n');
-    const system = 'You extract specific, lasting facts about the USER (not the character) from a conversation excerpt. Return ONLY a valid JSON array of short fact strings (max 12 words each), such as ["loves chocolate milk","dislikes 3D modeling","has a dog named Max"]. Rules: (1) Only save facts the user stated sincerely about their real life — preferences, hobbies, job, family, location, genuine feelings. (2) SKIP anything said while playing a character or in-roleplay. (3) SKIP jokes, sarcasm, hyperbole, and obvious exaggerations — if they said "lol", "jk", "haha", used absurd/impossible claims, or the tone is clearly humorous, do not save it. (4) SKIP vague or one-off emotional reactions ("I\'m so tired today"). (5) Do not invent or infer — only save what was plainly and sincerely stated. If there are no clear qualifying facts, return []. Maximum 3 facts.';
+    const recent = msgs.slice(-tier.window).map(m => (m.role === 'user' ? 'User' : 'Character') + ': ' + String(m.content).replace(/\s+/g, ' ').slice(0, 400)).join('\n');
+
+    const isRich = base === 'opus' || base === 'opys' || base === 'opys5' || base === 'opys6';
+    const system = isRich
+      ? `You extract rich, lasting facts about the USER from a conversation. Write each fact as a specific, detailed sentence capturing genuine preferences, habits, relationships, routines, or emotional patterns they've revealed. Return ONLY a valid JSON array of strings (max ${tier.words} words each), such as ["has a younger sister she calls every Sunday","gets anxious in big groups but opens up one-on-one","works night shifts as a nurse"]. Rules: (1) Only save facts the user stated sincerely about their real life. (2) SKIP anything said in-roleplay or while playing a character. (3) SKIP jokes, sarcasm, and obvious exaggerations. (4) Include nuanced detail: specific names, places, emotional context, recurring themes, communication style. (5) Do not infer or fabricate — only what was clearly stated. If no qualifying facts, return []. Maximum ${tier.maxFacts} facts.`
+      : `You extract specific, lasting facts about the USER (not the character) from a conversation excerpt. Return ONLY a valid JSON array of short fact strings (max ${tier.words} words each), such as ["loves chocolate milk","dislikes 3D modeling","has a dog named Max"]. Rules: (1) Only save facts the user stated sincerely about their real life — preferences, hobbies, job, family, location, genuine feelings. (2) SKIP anything said while playing a character or in-roleplay. (3) SKIP jokes, sarcasm, hyperbole, and obvious exaggerations — if they said "lol", "jk", "haha", used absurd/impossible claims, or the tone is clearly humorous, do not save it. (4) SKIP vague or one-off emotional reactions ("I'm so tired today"). (5) Do not invent or infer — only save what was plainly and sincerely stated. If there are no clear qualifying facts, return []. Maximum ${tier.maxFacts} facts.`;
     const user = 'Conversation:\n' + recent + '\n\nExtract user facts as a JSON array:';
 
+    const maxTokens = 100 + tier.maxFacts * 20;
     let result = '';
-    try { result = await geminiOnce(apiKey, 'gemini-2.0-flash-lite', system, user, 200); } catch (_) { return; }
+    try { result = await geminiOnce(apiKey, tier.model, system, user, maxTokens); } catch (_) { return; }
 
     const match = result.match(/\[[\s\S]*?\]/);
     if (!match) return;
@@ -2011,8 +2029,8 @@ async function maybeExtractMemories(userId, charId, key, apiKey) {
     try { facts = JSON.parse(match[0]); } catch (_) { return; }
     if (!Array.isArray(facts)) return;
 
-    for (const rawFact of facts.slice(0, 3)) {
-      const fact = sanitizeNote(String(rawFact || ''), 200);
+    for (const rawFact of facts.slice(0, tier.maxFacts)) {
+      const fact = sanitizeNote(String(rawFact || ''), 300);
       if (!fact || fact.length < 4) continue;
       const factSnip = fact.slice(0, 25).toLowerCase().replace(/%/g, '\\%').replace(/_/g, '\\_');
       const exists = await db.query('SELECT 1 FROM user_memories WHERE user_id=$1 AND LOWER(fact) LIKE $2 ESCAPE $3 LIMIT 1', [userId, '%' + factSnip + '%', '\\']);
@@ -6574,7 +6592,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       }
       if (bookPlanState) saveBookState(key, { ...bookPlanState, outline: String(text || '').slice(0, 4000) });
       maybeUpdateStorySummary(key, apiKey, (dbChar && dbChar.name) || charId, modelTier);
-      maybeExtractMemories(userId, charId, key, apiKey).catch(() => {});
+      maybeExtractMemories(userId, charId, key, apiKey, modelTier).catch(() => {});
       if (db && dbChar && dbChar.name) {
         const ctx = (message || '').slice(0, 400);
         const crisis = hasCrisisSignal(message || '');
