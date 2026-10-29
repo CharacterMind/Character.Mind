@@ -452,13 +452,6 @@ if (db) {
     .catch(err => console.error('Add slots_win_rate column error:', err));
   db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS halloween_gift_2026 BOOLEAN NOT NULL DEFAULT FALSE`)
     .catch(err => console.error('Add halloween_gift_2026 column error:', err));
-  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_afk_collect BIGINT NOT NULL DEFAULT 0`)
-    .catch(err => console.error('Add last_afk_collect column error:', err));
-  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS farm_level INTEGER NOT NULL DEFAULT 0`)
-    .catch(err => console.error('Add farm_level column error:', err));
-  db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS farm_frac DOUBLE PRECISION NOT NULL DEFAULT 0`)
-    .catch(err => console.error('Add farm_frac column error:', err));
-
   db.query(`
     CREATE TABLE IF NOT EXISTS user_limits (
       user_id TEXT PRIMARY KEY,
@@ -930,7 +923,7 @@ async function ensureTierLoaded(user) {
   try {
     if (OWNER_EMAILS.has(user.email)) ownerGoogleIds.add(user.googleId); // admin tools; the plan comes from planFor()
     if (!db) { u.tierLoaded = true; return; }
-    const r = await db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, cm_tokens, coins_earned_today, coins_day_reset, coins_monthly_reset, coins_earned_all_time, ban_until, violence_strikes, last_checkin, checkin_streak, slots_win_rate, halloween_gift_2026, last_afk_collect, farm_level, farm_frac FROM users WHERE google_id = $1', [user.googleId]);
+    const r = await db.query('SELECT subscription_tier, coin_tier, coin_tier_expires, cm_coins, cm_tokens, coins_earned_today, coins_day_reset, coins_monthly_reset, coins_earned_all_time, ban_until, violence_strikes, last_checkin, checkin_streak, slots_win_rate, halloween_gift_2026 FROM users WHERE google_id = $1', [user.googleId]);
     const row = r.rows[0] || {};
     u.paypalTier = planFor(user.email, row.subscription_tier);
     u.coinTier = row.coin_tier || null;
@@ -947,9 +940,6 @@ async function ensureTierLoaded(user) {
     if (row.checkin_streak) u.checkinStreak = parseInt(row.checkin_streak) || 0;
     u.slotsWinRate = row.slots_win_rate != null ? Number(row.slots_win_rate) : null;
     u.halloweenGift2026 = !!row.halloween_gift_2026;
-    u.lastAfkCollect = Number(row.last_afk_collect) || 0;
-    u.farmLevel = parseInt(row.farm_level) || 0;
-    u.farmFrac  = parseFloat(row.farm_frac) || 0;
     u.subscriptionTier = effectiveTier(u);
     u.tierLoaded = true;
     await checkMonthlyCoins(user.googleId, u);
@@ -1240,16 +1230,6 @@ const TIER_REGEN_LIMITS = { free: 10,  advanced: 30,  x20: 200,  x50: 500,  x100
 const COIN_EARN_PER_WIN = { free: 3, advanced: 4, x20: 6, x50: 9, x100: 12, x200: 15 };
 const COIN_DAILY_CAP    = 100;
 const COIN_MONTHLY_COST = { advanced: 2000, x20: 8000, x50: 20000, x100: 50000, x200: 150000 };
-const AFK_FARM_MAX_MS = 8 * 3600 * 1000;  // cap offline accumulation at 8 hours
-const AFK_FARM_MIN_MS = 5 * 60 * 1000;    // minimum 5 min between collects
-const FARM_TIERS = [
-  { name: 'Bare dirt', rate: 0.000000012, cost: 0      }, // lv 0 — ~1 coin/day
-  { name: 'Seeds',     rate: 0.000006,    cost: 150    }, // lv 1 — ~20 coins/hr at low balance
-  { name: 'Sprouts',   rate: 0.000025,    cost: 600    }, // lv 2
-  { name: 'Crops',     rate: 0.00008,     cost: 2500   }, // lv 3
-  { name: 'Harvest',   rate: 0.00022,     cost: 10000  }, // lv 4
-  { name: 'Megafarm',  rate: 0.0005,      cost: 40000  }, // lv 5
-];
 const TIER_RANK         = { free: 0, advanced: 1, x20: 2, x50: 3, x100: 4, x200: 5 };
 
 // ── Prestige rank system ────────────────────────────────────────────────────
@@ -4066,20 +4046,35 @@ app.post('/api/call/start', requireAuth, (req, res) => {
 
 app.post('/api/call/end', requireAuth, (req, res) => {
   const userId = req.user.googleId;
-  const { duration } = req.body; // seconds this call lasted
+  const { duration, groupCharCount } = req.body; // seconds this call lasted
   const u = getLimits(userId);
   // Calls < 5 s are instant-ends — don't count them
   if (typeof duration !== 'number' || !Number.isFinite(duration) || duration < 5) {
     saveLimitsToDB(userId);
     return res.json({ ok: true, refunded: true });
   }
-  u.callSecondsToday = (u.callSecondsToday || 0) + Math.ceil(duration);
-  u.callsToday = (u.callsToday || 0) + 1; // kept for mission tracking
-  // No token charge here: every reply during the call was already charged like a chat message, and call
-  // time has its own daily limit. (It used to charge again for the whole call on hang-up.)
+  const charCount = (typeof groupCharCount === 'number' && groupCharCount >= 2 && groupCharCount <= 5) ? groupCharCount : 1;
+  // Group calls cost more call time: each extra character adds a full duplicate of the duration
+  u.callSecondsToday = (u.callSecondsToday || 0) + Math.ceil(duration * charCount);
+  u.callsToday = (u.callsToday || 0) + 1;
+  // Group calls also burn extra session/weekly tokens proportional to group size and duration
+  if (charCount > 1) {
+    addTokens(userId, Math.ceil(duration * (charCount - 1) * 4));
+  }
   saveLimitsToDB(userId);
   trackMissionProgress(userId, 'call').catch(() => {});
   res.json({ ok: true, ...buildUsagePayload(u, userId) });
+});
+
+// Gate: adding a second character to a call requires advanced+ tier
+app.post('/api/call/group-join', requireAuth, (req, res) => {
+  const userId = req.user.googleId;
+  const u = getLimits(userId);
+  const tier = planFor(req.user.email, u.subscriptionTier);
+  if ((TIER_RANK[tier] || 0) < TIER_RANK['advanced']) {
+    return res.status(403).json({ allowed: false, type: 'tier_required', required: 'advanced' });
+  }
+  res.json({ allowed: true });
 });
 
 // ── Phone contacts (earned numbers) ──────────────────────────────────────────
@@ -4185,172 +4180,6 @@ app.get('/api/checkin', requireAuth, (req, res) => {
     streak: u.checkinStreak || 0,
     nextReward: CHECKIN_BASE,
   });
-});
-
-// ── AFK Coin Farm ─────────────────────────────────────────────────────────────
-// Coins accumulate at FARM_TIERS[farmLevel].rate * earnMult(uid) per second.
-// Fractional coins carry over between collects (stored as farm_frac).
-// Upgrade by spending coins to reach the next tier.
-
-app.get('/api/coins/farm', requireAuth, async (req, res) => {
-  try {
-    await ensureTierLoaded(req.user);
-    const uid = req.user.googleId;
-    const u = getLimits(uid);
-    const now = Date.now();
-    const lastCollect = u.lastAfkCollect || 0;
-    const level = Math.min(u.farmLevel || 0, FARM_TIERS.length - 1);
-    const tier = FARM_TIERS[level];
-    const baseRate = tier.rate * earnMult(uid);
-    const balance = u.cmCoins || 0;
-    const adjustedRate = baseRate / (1 + balance / 2000);
-    const elapsedSec = lastCollect ? Math.min((now - lastCollect) / 1000, AFK_FARM_MAX_MS / 1000) : 0;
-    const accumulated = (u.farmFrac || 0) + elapsedSec * adjustedRate;
-    const canCollect = lastCollect ? ((now - lastCollect) >= AFK_FARM_MIN_MS) : false;
-    const nextCollect = lastCollect ? Math.max(lastCollect + AFK_FARM_MIN_MS, now) : now;
-    const nextTier = level < FARM_TIERS.length - 1 ? { ...FARM_TIERS[level + 1], level: level + 1 } : null;
-    res.json({
-      level, tierName: tier.name, ratePerSec: adjustedRate, baseRate, nextTier,
-      lastCollect, accumulated, canCollect, nextCollect,
-      initialized: lastCollect > 0, maxLevel: FARM_TIERS.length - 1,
-    });
-  } catch (e) { res.status(500).json({ error: 'Something went wrong' }); }
-});
-
-app.post('/api/coins/farm', requireAuth, async (req, res) => {
-  if (!db) return res.status(503).json({ error: 'No database' });
-  try {
-    await ensureTierLoaded(req.user);
-    const uid = req.user.googleId;
-    const u = getLimits(uid);
-    const now = Date.now();
-
-    const dbRow = await db.query('SELECT last_afk_collect, farm_level, farm_frac, cm_coins FROM users WHERE google_id = $1', [uid]);
-    const lastCollect = Number(dbRow.rows[0]?.last_afk_collect) || 0;
-    const level = Math.min(parseInt(dbRow.rows[0]?.farm_level) || 0, FARM_TIERS.length - 1);
-    const farmFrac = parseFloat(dbRow.rows[0]?.farm_frac) || 0;
-    const cmCoins = parseFloat(dbRow.rows[0]?.cm_coins) || 0;
-    const baseRate = FARM_TIERS[level].rate * earnMult(uid);
-    const ratePerSec = baseRate / (1 + cmCoins / 2000);
-    const nextTier = level < FARM_TIERS.length - 1 ? { ...FARM_TIERS[level + 1], level: level + 1 } : null;
-
-    // First ever collect — just initialize the timestamp
-    if (!lastCollect) {
-      await db.query('UPDATE users SET last_afk_collect = $1 WHERE google_id = $2', [now, uid]);
-      u.lastAfkCollect = now;
-      return res.json({
-        awarded: 0, balance: u.cmCoins || 0,
-        lastCollect: now, nextCollect: now + AFK_FARM_MIN_MS,
-        ratePerSec, baseRate, level, tierName: FARM_TIERS[level].name, nextTier,
-        accumulated: 0, initialized: true, maxLevel: FARM_TIERS.length - 1,
-      });
-    }
-
-    const elapsed = now - lastCollect;
-    if (elapsed < AFK_FARM_MIN_MS) {
-      return res.json({
-        awarded: 0, balance: u.cmCoins || 0, reason: 'too_soon',
-        nextCollect: lastCollect + AFK_FARM_MIN_MS,
-        ratePerSec, baseRate, level, tierName: FARM_TIERS[level].name, nextTier,
-        accumulated: farmFrac + Math.min(elapsed / 1000, AFK_FARM_MAX_MS / 1000) * ratePerSec,
-        initialized: true, maxLevel: FARM_TIERS.length - 1,
-      });
-    }
-
-    const elapsedSec = Math.min(elapsed / 1000, AFK_FARM_MAX_MS / 1000);
-    const rawEarn = farmFrac + elapsedSec * ratePerSec;
-    const toAward = Math.floor(rawEarn);
-    const newFrac = rawEarn - toAward;
-
-    if (toAward < 1) {
-      await db.query('UPDATE users SET last_afk_collect = $1, farm_frac = $2 WHERE google_id = $3', [now, newFrac, uid]);
-      u.lastAfkCollect = now; u.farmFrac = newFrac;
-      return res.json({
-        awarded: 0, balance: u.cmCoins || 0, nextCollect: now + AFK_FARM_MIN_MS,
-        ratePerSec, baseRate, level, tierName: FARM_TIERS[level].name, nextTier,
-        accumulated: newFrac, initialized: true, maxLevel: FARM_TIERS.length - 1,
-      });
-    }
-
-    const utcMidnight = new Date(); utcMidnight.setUTCHours(0, 0, 0, 0);
-    const dayStart = utcMidnight.getTime();
-    if ((u.coinsDayReset || 0) < dayStart) { u.coinsEarnedToday = 0; u.coinsDayReset = dayStart; }
-
-    if ((u.coinsEarnedToday || 0) >= COIN_DAILY_CAP) {
-      return res.json({
-        awarded: 0, balance: u.cmCoins || 0, earnedToday: u.coinsEarnedToday,
-        dailyCap: COIN_DAILY_CAP, capped: true, nextCollect: now + AFK_FARM_MIN_MS,
-        ratePerSec, baseRate, level, tierName: FARM_TIERS[level].name, nextTier,
-        accumulated: rawEarn, initialized: true, maxLevel: FARM_TIERS.length - 1,
-      });
-    }
-
-    const actualAward = Math.min(toAward, COIN_DAILY_CAP - (u.coinsEarnedToday || 0));
-    const result = await db.query(
-      `UPDATE users
-         SET cm_coins              = cm_coins + $1,
-             coins_earned_today    = CASE WHEN coins_day_reset < $2 THEN $1 ELSE coins_earned_today + $1 END,
-             coins_day_reset       = GREATEST(COALESCE(coins_day_reset, 0), $2),
-             coins_earned_all_time = COALESCE(coins_earned_all_time, 0) + $1,
-             last_afk_collect      = $3,
-             farm_frac             = $4
-       WHERE google_id = $5
-       RETURNING cm_coins, coins_earned_today`,
-      [actualAward, dayStart, now, newFrac, uid]
-    );
-
-    u.cmCoins          = result.rows[0]?.cm_coins          ?? u.cmCoins;
-    u.coinsEarnedToday = result.rows[0]?.coins_earned_today ?? u.coinsEarnedToday;
-    u.coinsEarnedAllTime = (u.coinsEarnedAllTime || 0) + actualAward;
-    u.lastAfkCollect   = now;
-    u.farmFrac         = newFrac;
-
-    console.log(`[farm] uid=${uid} lv=${level} awarded=${actualAward}`);
-    const newBalance = u.cmCoins;
-    const newAdjustedRate = baseRate / (1 + newBalance / 2000);
-    res.json({
-      awarded: actualAward, balance: newBalance, earnedToday: u.coinsEarnedToday,
-      dailyCap: COIN_DAILY_CAP, nextCollect: now + AFK_FARM_MIN_MS,
-      ratePerSec: newAdjustedRate, baseRate, level, tierName: FARM_TIERS[level].name, nextTier,
-      accumulated: newFrac, initialized: true, maxLevel: FARM_TIERS.length - 1,
-    });
-  } catch (e) {
-    console.error('[coins/farm]', e.message);
-    res.status(500).json({ error: 'Something went wrong' });
-  }
-});
-
-app.post('/api/coins/farm/upgrade', requireAuth, async (req, res) => {
-  if (!db) return res.status(503).json({ error: 'No database' });
-  try {
-    await ensureTierLoaded(req.user);
-    const uid = req.user.googleId;
-    const u = getLimits(uid);
-    const level = Math.min(u.farmLevel || 0, FARM_TIERS.length - 1);
-    if (level >= FARM_TIERS.length - 1) return res.json({ ok: false, reason: 'max_level', level });
-    const nextTier = FARM_TIERS[level + 1];
-    const cost = nextTier.cost;
-    if ((u.cmCoins || 0) < cost) return res.status(400).json({ error: 'Not enough coins', balance: u.cmCoins, cost });
-    const result = await db.query(
-      'UPDATE users SET cm_coins = cm_coins - $1, farm_level = farm_level + 1 WHERE google_id = $2 AND cm_coins >= $1 RETURNING cm_coins, farm_level',
-      [cost, uid]
-    );
-    if (!result.rowCount) return res.status(400).json({ error: 'Not enough coins', balance: u.cmCoins, cost });
-    u.cmCoins   = result.rows[0].cm_coins;
-    u.farmLevel = result.rows[0].farm_level;
-    const newLevel = u.farmLevel;
-    const newTier  = FARM_TIERS[newLevel];
-    const newNext  = newLevel < FARM_TIERS.length - 1 ? { ...FARM_TIERS[newLevel + 1], level: newLevel + 1 } : null;
-    console.log(`[farm/upgrade] uid=${uid} lv=${newLevel} cost=${cost}`);
-    res.json({
-      ok: true, level: newLevel, tierName: newTier.name,
-      ratePerSec: newTier.rate * earnMult(uid), balance: u.cmCoins,
-      nextTier: newNext, maxLevel: FARM_TIERS.length - 1,
-    });
-  } catch (e) {
-    console.error('[farm/upgrade]', e.message);
-    res.status(500).json({ error: 'Something went wrong' });
-  }
 });
 
 const TTS_DAILY_CHARS = 50000;
@@ -5020,16 +4849,13 @@ app.post('/api/admin/reset-account', requireAuth, async (req, res) => {
   if (!db) return res.status(503).json({ error: 'No database' });
   const uid = req.user.googleId;
   try {
-    // Reset coins + farm on users row
+    // Reset coins on users row
     await db.query(
       `UPDATE users SET
          cm_coins              = 0,
          coins_earned_today    = 0,
          coins_day_reset       = 0,
          coins_earned_all_time = 0,
-         last_afk_collect      = 0,
-         farm_level            = 0,
-         farm_frac             = 0,
          recent_chats          = '{}'
        WHERE google_id = $1`,
       [uid]
@@ -5072,9 +4898,6 @@ app.post('/api/admin/reset-account-by-email', requireAuth, async (req, res) => {
          coins_earned_today    = 0,
          coins_day_reset       = 0,
          coins_earned_all_time = 0,
-         last_afk_collect      = 0,
-         farm_level            = 0,
-         farm_frac             = 0,
          recent_chats          = '{}'
        WHERE google_id = $1`,
       [uid]
@@ -6994,7 +6817,7 @@ app.post('/api/groups/:id/chat', requireAuth, async (req, res) => {
 
     let charResponse = '';
 
-    addTokens(userId, messageCost('opas', 'medium') * 2);
+    addTokens(userId, messageCost('opas', 'medium') * 3);
 
     const charCtx = { aborted: false };
     const charAbortCheck = () => { if (groupAborted) charCtx.aborted = true; return charCtx.aborted; };
