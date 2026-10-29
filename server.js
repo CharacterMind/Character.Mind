@@ -200,7 +200,6 @@ app.listen(PORT, () => {
   sendDeployNotification().catch(e => console.error('Deploy email failed:', e.message));
   if (!db) {
     serverReady = true;
-    loadOwnerIds();
     console.log('No DB — skipping DB init, site ready.');
     return;
   }
@@ -9419,7 +9418,7 @@ app.post('/api/cron/check-ins', async (req, res) => {
 // A mistyped API address should say so, not answer with the home page
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 
-app.get('*', (req, res) => {
+app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 

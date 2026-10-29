@@ -2544,6 +2544,7 @@ function closeSidebarMobile() {
 function showView(id) {
   closeCreateDropdown();
   closeSidebarMobile();
+  if (id !== 'chatView' && id !== 'groupChatView') setAccentOverride('#8b5cf6');
   document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
   const _viewEl = document.getElementById(id);
   if (_viewEl) _viewEl.classList.remove('hidden');
@@ -5352,14 +5353,14 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
       if (pendingUsage) { updateUsageBars(pendingUsage); }
       if (bubble) {
         bubble.classList.remove('streaming');
-        colorizeLetters(bubble, currentChar?.color);
         // The hidden "gave you my number" tag may have streamed in before the server stripped it — drop it from the saved text
         if (typeof bubble.dataset.raw === 'string' && GIVE_NUMBER_TAG_RE.test(bubble.dataset.raw)) bubble.dataset.raw = bubble.dataset.raw.replace(new RegExp(GIVE_NUMBER_TAG_RE.source, 'gi'), '').trim();
+        colorizeLetters(bubble, currentChar?.color);
         maybeRenderGame(bubble, currentChar?.color);
         playSound('done');
         if (callModeActive) callModeTTS(bubble);
-      } else if (callModeActive) {
         if (streamPhoneUnlocked) showPhoneUnlockedToast(streamPhoneUnlocked);
+      } else if (callModeActive) {
         setTimeout(() => listenForSpeech(), 500);
       }
       if (streamBlocked) markLastMessageNotDelivered();
@@ -10601,14 +10602,17 @@ let activeTheme = charTheme(null);
 function applyChatTheme(ch) {
   activeTheme = charTheme(ch);
   const el = document.getElementById('messages');
-  if (!el) return;
-  for (const kind of ['sp', 'nr']) {
-    for (let i = 0; i < 6; i++) { el.style.removeProperty('--' + kind + i); el.style.removeProperty('--' + kind + i + 'g'); }
-    activeTheme[kind].colors.forEach((col, i) => {
-      el.style.setProperty('--' + kind + i, col.c);
-      if (col.g) el.style.setProperty('--' + kind + i + 'g', col.g);
-    });
+  if (el) {
+    for (const kind of ['sp', 'nr']) {
+      for (let i = 0; i < 6; i++) { el.style.removeProperty('--' + kind + i); el.style.removeProperty('--' + kind + i + 'g'); }
+      activeTheme[kind].colors.forEach((col, i) => {
+        el.style.setProperty('--' + kind + i, col.c);
+        if (col.g) el.style.setProperty('--' + kind + i + 'g', col.g);
+      });
+    }
   }
+  const accent = brightestHex((ch && (ch.accentColor || ch.color)) || '');
+  setAccentOverride(accent === 'var(--accent-l)' ? '#8b5cf6' : boostColor(accent));
 }
 // Fixed pseudo-random colour for the letter at position i (same every time, so nothing flickers while typing)
 function letterPick(i, len) { let h = Math.imul(i + 1, 2654435761) ^ Math.imul((i >> 2) + 7, 40503); h ^= h >>> 15; h = Math.imul(h, 2246822519); h ^= h >>> 13; return (h >>> 0) % len; }
@@ -10660,10 +10664,6 @@ function copyCodeBlock(btn) {
   } catch (_) {}
   try { const r = document.createRange(); r.selectNodeContents(code); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); document.execCommand('copy'); sel.removeAllRanges(); done(); } catch (_) {}
 }
-function renderStoryText(text) {
-  const raw = String(text == null ? '' : text).replace(/\*\*/g, '').replace(/\[\s*GIVE[\s_-]*NUMBER\s*\]/gi, '');
-  const paras = raw.split(/\n\n+/);
-  const segCount = { sp: 0, nr: 0 };
 // A character ends the reply that shares their phone number with this tag; it is never shown
 const GIVE_NUMBER_TAG_RE = /\[\s*GIVE[\s_-]*NUMBER\s*\]/i;
 // "Poppy's number was added to your contacts" — tapping it opens the Phone page
@@ -10676,6 +10676,10 @@ function showPhoneUnlockedToast(info) {
   playSound('done');
   setTimeout(() => toast.remove(), 6000);
 }
+function renderStoryText(text) {
+  const raw = String(text == null ? '' : text).replace(/\*\*/g, '').replace(/\[\s*GIVE[\s_-]*NUMBER\s*\]/gi, '');
+  const paras = raw.split(/\n\n+/);
+  const segCount = { sp: 0, nr: 0 };
   // No per-letter rainbow: each speech / narration piece gets one solid colour (see the span below)
   const emit = (kind, str) => {
     const parts = str.split(/(\[[^\]\n]{1,40}\]\((?:\/terms|\/privacy)\))/g);
