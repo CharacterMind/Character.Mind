@@ -8849,6 +8849,8 @@ function callModeTTS(bubble) {
   resetCallInactivityTimer();
   setCallState('responding');
   stopCallAudio();
+  // Stop mic before TTS starts — prevents audio overlap and mic confusion
+  if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
   callContextChar = null; // primary char speaking
   updateCallSpeaker(currentChar);
   // Record to conversation log
@@ -9714,7 +9716,8 @@ function afterCallTTSDone() {
   callChainCount = 0;
   callContextChar = null;
   updateCallSpeaker(currentChar);
-  listenForSpeech();
+  // Brief delay lets the browser audio session settle after TTS playback ends
+  setTimeout(() => { if (callModeActive) listenForSpeech(); }, 150);
 }
 
 // Sends a chat request for a secondary call character and plays the TTS response.
@@ -9774,6 +9777,8 @@ async function sendCallCharResponse(charObj) {
 // Fires when user hasn't spoken for CALL_USER_SILENCE_MS — a char asks if they're there.
 async function triggerAreYouThere() {
   if (!callModeActive || callMuted) return;
+  if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
+  clearTimeout(callUserSilenceTimer); callUserSilenceTimer = null;
   const char = callContextChar || (callCharacters.length > 0 ? callCharacters[Math.floor(Math.random() * callCharacters.length)] : currentChar);
   const userName = getDisplayName() || 'Dave';
   const prompt = `[${userName} hasn't said anything for 10 seconds. In your own personality and voice, ask if they're still there — 1 short sentence only.]`;
