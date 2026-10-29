@@ -47,9 +47,11 @@ self.addEventListener('notificationclick', event => {
   if (action === 'decline') {
     // Let any open window know the call was declined so it can queue a miss-call DM
     if (isCall) {
-      clients.matchAll({ type: 'window' }).then(list => {
-        for (const c of list) c.postMessage({ type: 'CM_CALL_DECLINED', charId: notifData.charId });
-      });
+      event.waitUntil(
+        clients.matchAll({ type: 'window' }).then(list => {
+          for (const c of list) c.postMessage({ type: 'CM_CALL_DECLINED', charId: notifData.charId });
+        })
+      );
     }
     return;
   }

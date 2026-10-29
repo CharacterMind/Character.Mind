@@ -1961,7 +1961,7 @@
             </div>
           </div>
           <div id="co-card-error" class="stripe-error-msg" style="display:none"></div>
-          <button id="co-card-submit-btn" class="co-card-submit-btn" onclick="submitHostedCardPayment()">Subscribe with Card</button>
+          <button id="co-card-submit-btn" class="co-card-submit-btn" onclick="submitStripeCardPayment()">Subscribe with Card</button>
         </div>
         <div id="co-card-unavail" style="display:none;font-size:13px;color:var(--text3);text-align:center;padding:10px 0">
           Card payments aren't available yet on this account.<br>Please use the PayPal tab — PayPal accepts all major cards.
@@ -2065,8 +2065,11 @@
   height: 42px; padding: 0 12px; display: flex; align-items: center;
   transition: border-color .15s;
 }
-.co-hosted-field.braintree-hosted-fields-focused { border-color: var(--accent); }
-.co-hosted-field.braintree-hosted-fields-invalid { border-color: #f87171; }
+.co-hosted-field.braintree-hosted-fields-focused,
+.co-hosted-field:has(.StripeElement--focus) { border-color: var(--accent); }
+.co-hosted-field.braintree-hosted-fields-invalid,
+.co-hosted-field:has(.StripeElement--invalid) { border-color: #f87171; }
+.co-hosted-field .StripeElement { width: 100%; }
 .co-card-row { display: flex; gap: 12px; }
 .co-card-field-wrap { flex: 1; display: flex; flex-direction: column; }
 .co-card-submit-btn {

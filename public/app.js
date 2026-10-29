@@ -35,7 +35,8 @@ function showBanScreen(until, strikes) {
     if (remaining <= 0) {
       clearInterval(_banCountdownInterval);
       screen.style.display = 'none';
-      document.getElementById('banCountdown').textContent = '00:00:00';
+      const _bc = document.getElementById('banCountdown');
+      if (_bc) _bc.textContent = '00:00:00';
       return;
     }
     const h = Math.floor(remaining / 3600000);
@@ -773,8 +774,8 @@ function initPayPalWidgets(planKey) {
     }).render('#paypal-button-container');
   } catch (err) { console.error('PayPal button render error:', err); }
 
-  // Credit Card tab — PayPal Hosted Fields (embedded card form)
-  initCardHostedFields(planId, planKey).catch(e => console.error('Card fields init error:', e));
+  // Credit Card tab — Stripe Elements
+  initStripeCardForm(planKey).catch(e => console.error('Card fields init error:', e));
 
 }
 
@@ -811,7 +812,9 @@ function closePaypalCheckout() {
   document.getElementById('paypalCheckoutModal').style.display = 'none';
   currentCheckoutPlan = null;
   currentCheckoutEffective = 0;
-  if (_hostedFieldsInstance) { try { _hostedFieldsInstance.teardown(); } catch (_) {} _hostedFieldsInstance = null; }
+  if (_stripeCardNumber) { try { _stripeCardNumber.unmount(); } catch (_) {} _stripeCardNumber = null; }
+  if (_stripeCardExpiry) { try { _stripeCardExpiry.unmount(); } catch (_) {} _stripeCardExpiry = null; }
+  if (_stripeCardCvc)    { try { _stripeCardCvc.unmount();    } catch (_) {} _stripeCardCvc    = null; }
   const payTabs    = document.getElementById('co-pay-tabs');
   const payPanelPaypal = document.getElementById('payment-panel-paypal');
   const payPanelCard   = document.getElementById('payment-panel-card');
@@ -862,71 +865,138 @@ function switchPayTab(tab) {
   document.getElementById('co-tab-card').classList.toggle('active',   tab === 'card');
   const footer = document.getElementById('co-footer-text');
   if (footer) footer.textContent = tab === 'card'
-    ? 'Card secured by PayPal · Cancel anytime · No hidden fees'
+    ? 'Card secured by Stripe · Cancel anytime · No hidden fees'
     : 'Secured by PayPal · Cancel anytime · No hidden fees';
 }
 
-let _hostedFieldsInstance = null;
+// ── Stripe card payment ───────────────────────────────────────────────────────
+let _stripeInstance    = null;
+let _stripeCardNumber  = null;
+let _stripeCardExpiry  = null;
+let _stripeCardCvc     = null;
 
-async function initCardHostedFields(planId, planKey) {
-  const form       = document.querySelector('.co-card-form');
-  const unavail    = document.getElementById('co-card-unavail');
-  const submitBtn  = document.getElementById('co-card-submit-btn');
-  const errEl      = document.getElementById('co-card-error');
-
-  if (!paypal.HostedFields?.isEligible()) {
-    if (form) form.style.display = 'none';
-    if (unavail) unavail.style.display = '';
-    return;
+async function loadStripeJs() {
+  if (_stripeInstance) return _stripeInstance;
+  if (typeof Stripe === 'undefined') {
+    await new Promise((resolve, reject) => {
+      if (document.querySelector('script[src*="js.stripe.com"]')) { resolve(); return; }
+      const s = document.createElement('script');
+      s.src = 'https://js.stripe.com/v3/';
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
   }
-  if (form) form.style.display = '';
-  if (unavail) unavail.style.display = 'none';
-  if (_hostedFieldsInstance) { try { _hostedFieldsInstance.teardown(); } catch (_) {} _hostedFieldsInstance = null; }
+  const cfgRes = await fetch('/api/stripe/config');
+  if (!cfgRes.ok) throw new Error('Stripe config unavailable');
+  const { available, publishableKey } = await cfgRes.json();
+  if (!available || !publishableKey) throw new Error('Stripe is not configured on this server');
+  _stripeInstance = Stripe(publishableKey); // eslint-disable-line no-undef
+  return _stripeInstance;
+}
+
+async function initStripeCardForm(planKey) {
+  const form     = document.querySelector('.co-card-form');
+  const unavail  = document.getElementById('co-card-unavail');
+  const submitBtn = document.getElementById('co-card-submit-btn');
+  const errEl    = document.getElementById('co-card-error');
+
+  // Unmount any previously mounted elements
+  if (_stripeCardNumber) { try { _stripeCardNumber.unmount(); } catch (_) {} _stripeCardNumber = null; }
+  if (_stripeCardExpiry) { try { _stripeCardExpiry.unmount(); } catch (_) {} _stripeCardExpiry = null; }
+  if (_stripeCardCvc)    { try { _stripeCardCvc.unmount();    } catch (_) {} _stripeCardCvc    = null; }
 
   try {
-    _hostedFieldsInstance = await paypal.HostedFields.render({
-      createSubscription(data, actions) {
-        if (!currentUser) throw new Error('Session expired — please refresh and sign in again');
-        return actions.subscription.create({ plan_id: planId, custom_id: String(currentUser.googleId) });
+    const stripeObj = await loadStripeJs();
+    const els = stripeObj.elements();
+    const style = {
+      base: {
+        fontSize: '14px', color: '#e8e3ff',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        '::placeholder': { color: '#6b6590' },
       },
-      styles: {
-        'input': { 'font-size': '14px', 'color': '#e8e3ff', 'font-family': 'system-ui, sans-serif' },
-        ':focus': { 'color': '#e8e3ff' },
-        '.valid': { 'color': '#4ade80' },
-        '.invalid': { 'color': '#f87171' },
-        '::placeholder': { 'color': '#6b6590' }
-      },
-      fields: {
-        number:         { selector: '#co-card-number', placeholder: '1234 1234 1234 1234' },
-        expirationDate: { selector: '#co-card-expiry', placeholder: 'MM / YY' },
-        cvv:            { selector: '#co-card-cvv',    placeholder: 'CVC' }
-      }
+      invalid: { color: '#f87171' },
+    };
+    _stripeCardNumber = els.create('cardNumber', { style, placeholder: '1234 1234 1234 1234' });
+    _stripeCardExpiry = els.create('cardExpiry', { style });
+    _stripeCardCvc    = els.create('cardCvc',    { style });
+
+    // Clear iframe content before mounting (avoids duplicates on re-open)
+    ['co-card-number', 'co-card-expiry', 'co-card-cvv'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '';
     });
+
+    _stripeCardNumber.mount('#co-card-number');
+    _stripeCardExpiry.mount('#co-card-expiry');
+    _stripeCardCvc.mount('#co-card-cvv');
+
+    if (form)      form.style.display = '';
+    if (unavail)   unavail.style.display = 'none';
     if (submitBtn) submitBtn.disabled = false;
-  } catch (err) {
-    if (errEl) { errEl.textContent = 'Failed to load card form. Please use the PayPal tab.'; errEl.style.display = ''; }
-    console.error('HostedFields render error:', err);
+    if (errEl)     errEl.style.display = 'none';
+  } catch (e) {
+    if (form)    form.style.display = 'none';
+    if (unavail) { unavail.textContent = 'Card payment unavailable right now. Please use the PayPal tab.'; unavail.style.display = ''; }
+    console.error('[Stripe init]', e);
   }
 }
 
-async function submitHostedCardPayment() {
-  const hf = _hostedFieldsInstance;
-  if (!hf) return;
-  const btn   = document.getElementById('co-card-submit-btn');
-  const errEl = document.getElementById('co-card-error');
+async function submitStripeCardPayment() {
+  if (!_stripeInstance || !_stripeCardNumber) return;
+  const btn      = document.getElementById('co-card-submit-btn');
+  const errEl    = document.getElementById('co-card-error');
   const statusEl = document.getElementById('paypal-checkout-status');
-  if (btn) { btn.disabled = true; btn.textContent = 'Processing…'; }
-  if (errEl) errEl.style.display = 'none';
+  if (btn)      { btn.disabled = true; btn.textContent = 'Processing…'; }
+  if (errEl)    errEl.style.display = 'none';
   if (statusEl) { statusEl.textContent = ''; statusEl.style.color = ''; }
+
   try {
-    const result = await hf.submit({ contingencies: ['3D_SECURE'] });
-    const subId  = result.subscriptionID || result.orderID;
-    if (!subId) throw new Error('No subscription ID returned from PayPal.');
-    await verifyAndActivateSubscription(subId, currentCheckoutPlan);
+    const { paymentMethod, error } = await _stripeInstance.createPaymentMethod({
+      type: 'card', card: _stripeCardNumber,
+    });
+    if (error) throw new Error(error.message);
+
+    const resp = await fetch('/api/stripe/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        planKey: currentCheckoutPlan,
+        period:  currentCheckoutPeriod,
+        paymentMethodId: paymentMethod.id,
+      }),
+    });
+    const data = await resp.json();
+
+    if (data.success) {
+      if (statusEl) { statusEl.style.color = '#22c55e'; statusEl.textContent = '✓ Subscription activated!'; }
+      if (lastKnownUsage) lastKnownUsage.subscriptionTier = currentCheckoutPlan;
+      updateSettingsPlanCard(currentCheckoutPlan);
+      renderPricingCards();
+      setTimeout(() => closePaypalCheckout(), 1800);
+      return;
+    }
+
+    if (data.requiresAction && data.clientSecret) {
+      // 3D Secure authentication required
+      if (statusEl) statusEl.textContent = 'Verifying with your bank…';
+      const { error: confirmErr, paymentIntent } = await _stripeInstance.confirmCardPayment(data.clientSecret);
+      if (confirmErr) throw new Error(confirmErr.message);
+      if (paymentIntent?.status === 'succeeded') {
+        await fetch('/api/stripe/sync', { method: 'POST' }).catch(() => {});
+        if (statusEl) { statusEl.style.color = '#22c55e'; statusEl.textContent = '✓ Subscription activated!'; }
+        if (lastKnownUsage) lastKnownUsage.subscriptionTier = currentCheckoutPlan;
+        updateSettingsPlanCard(currentCheckoutPlan);
+        renderPricingCards();
+        setTimeout(() => closePaypalCheckout(), 1800);
+        return;
+      }
+    }
+
+    throw new Error(data.error || 'Payment did not complete. Please check your card details and try again.');
   } catch (e) {
     const msg = e.message || 'Card payment failed. Please try again.';
-    if (errEl) { errEl.textContent = msg; errEl.style.display = ''; }
-    if (btn) { btn.disabled = false; btn.textContent = 'Subscribe with Card'; }
+    if (errEl)  { errEl.textContent = msg; errEl.style.display = ''; }
+    if (btn)    { btn.disabled = false; btn.textContent = 'Subscribe with Card'; }
   }
 }
 
@@ -2450,7 +2520,8 @@ function showView(id) {
   closeCreateDropdown();
   closeSidebarMobile();
   document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-  document.getElementById(id).classList.remove('hidden');
+  const _viewEl = document.getElementById(id);
+  if (_viewEl) _viewEl.classList.remove('hidden');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const _ip = document.getElementById('infoPanel');
   _ip.style.display = 'none'; _ip.classList.remove('ip-collapsed');
@@ -5806,7 +5877,7 @@ function renderUsageBanners(usage) {
   const sess90Key = `cm_sess90_week_${usage.weeklyStart || 0}_${userKey}`;
   const dismissed75Key = `cm_weekly75_dismissed_${usage.weeklyStart || 0}_${userKey}`;
   if (sPct >= 90) { try { localStorage.setItem(sess90Key, '1'); } catch (_) {} }
-  const sessionHit90 = sPct >= 90 || localStorage.getItem(sess90Key) === '1';
+  const sessionHit90 = sPct >= 90 || (() => { try { return localStorage.getItem(sess90Key) === '1'; } catch (_) { return false; } })();
   const dismissed75 = (() => { try { return localStorage.getItem(dismissed75Key) === '1'; } catch (_) { return false; } })();
 
   let active = null;
