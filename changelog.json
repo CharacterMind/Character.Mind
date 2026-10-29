@@ -1,5 +1,20 @@
 [
   {
+    "id": "v365-voice",
+    "version": "v365",
+    "date": "Oct 2026",
+    "title": "🎙️ Your Voice",
+    "subtitle": "Upload your own voice, give it to any character, and access Voice settings right from the chat bar.",
+    "changed": [
+      "Upload WAV, MP3, or any audio file as a voice — no more recordings-only",
+      "Uploaded voice takes priority over a character's built-in AI voice",
+      "Voice button added to the model bar (next to Gemini/Neutral) for instant access",
+      "Voice option added to the in-call More tray",
+      "Remote XTTS server: user-uploaded voices are automatically synced to the XTTS server so cloning works",
+      "Deleted voices moved to backup instead of permanently removed"
+    ]
+  },
+  {
     "id": "v364-polish",
     "version": "v364",
     "date": "Oct 2026",

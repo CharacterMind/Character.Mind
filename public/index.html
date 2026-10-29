@@ -981,6 +981,10 @@
               <span class="call-more-tray-ico"><svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg></span>
               Add call
             </button>
+            <button class="call-more-tray-item" onclick="hideCallMoreMenu(); openVoicePanel()">
+              <span class="call-more-tray-ico"><svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M12 15c1.66 0 2.99-1.34 2.99-3L15 6c0-1.66-1.34-3-3-3S9 4.34 9 6v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 15 6.7 12H5c0 3.42 2.72 6.23 6 6.72V22h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg></span>
+              Voice
+            </button>
           </div>
           <!-- Main content — Android Phone style -->
           <div class="call-content">
@@ -1191,6 +1195,8 @@
             <button class="mb-effort-btn mb-book-btn" id="bookModeBtn" style="display:none" onclick="openBookModal()">Write a book</button>
             <span class="mb-sep" id="rpSep" style="display:none">·</span>
             <button class="mb-effort-btn mb-rp-btn" id="mbRpBtn" onclick="toggleRpMode()" title="Switch to Playtime Co. roleplay" style="display:none">Chat</button>
+            <span class="mb-sep" id="voiceSep">·</span>
+            <button class="mb-effort-btn" id="mbVoiceBtn" onclick="openVoicePanel()" title="Voice settings">Gemini</button>
             <span class="mb-sep" id="notifSep">·</span>
             <button class="mb-effort-btn mb-notif-btn" id="notifBellBtn" onclick="togglePushNotifications()" title="Get notified when characters want to RP">🔔</button>
           </div>

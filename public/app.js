@@ -8252,7 +8252,7 @@ function loadCharVoice() {
     const gev = localStorage.getItem('cm_edge_voice_global');
     if (gev && EDGE_TTS_VOICES.some(v => v.id === gev)) edgeVoiceName = gev;
   } catch(_) {}
-  if (!currentChar) return;
+  if (!currentChar) { _updateVoiceBarLabel(); return; }
   try {
     // Per-character overrides take priority over global
     const p = localStorage.getItem(getTTSProviderKey());
@@ -8264,6 +8264,7 @@ function loadCharVoice() {
     const saved = localStorage.getItem(getCharVoiceKey());
     if (saved && window.speechSynthesis) { const vs = window.speechSynthesis.getVoices(); selectedVoice = vs.find(v => v.voiceURI === saved) || null; }
   } catch(_) {}
+  _updateVoiceBarLabel();
 }
 
 function applyVoice(utterance) {
@@ -8441,7 +8442,7 @@ async function renderUserVoiceList() {
     const charId = currentChar?.id || '';
     const activeFile = assigned[charId] || null;
     if (!voices.length) {
-      list.innerHTML = '<div class="voice-empty" style="font-size:.75rem;padding:6px 0;color:var(--text3)">No recordings yet — hit Record to start.</div>';
+      list.innerHTML = '<div class="voice-empty" style="font-size:.75rem;padding:6px 0;color:var(--text3)">No voices yet — Record a clip or upload an audio file.</div>';
       return;
     }
     const charName = currentChar?.name || 'Character';
@@ -8509,8 +8510,16 @@ function setTTSProvider(p, btn) {
     if (getTTSProviderKey()) localStorage.setItem(getTTSProviderKey(), p);
     localStorage.setItem('cm_tts_prov_global', p);
   } catch(_) {}
+  _updateVoiceBarLabel();
   renderCharVoiceSection();
   renderVoiceList();
+}
+
+function _updateVoiceBarLabel() {
+  const voiceBtn = document.getElementById('mbVoiceBtn');
+  if (!voiceBtn) return;
+  const labels = { gemini: 'Gemini', edge: 'Neutral', character: 'Voice' };
+  voiceBtn.textContent = labels[ttsProvider] || 'Voice';
 }
 
 function renderVoiceList() {

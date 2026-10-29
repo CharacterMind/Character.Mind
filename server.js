@@ -4604,6 +4604,50 @@ function edgeSynthesize(text, voice) {
 const USER_VOICES_DIR = path.join(__dirname, 'uploads/voices');
 fs.mkdirSync(USER_VOICES_DIR, { recursive: true });
 
+const VOICE_MIME_EXT = {
+  'audio/wav': '.wav', 'audio/x-wav': '.wav', 'audio/wave': '.wav',
+  'audio/mpeg': '.mp3', 'audio/mp3': '.mp3',
+  'audio/ogg': '.ogg', 'audio/vorbis': '.ogg',
+  'audio/flac': '.flac', 'audio/x-flac': '.flac',
+  'audio/m4a': '.m4a', 'audio/x-m4a': '.m4a', 'audio/mp4': '.m4a',
+  'audio/aac': '.aac', 'audio/x-aac': '.aac',
+  'audio/webm': '.webm',
+};
+const VOICE_ALLOWED_EXT = new Set(['.wav', '.mp3', '.ogg', '.flac', '.m4a', '.aac', '.webm']);
+const VOICE_EXT_MIME = { '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.flac': 'audio/flac', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.webm': 'audio/webm' };
+
+// Cache: filePath → { voiceId, ts } — avoids re-uploading to remote XTTS on every request
+const _xttsVoiceCache = new Map();
+
+async function _ensureRemoteVoice(cloneBase, filePath, charEntry) {
+  // Character's own built-in voice already has a voiceId registered on the XTTS server
+  if (charEntry?.voiceId && charEntry.file === filePath) return charEntry.voiceId;
+  // Check cache (valid for 24 h)
+  const cached = _xttsVoiceCache.get(filePath);
+  if (cached && (Date.now() - cached.ts) < 86400000) return cached.voiceId;
+  // Upload the voice file to the remote XTTS server's /voices endpoint
+  try {
+    const fileBuffer = await fs.promises.readFile(filePath);
+    const basename = path.basename(filePath);
+    const formData = new FormData();
+    formData.append('file', new Blob([fileBuffer]), basename);
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 30000);
+    const r = await fetch(`${cloneBase}/voices`, { method: 'POST', body: formData, signal: ctrl.signal }).finally(() => clearTimeout(t));
+    if (r.ok) {
+      const data = await r.json();
+      if (data.id) {
+        _xttsVoiceCache.set(filePath, { voiceId: data.id, ts: Date.now() });
+        console.log(`[char-tts] uploaded voice to remote XTTS: ${basename} → id=${data.id}`);
+        return data.id;
+      }
+    }
+  } catch (e) {
+    console.warn('[char-tts] failed to upload voice to remote XTTS:', e.message);
+  }
+  return charEntry?.voiceId || path.basename(filePath, path.extname(filePath));
+}
+
 app.get('/api/tts/status', requireAuth, (req, res) => res.json({ enabled: true }));
 
 app.post('/api/tts', requireAuth, async (req, res) => {
@@ -4619,37 +4663,39 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   // Override clone server URL with TTS_CLONE_URL env var (e.g. for remote GPU machine via tunnel).
   if (provider === 'character') {
     const charEntry = CHARACTER_VOICE_MAP[charId];
-    // Also check user-assigned voice recording for this character
-    let speakerFile = charEntry?.file || null;
-    if (!speakerFile) {
-      try {
-        const userId = req.user.googleId.replace(/[^a-z0-9]/gi, '_');
-        const assignedPath = path.join(USER_VOICES_DIR, userId, 'assigned.json');
-        const assigned = JSON.parse(await fs.promises.readFile(assignedPath, 'utf8'));
-        const fname = assigned[charId];
-        if (fname) {
-          const candidate = path.join(USER_VOICES_DIR, userId, fname);
-          await fs.promises.access(candidate);
-          speakerFile = candidate;
-        }
-      } catch { /* no user voice */ }
-    }
+    // User-assigned voice takes priority over the character's built-in voice file
+    let speakerFile = null;
+    try {
+      const userId = req.user.googleId.replace(/[^a-z0-9]/gi, '_');
+      const assignedPath = path.join(USER_VOICES_DIR, userId, 'assigned.json');
+      const assigned = JSON.parse(await fs.promises.readFile(assignedPath, 'utf8'));
+      const fname = assigned[charId];
+      if (fname) {
+        const candidate = path.join(USER_VOICES_DIR, userId, fname);
+        await fs.promises.access(candidate);
+        speakerFile = candidate;
+      }
+    } catch { /* no user voice assigned */ }
+    if (!speakerFile) speakerFile = charEntry?.file || null;
     if (speakerFile) {
       try {
         const clonePort = process.env.TTS_CLONE_PORT || '8765';
         const cloneBase = process.env.TTS_CLONE_URL
           ? process.env.TTS_CLONE_URL.replace(/\/tts$/, '')
           : `http://127.0.0.1:${clonePort}`;
+        let cloneBody;
+        if (process.env.TTS_CLONE_URL) {
+          const voiceId = await _ensureRemoteVoice(cloneBase, speakerFile, charEntry);
+          cloneBody = { text, voice_id: voiceId, language: 'en' };
+        } else {
+          cloneBody = { text, speaker_wav: speakerFile, language: 'en' };
+        }
         const ctrl = new AbortController();
         const cloneTimeout = setTimeout(() => ctrl.abort(), 25000);
         const cloneRes = await fetch(`${cloneBase}/tts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(
-          (process.env.TTS_CLONE_URL && charEntry?.voiceId)
-            ? { text, voice_id: charEntry.voiceId, language: 'en' }
-            : { text, speaker_wav: speakerFile, language: 'en' }
-        ),
+          body: JSON.stringify(cloneBody),
           signal: ctrl.signal,
         }).finally(() => clearTimeout(cloneTimeout));
         if (cloneRes.ok) {
@@ -4798,7 +4844,10 @@ app.post('/api/user-voices', requireAuth, express.raw({ type: ['audio/*', 'appli
   const dir = path.join(USER_VOICES_DIR, userId);
   await fs.promises.mkdir(dir, { recursive: true });
   const ts = Date.now();
-  const filename = `rec_${ts}.webm`;
+  const ct = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+  const ext = VOICE_MIME_EXT[ct] || '.webm';
+  const isRecording = ct === 'audio/webm';
+  const filename = isRecording ? `rec_${ts}.webm` : `voice_${ts}${ext}`;
   await fs.promises.writeFile(path.join(dir, filename), req.body);
   res.json({ id: ts, filename });
 });
@@ -4808,31 +4857,46 @@ app.get('/api/user-voices', requireAuth, async (req, res) => {
   const dir = path.join(USER_VOICES_DIR, userId);
   try {
     const files = await fs.promises.readdir(dir);
-    const voices = files.filter(f => /^rec_\d+\.webm$/.test(f)).map(f => ({ filename: f, ts: parseInt(f.slice(4, -5)) || 0 })).sort((a, b) => b.ts - a.ts);
+    const voices = files
+      .filter(f => {
+        const ext = path.extname(f).toLowerCase();
+        return VOICE_ALLOWED_EXT.has(ext) && !f.startsWith('_');
+      })
+      .map(f => {
+        const m = f.match(/^(?:rec|voice)_(\d+)\./);
+        const ts = m ? parseInt(m[1]) : 0;
+        return { filename: f, ts };
+      })
+      .sort((a, b) => b.ts - a.ts);
     res.json(voices);
   } catch { res.json([]); }
 });
 
 app.get('/api/user-voices/file/:filename', requireAuth, async (req, res) => {
-  const filename = req.params.filename.replace(/[^a-z0-9_.]/gi, '');
-  if (!/^rec_\d+\.webm$/.test(filename)) return res.status(400).end();
+  const filename = req.params.filename.replace(/[^a-z0-9_\-.]/gi, '');
+  const ext = path.extname(filename).toLowerCase();
+  if (!VOICE_ALLOWED_EXT.has(ext) || filename.startsWith('_')) return res.status(400).end();
   const userId = req.user.googleId.replace(/[^a-z0-9]/gi, '_');
   const filePath = path.join(USER_VOICES_DIR, userId, filename);
   try {
     await fs.promises.access(filePath);
-    res.setHeader('Content-Type', 'audio/webm');
+    res.setHeader('Content-Type', VOICE_EXT_MIME[ext] || 'audio/octet-stream');
     return res.sendFile(filePath);
   } catch { res.status(404).end(); }
 });
 
 app.delete('/api/user-voices/:filename', requireAuth, async (req, res) => {
-  const filename = req.params.filename.replace(/[^a-z0-9_.]/gi, '');
-  if (!/^rec_\d+\.webm$/.test(filename)) return res.status(400).end();
+  const filename = req.params.filename.replace(/[^a-z0-9_\-.]/gi, '');
+  const ext = path.extname(filename).toLowerCase();
+  if (!VOICE_ALLOWED_EXT.has(ext) || filename.startsWith('_')) return res.status(400).end();
   const userId = req.user.googleId.replace(/[^a-z0-9]/gi, '_');
+  const dir = path.join(USER_VOICES_DIR, userId);
   try {
-    await fs.promises.unlink(path.join(USER_VOICES_DIR, userId, filename));
+    // Move to backup instead of permanently deleting
+    const backup = path.join(dir, `_deleted_${Date.now()}_${filename}`);
+    await fs.promises.rename(path.join(dir, filename), backup);
     // Remove from any char assignments too
-    const assignedPath = path.join(USER_VOICES_DIR, userId, 'assigned.json');
+    const assignedPath = path.join(dir, 'assigned.json');
     try {
       const assigned = JSON.parse(await fs.promises.readFile(assignedPath, 'utf8'));
       let changed = false;
@@ -4855,8 +4919,9 @@ app.post('/api/user-voices/set-char', requireAuth, express.json(), async (req, r
   try { assigned = JSON.parse(await fs.promises.readFile(assignedPath, 'utf8')); } catch { /* ok */ }
   if (!filename) { delete assigned[charId]; }
   else {
-    const clean = filename.replace(/[^a-z0-9_.]/gi, '');
-    if (!/^rec_\d+\.webm$/.test(clean)) return res.status(400).json({ error: 'invalid_filename' });
+    const clean = filename.replace(/[^a-z0-9_\-.]/gi, '');
+    const ext = path.extname(clean).toLowerCase();
+    if (!VOICE_ALLOWED_EXT.has(ext) || clean.startsWith('_')) return res.status(400).json({ error: 'invalid_filename' });
     assigned[charId] = clean;
   }
   await fs.promises.writeFile(assignedPath, JSON.stringify(assigned));
