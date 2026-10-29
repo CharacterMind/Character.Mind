@@ -4532,7 +4532,7 @@ function saveHistoryLocal() {
       const imgEl = el.querySelector('.msg-img');
       const content = bubble ? bubbleToRaw(bubble) : (imgEl ? '[image]' : '');
       return { role, content, ...(el.dataset.sig ? { sig: el.dataset.sig } : {}) };
-    }).filter(m => (m.content || m.card) && !(m.role === 'ai' && /^\s*⚠️/.test(m.content)));
+    }).filter(m => (m.content || m.card) && !(m.role === 'ai' && /^\s*⚠️/.test(m.content)) && !(m.role === 'user' && typeof m.content === 'string' && /^\[.+\]$/s.test(m.content.trim())));
     const all = JSON.parse(localStorage.getItem(userKey('cm_history')) || '{}');
     all[currentChar.id] = items.slice(-150);
     localStorage.setItem(userKey('cm_history'), JSON.stringify(all));
