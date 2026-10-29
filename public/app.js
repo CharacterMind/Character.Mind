@@ -1534,6 +1534,7 @@ async function loadCharacters() {
     if (!Array.isArray(characters)) characters = [];
   }
   renderSidebarChats();
+  handleColdStartCall();
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -2615,6 +2616,54 @@ function callCharFromPhone(charId, e) {
   }
 }
 
+// ── CM Ringtone (Web Audio API, 100% original) ───────────────────────────────
+let _ringAudioCtx = null;
+let _ringing = false;
+let _ringTimer = null;
+
+function _ringNote(ac, freq, t, dur, vol) {
+  const osc = ac.createOscillator(), g = ac.createGain();
+  const osc2 = ac.createOscillator(), g2 = ac.createGain();
+  osc.type = 'sine'; osc.frequency.value = freq;
+  osc2.type = 'sine'; osc2.frequency.value = freq * 2;
+  g2.gain.setValueAtTime(vol * 0.07, t);
+  osc.connect(g); g.connect(ac.destination);
+  osc2.connect(g2); g2.connect(ac.destination);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(vol, t + 0.02);
+  g.gain.setValueAtTime(vol, t + dur * 0.35);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.start(t); osc2.start(t);
+  osc.stop(t + dur + 0.02); osc2.stop(t + dur + 0.02);
+}
+
+function _ringGroup() {
+  if (!_ringing) return;
+  try {
+    if (!_ringAudioCtx || _ringAudioCtx.state === 'closed')
+      _ringAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_ringAudioCtx.state === 'suspended') _ringAudioCtx.resume();
+    const now = _ringAudioCtx.currentTime;
+    // G4 → B4 → E5 ascending (CM original — distinct from Discord's descending pattern)
+    _ringNote(_ringAudioCtx, 392, now,        0.20, 0.28);
+    _ringNote(_ringAudioCtx, 494, now + 0.21, 0.20, 0.26);
+    _ringNote(_ringAudioCtx, 659, now + 0.42, 0.40, 0.22);
+    _ringTimer = setTimeout(_ringGroup, 1380);
+  } catch(_) {}
+}
+
+function startRingtone() {
+  _ringing = true;
+  _ringGroup();
+}
+
+function stopRingtone() {
+  _ringing = false;
+  clearTimeout(_ringTimer);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function showPhoneRingingThenVoicemail(char, prevChar) {
   // Briefly show the callOverlay in "ringing" state, then swap to voicemail
   const overlay = document.getElementById('callOverlay');
@@ -2630,7 +2679,9 @@ function showPhoneRingingThenVoicemail(char, prevChar) {
     if (imgEl) imgEl.style.backgroundImage = (isCharImg && isCharImg(char.image)) ? `url('${char.image}')` : '';
     overlay.style.display = 'flex';
   }
+  startRingtone();
   setTimeout(() => {
+    stopRingtone();
     if (overlay) overlay.style.display = 'none';
     currentChar = prevChar || char;
     showVoicemailOverlay(char);
@@ -2738,11 +2789,13 @@ function showIncomingCall(char) {
   const numEl = document.getElementById('icNumber');
   if (numEl) numEl.textContent = charPhone(char.id);
   overlay.style.display = 'flex';
+  startRingtone();
   // Auto-decline after 20 s if unanswered
   incomingCallTimer = setTimeout(() => declineIncomingCall(true), 20000);
 }
 
 function answerIncomingCall() {
+  stopRingtone();
   clearTimeout(incomingCallTimer);
   const char = incomingCallChar;
   incomingCallChar = null;
@@ -2755,6 +2808,7 @@ function answerIncomingCall() {
 }
 
 function declineIncomingCall(auto = false) {
+  stopRingtone();
   clearTimeout(incomingCallTimer);
   const char = incomingCallChar;
   incomingCallChar = null;
@@ -10822,6 +10876,39 @@ async function checkPushStatus() {
   } catch (_) {}
 }
 checkPushStatus();
+
+// ── Service Worker message bus ────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    const msg = event.data;
+    if (!msg) return;
+    if (msg.type === 'CM_INCOMING_CALL') {
+      // User tapped "Answer" on the OS push notification while the tab was already open
+      const char = characters.find(c => c.id === msg.charId) || {
+        id: msg.charId || 'unknown',
+        name: msg.charName || 'Character',
+        image: msg.charImage || '',
+        color: msg.charColor || '#7c3aed',
+      };
+      showIncomingCall(char);
+    } else if (msg.type === 'CM_CALL_DECLINED') {
+      stopRingtone();
+    }
+  });
+}
+
+// Cold-start: app opened by tapping "Answer" when no tab was open — URL carries ?cm_call=charId
+let _coldCallHandled = false;
+function handleColdStartCall() {
+  if (_coldCallHandled) return;
+  const params = new URLSearchParams(window.location.search);
+  const callCharId = params.get('cm_call');
+  if (!callCharId) return;
+  _coldCallHandled = true;
+  try { history.replaceState(null, '', window.location.pathname + window.location.hash); } catch (_) {}
+  const char = characters.find(c => c.id === callCharId);
+  if (char) showIncomingCall(char);
+}
 
 // Offer push notifications after the first AI reply (once per session)
 const _origShowEventBanner = typeof showEventBanner === 'function' ? showEventBanner : null;

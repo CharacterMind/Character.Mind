@@ -42,19 +42,36 @@ self.addEventListener('notificationclick', event => {
   event.notification.close();
   const notifData = event.notification.data || {};
   const action = event.action;
+  const isCall = notifData.type === 'call';
 
-  // Declined — just close
-  if (action === 'decline') return;
+  if (action === 'decline') {
+    // Let any open window know the call was declined so it can queue a miss-call DM
+    if (isCall) {
+      clients.matchAll({ type: 'window' }).then(list => {
+        for (const c of list) c.postMessage({ type: 'CM_CALL_DECLINED', charId: notifData.charId });
+      });
+    }
+    return;
+  }
 
   const url = notifData.url || '/';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-      for (const client of list) {
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
-          client.navigate(url);
-          return client.focus();
+      const existing = list.find(c => c.url.startsWith(self.location.origin));
+      if (existing && 'focus' in existing) {
+        // App is open — send a message so it shows the call UI directly
+        if (isCall) {
+          existing.postMessage({
+            type: 'CM_INCOMING_CALL',
+            charId:    notifData.charId,
+            charName:  notifData.charName,
+            charImage: notifData.charImage,
+            charColor: notifData.charColor,
+          });
         }
+        return existing.navigate(url).then(() => existing.focus());
       }
+      // Cold start — open the app; URL carries ?cm_call=charId so it shows the call on load
       return clients.openWindow(url);
     })
   );

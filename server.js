@@ -493,6 +493,11 @@ if (db) {
   `).catch(() => {});
 
   db.query(`
+    ALTER TABLE push_subscriptions
+      ADD COLUMN IF NOT EXISTS last_call_at TIMESTAMPTZ
+  `).catch(() => {});
+
+  db.query(`
     CREATE TABLE IF NOT EXISTS groups (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(google_id) ON DELETE CASCADE,
@@ -5605,6 +5610,25 @@ app.delete('/api/push/unsubscribe', requireAuth, async (req, res) => {
   }
 });
 
+// Trigger an immediate call push for a specific character → user
+app.post('/api/push/call', requireAuth, async (req, res) => {
+  const { charId } = req.body || {};
+  if (!charId || !VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
+  if (!db) return res.status(503).json({ error: 'DB unavailable' });
+  try {
+    const charRow = await db.query(
+      'SELECT id, name, image, color FROM characters WHERE id = $1 AND is_hidden = false',
+      [charId]
+    );
+    if (!charRow.rows.length) return res.status(404).json({ error: 'Character not found' });
+    const sent = await sendCallPushToUser(req.user.googleId, charRow.rows[0]);
+    res.json({ ok: sent, reason: sent ? null : 'no subscription or push disabled' });
+  } catch (err) {
+    console.error('Push call error:', err);
+    res.status(500).json({ error: 'Failed to send call' });
+  }
+});
+
 // Push reminder scheduler — runs every 6 hours
 async function generatePushMessage(row) {
   const charName = row.last_character_name || '';
@@ -5673,6 +5697,72 @@ async function sendPushToUser(userId, payload) {
     }
   }
 }
+
+// ── Call-type push (bypasses throttle — calls are special) ───────────────────
+async function sendCallPushToUser(userId, char) {
+  if (!VAPID_PRIVATE || !db) return false;
+  try {
+    const { rows } = await db.query('SELECT subscription FROM push_subscriptions WHERE google_id=$1', [userId]);
+    if (!rows.length || !rows[0].subscription) return false;
+    const sub = typeof rows[0].subscription === 'string'
+      ? JSON.parse(rows[0].subscription) : rows[0].subscription;
+    await webpush.sendNotification(sub, JSON.stringify({
+      type:      'call',
+      title:     `📞 ${char.name} is calling…`,
+      body:      'Tap to answer',
+      charId:    char.id,
+      charName:  char.name,
+      charImage: char.image  || '/logo.png',
+      charColor: char.color  || '#7c3aed',
+      url:       `/?cm_call=${encodeURIComponent(char.id)}`,
+      tag:       'character-call',
+      icon:      char.image  || '/logo.png',
+    }));
+    await db.query('UPDATE push_subscriptions SET last_call_at = NOW() WHERE google_id = $1', [userId]);
+    return true;
+  } catch (err) {
+    if (err.statusCode === 410 || err.statusCode === 404) {
+      db.query('DELETE FROM push_subscriptions WHERE google_id=$1', [userId]).catch(() => {});
+    }
+    return false;
+  }
+}
+
+// Characters proactively call subscribed users who have been away 8 h – 21 days
+async function sendCallPushes() {
+  if (!db || !VAPID_PRIVATE) return;
+  try {
+    const subscribers = await db.query(`
+      SELECT ps.google_id, ps.last_character_name
+      FROM push_subscriptions ps
+      JOIN users u ON ps.google_id = u.google_id
+      WHERE u.last_seen < NOW() - INTERVAL '8 hours'
+        AND u.last_seen > NOW() - INTERVAL '21 days'
+        AND (ps.last_call_at IS NULL OR ps.last_call_at < NOW() - INTERVAL '20 hours')
+      LIMIT 50
+    `);
+    if (!subscribers.rows.length) return;
+    const charRes = await db.query(
+      "SELECT id, name, image, color FROM characters WHERE is_hidden = false AND is_official = true LIMIT 20"
+    );
+    if (!charRes.rows.length) return;
+    for (const row of subscribers.rows) {
+      try {
+        // Prefer the character they last chatted with; fall back to a random official character
+        let char = charRes.rows[Math.floor(Math.random() * charRes.rows.length)];
+        if (row.last_character_name) {
+          const last = charRes.rows.find(c => c.name.toLowerCase() === row.last_character_name.toLowerCase());
+          if (last) char = last;
+        }
+        await sendCallPushToUser(row.google_id, char);
+        await new Promise(r => setTimeout(r, 200)); // gentle rate-limit between sends
+      } catch (_) {}
+    }
+  } catch (err) {
+    console.error('Call push scheduler error:', err);
+  }
+}
+setInterval(sendCallPushes, 8 * 60 * 60 * 1000);
 
 async function sendPushReminders() {
   if (!db) return;
