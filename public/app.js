@@ -9436,7 +9436,7 @@ async function speakAndHangUp(text, resetsAt) {
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: clean, charId: currentChar?.id, provider: ttsProvider, geminiVoice: geminiVoiceName })
+      body: JSON.stringify({ text: clean, charId: currentChar?.id, provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined })
     });
     if (r.ok) {
       const blob = await r.blob();
@@ -9516,7 +9516,7 @@ async function callModeTTS_server(text) {
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: s, charId: (callContextChar || currentChar)?.id, provider: ttsProvider, geminiVoice: geminiVoiceName })
+      body: JSON.stringify({ text: s, charId: (callContextChar || currentChar)?.id, provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined })
     });
     if (!r.ok) { if (r.status === 501) serverTTSOk = false; throw new Error('tts ' + r.status); }
     return r.blob();
@@ -9771,7 +9771,15 @@ async function _doStartCall(overlay) {
   if (overlay) {
     const vob = document.getElementById('callVoiceOnBadge');
     if (vob) { vob.style.display = ''; clearTimeout(callVobTimer); callVobTimer = setTimeout(() => { vob.style.display = 'none'; callVobTimer = null; }, 5000); }
-    setTimeout(() => { if (callModeActive) listenForSpeech(); }, 150);
+    setTimeout(() => {
+      if (!callModeActive) return;
+      // Single-char call: have the character greet the user first
+      if (callCharacters.length === 1) {
+        sendCallCharResponse(callCharacters[0]);
+      } else {
+        listenForSpeech();
+      }
+    }, 400);
   }
 }
 
