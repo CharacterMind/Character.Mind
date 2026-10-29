@@ -2901,8 +2901,9 @@ const NSFW_RE = new RegExp(
   // classic explicit acts
   'blow\\s*job|hand\\s*job|rim\\s*job|rim\\s+me|' +
   'finger\\s+(me|you|her|him)\\b|fist\\s+me\\b|' +
-  // "fuck you/him up / off / over" is anger, not sex; "fuck you" alone is also just an insult
-  'fuck\\s+(me|her|him|us|each\\s+other)\\b(?!\\s+(up|off|over|around)\\b)|' +
+  // "fuck you/him up / off / over" is anger; "fuck her/him/me" alone is frustration/insult, not sex.
+  // Only block when a physical sexual modifier follows (hard, rough, gently, etc.).
+  'fuck\\s+(me|her|him|us|each\\s+other)\\s+(?:hard|rough(?:ly)?|gently|softly|slowly|faster|deeper)\\b|' +
   // body part + preposition (inside me, in me, on me)
   NSFW_BODY_PARTS + '\\s*(in|into|inside|on)\\s*(me|you|my|your|his|her)|' +
   // cum/orgasm
@@ -4585,7 +4586,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   const clientEdgeVoice = req.body?.edgeVoice && typeof req.body.edgeVoice === 'string' ? req.body.edgeVoice : null;
   if (!text) return res.status(400).json({ error: 'no_text' });
 
-  // Character voice provider — uses the character's assigned Edge Neural voice
+  // Character voice provider — uses the character's assigned Edge Neural voice, falls through on failure
   if (provider === 'character') {
     const charEntry = CHARACTER_VOICE_MAP[charId];
     const charEdgeVoice = charEntry?.edgeFallback || EDGE_VOICE_MAP[charId] || EDGE_DEFAULT_VOICE;
@@ -4597,8 +4598,8 @@ app.post('/api/tts', requireAuth, async (req, res) => {
       res.setHeader('X-TTS-Provider', 'character-edge');
       return res.send(audio);
     } catch (e) {
-      console.warn('[char-tts] failed:', e.message);
-      return res.status(503).json({ error: 'tts_failed' });
+      console.warn('[char-tts] failed, falling back to general TTS:', e.message);
+      // fall through to Edge / Gemini fallback below
     }
   }
 

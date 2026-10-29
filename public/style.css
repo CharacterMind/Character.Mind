@@ -1186,14 +1186,16 @@ html, body {
 .btn-autospeak .autospeak-bars { display: none; position: absolute; bottom: 7px; gap: 2px; align-items: flex-end; justify-content: center; width: 18px; height: 9px; }
 .btn-autospeak .autospeak-bars span { display: block; width: 3px; background: var(--accent); border-radius: 2px; flex-shrink: 0; }
 .btn-autospeak.active { color: var(--accent); border-color: var(--accent); background: rgba(124,58,237,.1); }
-.btn-autospeak.active .autospeak-on { display: none; }
+.btn-autospeak.active .autospeak-on { display: block; }
 .btn-autospeak.active .autospeak-off { display: none; }
-.btn-autospeak.active .autospeak-bars { display: flex; }
-.btn-autospeak.active .autospeak-bars span:nth-child(1) { height: 5px; animation: autospeak-bar 0.9s ease-in-out infinite; }
-.btn-autospeak.active .autospeak-bars span:nth-child(2) { height: 9px; animation: autospeak-bar 0.9s ease-in-out infinite .2s; }
-.btn-autospeak.active .autospeak-bars span:nth-child(3) { height: 5px; animation: autospeak-bar 0.9s ease-in-out infinite .4s; }
+.btn-autospeak.active .autospeak-bars { display: none; }
+/* While audio is playing, swap icon for animated bars */
+.btn-autospeak.speaking .autospeak-on { display: none; }
+.btn-autospeak.speaking .autospeak-bars { display: flex; }
+.btn-autospeak.speaking .autospeak-bars span:nth-child(1) { height: 5px; animation: autospeak-bar 0.9s ease-in-out infinite; }
+.btn-autospeak.speaking .autospeak-bars span:nth-child(2) { height: 9px; animation: autospeak-bar 0.9s ease-in-out infinite .2s; }
+.btn-autospeak.speaking .autospeak-bars span:nth-child(3) { height: 5px; animation: autospeak-bar 0.9s ease-in-out infinite .4s; }
 @keyframes autospeak-bar { 0%,100% { transform: scaleY(0.5); } 50% { transform: scaleY(1.4); } }
-/* When speaking (mid-stream), pulse the border */
 .btn-autospeak.speaking { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(124,58,237,.25); }
 .btn-attach--limited { color: rgba(239,68,68,0.6) !important; border-color: rgba(239,68,68,0.35) !important; cursor: not-allowed; }
 .btn-attach--limited:hover { background: rgba(239,68,68,0.08) !important; color: rgba(239,68,68,0.8) !important; }
@@ -3886,24 +3888,6 @@ html, body {
 .bubble .nr .k0, .bubble .nr .k1, .bubble .nr .k2, .bubble .nr .k3, .bubble .nr .k4, .bubble .nr .k5 { text-shadow: none !important; -webkit-text-stroke: 0 !important; }
 .bubble { letter-spacing: 0; text-rendering: optimizeLegibility; }
 
-/* ── Chat mode — clean white text, no per-letter character colors ── */
-#chatBody.chat-mode .msg.ai .bubble .sp { color: var(--text, #fff) !important; font-style: normal; }
-#chatBody.chat-mode .msg.ai .bubble .nr { color: var(--text2, #c9c9d9) !important; }
-#chatBody.chat-mode .msg.ai .bubble .k0,
-#chatBody.chat-mode .msg.ai .bubble .k1,
-#chatBody.chat-mode .msg.ai .bubble .k2,
-#chatBody.chat-mode .msg.ai .bubble .k3,
-#chatBody.chat-mode .msg.ai .bubble .k4,
-#chatBody.chat-mode .msg.ai .bubble .k5 { color: inherit !important; }
-/* Remove ◆ narration markers — they belong in RP stories, not casual chat */
-#chatBody.chat-mode .msg.ai .bubble .nr::before,
-#chatBody.chat-mode .msg.ai .bubble .nr::after { content: none; }
-/* Subtle left border using character-color from --sp0 to signal who you're talking to */
-#chatBody.chat-mode .msg.ai .bubble {
-  background: rgba(255,255,255,0.03);
-  border-left: 3px solid var(--sp0, #7c3aed);
-  padding-left: 19px;
-}
 
 /* Phone: settings sections use the full width (the desktop rule centres them to their content), pricing prices never wrap */
 @media (max-width: 768px) {
