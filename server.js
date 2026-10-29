@@ -3092,6 +3092,39 @@ const convLastUsed = {};
 
 const groupConversations = {};
 const GROUP_CONV_TTL = 4 * 60 * 60 * 1000;
+
+// ── Phone contact unlock store ─────────────────────────────────────────────
+// Maps userId → Set<charId> of characters who have given the user their number.
+// Owner accounts get every character auto-unlocked.
+const phoneUnlocked = {}; // { [userId]: Set<charId> }
+
+function getPhoneUnlocked(userId) {
+  if (!phoneUnlocked[userId]) phoneUnlocked[userId] = new Set();
+  return phoneUnlocked[userId];
+}
+
+function isPhoneUnlocked(userId, charId) {
+  if (ownerGoogleIds.has(userId)) return true;
+  return getPhoneUnlocked(userId).has(charId);
+}
+
+function unlockPhone(userId, charId) {
+  getPhoneUnlocked(userId).add(charId);
+}
+
+// Generate a stable per-user per-character phone number
+function userCharPhone(userId, charId) {
+  const seed = userId + '|' + charId;
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = (Math.imul(h, 16777619)) >>> 0;
+  }
+  const area = 200 + (h % 700);
+  const mid  = 100 + ((h >>> 10) % 800);
+  const last = 1000 + ((h >>> 18) % 8999);
+  return `(${area}) ${mid}-${last}`;
+}
 setInterval(() => {
   const now = Date.now();
   for (const k of Object.keys(groupConversations)) {
@@ -3950,6 +3983,42 @@ app.post('/api/call/end', requireAuth, (req, res) => {
   const usage = addTokens(userId, callTokenCost);
   trackMissionProgress(userId, 'call').catch(() => {});
   res.json({ ok: true, ...usage });
+});
+
+// ── Phone contacts (earned numbers) ──────────────────────────────────────────
+
+// Returns the characters whose phone number this user has earned, with their unique number
+app.get('/api/phone/contacts', requireAuth, async (req, res) => {
+  if (!db) return res.json([]);
+  const userId = req.user.googleId;
+  try {
+    const result = await db.query(
+      'SELECT id, name, color, (image IS NOT NULL AND length(image) > 0) AS has_image, COALESCE(length(image), 0) AS image_len FROM characters WHERE COALESCE(is_hidden, FALSE) = FALSE ORDER BY name ASC'
+    );
+    const all = result.rows;
+    const contacts = all
+      .filter(r => isPhoneUnlocked(userId, r.id))
+      .map(r => ({
+        id: r.id,
+        name: r.name,
+        color: r.color,
+        image: r.has_image ? '/api/characters/' + encodeURIComponent(r.id) + '/image?v=' + r.image_len : null,
+        phone: userCharPhone(userId, r.id),
+      }));
+    res.json(contacts);
+  } catch (e) {
+    console.error('phone/contacts error', e);
+    res.json([]);
+  }
+});
+
+// Unlock a character's number for the current user (called by friendship system or admin)
+app.post('/api/phone/unlock/:charId', requireAuth, (req, res) => {
+  const userId = req.user.googleId;
+  const { charId } = req.params;
+  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(charId)) return res.status(400).json({ error: 'invalid charId' });
+  unlockPhone(userId, charId);
+  res.json({ ok: true, phone: userCharPhone(userId, charId) });
 });
 
 // ── Session Credit Packs ──────────────────────────────────────────────────────

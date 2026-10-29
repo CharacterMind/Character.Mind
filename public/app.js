@@ -2582,7 +2582,7 @@ function showHome() { showView('homeView'); setNavActive(0); }
 function showDiscover() { showView('discoverView'); setNavActive(1); renderDiscover(); }
 function showFeed() { showView('feedView'); setNavActive(2); }
 function showGroups() { showView('groupsView'); setNavActive(3); loadGroups(); }
-function showPhone()  { showView('phoneView');  setNavActive(4); renderPhoneContacts(''); showPhoneTab('contacts'); }
+function showPhone()  { showView('phoneView'); setNavActive(4); showPhoneTab('contacts'); loadPhoneContacts().then(() => renderPhoneContacts('')); }
 
 // ── Phone / Contacts ─────────────────────────────────────────────────────────
 
@@ -2750,19 +2750,30 @@ function charPhone(id) {
 
 function phoneNumDigitsOnly(phone) { return phone.replace(/\D/g, ''); }
 
+let _phoneContacts = []; // earned contacts from server
+
+async function loadPhoneContacts() {
+  try {
+    const r = await fetch('/api/phone/contacts');
+    if (r.ok) _phoneContacts = await r.json();
+  } catch(_) {}
+}
+
 function renderPhoneContacts(query) {
   const container = document.getElementById('phoneContacts');
   if (!container) return;
   const q = (query || '').toLowerCase().trim();
-  const list = (characters || []).filter(c => !c.isHidden && (
-    !q || c.name.toLowerCase().includes(q) || charPhone(c.id).includes(q)
-  ));
+  const list = _phoneContacts.filter(c => !q || c.name.toLowerCase().includes(q) || (c.phone || '').includes(q));
   if (!list.length) {
-    container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px 0;color:var(--muted)">No contacts found</div>`;
+    container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--muted)">
+      <div style="font-size:36px;margin-bottom:12px">📵</div>
+      <div style="font-weight:600;color:var(--text2);margin-bottom:6px">No contacts yet</div>
+      <div style="font-size:13px;line-height:1.5">Build a friendship with a character.<br>When they trust you enough, they'll give you their number.</div>
+    </div>`;
     return;
   }
   container.innerHTML = list.map(c => {
-    const phone = charPhone(c.id);
+    const phone = c.phone || '';
     const color = safeColor(c.color || '#7c3aed');
     const hasImg = isCharImg && isCharImg(c.image);
     const initial = (c.name || '?').charAt(0).toUpperCase();
@@ -2791,7 +2802,7 @@ function renderPhoneContacts(query) {
 
 function showPhoneContactProfile(charId, e) {
   if (e) e.stopPropagation();
-  const c = (characters || []).find(x => x.id === charId);
+  const c = _phoneContacts.find(x => x.id === charId) || (characters || []).find(x => x.id === charId);
   if (!c) return;
   const overlay = document.getElementById('phoneContactProfile');
   if (!overlay) return;
@@ -2806,7 +2817,7 @@ function showPhoneContactProfile(charId, e) {
     ? `<img src="${escHtml(c.image)}" alt="" onerror="this.style.display='none'">`
     : escHtml(initial);
   document.getElementById('pcpName').textContent = c.name || '';
-  document.getElementById('pcpNum').textContent = charPhone(c.id);
+  document.getElementById('pcpNum').textContent = c.phone || '';
   document.getElementById('pcpCallBtn').onclick = () => { closePhoneContactProfile(); callCharFromPhone(charId); };
   document.getElementById('pcpChatBtn').onclick = () => { closePhoneContactProfile(); openChat(charId); };
   overlay.style.display = 'flex';
@@ -2852,7 +2863,7 @@ function updatePhoneDial() {
   if (match) {
     const digitsOnly = phoneDialBuffer.replace(/\D/g, '');
     if (digitsOnly.length >= 3) {
-      const found = (characters || []).find(c => phoneNumDigitsOnly(charPhone(c.id)).startsWith(digitsOnly));
+      const found = _phoneContacts.find(c => phoneNumDigitsOnly(c.phone || '').startsWith(digitsOnly));
       match.textContent = found ? found.name : '';
     } else { match.textContent = ''; }
   }
@@ -2868,7 +2879,7 @@ function formatDialDisplay(buf) {
 function phoneCallDigits() {
   const digitsOnly = phoneDialBuffer.replace(/\D/g, '');
   if (!digitsOnly) return;
-  const found = (characters || []).find(c => phoneNumDigitsOnly(charPhone(c.id)) === digitsOnly);
+  const found = _phoneContacts.find(c => phoneNumDigitsOnly(c.phone || '') === digitsOnly);
   if (found) {
     callCharFromPhone(found.id);
   } else {
