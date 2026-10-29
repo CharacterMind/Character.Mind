@@ -2901,8 +2901,8 @@ const NSFW_RE = new RegExp(
   // classic explicit acts
   'blow\\s*job|hand\\s*job|rim\\s*job|rim\\s+me|' +
   'finger\\s+(me|you|her|him)\\b|fist\\s+me\\b|' +
-  // "fuck him up / off / over" is anger, not sex
-  'fuck\\s+(me|you|her|him|us|each\\s+other)\\b(?!\\s+(up|off|over|around)\\b)|' +
+  // "fuck you/him up / off / over" is anger, not sex; "fuck you" alone is also just an insult
+  'fuck\\s+(me|her|him|us|each\\s+other)\\b(?!\\s+(up|off|over|around)\\b)|' +
   // body part + preposition (inside me, in me, on me)
   NSFW_BODY_PARTS + '\\s*(in|into|inside|on)\\s*(me|you|my|your|his|her)|' +
   // cum/orgasm
