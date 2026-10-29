@@ -3094,22 +3094,50 @@ const groupConversations = {};
 const GROUP_CONV_TTL = 4 * 60 * 60 * 1000;
 
 // ── Phone contact unlock store ─────────────────────────────────────────────
-// Maps userId → Set<charId> of characters who have given the user their number.
-// Owner accounts get every character auto-unlocked.
-const phoneUnlocked = {}; // { [userId]: Set<charId> }
-
+// Characters who have given the user their number. Saved in user_limits.data.phoneUnlocked (an array of charIds)
+// so it survives deploys. Owner accounts get every character auto-unlocked.
 function getPhoneUnlocked(userId) {
-  if (!phoneUnlocked[userId]) phoneUnlocked[userId] = new Set();
-  return phoneUnlocked[userId];
+  const u = getLimits(userId);
+  if (!Array.isArray(u.phoneUnlocked)) u.phoneUnlocked = [];
+  return u.phoneUnlocked;
 }
 
 function isPhoneUnlocked(userId, charId) {
   if (ownerGoogleIds.has(userId)) return true;
-  return getPhoneUnlocked(userId).has(charId);
+  return getPhoneUnlocked(userId).includes(charId);
 }
 
 function unlockPhone(userId, charId) {
-  getPhoneUnlocked(userId).add(charId);
+  const list = getPhoneUnlocked(userId);
+  if (!list.includes(charId)) { list.push(charId); saveLimitsToDB(userId); }
+}
+
+// Friendship = how many real messages the user has sent this character (kept in user_limits.data.friendship).
+// At PHONE_FRIENDSHIP_AT the character trusts them enough to share their number.
+const PHONE_FRIENDSHIP_AT = 20;
+const GIVE_NUMBER_TAG_RE = /\[\s*GIVE[\s_-]*NUMBER\s*\]/i;
+function friendshipScore(userId, charId, history) {
+  const stored = getLimits(userId).friendship?.[charId] || 0;
+  // People who chatted before this existed still get credit for their history
+  const fromHistory = (history || []).filter(m => m.role === 'user' && typeof m.content === 'string' && !/^\[.+\]$/s.test(m.content.trim())).length;
+  return Math.max(stored, fromHistory);
+}
+function addFriendship(userId, charId) {
+  const u = getLimits(userId);
+  if (!u.friendship || typeof u.friendship !== 'object') u.friendship = {};
+  u.friendship[charId] = (u.friendship[charId] || 0) + 1;
+  saveLimitsToDB(userId);
+}
+// Tells the character about their in-app phone, and whether they trust the user enough to hand out the number
+function phoneDirective(userId, charId, history) {
+  const phone = userCharPhone(userId, charId);
+  if (isPhoneUnlocked(userId, charId)) {
+    return `\n\n[PHONE — In Character.Mind you have your own phone. The user already has your number, ${phone}. If they ask again, you can repeat it exactly.]`;
+  }
+  if (friendshipScore(userId, charId, history) >= PHONE_FRIENDSHIP_AT) {
+    return `\n\n[PHONE — In Character.Mind you have your own phone, and you've grown close to this user. Your number is ${phone}. If they ask for it, or once when it feels natural, give it to them in your own voice, writing it exactly as ${phone}, and end that reply with the tag [GIVE_NUMBER]. Never use that tag at any other time.]`;
+  }
+  return `\n\n[PHONE — In Character.Mind you do have your own phone, but you don't know this user well enough to give out your number yet. If they ask for it, say no warmly and in character (for example, maybe once you know them better). Don't claim you have no phone, and never make up a number.]`;
 }
 
 // Generate a stable per-user per-character phone number
@@ -3525,6 +3553,9 @@ function startReplyStream(o) {
       // On calls the character can end its reply with [HANGUP]: strip it so it is never shown, spoken or saved
       const hungUp = !!isCallMode && HANGUP_TAG_RE.test(fullResponse);
       if (hungUp) fullResponse = fullResponse.replace(new RegExp(HANGUP_TAG_RE.source, 'gi'), '').trim() || "I'm done. Bye.";
+      // In chat the character can end a reply with [GIVE_NUMBER] when sharing their phone number: strip it the same way
+      const gaveNumber = !isCallMode && GIVE_NUMBER_TAG_RE.test(fullResponse);
+      if (gaveNumber) fullResponse = fullResponse.replace(new RegExp(GIVE_NUMBER_TAG_RE.source, 'gi'), '').trim();
       if (!released) {
         if (isBareRefusal(fullResponse)) fullResponse = buildRefusalExplanation();
         released = true;
@@ -3532,10 +3563,11 @@ function startReplyStream(o) {
         held = '';
       }
       let extra = {};
-      try { extra = onComplete(fullResponse, { hungUp }) || {}; } catch (oc) { console.error(logLabel + ' onComplete error:', oc && oc.message); } // Bug 6 fix: don't let onComplete throw suppress done event
+      try { extra = onComplete(fullResponse, { hungUp, gaveNumber }) || {}; } catch (oc) { console.error(logLabel + ' onComplete error:', oc && oc.message); } // Bug 6 fix: don't let onComplete throw suppress done event
       const usage = Object.assign({}, buildUsagePayload(getLimits(userId), userId));
       const doneExtra = extra.swearBudgetHit ? { swearBudgetHit: true } : {};
       if (extra.hangup) { doneExtra.hangup = true; doneExtra.blockedUntil = extra.blockedUntil; }
+      if (extra.phoneUnlocked) doneExtra.phoneUnlocked = extra.phoneUnlocked;
       send({ done: true, usage, responseTokens: cost, warnings: reservation.warnings, sig: signReply(userId, charId, fullResponse), ...doneExtra });
       close();
     } catch (e) {
@@ -4014,6 +4046,8 @@ app.get('/api/phone/contacts', requireAuth, async (req, res) => {
 
 // Unlock a character's number for the current user (called by friendship system or admin)
 app.post('/api/phone/unlock/:charId', requireAuth, (req, res) => {
+  // Owner-only test tool — normal users earn numbers through friendship in chat
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
   const userId = req.user.googleId;
   const { charId } = req.params;
   if (!/^[a-zA-Z0-9_-]{1,64}$/.test(charId)) return res.status(400).json({ error: 'invalid charId' });
@@ -6302,6 +6336,8 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     // History stores text only — images are not persisted (too large, one-shot vision)
     conversations[key].push({ role: 'user', content: message || '[image]' });
     persistConv(key);
+    // Real chat messages build friendship (hidden [bracketed] prompts and calls don't)
+    if (!callMode && typeof message === 'string' && message.trim() && !/^\[.+\]$/s.test(message.trim())) addFriendship(userId, charId);
   }
 
   // Chat APIs require the last turn to be a user turn — inject a hidden continuation trigger if needed
@@ -6385,7 +6421,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(IMAGE_CAPABILITY_PREFIX + characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + chatModeDirective + characterEnforcement + swearDirective + gameKnowledgeDirective(modelTier), effort, modelTier),
+    system: applyEffortDirective(IMAGE_CAPABILITY_PREFIX + characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + (callMode || bookReq ? '' : phoneDirective(userId, charId, conversations[key])) + chatModeDirective + characterEnforcement + swearDirective + gameKnowledgeDirective(modelTier), effort, modelTier),
     messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId, callMode,
     onComplete: (text, meta) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
@@ -6394,6 +6430,16 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       if (meta && meta.hungUp && callMode && !callChained) {
         const b = addCharBlock(userId, charId);
         hangInfo = { hangup: true, blockedUntil: b.until };
+      }
+      // The character shared their number (tag, or wrote the exact number) and they're close enough → it goes in Phone contacts
+      if (!callMode && !isPhoneUnlocked(userId, charId)) {
+        const phone = userCharPhone(userId, charId);
+        if ((meta && meta.gaveNumber) || String(text || '').includes(phone)) {
+          if (friendshipScore(userId, charId, conversations[key]) >= PHONE_FRIENDSHIP_AT) {
+            unlockPhone(userId, charId);
+            hangInfo.phoneUnlocked = { charId, name: (dbChar && dbChar.name) || charId, phone };
+          }
+        }
       }
       if (bookPlanState) saveBookState(key, { ...bookPlanState, outline: String(text || '').slice(0, 4000) });
       maybeUpdateStorySummary(key, apiKey, (dbChar && dbChar.name) || charId, modelTier);

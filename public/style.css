@@ -6364,3 +6364,6 @@ body:not(.halloween) .hw-off-label { display: inline; }
 .bubble .nr.c3 { color: var(--nr3, var(--text2)); }
 .bubble .nr.c4 { color: var(--nr4, var(--text2)); }
 .bubble .nr.c5 { color: var(--nr5, var(--text2)); }
+
+/* "Poppy's number was added to your contacts" — tappable, opens the Phone page */
+.phone-unlocked-toast { pointer-events: auto; cursor: pointer; font-size: 14px; padding: 11px 20px; }

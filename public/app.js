@@ -5276,7 +5276,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
     let msgEl = null, bubble = null, gotFirst = false;
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, streamCharCount = 0, streamBlocked = false;
+    let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, streamCharCount = 0, streamBlocked = false, streamPhoneUnlocked = null;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -5311,7 +5311,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
           }
           break;
         }
-        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; if (data.swearBudgetHit) showSwearLimitModal(); if (data.hangup && callModeActive) callHangupChar = currentChar; }
+        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; if (data.swearBudgetHit) showSwearLimitModal(); if (data.hangup && callModeActive) callHangupChar = currentChar; if (data.phoneUnlocked) streamPhoneUnlocked = data.phoneUnlocked; }
         if (data.charBlocked) { showTyping(false); streamBlocked = true; }
         if (data.text) {
           if (!gotFirst) {
@@ -5353,10 +5353,13 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
       if (bubble) {
         bubble.classList.remove('streaming');
         colorizeLetters(bubble, currentChar?.color);
+        // The hidden "gave you my number" tag may have streamed in before the server stripped it — drop it from the saved text
+        if (typeof bubble.dataset.raw === 'string' && GIVE_NUMBER_TAG_RE.test(bubble.dataset.raw)) bubble.dataset.raw = bubble.dataset.raw.replace(new RegExp(GIVE_NUMBER_TAG_RE.source, 'gi'), '').trim();
         maybeRenderGame(bubble, currentChar?.color);
         playSound('done');
         if (callModeActive) callModeTTS(bubble);
       } else if (callModeActive) {
+        if (streamPhoneUnlocked) showPhoneUnlockedToast(streamPhoneUnlocked);
         setTimeout(() => listenForSpeech(), 500);
       }
       if (streamBlocked) markLastMessageNotDelivered();
@@ -10658,9 +10661,21 @@ function copyCodeBlock(btn) {
   try { const r = document.createRange(); r.selectNodeContents(code); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); document.execCommand('copy'); sel.removeAllRanges(); done(); } catch (_) {}
 }
 function renderStoryText(text) {
-  const raw = String(text == null ? '' : text).replace(/\*\*/g, '');
+  const raw = String(text == null ? '' : text).replace(/\*\*/g, '').replace(/\[\s*GIVE[\s_-]*NUMBER\s*\]/gi, '');
   const paras = raw.split(/\n\n+/);
   const segCount = { sp: 0, nr: 0 };
+// A character ends the reply that shares their phone number with this tag; it is never shown
+const GIVE_NUMBER_TAG_RE = /\[\s*GIVE[\s_-]*NUMBER\s*\]/i;
+// "Poppy's number was added to your contacts" — tapping it opens the Phone page
+function showPhoneUnlockedToast(info) {
+  const toast = document.createElement('div');
+  toast.className = 'toast-msg phone-unlocked-toast';
+  toast.textContent = `📱 ${info.name ? info.name + "'s" : 'Their'} number was added to your contacts`;
+  toast.onclick = () => { toast.remove(); if (typeof showPhone === 'function') showPhone(); };
+  document.body.appendChild(toast);
+  playSound('done');
+  setTimeout(() => toast.remove(), 6000);
+}
   // No per-letter rainbow: each speech / narration piece gets one solid colour (see the span below)
   const emit = (kind, str) => {
     const parts = str.split(/(\[[^\]\n]{1,40}\]\((?:\/terms|\/privacy)\))/g);
