@@ -4602,10 +4602,21 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   const clientEdgeVoice = req.body?.edgeVoice && typeof req.body.edgeVoice === 'string' ? req.body.edgeVoice : null;
   if (!text) return res.status(400).json({ error: 'no_text' });
 
-  // Character voice provider — uses the character's assigned Edge Neural voice, falls through on failure
+  // Character voice provider — serves the character's real voice WAV if available, otherwise Edge TTS
   if (provider === 'character') {
     const charEntry = CHARACTER_VOICE_MAP[charId];
-    const charEdgeVoice = charEntry?.edgeFallback || EDGE_VOICE_MAP[charId] || EDGE_DEFAULT_VOICE;
+    if (charEntry?.file) {
+      try {
+        await fs.promises.access(charEntry.file);
+        res.setHeader('Content-Type', 'audio/wav');
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('X-TTS-Provider', 'character-wav');
+        return res.sendFile(charEntry.file);
+      } catch (_) {
+        console.warn('[char-tts] voice file not found for', charId, '— falling back to Edge TTS');
+      }
+    }
+    const charEdgeVoice = EDGE_VOICE_MAP[charId] || EDGE_DEFAULT_VOICE;
     try {
       const audio = await edgeSynthesize(text, charEdgeVoice);
       if (!audio || !audio.length) throw new Error('empty');
@@ -4614,7 +4625,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
       res.setHeader('X-TTS-Provider', 'character-edge');
       return res.send(audio);
     } catch (e) {
-      console.warn('[char-tts] failed, falling back to general TTS:', e.message);
+      console.warn('[char-tts] edge failed, falling back to general TTS:', e.message);
       // fall through to Edge / Gemini fallback below
     }
   }
