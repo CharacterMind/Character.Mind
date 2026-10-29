@@ -8963,7 +8963,7 @@ async function playCallBlob(blob) {
     return;
   }
   const url = URL.createObjectURL(blob);
-  const audio = new Audio(url);
+  const audio = callBoost(new Audio(url));
   callAudio = audio;
   const finish = () => {
     URL.revokeObjectURL(url);
@@ -8995,7 +8995,7 @@ async function speakAndHangUp(text, resetsAt) {
       const blob = await r.blob();
       if (gen !== callGen) return;
       const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
+      const audio = callBoost(new Audio(url));
       callAudio = audio;
       audio.onended = () => { URL.revokeObjectURL(url); callAudio = null; finish(); };
       audio.onerror = () => { URL.revokeObjectURL(url); callAudio = null; finish(); };
@@ -9085,7 +9085,7 @@ async function callModeTTS_server(text) {
       return;
     }
     const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
+    const audio = callBoost(new Audio(url));
     callAudio = audio;
     const done = () => { URL.revokeObjectURL(url); if (callAudio === audio) callAudio = null; resolve(); };
     audio.onended = done; audio.onerror = done;
@@ -9582,7 +9582,16 @@ function endCallMode() {
   callChainCount = 0;
   callHangupChar = null;
   callSpeakerActive = false;
+  if (callBoostGain) callBoostGain.gain.value = 1;
   document.getElementById('callSpeakerBtn')?.classList.remove('active');
+  document.getElementById('callMuteBtn')?.classList.remove('muted');
+  const muteLabel = document.getElementById('callMuteLabel');
+  if (muteLabel) muteLabel.textContent = 'Mute';
+  closeCallKeypad();
+  hideCallMoreMenu();
+  callKeypadDigits = '';
+  const kd = document.getElementById('callKeypadDigits');
+  if (kd) kd.textContent = '';
   document.getElementById('callBtn')?.classList.remove('active');
   const overlay = document.getElementById('callOverlay');
   if (overlay) overlay.style.display = 'none';
@@ -9619,10 +9628,91 @@ function setCallState(state) {
   }
 }
 
+// Speaker: call audio runs through this gain, so Speaker can make the voice ~3× louder (about +10 dB).
+// A compressor after it stops the boosted voice from crackling.
+const CALL_SPEAKER_GAIN = 3;
+let callBoostGain = null;
+function callBoost(audio) {
+  try {
+    const ctx = getAudioCtx();
+    if (ctx.state !== 'running') { ctx.resume().catch(() => {}); return audio; } // not unlocked yet: play normally
+    if (!callBoostGain) {
+      callBoostGain = ctx.createGain();
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -6; comp.knee.value = 6; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.15;
+      callBoostGain.connect(comp); comp.connect(ctx.destination);
+    }
+    callBoostGain.gain.value = callSpeakerActive ? CALL_SPEAKER_GAIN : 1;
+    ctx.createMediaElementSource(audio).connect(callBoostGain);
+  } catch (_) {}
+  return audio;
+}
+
 function toggleCallSpeaker() {
   callSpeakerActive = !callSpeakerActive;
   const btn = document.getElementById('callSpeakerBtn');
   if (btn) btn.classList.toggle('active', callSpeakerActive);
+  try { getAudioCtx().resume(); } catch (_) {}
+  // Changes the volume right away, even mid-sentence
+  if (callBoostGain) { try { callBoostGain.gain.setTargetAtTime(callSpeakerActive ? CALL_SPEAKER_GAIN : 1, getAudioCtx().currentTime, 0.03); } catch (_) {} }
+}
+
+// ⋮ menu above the More button
+function toggleCallMoreMenu(e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('callMoreMenu');
+  if (!menu) return;
+  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+function hideCallMoreMenu() {
+  const menu = document.getElementById('callMoreMenu');
+  if (menu) menu.style.display = 'none';
+}
+document.addEventListener('click', (e) => {
+  if (!e.target.closest || !e.target.closest('#callMoreBtnWrap')) hideCallMoreMenu();
+});
+
+// Keypad: hides everything but the keys, the typed digits, Hide and hang up
+let callKeypadDigits = '';
+function openCallKeypad() {
+  hideCallMoreMenu();
+  document.getElementById('callOverlay')?.classList.add('keypad-open');
+  const pad = document.getElementById('callKeypad');
+  const hide = document.getElementById('callKeypadHide');
+  if (pad) pad.style.display = 'flex';
+  if (hide) hide.style.display = '';
+}
+function closeCallKeypad() {
+  document.getElementById('callOverlay')?.classList.remove('keypad-open');
+  const pad = document.getElementById('callKeypad');
+  const hide = document.getElementById('callKeypadHide');
+  if (pad) pad.style.display = 'none';
+  if (hide) hide.style.display = 'none';
+}
+function callKeyPress(key) {
+  playDtmf(key);
+  callKeypadDigits = (callKeypadDigits + key).slice(-24);
+  const el = document.getElementById('callKeypadDigits');
+  if (el) el.textContent = callKeypadDigits;
+}
+// Real phone keypad tones: each key is two notes played together
+const DTMF_FREQS = { '1': [697, 1209], '2': [697, 1336], '3': [697, 1477], '4': [770, 1209], '5': [770, 1336], '6': [770, 1477],
+  '7': [852, 1209], '8': [852, 1336], '9': [852, 1477], '*': [941, 1209], '0': [941, 1336], '#': [941, 1477] };
+function playDtmf(key) {
+  const f = DTMF_FREQS[key];
+  if (!f) return;
+  try {
+    const ctx = getAudioCtx();
+    if (ctx.state !== 'running') ctx.resume().catch(() => {});
+    const t = ctx.currentTime, dur = 0.16;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.12, t + 0.008);
+    g.gain.setValueAtTime(0.12, t + dur - 0.02);
+    g.gain.linearRampToValueAtTime(0, t + dur);
+    g.connect(ctx.destination);
+    f.forEach(freq => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = freq; o.connect(g); o.start(t); o.stop(t + dur + 0.01); });
+  } catch (_) {}
 }
 
 function toggleCallMute() {
@@ -9630,6 +9720,8 @@ function toggleCallMute() {
   playSound(callMuted ? 'mute' : 'unmute');
   const btn = document.getElementById('callMuteBtn');
   if (btn) btn.classList.toggle('muted', callMuted);
+  const label = document.getElementById('callMuteLabel');
+  if (label) label.textContent = callMuted ? 'Unmute' : 'Mute';
   if (callMuted) {
     if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
   } else {
