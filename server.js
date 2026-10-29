@@ -4388,7 +4388,7 @@ const EDGE_DEFAULT_VOICE = 'en-US-AriaNeural';
 
 // Hardcoded character voice map — these chars have a real voice sample file
 const CHARACTER_VOICE_MAP = {
-  'custom_1790776698867': { name: 'Poppy', file: path.join(__dirname, 'public/assets/voices/poppy.wav'), edgeFallback: 'en-US-AvaNeural' },
+  'custom_1790776698867': { name: 'Poppy', voiceId: 'poppy', file: path.join(__dirname, 'public/assets/voices/poppy.wav'), edgeFallback: 'en-US-AvaNeural' },
 };
 
 // All 30 prebuilt Gemini 2.5 Flash TTS voices
@@ -4645,7 +4645,11 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         const cloneRes = await fetch(`${cloneBase}/tts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, speaker_wav: speakerFile, language: 'en' }),
+          body: JSON.stringify(
+          (process.env.TTS_CLONE_URL && charEntry?.voiceId)
+            ? { text, voice_id: charEntry.voiceId, language: 'en' }
+            : { text, speaker_wav: speakerFile, language: 'en' }
+        ),
           signal: ctrl.signal,
         }).finally(() => clearTimeout(cloneTimeout));
         if (cloneRes.ok) {
