@@ -3702,20 +3702,20 @@ html, body {
 .welcome-live-tag { background: #16a34a; }
 
 /* Character text colours: speech is upright, narration is italic; each letter takes a colour from the character's palette */
-.bubble .sp { font-weight: 900; }
-.bubble .nr { font-style: italic; letter-spacing: 0.012em; }
-.bubble .sp .k0 { color: var(--sp0, var(--text)); text-shadow: var(--sp0g, none); }
-.bubble .sp .k1 { color: var(--sp1, var(--text)); text-shadow: var(--sp1g, none); }
-.bubble .sp .k2 { color: var(--sp2, var(--text)); text-shadow: var(--sp2g, none); }
-.bubble .sp .k3 { color: var(--sp3, var(--text)); text-shadow: var(--sp3g, none); }
-.bubble .sp .k4 { color: var(--sp4, var(--text)); text-shadow: var(--sp4g, none); }
-.bubble .sp .k5 { color: var(--sp5, var(--text)); text-shadow: var(--sp5g, none); }
-.bubble .nr .k0 { color: var(--nr0, var(--narration)); text-shadow: var(--nr0g, none); }
-.bubble .nr .k1 { color: var(--nr1, var(--narration)); text-shadow: var(--nr1g, none); }
-.bubble .nr .k2 { color: var(--nr2, var(--narration)); text-shadow: var(--nr2g, none); }
-.bubble .nr .k3 { color: var(--nr3, var(--narration)); text-shadow: var(--nr3g, none); }
-.bubble .nr .k4 { color: var(--nr4, var(--narration)); text-shadow: var(--nr4g, none); }
-.bubble .nr .k5 { color: var(--nr5, var(--narration)); text-shadow: var(--nr5g, none); }
+.bubble .sp { font-weight: 700; color: var(--sp0, #f4c542); }
+.bubble .nr { font-style: italic; letter-spacing: 0.012em; font-weight: 500; color: var(--nr0, #c4b5fd); }
+.bubble .sp .k0 { color: var(--sp0, #f4c542); }
+.bubble .sp .k1 { color: var(--sp1, #c090ff); }
+.bubble .sp .k2 { color: var(--sp2, #60dfff); }
+.bubble .sp .k3 { color: var(--sp3, #ff9f43); }
+.bubble .sp .k4 { color: var(--sp4, #c090ff); }
+.bubble .sp .k5 { color: var(--sp5, #f4c542); }
+.bubble .nr .k0 { color: var(--nr0, #c4b5fd); }
+.bubble .nr .k1 { color: var(--nr1, #a78bfa); }
+.bubble .nr .k2 { color: var(--nr2, #8b5cf6); }
+.bubble .nr .k3 { color: var(--nr3, #a78bfa); }
+.bubble .nr .k4 { color: var(--nr4, #c4b5fd); }
+.bubble .nr .k5 { color: var(--nr5, #ddd6fe); }
 /* Narration gets subtle ◆ delimiters — pure CSS, invisible to screen readers */
 .bubble .nr::before,
 .bubble .nr::after  { content: "◆"; font-style: normal; font-size: 0.45em; opacity: 0.35; margin: 0 4px; vertical-align: middle; }
@@ -3760,10 +3760,6 @@ html, body {
 .bubble .nr .k0, .bubble .nr .k1, .bubble .nr .k2, .bubble .nr .k3, .bubble .nr .k4, .bubble .nr .k5 { text-shadow: none !important; -webkit-text-stroke: 0 !important; }
 .bubble { letter-spacing: 0; text-rendering: optimizeLegibility; }
 
-/* One solid colour per speech / narration run (no per-letter colours) */
-.bubble .sp { color: var(--sp0, var(--text)); font-weight: 500; }
-.bubble .nr { color: var(--nr0, var(--narration)); font-style: italic; }
-
 /* Phone: settings sections use the full width (the desktop rule centres them to their content), pricing prices never wrap */
 @media (max-width: 768px) {
   .settings-tab-content > * { align-self: stretch; }
@@ -3776,9 +3772,6 @@ html, body {
   .pc-per-month { flex-wrap: wrap; }
 }
 
-/* Bubble text: bold speech, softer italic narration — per-letter spans carry inline color; this is the fallback for spaces/punctuation */
-.bubble .sp { color: var(--sp0, #f0ebff); font-weight: 700; }
-.bubble .nr { color: var(--nr0, #ddd6fe); font-style: italic; font-weight: 700; }
 .bubble p { margin: 0 0 12px; line-height: 1.7; }
 .bubble p:last-child { margin-bottom: 0; }
 

@@ -3297,7 +3297,12 @@ function randomizeChatColors() {
   const cbPal = cbMode && CB_PALETTES[cbMode];
   const rawHexes = cbPal ? cbPal.colors : String(currentChar.color || '').match(/#[0-9a-fA-F]{6}/gi);
   if (!rawHexes || !rawHexes.length) return;
-  const spColors = rawHexes.map(boostColor);
+  let spColors = rawHexes.map(boostColor);
+  // When only one base color, add hue variants so letters aren't all the same shade
+  if (spColors.length === 1) {
+    const c = rawHexes[0];
+    spColors = [boostColor(c), boostColor(mixHex(c, '#cc44ff', 0.48)), boostColor(mixHex(c, '#44aaff', 0.48))];
+  }
   // Shuffle CSS colour variables — every bubble recolours instantly without any DOM traversal
   for (let i = 0; i < 6; i++) {
     el.style.setProperty('--sp' + i, spColors[Math.floor(Math.random() * spColors.length)]);
@@ -9093,13 +9098,21 @@ function toggleCallMode() {
 async function startCallMode() {
   if (callStarting || callModeActive) return;
   callStarting = true;
+  const _overlay = document.getElementById('callOverlay');
+  try {
+    await _doStartCall(_overlay);
+  } catch(e) {
+    callStarting = false;
+    if (_overlay) _overlay.style.display = 'none';
+  }
+}
+async function _doStartCall(overlay) {
   const startGen = callGen;
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { callStarting = false; showWarning('Voice calls need a browser with speech recognition — try Chrome.', 5000); return; }
   if (!currentChar) { callStarting = false; return; }
 
   // Show overlay immediately for instant visual response
-  const overlay = document.getElementById('callOverlay');
   if (overlay) {
     const [co1, co2, co3] = getCharCallColors(currentChar);
     const bgEl = document.getElementById('callBg');
@@ -9112,6 +9125,22 @@ async function startCallMode() {
     setCallState('calling');
   }
 
+  // Pre-request mic permission so the prompt shows before we go into the call
+  try {
+    if (navigator.mediaDevices?.getUserMedia) {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(t => t.stop());
+    }
+  } catch(micErr) {
+    if (micErr.name === 'NotAllowedError' || micErr.name === 'PermissionDeniedError' || micErr.name === 'SecurityError') {
+      callStarting = false;
+      if (overlay) overlay.style.display = 'none';
+      showWarning('Microphone access is required for voice calls. Please allow it in your browser settings and try again.', 8000);
+      return;
+    }
+    // Other errors (hardware busy, not supported) — let the call attempt continue anyway
+  }
+
   // Check server-side blocks (token limits, bans, service offline)
   try {
     const r = await fetch('/api/call/start', { method: 'POST' });
@@ -9121,6 +9150,9 @@ async function startCallMode() {
       if (overlay) overlay.style.display = 'none';
       if (r.status === 429) {
         showCallLimitModal(data.resetsAt || data.cooldownUntil || Date.now() + 3600000);
+      } else {
+        const msg = data.error || data.message || 'Call service unavailable. Please try again.';
+        showWarning(msg, 5000);
       }
       return;
     }
@@ -9559,7 +9591,7 @@ function listenForSpeech() {
   };
 
   callRecognition.onerror = (e) => {
-    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'audio-capture') {
       dispatched = true;
       showCallMicError();
       setCallState('listening');
@@ -9576,7 +9608,19 @@ function listenForSpeech() {
     if (!dispatched) dispatch();
   };
 
-  try { callRecognition.start(); } catch(_) { setTimeout(() => listenForSpeech(), isAndroid ? 800 : 1000); }
+  // Safety timeout: if recognition never fires any event within 8s, restart it
+  const startTimeout = setTimeout(() => {
+    if (!dispatched && callModeActive && !callMuted) {
+      dispatched = true;
+      if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
+      setTimeout(() => listenForSpeech(), 300);
+    }
+  }, 8000);
+  const origOnend = callRecognition.onend;
+  callRecognition.onend = () => { clearTimeout(startTimeout); origOnend(); };
+  callRecognition.onresult = (() => { const origOnresult = callRecognition.onresult; return (e) => { clearTimeout(startTimeout); origOnresult(e); }; })();
+
+  try { callRecognition.start(); } catch(_) { clearTimeout(startTimeout); setTimeout(() => listenForSpeech(), isAndroid ? 800 : 1000); }
 }
 
 function sendCallMessage(text) {
@@ -10211,11 +10255,11 @@ function charTheme(ch) {
   if (hexes.length) {
     const c1 = hexes[0], c2 = hexes[1] || hexes[0];
     return {
-      sp: pal([{ c: mixHex(c1, '#ffffff', 0.72) }, { c: mixHex(c2, '#ffffff', 0.55) }, { c: '#faf9f5' }], [3, 2, 1]),
-      nr: pal([{ c: mixHex(c1, '#ffffff', 0.45) }, { c: mixHex(c2, '#ffffff', 0.35) }], [3, 1])
+      sp: pal([{ c: mixHex(c1, '#ffffff', 0.35) }, { c: mixHex(c2, '#ffffff', 0.2) }, { c: mixHex(c1, '#ccaaff', 0.5) }], [3, 2, 1]),
+      nr: pal([{ c: mixHex(c1, '#ffffff', 0.2) }, { c: mixHex(c2, '#ccaaff', 0.45) }], [3, 1])
     };
   }
-  return { sp: pal([{ c: '#faf9f5' }, { c: '#e0d7ff' }], [3, 1]), nr: pal([{ c: '#b8a4e8' }, { c: '#9f8bd8' }], [3, 1]) };
+  return { sp: pal([{ c: '#f4c542' }, { c: '#c090ff' }, { c: '#60dfff' }], [2, 2, 1]), nr: pal([{ c: '#c4b5fd' }, { c: '#a78bfa' }], [3, 1]) };
 }
 // Puts the current character's colours on the chat area (every bubble inside inherits them)
 let activeTheme = charTheme(null);
