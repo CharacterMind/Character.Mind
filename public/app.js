@@ -10626,7 +10626,7 @@ function autoGeneratePersonaOnNameBlur() {
 
 async function generatePersona() {
   const name = document.getElementById('newName').value.trim();
-  if (!name) { alert('Enter a character name first.'); return; }
+  if (!name) { showWarning('Enter a character name first.'); return; }
   const tagline = document.getElementById('newTagline').value.trim();
   const desc = document.getElementById('newDesc').value.trim();
   const btn = document.getElementById('personaGenBtn');
@@ -10643,7 +10643,7 @@ async function generatePersona() {
     if (!res.ok) throw new Error(data.error || 'Failed');
     ta.value = data.persona;
   } catch (err) {
-    alert('Could not generate persona: ' + err.message);
+    showWarning('Could not generate persona: ' + err.message);
   } finally {
     btn.disabled = false;
     btn.textContent = '✨ Auto-generate';
@@ -10660,7 +10660,7 @@ async function createCharacter(e) {
   const color = (document.getElementById('newColor').value || '#7c3aed').trim();
   const editingId = document.getElementById('newName').dataset.editingId;
   const id = editingId || 'custom_' + Date.now();
-  if (!name) { alert('Character name is required'); return; }
+  if (!name) { showWarning('Character name is required'); return; }
   if (greetingViolation(greeting)) {
     checkGreetingInput();
     document.getElementById('newGreeting')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -10743,7 +10743,7 @@ async function createCharacter(e) {
     renderHome(); renderDiscover();
     openChat(id);
   } catch (err) {
-    alert('Failed to save character: ' + err.message);
+    showWarning('Failed to save character: ' + err.message);
     submitBtn.textContent = editingId ? 'Save Changes' : 'Create Character';
     submitBtn.disabled = false;
   }
@@ -10780,7 +10780,7 @@ async function deleteCharacter(id) {
     characters = characters.filter(x => x.id !== id);
     if (currentChar?.id === id) { currentChar = null; showHome(); }
     renderSidebarChats(); renderHome(); renderDiscover();
-  } catch (err) { alert('Delete failed: ' + err.message); }
+  } catch (err) { showWarning('Delete failed: ' + err.message); }
 }
 
 // ── Seasonal / birthday events ────────────────────────────────────────────────
