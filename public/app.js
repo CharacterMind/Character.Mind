@@ -4300,7 +4300,7 @@ function renderSidebarChats() {
     const color = safeColor((m && m.color) || '#7c3aed');
     const avatarHtml = m
       ? (m.image
-          ? `<div class="chat-item-avatar" style="background:${color}"><img src="/api/characters/${m.id}/image" onerror="this.style.display='none'"></div>`
+          ? `<div class="chat-item-avatar" style="background:${color}"><img src="/api/characters/${m.id}/image" style="object-fit:cover;object-position:top center;width:100%;height:100%;" onerror="this.style.display='none'"></div>`
           : `<div class="chat-item-avatar" style="background:${color}">${escHtml((m.name||'?').charAt(0).toUpperCase())}</div>`)
       : `<div class="chat-item-avatar" style="background:#7c3aed">G</div>`;
     return `<div class="chat-item ${currentGroupId===gid?'active':''}" data-id="${escHtml(gid)}" data-type="group" onclick="openGroupChat(this.dataset.id)">
