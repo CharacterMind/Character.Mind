@@ -2485,6 +2485,301 @@ function showHome() { showView('homeView'); setNavActive(0); }
 function showDiscover() { showView('discoverView'); setNavActive(1); renderDiscover(); }
 function showFeed() { showView('feedView'); setNavActive(2); }
 function showGroups() { showView('groupsView'); setNavActive(3); loadGroups(); }
+function showPhone()  { showView('phoneView');  setNavActive(4); renderPhoneContacts(''); }
+
+// ── Phone / Contacts ─────────────────────────────────────────────────────────
+
+function charPhone(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (Math.imul(31, h) + id.charCodeAt(i)) | 0;
+  h = Math.abs(h);
+  const area = 100 + (h % 800);
+  const mid  = 100 + ((h >>> 4) % 800);
+  const last = 1000 + ((h >>> 8) % 8999);
+  return `(${area}) ${mid}-${last}`;
+}
+
+function phoneNumDigitsOnly(phone) { return phone.replace(/\D/g, ''); }
+
+function renderPhoneContacts(query) {
+  const container = document.getElementById('phoneContacts');
+  if (!container) return;
+  const q = (query || '').toLowerCase().trim();
+  const list = (characters || []).filter(c => !c.isHidden && (
+    !q || c.name.toLowerCase().includes(q) || charPhone(c.id).includes(q)
+  ));
+  if (!list.length) {
+    container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px 0;color:var(--muted)">No contacts found</div>`;
+    return;
+  }
+  container.innerHTML = list.map(c => {
+    const phone = charPhone(c.id);
+    const color = safeColor(c.color || '#7c3aed');
+    const hasImg = isCharImg && isCharImg(c.image);
+    const initial = (c.name || '?').charAt(0).toUpperCase();
+    const avatarContent = hasImg
+      ? `<img src="${escHtml(c.image)}" alt="" onerror="this.style.display='none'">`
+      : escHtml(initial);
+    return `<div class="ph-contact-card" style="--ph-color:${escHtml(color)};--ph-glow:${escHtml(color)}">
+      <div class="ph-contact-avatar" style="background:${escHtml(color)}">${avatarContent}</div>
+      <div class="ph-contact-name">${escHtml(c.name)}</div>
+      <div class="ph-contact-num">${escHtml(phone)}</div>
+      <div class="ph-contact-btns">
+        <button class="ph-contact-btn ph-contact-btn-call" onclick="callCharFromPhone('${escHtml(c.id)}',event)">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+          Call
+        </button>
+        <button class="ph-contact-btn" onclick="openChat('${escHtml(c.id)}');event.stopPropagation()">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+          Chat
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Keypad ───────────────────────────────────────────────────────────────────
+
+let phoneDialBuffer = '';
+let phoneKeypadOpen = false;
+
+function togglePhoneKeypad() {
+  phoneKeypadOpen = !phoneKeypadOpen;
+  const sheet = document.getElementById('phoneKeypadSheet');
+  const fab   = document.getElementById('phoneKeypadFab');
+  if (sheet) sheet.style.transform = phoneKeypadOpen ? 'translateY(0)' : 'translateY(110%)';
+  if (fab) fab.classList.toggle('open', phoneKeypadOpen);
+  if (phoneKeypadOpen) { phoneDialBuffer = ''; updatePhoneDial(); }
+}
+
+function phoneKey(digit) {
+  if (phoneDialBuffer.length >= 14) return;
+  phoneDialBuffer += digit;
+  updatePhoneDial();
+}
+
+function phoneKeyDel() {
+  phoneDialBuffer = phoneDialBuffer.slice(0, -1);
+  updatePhoneDial();
+}
+
+function updatePhoneDial() {
+  const el = document.getElementById('phoneDialDigits');
+  const del = document.getElementById('phoneDialDel');
+  const match = document.getElementById('phoneDialMatch');
+  if (el) el.textContent = formatDialDisplay(phoneDialBuffer);
+  if (del) { del.style.opacity = phoneDialBuffer ? '1' : '0'; del.style.pointerEvents = phoneDialBuffer ? '' : 'none'; }
+  // Find matching character
+  if (match) {
+    const digitsOnly = phoneDialBuffer.replace(/\D/g, '');
+    if (digitsOnly.length >= 3) {
+      const found = (characters || []).find(c => phoneNumDigitsOnly(charPhone(c.id)).startsWith(digitsOnly));
+      match.textContent = found ? found.name : '';
+    } else { match.textContent = ''; }
+  }
+}
+
+function formatDialDisplay(buf) {
+  const d = buf.replace(/\D/g, '');
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `(${d.slice(0,3)}) ${d.slice(3)}`;
+  return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6,10)}`;
+}
+
+function phoneCallDigits() {
+  const digitsOnly = phoneDialBuffer.replace(/\D/g, '');
+  if (!digitsOnly) return;
+  const found = (characters || []).find(c => phoneNumDigitsOnly(charPhone(c.id)) === digitsOnly);
+  if (found) {
+    callCharFromPhone(found.id);
+  } else {
+    showWarning('No character found with that number.', 3000);
+  }
+}
+
+// ── Calling from Phone ───────────────────────────────────────────────────────
+
+function callCharFromPhone(charId, e) {
+  if (e) e.stopPropagation();
+  const char = (characters || []).find(c => c.id === charId);
+  if (!char) return;
+  // Set currentChar so startCallMode picks it up
+  const prevChar = currentChar;
+  currentChar = char;
+  applyChatTheme(char);
+  // 25% chance character is busy → voicemail
+  if (Math.random() < 0.25) {
+    showPhoneRingingThenVoicemail(char, prevChar);
+  } else {
+    startCallMode();
+  }
+}
+
+function showPhoneRingingThenVoicemail(char, prevChar) {
+  // Briefly show the callOverlay in "ringing" state, then swap to voicemail
+  const overlay = document.getElementById('callOverlay');
+  const nameEl  = document.getElementById('callCharName');
+  const statusEl = document.getElementById('callStatus');
+  const bgEl    = document.getElementById('callBg');
+  if (overlay) {
+    if (nameEl) nameEl.innerHTML = escHtml(char.name);
+    if (statusEl) statusEl.textContent = 'Ringing…';
+    const [co1, co2, co3] = (typeof getCharCallColors === 'function') ? getCharCallColors(char) : ['#7c3aed','#4f46e5','#a78bfa'];
+    if (bgEl) { bgEl.style.setProperty('--co1', co1); bgEl.style.setProperty('--co2', co2); bgEl.style.setProperty('--co3', co3); }
+    const imgEl = document.getElementById('callCharImg');
+    if (imgEl) imgEl.style.backgroundImage = (isCharImg && isCharImg(char.image)) ? `url('${char.image}')` : '';
+    overlay.style.display = 'flex';
+  }
+  setTimeout(() => {
+    if (overlay) overlay.style.display = 'none';
+    currentChar = prevChar || char;
+    showVoicemailOverlay(char);
+  }, 2800 + Math.random() * 1400);
+}
+
+// ── Voicemail ────────────────────────────────────────────────────────────────
+
+let vmChar = null;
+let vmSpeaking = false;
+
+function charVoicemailText(char) {
+  const name = char.name || 'me';
+  const greet = (char.greeting || '').slice(0, 60);
+  // Generate a personality-flavored voicemail based on tagline/greeting
+  const defaults = [
+    `Hey! You've reached ${name}. I can't come to the phone right now — leave a message and I'll get back to you!`,
+    `Hi there, it's ${name}! I'm a little busy at the moment. Leave me a message after the beep and I'll call you right back!`,
+    `You've reached ${name}! Missed your call — leave your name and I'll get back to you soon.`,
+  ];
+  // Pick consistently from char id hash
+  let h = 0; for (let i = 0; i < char.id.length; i++) h = (Math.imul(31,h)+char.id.charCodeAt(i))|0;
+  return defaults[Math.abs(h) % defaults.length];
+}
+
+function showVoicemailOverlay(char) {
+  vmChar = char;
+  vmSpeaking = false;
+  const overlay = document.getElementById('voicemailOverlay');
+  if (!overlay) return;
+  const color = safeColor(char.color || '#7c3aed');
+  overlay.style.setProperty('--vm-color', color);
+  const bg = document.getElementById('vmBg');
+  if (bg) bg.style.setProperty('--vm-color', color);
+  const avatarEl = document.getElementById('vmAvatar');
+  if (avatarEl) {
+    avatarEl.style.background = color;
+    avatarEl.innerHTML = (isCharImg && isCharImg(char.image))
+      ? `<img src="${escHtml(char.image)}" alt="" onerror="this.style.display='none'">`
+      : escHtml((char.name||'?').charAt(0).toUpperCase());
+  }
+  const nameEl = document.getElementById('vmName');
+  if (nameEl) nameEl.textContent = char.name || '';
+  const textEl = document.getElementById('vmText');
+  if (textEl) textEl.textContent = charVoicemailText(char);
+  const playBtn = document.getElementById('vmPlayBtn');
+  if (playBtn) { playBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M8 5v14l11-7z"/></svg> Play`; }
+  overlay.style.display = 'flex';
+}
+
+function playVoicemailAudio() {
+  if (!vmChar || !window.speechSynthesis) return;
+  const playBtn = document.getElementById('vmPlayBtn');
+  if (vmSpeaking) {
+    window.speechSynthesis.cancel();
+    vmSpeaking = false;
+    if (playBtn) playBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M8 5v14l11-7z"/></svg> Play`;
+    return;
+  }
+  const text = charVoicemailText(vmChar);
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = 0.95; u.pitch = 1.05;
+  u.onstart = () => { vmSpeaking = true; if (playBtn) playBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> Stop`; };
+  u.onend = u.onerror = () => { vmSpeaking = false; if (playBtn) playBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M8 5v14l11-7z"/></svg> Play`; };
+  window.speechSynthesis.speak(u);
+}
+
+function voicemailReplyChat() {
+  if (!vmChar) return;
+  dismissVoicemail();
+  openChat(vmChar.id);
+}
+
+function dismissVoicemail() {
+  window.speechSynthesis?.cancel();
+  vmSpeaking = false;
+  const overlay = document.getElementById('voicemailOverlay');
+  if (overlay) overlay.style.display = 'none';
+  vmChar = null;
+}
+
+// ── Incoming call (infrastructure — scheduling added later) ──────────────────
+
+let incomingCallChar = null;
+let incomingCallTimer = null;
+
+function showIncomingCall(char) {
+  incomingCallChar = char;
+  clearTimeout(incomingCallTimer);
+  const overlay = document.getElementById('incomingCallOverlay');
+  if (!overlay) return;
+  const color = safeColor(char.color || '#7c3aed');
+  const bg = document.getElementById('icBg');
+  if (bg) bg.style.background = color;
+  overlay.style.setProperty('--ic-color', color);
+  const avatarEl = document.getElementById('icAvatar');
+  if (avatarEl) {
+    avatarEl.style.background = color;
+    avatarEl.innerHTML = (isCharImg && isCharImg(char.image))
+      ? `<img src="${escHtml(char.image)}" alt="" onerror="this.style.display='none'">`
+      : escHtml((char.name||'?').charAt(0).toUpperCase());
+  }
+  const nameEl = document.getElementById('icName');
+  if (nameEl) nameEl.textContent = char.name || '';
+  const numEl = document.getElementById('icNumber');
+  if (numEl) numEl.textContent = charPhone(char.id);
+  overlay.style.display = 'flex';
+  // Auto-decline after 20 s if unanswered
+  incomingCallTimer = setTimeout(() => declineIncomingCall(true), 20000);
+}
+
+function answerIncomingCall() {
+  clearTimeout(incomingCallTimer);
+  const char = incomingCallChar;
+  incomingCallChar = null;
+  const overlay = document.getElementById('incomingCallOverlay');
+  if (overlay) overlay.style.display = 'none';
+  if (!char) return;
+  currentChar = char;
+  applyChatTheme(char);
+  startCallMode();
+}
+
+function declineIncomingCall(auto = false) {
+  clearTimeout(incomingCallTimer);
+  const char = incomingCallChar;
+  incomingCallChar = null;
+  const overlay = document.getElementById('incomingCallOverlay');
+  if (overlay) overlay.style.display = 'none';
+  if (!char) return;
+  // Character sends a follow-up DM
+  setTimeout(async () => {
+    try {
+      const missedMessages = [
+        `Hey, I tried calling you! You free to chat? 📱`,
+        `Missed your call — or mine, rather! Message me when you can 😊`,
+        `Called you but no answer! Hope everything's okay 💫`,
+      ];
+      let h = 0; for (let i = 0; i < char.id.length; i++) h=(Math.imul(31,h)+char.id.charCodeAt(i))|0;
+      const msg = missedMessages[Math.abs(h + Date.now()) % missedMessages.length];
+      // Queue a proactive message from the character in chat
+      await fetch('/api/chat/proactive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ charId: char.id, message: msg }),
+      }).catch(() => {});
+    } catch(_) {}
+  }, 3000 + Math.random() * 5000);
+}
 let avatarPreviewDefault = null;
 function showCreate() {
   showView('createView');
