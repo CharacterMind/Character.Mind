@@ -2002,6 +2002,36 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '371': {
+    date: 'October 2026',
+    label: 'Tiered Memory Quality',
+    added: [
+      'Memory quality scales with tier — OPYS/OPYS5/OPYS6 extract more facts per run (up to 12), look further back in conversation, and use a smarter extraction model',
+      'Richer memory prompts for OPYS+ capture emotional patterns, specific names, communication style — not just surface facts',
+      'Per-tier storage caps: up to 250 saved facts for OPYS6 (was 60 for everyone)',
+    ],
+    changed: ['Memory extraction runs more frequently on higher tiers (every 4 messages for OPYS6 vs. every 10 for base)'],
+  },
+  '370': {
+    date: 'October 2026',
+    label: 'Calls, Emotion & Blocking',
+    added: [
+      'Phone number shown on the call screen — looks like a real phone call',
+      'Emotion mirroring — characters react to how you treat them, push back if you\'re rude, match your energy',
+      'Text chat blocking — after sustained abuse a character can block you in text chat (last resort only)',
+      'Escalating block durations: 1h → 4h → 1d → 3d → 1w',
+      'Group calls — add more characters mid-call from the party row',
+    ],
+    changed: [
+      'Chat mode now explicitly means everyday real-life conversation — NOT therapy',
+      'RP mode is explicitly Playtime Co. universe / lore roleplay',
+      'Call hang-up available as last resort with same escalating duration as text block',
+    ],
+    fixed: [
+      'Rainbow colorize effect fully removed from chat text rendering',
+      'Centered caller photo polished on call screen',
+    ],
+  },
   '369': {
     date: 'October 2026',
     added: ['Version history now shows Added / Changed / Fixed / Removed categories per build', 'v367 (Sidebar Redesign) added to the version picker — previously skipped'],
@@ -2237,7 +2267,34 @@ function showChangelogVersion(ver) {
     </div>`;
 }
 
+function populateVersionPicker() {
+  const sel = document.getElementById('versionPicker');
+  if (!sel) return;
+  const vers = Object.keys(CHANGELOG_DATA).map(Number).sort((a, b) => b - a);
+  const existing = new Set([...sel.options].map(o => Number(o.value)));
+  let added = false;
+  for (const v of vers) {
+    if (!existing.has(v)) {
+      const e = CHANGELOG_DATA[String(v)];
+      const raw = e.label || (e.added || e.changed || [])[0] || '';
+      const shortLabel = raw.slice(0, 48) + (raw.length > 48 ? '…' : '');
+      const opt = document.createElement('option');
+      opt.value = String(v);
+      opt.textContent = `v${v} — ${shortLabel}`;
+      const insertBefore = [...sel.options].find(o => Number(o.value) < v);
+      if (insertBefore) sel.insertBefore(opt, insertBefore); else sel.appendChild(opt);
+      added = true;
+    }
+  }
+  // Keep "(Latest)" only on the highest version option
+  if (added) {
+    [...sel.options].forEach(o => { o.textContent = o.textContent.replace(/\s*\(Latest\)/i, ''); });
+    if (sel.options[0]) sel.options[0].textContent += ' (Latest)';
+  }
+}
+
 function setChangelogView(mode) {
+  populateVersionPicker();
   const pickerRow = document.getElementById('clVersionPickerRow');
   const btnSnapshot = document.getElementById('clBtnSnapshot');
   const btnChanges = document.getElementById('clBtnChanges');

@@ -6903,9 +6903,9 @@ app.post('/api/groups/:id/chat', requireAuth, async (req, res) => {
     const groupCtx = `[GROUP CHAT — You are in a group conversation with: ${otherNames}. The user and all these characters are chatting together. Stay fully in character as ${char.name}. React naturally to the conversation. Keep your response brief — 1-3 sentences is ideal for a group chat. Do not use asterisk actions. Speak naturally as your character would in a casual group setting.]`;
 
     // Build history for this character's call
-    // Previous full rounds: alternate user/model pairs
+    // Exclude the current user message + any character replies already pushed this round
     const histMsgs = [];
-    const fullHistory = conv.history.slice(0, -1); // exclude the current user msg we just pushed
+    const fullHistory = conv.history.slice(0, -(1 + idx));
     for (const m of fullHistory) {
       if (m.role === 'user') histMsgs.push({ role: 'user', content: m.content });
       else if (m.role === 'assistant') histMsgs.push({ role: 'model', content: `[${m.speaker || 'Character'}]: ${m.content}` });
