@@ -6349,3 +6349,18 @@ body:not(.halloween) .hw-off-label { display: inline; }
 @media (max-width: 380px) {
   .call-icon-row .call-icon-btn { width: 60px; height: 60px; }
 }
+
+/* Character-coloured chat text: each speech / narration piece is one solid colour from the character's palette
+   (--sp0..5 / --nr0..5 are set on #messages by applyChatTheme). Falls back to plain white/grey. */
+.bubble .sp.c0 { color: var(--sp0, var(--text)); }
+.bubble .sp.c1 { color: var(--sp1, var(--text)); }
+.bubble .sp.c2 { color: var(--sp2, var(--text)); }
+.bubble .sp.c3 { color: var(--sp3, var(--text)); }
+.bubble .sp.c4 { color: var(--sp4, var(--text)); }
+.bubble .sp.c5 { color: var(--sp5, var(--text)); }
+.bubble .nr.c0 { color: var(--nr0, var(--text2)); }
+.bubble .nr.c1 { color: var(--nr1, var(--text2)); }
+.bubble .nr.c2 { color: var(--nr2, var(--text2)); }
+.bubble .nr.c3 { color: var(--nr3, var(--text2)); }
+.bubble .nr.c4 { color: var(--nr4, var(--text2)); }
+.bubble .nr.c5 { color: var(--nr5, var(--text2)); }

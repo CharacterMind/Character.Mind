@@ -10578,13 +10578,20 @@ function charTheme(ch) {
   // anyone else: built from the character's own colour(s)
   const hexes = String((ch && (ch.accentColor || ch.color)) || '').match(/#[0-9a-fA-F]{6}/g) || [];
   if (hexes.length) {
-    const c1 = hexes[0], c2 = hexes[1] || hexes[0];
-    return {
-      sp: pal([{ c: mixHex(c1, '#ffffff', 0.35) }, { c: mixHex(c2, '#ffffff', 0.2) }, { c: mixHex(c1, '#ccaaff', 0.5) }], [3, 2, 1]),
-      nr: pal([{ c: mixHex(c1, '#ffffff', 0.2) }, { c: mixHex(c2, '#ccaaff', 0.45) }], [3, 1])
-    };
+    // The character's exact colours (only lightened if too dark to read). Speech starts on colour 1,
+    // narration on colour 2, so with 2+ colours they differ; with one colour narration is a softer shade of it.
+    const uniq = [...new Set(hexes.map(h => h.toLowerCase()))].slice(0, 6).map(readableHex);
+    const nr = uniq.length > 1 ? uniq.slice(1).concat(uniq[0]) : [mixHex(uniq[0], '#ffffff', 0.3)];
+    return { sp: pal(uniq.map(c => ({ c })), uniq.map(() => 1)), nr: pal(nr.map(c => ({ c })), nr.map(() => 1)) };
   }
-  return { sp: pal([{ c: '#f4c542' }, { c: '#c090ff' }, { c: '#60dfff' }], [2, 2, 1]), nr: pal([{ c: '#c4b5fd' }, { c: '#a78bfa' }], [3, 1]) };
+  // No colours set: plain text
+  return { sp: pal([], []), nr: pal([], []) };
+}
+// Keeps a colour's hue but lightens it just enough to read on the dark chat background
+function readableHex(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const lum = (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+  return lum >= 0.45 ? hex : mixHex(hex, '#ffffff', Math.min(0.65, (0.45 - lum) * 1.3));
 }
 // Puts the current character's colours on the chat area (every bubble inside inherits them)
 let activeTheme = charTheme(null);
@@ -10653,7 +10660,8 @@ function copyCodeBlock(btn) {
 function renderStoryText(text) {
   const raw = String(text == null ? '' : text).replace(/\*\*/g, '');
   const paras = raw.split(/\n\n+/);
-  // Plain text only — the per-letter rainbow was removed (speech is bold, narration italic, both clean white/grey)
+  const segCount = { sp: 0, nr: 0 };
+  // No per-letter rainbow: each speech / narration piece gets one solid colour (see the span below)
   const emit = (kind, str) => {
     const parts = str.split(/(\[[^\]\n]{1,40}\]\((?:\/terms|\/privacy)\))/g);
     return parts.map(part => {
@@ -10666,7 +10674,10 @@ function renderStoryText(text) {
     if (!p.trim()) return '';
     const html = splitSpeechNarration(p).map(seg => {
       if (!seg.t.trim()) return escHtml(seg.t);
-      return '<span class="' + seg.k + '">' + emit(seg.k, seg.t) + '</span>';
+      // Each spoken line / narration piece is ONE solid colour from the character's palette (cycling if they have several)
+      const n = Math.min(6, (activeTheme[seg.k] && activeTheme[seg.k].colors.length) || 0);
+      const slot = n ? ' c' + (segCount[seg.k]++ % n) : '';
+      return '<span class="' + seg.k + slot + '">' + emit(seg.k, seg.t) + '</span>';
     }).join('');
     return '<p>' + html.replace(/\n/g, '<br>') + '</p>';
   }).filter(Boolean).join('');
