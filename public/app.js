@@ -6891,19 +6891,7 @@ function updateUsageModal(u) {
   if (wSubEl) { const wT = u.weeklyLimit && u.weeklyResetsAt ? formatResetTime(u.weeklyResetsAt) : null; wSubEl.textContent = u.weeklyLimit ? (wT ? 'Resets ' + wT : 'Resets weekly') : 'No weekly limit on the free tier'; }
 
   const wStartEl = document.getElementById('usageWeeklyStarted');
-  if (wStartEl) {
-    if (u.weeklyStart) {
-      const startDt = new Date(u.weeklyStart);
-      const opts = { weekday: 'long', month: 'long', day: 'numeric' };
-      const timeOpts = { hour: 'numeric', minute: '2-digit' };
-      const dateStr = startDt.toLocaleDateString('en-US', opts);
-      const timeStr = startDt.toLocaleTimeString('en-US', timeOpts);
-      wStartEl.textContent = `Started ${dateStr} at ${timeStr}`;
-      wStartEl.style.display = '';
-    } else {
-      wStartEl.style.display = 'none';
-    }
-  }
+  if (wStartEl) wStartEl.style.display = 'none';
 
   // ── Daily bars ────────────────────────────────────────────────────────────
 
@@ -6926,7 +6914,7 @@ function updateUsageModal(u) {
   const callsLimit = u.callsLimit || 6;
   const callsPct = callsLimit > 0 ? Math.min(100, Math.round(callsToday / callsLimit * 100)) : 0;
   setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct,
-    `${callsToday} of ${callsLimit} voice calls used today · messages also count toward Call Credits`, false);
+    `${callsToday} voice call${callsToday !== 1 ? 's' : ''} used today`, false);
 
   // Daily resets subtitle
   const dailyResetsEl = document.getElementById('usageDailyResetsSub');
@@ -9008,6 +8996,7 @@ async function callModeTTS_server(text) {
 // ── Call mode ─────────────────────────────────────────────────────────────────
 let callGen = 0; // bumped when a call ends or is interrupted so late async results are dropped
 let callMuted = false;
+let callSpeakerActive = false;
 let callFirstConnect = false;
 let callInactivityTimer = null;
 let callInactivityWarnTimer = null;
@@ -9102,18 +9091,34 @@ function toggleCallMode() {
 }
 
 async function startCallMode() {
-  if (callStarting || callModeActive) return;  // block concurrent/double starts
+  if (callStarting || callModeActive) return;
   callStarting = true;
   const startGen = callGen;
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { callStarting = false; showWarning('Voice calls need a browser with speech recognition — try Chrome.', 5000); return; }
   if (!currentChar) { callStarting = false; return; }
+
+  // Show overlay immediately for instant visual response
+  const overlay = document.getElementById('callOverlay');
+  if (overlay) {
+    const [co1, co2, co3] = getCharCallColors(currentChar);
+    const bgEl = document.getElementById('callBg');
+    if (bgEl) { bgEl.style.setProperty('--co1', co1); bgEl.style.setProperty('--co2', co2); bgEl.style.setProperty('--co3', co3); }
+    const imgEl = document.getElementById('callCharImg');
+    if (imgEl) { imgEl.style.backgroundImage = isCharImg(currentChar.image) ? `url('${currentChar.image}')` : ''; }
+    const nameEl = document.getElementById('callCharName');
+    if (nameEl) { nameEl.innerHTML = colorizeNameHtml(currentChar.name || '', currentChar.color); }
+    overlay.style.display = 'flex';
+    setCallState('calling');
+  }
+
   // Check server-side blocks (token limits, bans, service offline)
   try {
     const r = await fetch('/api/call/start', { method: 'POST' });
     if (!r.ok) {
       const data = await r.json().catch(() => ({}));
       callStarting = false;
+      if (overlay) overlay.style.display = 'none';
       if (r.status === 429) {
         showCallLimitModal(data.resetsAt || data.cooldownUntil || Date.now() + 3600000);
       }
@@ -9121,10 +9126,10 @@ async function startCallMode() {
     }
   } catch(e) { /* offline — allow call anyway */ }
 
-  if (startGen !== callGen) { callStarting = false; return; } // call was cancelled while starting
+  if (startGen !== callGen) { callStarting = false; if (overlay) overlay.style.display = 'none'; return; }
   callStarting = false;
   callModeActive = true;
-  serverTTSOk = true; // reset so every new call retries server TTS from scratch
+  serverTTSOk = true;
   callMuted = false;
   callFirstConnect = true;
   callCharacters = currentChar ? [currentChar] : [];
@@ -9135,31 +9140,9 @@ async function startCallMode() {
   startCallDurationTimer();
   resetCallInactivityTimer();
   document.getElementById('callBtn')?.classList.add('active');
-  const overlay = document.getElementById('callOverlay');
   if (overlay) {
-    // Animated color orbs
-    const [co1, co2, co3] = getCharCallColors(currentChar);
-    const bgEl = document.getElementById('callBg');
-    if (bgEl) {
-      bgEl.style.setProperty('--co1', co1);
-      bgEl.style.setProperty('--co2', co2);
-      bgEl.style.setProperty('--co3', co3);
-    }
-    // Character image on top of orbs
-    const imgEl = document.getElementById('callCharImg');
-    if (imgEl) {
-      if (isCharImg(currentChar.image)) {
-        imgEl.style.backgroundImage = `url('${currentChar.image}')`;
-      } else {
-        imgEl.style.backgroundImage = '';
-      }
-    }
-    const nameEl = document.getElementById('callCharName');
-    if (nameEl) { nameEl.innerHTML = colorizeNameHtml(currentChar.name || '', currentChar.color); }
-    overlay.style.display = 'flex';
     const vob = document.getElementById('callVoiceOnBadge');
     if (vob) { vob.style.display = ''; clearTimeout(callVobTimer); callVobTimer = setTimeout(() => { vob.style.display = 'none'; callVobTimer = null; }, 5000); }
-    setCallState('calling');
     setTimeout(() => { if (callModeActive) listenForSpeech(); }, 150);
   }
 }
@@ -9435,6 +9418,8 @@ function endCallMode() {
   callConversation = [];
   callContextChar = null;
   callChainCount = 0;
+  callSpeakerActive = false;
+  document.getElementById('callSpeakerBtn')?.classList.remove('active');
   document.getElementById('callBtn')?.classList.remove('active');
   const overlay = document.getElementById('callOverlay');
   if (overlay) overlay.style.display = 'none';
@@ -9469,6 +9454,12 @@ function setCallState(state) {
     statusEl.classList.add('interruptable');
     statusEl.onclick = interruptCall;
   }
+}
+
+function toggleCallSpeaker() {
+  callSpeakerActive = !callSpeakerActive;
+  const btn = document.getElementById('callSpeakerBtn');
+  if (btn) btn.classList.toggle('active', callSpeakerActive);
 }
 
 function toggleCallMute() {

@@ -915,7 +915,7 @@
             <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
           </button>
         </div>
-        <!-- Call overlay (Character.AI-style clean dark design) -->
+        <!-- Call overlay — Pixel phone style -->
         <div id="callOverlay" class="call-overlay" style="display:none">
           <!-- Animated color orbs — colors set by character palette -->
           <div id="callBg" class="call-bg">
@@ -924,10 +924,6 @@
             <div class="call-orb call-orb-3"></div>
             <div class="call-orb call-orb-4"></div>
           </div>
-          <!-- Avatar circle — sibling of orbs so blend modes don't wash it out -->
-          <div class="call-char-img" id="callCharImg"></div>
-          <!-- Voice On badge -->
-          <div id="callVoiceOnBadge" class="call-voice-on-badge" style="display:none">Voice On</div>
           <!-- Party row — shown when 2+ chars on call -->
           <div class="call-party-row" id="callPartyRow" style="display:none">
             <div class="call-party-avatars" id="callPartyAvatars"></div>
@@ -941,36 +937,49 @@
             <div class="call-char-picker-list" id="callCharPickerList"></div>
             <button class="call-char-picker-close" onclick="hideCallCharPicker()">Cancel</button>
           </div>
-          <!-- Top: mic error banner -->
+          <!-- Mic error banner -->
           <div class="call-mic-error" id="callMicError" style="display:none">
             <strong>We can't hear you</strong>
             <p>If this problem persists, press here and toggle your microphone permissions off and back on.</p>
           </div>
-          <!-- Character name + brand + status -->
-          <div class="call-status-area">
-            <div class="call-char-name" id="callCharName"></div>
-            <div class="call-cm-brand">(character.mind)</div>
-            <div class="call-status" id="callStatus">Calling...</div>
-          </div>
-          <!-- Bottom controls -->
-          <div class="call-bottom-btns">
-            <div class="call-btn-wrap" id="callMuteBtnWrap">
-              <button class="call-mute-btn" id="callMuteBtn" onclick="toggleCallMute()">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M12 15c1.66 0 2.99-1.34 2.99-3L15 6c0-1.66-1.34-3-3-3S9 4.34 9 6v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 15 6.7 12H5c0 3.42 2.72 6.23 6 6.72V22h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
-              </button>
-              <span class="call-btn-label">Mute</span>
+          <!-- Main content — Pixel-style layout -->
+          <div class="call-content">
+            <!-- Top: branding + character info -->
+            <div class="call-top">
+              <div class="call-cm-brand">(character.mind)</div>
+              <div class="call-char-name" id="callCharName"></div>
+              <div class="call-status" id="callStatus">Calling...</div>
+              <div id="callVoiceOnBadge" class="call-voice-on-badge" style="display:none">Voice On</div>
             </div>
-            <div class="call-btn-wrap">
-              <button class="call-end-btn" onclick="endCallMode()">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" transform="rotate(135 12 12)"/></svg>
-              </button>
-              <span class="call-btn-label">Hang up</span>
+            <!-- Middle: avatar -->
+            <div class="call-avatar-wrap">
+              <div class="call-char-img" id="callCharImg"></div>
             </div>
-            <div class="call-btn-wrap" id="callAddCharBtnWrap">
-              <button class="call-add-char-btn" onclick="showCallCharPicker()" title="Add character">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+            <!-- Bottom: icon buttons + pill hang-up -->
+            <div class="call-controls">
+              <div class="call-icon-row">
+                <div class="call-btn-wrap" id="callMuteBtnWrap">
+                  <button class="call-icon-btn call-mute-btn" id="callMuteBtn" onclick="toggleCallMute()">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M12 15c1.66 0 2.99-1.34 2.99-3L15 6c0-1.66-1.34-3-3-3S9 4.34 9 6v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 15 6.7 12H5c0 3.42 2.72 6.23 6 6.72V22h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
+                  </button>
+                  <span class="call-btn-label">Mute</span>
+                </div>
+                <div class="call-btn-wrap" id="callSpeakerBtnWrap">
+                  <button class="call-icon-btn call-speaker-btn" id="callSpeakerBtn" onclick="toggleCallSpeaker()">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM16.5 3v2.03c2.89.86 5 3.54 5 6.97s-2.11 6.11-5 6.97V21c4.01-.91 7-4.48 7-8.5S20.51 3.91 16.5 3z"/></svg>
+                  </button>
+                  <span class="call-btn-label">Speaker</span>
+                </div>
+                <div class="call-btn-wrap" id="callAddCharBtnWrap">
+                  <button class="call-icon-btn call-add-char-btn" onclick="showCallCharPicker()">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                  </button>
+                  <span class="call-btn-label">Add</span>
+                </div>
+              </div>
+              <button class="call-end-pill" onclick="endCallMode()">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="26" height="26"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" transform="rotate(135 12 12)"/></svg>
               </button>
-              <span class="call-btn-label">Add</span>
             </div>
           </div>
         </div>

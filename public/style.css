@@ -1187,11 +1187,10 @@ html, body {
 @keyframes tts-pulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
 @keyframes tts-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-/* ── Call overlay (Character.AI-style clean dark design) ─────────────────────── */
+/* ── Call overlay — Pixel phone style ─────────────────────────────────────── */
 .call-overlay {
   position: fixed; inset: 0; z-index: 900;
   overflow: hidden;
-  display: flex; flex-direction: column; align-items: stretch;
   background: #06060f;
 }
 .call-brand-logo { display: none; }
@@ -1236,18 +1235,38 @@ html, body {
   50%  { transform: translate(-65%,-55%) scale(0.75) rotate(180deg); opacity: 0.65; }
   75%  { transform: translate(-25%, 75%) scale(1.45) rotate(270deg); opacity: 0.95; }
 }
-/* Character avatar — circular portrait, top of screen */
-.call-char-img {
-  position: absolute;
-  inset: auto;
-  width: 150px; height: 150px;
-  border-radius: 50%;
-  top: 8vh; left: 50%;
-  transform: translateX(-50%);
-  background-size: cover; background-position: center;
-  border: 3px solid rgba(255,255,255,0.22);
-  box-shadow: 0 8px 40px rgba(0,0,0,0.55);
-  z-index: 5;
+
+/* ── Call content — Pixel-style flex layout ───────────────────────────────── */
+.call-content {
+  position: relative; z-index: 2;
+  height: 100%; width: 100%;
+  display: flex; flex-direction: column; align-items: center;
+  padding-top: max(52px, env(safe-area-inset-top, 52px));
+  padding-bottom: max(40px, env(safe-area-inset-bottom, 40px));
+  padding-left: 24px; padding-right: 24px;
+  box-sizing: border-box;
+}
+.call-top {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  text-align: center; width: 100%;
+}
+.call-cm-brand {
+  font-size: 13px; font-weight: 500; color: rgba(255,255,255,.50);
+  letter-spacing: .10em; text-transform: uppercase; margin-bottom: 2px;
+}
+.call-char-name {
+  font-size: 28px; font-weight: 700; color: #fff;
+  letter-spacing: -.01em; line-height: 1.15;
+}
+.call-status {
+  font-size: 15px; font-weight: 400; color: rgba(255,255,255,.65);
+  letter-spacing: .01em; min-height: 22px;
+}
+.call-status.interruptable {
+  color: #fff; font-weight: 600; cursor: pointer;
+  pointer-events: all;
+  background: rgba(255,255,255,.14); border-radius: 30px;
+  padding: 9px 22px;
 }
 .call-bg-scrim { display: none; }
 .call-mic-error {
@@ -1262,64 +1281,47 @@ html, body {
 }
 .call-mic-error strong { font-size: 15px; font-weight: 700; color: #fff; }
 .call-mic-error p { font-size: 13px; color: rgba(255,255,255,.68); line-height: 1.45; margin: 0; }
-.call-status-area {
-  position: absolute; z-index: 2;
-  top: calc(8vh + 168px); left: 0; right: 0;
-  text-align: center; padding: 0 20px;
-  pointer-events: none;
+
+/* Avatar — in natural flow, centered */
+.call-avatar-wrap {
+  flex: 1; display: flex; align-items: center; justify-content: center;
 }
-.call-char-name {
-  font-size: 18px; font-weight: 500; color: rgba(255,255,255,.9);
-  letter-spacing: .01em; margin-bottom: 8px;
+.call-char-img {
+  width: 148px; height: 148px; border-radius: 50%;
+  background-size: cover; background-position: center;
+  border: 3px solid rgba(255,255,255,0.22);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.55);
 }
-/* Big brand text — the centerpiece, styled like the screenshot */
-.call-cm-brand {
-  font-size: 58px; font-weight: 800; color: #fff;
-  letter-spacing: -0.02em; line-height: 1.05;
-  margin-bottom: 14px;
+
+/* Bottom controls — icon row + pill hang-up */
+.call-controls {
+  display: flex; flex-direction: column; align-items: center; gap: 26px;
+  width: 100%;
 }
-.call-status {
-  font-size: 15px; font-weight: 500; color: rgba(255,255,255,.72);
-  letter-spacing: .01em; min-height: 22px;
-  display: inline-block;
+.call-icon-row {
+  display: flex; justify-content: center; align-items: flex-start; gap: 44px;
+  transition: opacity .2s;
 }
-.call-status.interruptable {
-  color: #fff; font-weight: 600; cursor: pointer;
-  pointer-events: all;
-  background: rgba(255,255,255,.14); border-radius: 30px;
-  padding: 9px 22px;
-}
-.call-bottom-btns {
-  position: absolute; bottom: 0; left: 0; right: 0; z-index: 2;
-  display: flex; justify-content: center; align-items: flex-start; gap: 60px;
-  padding-bottom: calc(44px + env(safe-area-inset-bottom, 0px));
-}
+.call-overlay[data-state="calling"] .call-icon-row { opacity: 0; pointer-events: none; }
 .call-btn-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .call-btn-label { font-size: 13px; color: rgba(255,255,255,.72); letter-spacing: .02em; font-weight: 400; }
-.call-mute-btn {
+.call-icon-btn {
   width: 66px; height: 66px; border-radius: 50%;
-  background: rgba(70,70,80,.85); border: none; cursor: pointer;
+  background: rgba(255,255,255,.14); border: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   color: #fff; transition: background .15s;
 }
-.call-mute-btn:hover { background: rgba(95,95,108,.9); }
-.call-mute-btn.muted { background: rgba(255,255,255,.88); color: #111; }
-.call-end-btn {
-  width: 66px; height: 66px; border-radius: 50%;
+.call-icon-btn:hover { background: rgba(255,255,255,.24); }
+.call-mute-btn.muted { background: rgba(255,255,255,.88) !important; color: #111; }
+.call-speaker-btn.active { background: rgba(255,255,255,.88) !important; color: #111; }
+.call-end-pill {
+  width: 160px; height: 64px; border-radius: 32px;
   background: #e5485d; border: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   color: #fff; transition: background .15s;
+  box-shadow: 0 4px 24px rgba(229,72,93,.4);
 }
-.call-end-btn:hover { background: #d03050; }
-.call-add-char-btn {
-  width: 52px; height: 52px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3);
-  background: rgba(255,255,255,0.12); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  color: #fff; transition: background .15s;
-}
-.call-add-char-btn:hover { background: rgba(255,255,255,0.24); }
-/* Calling state: hide mute so End button centers */
-.call-overlay[data-state="calling"] #callMuteBtnWrap { display: none; }
+.call-end-pill:hover { background: #c93050; }
 
 /* ── Call party row (multi-char) ─────────────────────────────── */
 .call-party-row {
@@ -1394,11 +1396,10 @@ html, body {
 }
 .call-char-picker-close:hover { background: rgba(255,255,255,0.2); }
 
-/* Desktop: larger avatar and brand text */
+/* Desktop: slightly larger avatar and name */
 @media (min-width: 768px) {
-  .call-char-img { width: 200px; height: 200px; top: 10vh; }
-  .call-status-area { top: calc(10vh + 220px); }
-  .call-cm-brand { font-size: 78px; }
+  .call-char-img { width: 180px; height: 180px; }
+  .call-char-name { font-size: 34px; }
 }
 
 /* ── Call limit modal ─────────────────────────────────────────────────────────── */
