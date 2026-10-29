@@ -244,7 +244,7 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'advanced', name: 'Advanced', monthly: 9.99, annual: 59.99, coinsPerMonth: 2000,
+    key: 'advanced', name: 'Advanced Plus', monthly: 9.99, annual: 59.99, coinsPerMonth: 2000,
     callsPerDay: 18, memosPerDay: 150, imagesPerDay: 9,
     features: [
       'Opis — sharper logic: built for mystery and intrigue, never loses the thread',
@@ -264,7 +264,7 @@ const PLAN_DATA = [
       'Up to 200 regenerations per day — 20× free',
       'Up to 120 calls per day · up to 60 image uploads per day',
       'Up to 1,000 memos per day',
-      'Everything in Advanced',
+      'Everything in Advanced Plus',
     ],
   },
   {
@@ -312,7 +312,7 @@ const MONTHLY_COIN_GRANT = { free: 20, advanced: 30, x20: 600, x50: 1800, x100: 
 const PLAN_LABELS = { free: 'Free', advanced: 'Advanced', x20: 'X20', x50: 'X50', x100: 'X100', x200: 'X200' };
 const PLAN_SUBS = {
   free:     'Free plan',
-  advanced: 'Advanced plan',
+  advanced: 'Advanced Plus plan',
   x20:      'X20 plan',
   x50:      'X50 plan',
   x100:     'X100 plan',
@@ -3290,15 +3290,18 @@ function colorizeLetters(bubble, charColor) {
 // Re-randomize word colors in every visible bubble and all name occurrences — triggered by click in the chat.
 function randomizeChatColors() {
   if (!currentChar) return;
+  const el = document.getElementById('messages');
+  if (!el) return;
   const cbMode = document.documentElement.dataset.colorblind;
   const cbPal = cbMode && CB_PALETTES[cbMode];
   const rawHexes = cbPal ? cbPal.colors : String(currentChar.color || '').match(/#[0-9a-fA-F]{6}/gi);
   if (!rawHexes || !rawHexes.length) return;
   const spColors = rawHexes.map(boostColor);
-  // Re-randomize bubble text (use descendant selector so .caps-em chars inside .sp are also hit)
-  document.querySelectorAll('#messages .bubble').forEach(bubble => {
-    bubble.querySelectorAll('.sp span[style], .nr span[style]').forEach(sp => { sp.style.color = spColors[Math.floor(Math.random() * spColors.length)]; });
-  });
+  // Shuffle CSS colour variables — every bubble recolours instantly without any DOM traversal
+  for (let i = 0; i < 6; i++) {
+    el.style.setProperty('--sp' + i, spColors[Math.floor(Math.random() * spColors.length)]);
+    el.style.setProperty('--nr' + i, spColors[Math.floor(Math.random() * spColors.length)]);
+  }
   // Re-randomize character name in: chat message headers, mobile header, info panel, active sidebar entry
   const freshName = colorizeNameHtml(currentChar.name, currentChar.color);
   document.querySelectorAll('#messages .msg.ai .msg-name').forEach(el => { el.innerHTML = freshName; });
@@ -9087,12 +9090,10 @@ function showCallInactivityBanner() {
 
 let callRecognition = null;
 
-function showVoiceCallComingSoon() {
-  const toast = document.createElement('div');
-  toast.className = 'toast-msg';
-  toast.textContent = '📞 Voice calls coming soon!';
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 2500);
+function callCharFromChat() {
+  if (!currentChar) return;
+  _callLogStartTs = Date.now();
+  startCallMode();
 }
 
 function toggleCallMode() {
@@ -10299,12 +10300,12 @@ function renderStoryText(text) {
       const lm = /^\[([^\]\n]{1,40})\]\((\/terms|\/privacy)\)$/.exec(part);
       if (lm) return '<a class="chat-link" href="' + lm[2] + '" target="_blank" rel="noopener">' + escHtml(lm[1]) + '</a>';
       if (!colors.length) return escHtml(part).replace(/\b[A-Z]{3,}\b/g, '<span class="caps-em">$&</span>');
-      // Per-letter coloring: each letter/digit gets its own colour span (inline style so randomizeChatColors can reshuffle on click)
+      // Per-letter coloring: each letter/digit gets a k0/k1/… class; CSS variables --sp0/--nr0 on #messages supply the actual colours
       let out = '';
       for (const ch of part) {
         if (LETTER_RE.test(ch)) {
-          const col = colors[letterPick(li++, colors.length)].c;
-          out += `<span style="color:${col}">${escHtml(ch)}</span>`;
+          const cls = letterPick(li++, colors.length);
+          out += `<span class="k${cls}">${escHtml(ch)}</span>`;
         } else {
           out += escHtml(ch);
         }
