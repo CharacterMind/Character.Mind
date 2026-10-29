@@ -37,6 +37,9 @@ import threading
 import time
 from pathlib import Path
 
+# Store XTTS-v2 model in the tts_server folder, not deep in AppData
+os.environ.setdefault("TTS_HOME", str(Path(__file__).resolve().parent / "model"))
+
 from flask import Flask, request, send_file, jsonify
 from werkzeug.utils import secure_filename
 
@@ -71,18 +74,9 @@ def _load_model():
     global _tts, _gpu
     from TTS.api import TTS
     print("[voice-ai] Loading XTTS-v2 model (first run downloads ~1.8 GB)...", flush=True)
-    try:
-        import torch
-        if torch.cuda.is_available():
-            _tts = TTS(model_name="tts_models/multilingual/multi-dataset/xtts_v2", gpu=True)
-            _gpu = True
-            print("[voice-ai] GPU detected — using CUDA for fast synthesis.", flush=True)
-        else:
-            raise RuntimeError("no CUDA")
-    except Exception:
-        _tts = TTS(model_name="tts_models/multilingual/multi-dataset/xtts_v2", gpu=False)
-        _gpu = False
-        print("[voice-ai] Running on CPU (synthesis will be slower; GPU strongly recommended).", flush=True)
+    _tts = TTS(model_name="tts_models/multilingual/multi-dataset/xtts_v2", gpu=False)
+    _gpu = False
+    print("[voice-ai] Running on CPU — VRAM stays free for other apps.", flush=True)
     print("[voice-ai] Model ready.", flush=True)
     return _tts
 
@@ -128,7 +122,7 @@ def health():
         "ok":          True,
         "model":       "xtts_v2",
         "model_ready": model_loaded,
-        "gpu":         _gpu if model_loaded else None,
+        "gpu":         False,
         "voices_dir":  str(VOICES_DIR),
         "voices":      _list_voices(),
     })
