@@ -914,6 +914,23 @@ html, body {
   flex-shrink: 0; overflow: hidden;
 }
 .msg-name { font-weight: 700; color: var(--text); font-size: 15px; }
+.msg-voice-btn {
+  background: rgba(255,255,255,.07);
+  border: none;
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--accent-l,#a78bfa);
+  flex-shrink: 0;
+  padding: 0;
+  transition: background .15s, color .15s;
+}
+.msg-voice-btn:hover { background: rgba(255,255,255,.14); }
+.msg-voice-btn.speaking { background: rgba(139,92,246,.22); color: var(--accent-l,#a78bfa); }
 .msg-badge {
   font-size: 9.5px; padding: 1px 6px; border-radius: 10px;
   background: var(--accent-dim); color: var(--accent-l); font-weight: 700; letter-spacing: .3px;

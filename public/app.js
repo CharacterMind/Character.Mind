@@ -2591,21 +2591,57 @@ function showPhone()  { showView('phoneView'); setNavActive(4); showPhoneTab('co
 
 // ── Phone / Contacts ─────────────────────────────────────────────────────────
 
-// ── Character voice profiles (Web Speech API) ─────────────────────────────────
-// Maps character name keywords → voice search terms + prosody.
-// Falls back to a stable default so every character still sounds distinct.
+// ── Character voice profiles (Web Speech API — Edge Neural first, Google/system fallback) ──
+// Each entry: keys[] = name substrings to match; profile.names[] = voice name substrings tried in order.
+// Edge neural voices (high quality, Windows/Edge): "Microsoft Aria Online (Natural) - English (United States)", etc.
+// Google voices (Chrome): "Google US English", "Google UK English Female/Male"
 const _VOICE_PROFILES = [
-  // Keyword match → { names: [...voice search terms], pitch, rate }
-  { keys: ['poppy','sunny','aria','luna','nova','star','sky','dawn','rose','lily'],
-    profile: { names: ['zira','samantha','karen','moira','tessa','victoria'], pitch: 1.25, rate: 1.05 } },
+  // ── Poppy Playtime characters ──────────────────────────────────────────────
+  // Poppy — sweet, bright, musical, slightly haunting
+  { keys: ['poppy'],
+    profile: { names: ['aria online','microsoft aria','zira','samantha','karen','moira'], pitch: 1.2, rate: 0.94 } },
+  // Huggy Wuggy — deep, slow, menacing
+  { keys: ['huggy'],
+    profile: { names: ['christopher online','microsoft christopher','guy online','microsoft guy','david','fred'], pitch: 0.68, rate: 0.82 } },
+  // Kissy Missy — bubbly, warm, affectionate
+  { keys: ['kissy'],
+    profile: { names: ['ava online','microsoft ava','jenny online','karen','samantha','tessa'], pitch: 1.35, rate: 1.08 } },
+  // Mommy Long Legs — sweet facade, terrifying underneath
+  { keys: ['mommy','long legs'],
+    profile: { names: ['jenny online','microsoft jenny','samantha','victoria'], pitch: 1.1, rate: 0.96 } },
+  // CatNap — slow, sleepy, deep, dreamlike
+  { keys: ['catnap','cat nap'],
+    profile: { names: ['steffan online','microsoft steffan','davis online','christopher online','daniel','fred'], pitch: 0.78, rate: 0.8 } },
+  // DogDay — optimistic, cheerful, sunny
+  { keys: ['dogday','dog day'],
+    profile: { names: ['andrew online','microsoft andrew','eric online','alex','google us english male'], pitch: 1.05, rate: 1.1 } },
+  // Bobby BearHug — warm, caring, maternal
+  { keys: ['bobby','bearhug','bear hug'],
+    profile: { names: ['emma online','microsoft emma','sara online','jenny online','victoria'], pitch: 1.0, rate: 0.93 } },
+  // Hopscotch — energetic, bouncy, excitable
+  { keys: ['hopscotch'],
+    profile: { names: ['maisie online','microsoft maisie','ava online','karen','tessa'], pitch: 1.4, rate: 1.15 } },
+  // KickinChicken — brash, loud, competitive
+  { keys: ['kickin','kicking'],
+    profile: { names: ['brandon online','microsoft brandon','eric online','guy online','fred'], pitch: 0.88, rate: 1.12 } },
+  // PickyPiggy — precise, fussy, snooty
+  { keys: ['picky','piggy'],
+    profile: { names: ['sonia online','microsoft sonia','michelle online','moira','google uk english female'], pitch: 1.18, rate: 0.95 } },
+  // ── Other named characters ─────────────────────────────────────────────────
+  // Lily Lovebraids — theatrical, formal, sweet-creepy
+  { keys: ['lily','lovebraids'],
+    profile: { names: ['jane online','microsoft jane','sonia online','victoria','google uk english female'], pitch: 1.08, rate: 0.91 } },
+  // ── Generic energy buckets (fallback by name vibe) ────────────────────────
+  { keys: ['sunny','luna','nova','star','sky','dawn','rose','aria'],
+    profile: { names: ['aria online','microsoft aria','zira','samantha','karen','moira','tessa'], pitch: 1.25, rate: 1.05 } },
   { keys: ['alex','ryan','jake','max','hunter','tyler','ethan','noah','liam'],
-    profile: { names: ['daniel','alex','fred','google uk english male'], pitch: 0.95, rate: 1.0 } },
+    profile: { names: ['ryan online','microsoft ryan','guy online','daniel','alex','fred','google uk english male'], pitch: 0.95, rate: 1.0 } },
   { keys: ['jessica','emma','sophie','bella','chloe','grace','mia','zoe','kate'],
-    profile: { names: ['samantha','karen','victoria','tessa','moira'], pitch: 1.15, rate: 1.08 } },
+    profile: { names: ['emma online','jenny online','samantha','karen','victoria','tessa','moira'], pitch: 1.15, rate: 1.08 } },
   { keys: ['shadow','raven','storm','titan','drake','blaze','void','ghost','zero'],
-    profile: { names: ['daniel','fred','google uk english male'], pitch: 0.8, rate: 0.92 } },
+    profile: { names: ['christopher online','steffan online','daniel','fred','google uk english male'], pitch: 0.8, rate: 0.92 } },
   { keys: ['sage','river','quinn','rowan','morgan','jamie','robin','casey','blake'],
-    profile: { names: ['karen','tessa','zira'], pitch: 1.05, rate: 1.02 } },
+    profile: { names: ['jane online','sonia online','karen','tessa','zira'], pitch: 1.05, rate: 1.02 } },
   { keys: ['miko','sakura','yuki','hana','rei','ami','nana','kira','mei'],
     profile: { names: ['google japanese','kyoko','siri japan','otoya'], pitch: 1.3, rate: 1.1 } },
 ];
@@ -2622,7 +2658,7 @@ function _getCharVoiceProfile(char) {
   let h = 0;
   for (let i = 0; i < char.id.length; i++) h = (Math.imul(31, h) + char.id.charCodeAt(i)) | 0;
   const idx = Math.abs(h) % 10;
-  const baseNames = ['samantha','zira','karen','daniel','tessa','fred','victoria','alex','moira','kyoko'];
+  const baseNames = ['aria online','jenny online','christopher online','andrew online','emma online','steffan online','ava online','sonia online','brandon online','eric online'];
   return {
     names: [baseNames[idx]],
     pitch: 1.0 + _PITCH_OFFSETS[idx],
@@ -7811,6 +7847,7 @@ function createAiMessage() {
       ${msgAvatarHtml('msg-avatar')}
       <span class="msg-name">${colorizeNameHtml(currentChar?.name || 'AI', currentChar?.color)}</span>
       <span class="msg-badge">C.M</span>
+      <button class="msg-voice-btn" onclick="msgVoiceBtnClick(this)" title="Play voice"><svg class="gv-play" viewBox="0 0 24 24" fill="currentColor" width="11" height="11"><path d="M8 5v14l11-7z"/></svg><div class="gv-wave" style="display:none"><span></span><span></span><span></span><span></span></div></button>
       ${msgMenuHtml('ai')}
     </div>
     <div class="bubble"></div>
@@ -12873,6 +12910,23 @@ function groupVoiceBtnClick(btn) {
     || { id: charId, name: msgEl.querySelector('.group-msg-name')?.textContent || '', color: '' };
   const text = (msgEl.querySelector('.group-msg-text')?.textContent || '').trim();
   if (text) _speakGroupBubble(btn, char, text);
+}
+
+function msgVoiceBtnClick(btn) {
+  // Stop any speech (group or 1-on-1) if already talking
+  if (window.speechSynthesis?.speaking) {
+    window.speechSynthesis.cancel();
+    document.querySelectorAll('.msg-voice-btn.speaking,.group-voice-btn.speaking').forEach(b => _setGroupVoiceState(b, false));
+    return;
+  }
+  const msgEl = btn.closest('.msg.ai');
+  if (!msgEl) return;
+  const bubble = msgEl.querySelector('.bubble');
+  // Use innerText so markdown-rendered HTML collapses cleanly to readable text
+  const text = (bubble?.innerText || bubble?.textContent || '').trim();
+  if (!text) return;
+  const char = currentChar || { id: '', name: 'AI', color: '' };
+  _speakGroupBubble(btn, char, text);
 }
 
 function startGroupCharBubble(charId, charName, charColor, charImage) {
