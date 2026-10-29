@@ -5438,20 +5438,20 @@ body:not(.halloween) .hw-off-label { display: inline; }
 /* Logo â€” left side with wordmark text */
 .rail-logo {
   width: auto !important;
-  height: 38px !important;
+  height: 44px !important;
   padding: 0 !important;
   border-radius: 8px !important;
-  margin: 0 24px 0 0 !important;
+  margin: 0 28px 0 0 !important;
   justify-content: flex-start !important;
-  gap: 10px !important;
+  gap: 12px !important;
   flex-shrink: 0 !important;
 }
-.rail-logo-img { width: 28px !important; height: 28px !important; }
+.rail-logo-img { width: 34px !important; height: 34px !important; }
 .rail-logo::after {
   content: 'character.mind';
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: -.3px;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -.4px;
   color: var(--text);
   white-space: nowrap;
 }
