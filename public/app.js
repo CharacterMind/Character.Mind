@@ -2507,8 +2507,7 @@ function updateSettingsUsage(u) {
   const settingsWeeklyWrap = document.getElementById('settingsWeeklyWrap');
   if (settingsWeeklyWrap) settingsWeeklyWrap.style.display = isFreeSettings ? 'none' : '';
 
-  const CALL_EQUIV_BASE = 1800;
-  const sPct = Math.min(100, Math.round(((u.msgTokensToday || 0) / CALL_EQUIV_BASE) / (u.callsLimit || 6) * 100));
+  const sPct = u.sessionLimit ? Math.min(100, Math.round(((u.sessionTokens || 0) / u.sessionLimit) * 100)) : 0;
   const wPct = u.weeklyLimit ? Math.min(100, Math.round((u.weeklyTokens / u.weeklyLimit) * 100)) : 0;
   const fillClass = p => p >= 90 ? 'danger' : p >= 75 ? 'warn' : '';   // the same steps as the usage window (50 / 75 / 90)
   const sBar = document.getElementById('settingsSessionBar');
@@ -6040,9 +6039,9 @@ function renderUsageBanners(usage) {
   }
 
   // \u2500\u2500 Call limit banner (all users, stacks below weekly/session banner) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-  const callsToday = usage.callsToday || 0;
-  const callsLimit = usage.callsLimit || 6;
-  const callsMaxed = callsLimit > 0 && callsToday >= callsLimit;
+  const callSecsToday_banner = usage.callSecondsToday || 0;
+  const callSecsLimit_banner = usage.callSecondsLimit || 1800;
+  const callsMaxed = callSecsLimit_banner > 0 && callSecsToday_banner >= callSecsLimit_banner;
   const existingCallBanner = container.querySelector('.warning-banner[data-usage-kind="calls"]');
   if (callsMaxed && !existingCallBanner) {
     const cb = document.createElement('div');
@@ -6845,11 +6844,8 @@ function updateUsageModal(u) {
     packMsg.textContent = u.cmCoins != null ? `Your balance: ${(u.cmCoins || 0).toLocaleString()} coins` : '';
   }
 
-  // Call-token %: 1 Opes-medium message = 1 credit. Bar reflects model/effort weight.
-  const CALL_EQUIV_BASE = 1800;
-  const callCredsUsed = (u.msgTokensToday || 0) / CALL_EQUIV_BASE;
-  const callCredsLimit = u.callsLimit || 6;
-  const sPct = Math.min(100, Math.round(callCredsUsed / callCredsLimit * 100));
+  // Session usage bar — shows message token usage vs session limit
+  const sPct = u.sessionLimit ? Math.min(100, Math.round(((u.sessionTokens || 0) / u.sessionLimit) * 100)) : 0;
   const wPct = u.weeklyLimit ? Math.min(100, Math.round((u.weeklyTokens / u.weeklyLimit) * 100)) : 0;
 
   const sBar = document.getElementById('usageSessionBar');
@@ -6860,9 +6856,10 @@ function updateUsageModal(u) {
 
   const sResetSrc = (u.cooldownUntil && Date.now() < u.cooldownUntil) ? u.cooldownUntil : (u.sessionTokens > 0 ? u.sessionExpiresAt : null);
   _sessionCountdownUntil = sResetSrc || null;
-  const _callCredSubText = () => {
-    const used = Math.round(callCredsUsed * 10) / 10;
-    return `${used} / ${callCredsLimit} call credits · Opas ≈ 0.23 per msg · Opes = 1 · Opus = 2`;
+  const _sessionSubText = () => {
+    const tokUsed = u.sessionTokens || 0;
+    const tokLimit = u.sessionLimit || 0;
+    return tokUsed > 0 ? `${tokUsed.toLocaleString()} / ${tokLimit.toLocaleString()} session tokens` : 'Starts fresh when you send your first message';
   };
   (function tickSessionCountdown() {
     const sSubEl = document.getElementById('usageSessionSub');
@@ -6870,7 +6867,7 @@ function updateUsageModal(u) {
     if (_sessionCountdownUntil && Date.now() < _sessionCountdownUntil) {
       sSubEl.textContent = 'Resets in ' + formatCountdown(_sessionCountdownUntil - Date.now());
     } else {
-      sSubEl.textContent = (u.msgTokensToday || 0) > 0 ? _callCredSubText() : 'Starts fresh when you send your first message';
+      sSubEl.textContent = _sessionSubText();
     }
   })();
   if (!_sessionCountdownTimer && sResetSrc) {
@@ -6880,7 +6877,7 @@ function updateUsageModal(u) {
       if (_sessionCountdownUntil && Date.now() < _sessionCountdownUntil) {
         sSubEl.textContent = 'Resets in ' + formatCountdown(_sessionCountdownUntil - Date.now());
       } else {
-        sSubEl.textContent = _callCredSubText();
+        sSubEl.textContent = _sessionSubText();
         clearInterval(_sessionCountdownTimer); _sessionCountdownTimer = null;
       }
     }, 1000);
@@ -6914,12 +6911,19 @@ function updateUsageModal(u) {
     if (subEl && subText !== undefined) subEl.textContent = subText;
   }
 
-  // Calls
-  const callsToday = u.callsToday || 0;
-  const callsLimit = u.callsLimit || 6;
-  const callsPct = callsLimit > 0 ? Math.min(100, Math.round(callsToday / callsLimit * 100)) : 0;
-  setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct,
-    `${callsToday} voice call${callsToday !== 1 ? 's' : ''} used today`, false);
+  // Calls (duration-based)
+  const callSecsToday = u.callSecondsToday || 0;
+  const callSecsLimit = u.callSecondsLimit || 1800;
+  const callSecsPct = callSecsLimit > 0 ? Math.min(100, Math.round(callSecsToday / callSecsLimit * 100)) : 0;
+  const callMinsUsed = Math.floor(callSecsToday / 60);
+  const callSecsUsedR = callSecsToday % 60;
+  const secsRemaining = u.callSecondsRemaining != null ? u.callSecondsRemaining : Math.max(0, callSecsLimit - callSecsToday);
+  const callMinsRem = Math.floor(secsRemaining / 60);
+  const callSecsRem = secsRemaining % 60;
+  const usedStr = callMinsUsed > 0 ? `${callMinsUsed}m ${callSecsUsedR}s used` : `${callSecsUsedR}s used`;
+  const remStr = callMinsRem > 0 ? `${callMinsRem}m ${callSecsRem}s remaining` : `${callSecsRem}s remaining`;
+  setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callSecsPct,
+    `${usedStr} · ${remStr}`, callSecsLimit >= 99999);
 
   // Daily resets subtitle
   const dailyResetsEl = document.getElementById('usageDailyResetsSub');
@@ -9208,7 +9212,7 @@ async function _doStartCall(overlay) {
       callStarting = false;
       if (overlay) overlay.style.display = 'none';
       if (r.status === 429) {
-        showCallLimitModal(data.resetsAt || data.cooldownUntil || Date.now() + 3600000);
+        showCallLimitModal(data.resetsAt || data.cooldownUntil || Date.now() + 3600000, null, data.minsLimit);
       } else {
         const msg = data.error || data.message || 'Call service unavailable. Please try again.';
         showWarning(msg, 5000);
@@ -9421,14 +9425,15 @@ const CALL_LIMIT_MESSAGES = [
   "Spoiler: tomorrow there are more calls. Today there are not. This is the whole situation.",
 ];
 
-function showCallLimitModal(resetsAt, reason) {
+function showCallLimitModal(resetsAt, reason, minsLimit) {
   const modal = document.getElementById('callLimitModal');
   if (!modal) return;
   modal.style.display = 'flex';
   const headEl = document.getElementById('callLimitHeadline');
   const subEl = document.getElementById('callLimitSub');
   const msgEl = document.getElementById('callLimitCharMsg');
-  if (headEl) headEl.textContent = 'Voice calls unavailable right now.';
+  const limitStr = minsLimit ? ` (${minsLimit}-minute window)` : '';
+  if (headEl) headEl.textContent = `Call time limit reached${limitStr}.`;
   if (subEl) subEl.textContent = '';
   if (msgEl) msgEl.textContent = CALL_LIMIT_MESSAGES[Math.floor(Math.random() * CALL_LIMIT_MESSAGES.length)];
   let cdEl = null;

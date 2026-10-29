@@ -1208,6 +1208,8 @@ const NSFW_BLOCK_TOKENS = 200;
 
 // Free = base. Advanced = 3× free. X20 = 20× free. X50/X100/X200 scale proportionally.
 const TIER_CALL_LIMITS  = { free: 6,   advanced: 18,  x20: 120,  x50: 300,  x100: 600,  x200: 1200  };
+// Duration-based call limits (seconds per 8-hour window). free=30min, advanced=90min, x20=4h, x50=6h, x100=7h, x200=8h
+const TIER_CALL_SECOND_LIMITS = { free: 1800, advanced: 5400, x20: 14400, x50: 21600, x100: 25200, x200: 28800 };
 const TIER_MEMO_LIMITS  = { free: 50,  advanced: 150, x20: 1000, x50: 2500, x100: 5000, x200: 10000 };
 const TIER_IMAGE_LIMITS = { free: 3,   advanced: 9,   x20: 60,   x50: 150,  x100: 300,  x200: 600   };
 const TIER_REGEN_LIMITS = { free: 10,  advanced: 30,  x20: 200,  x50: 500,  x100: 1000, x200: 2000  };
@@ -1526,8 +1528,10 @@ async function checkDailyCheckin(uid) {
 }
 
 function getCallLimitForUser(userId) {
-  const tier = userLimits[userId]?.subscriptionTier || 'free';
-  return TIER_CALL_LIMITS[tier] ?? TIER_CALL_LIMITS.free;
+  const u = userLimits[userId];
+  if (u?.neverLimit) return Infinity;
+  const tier = u?.subscriptionTier || 'free';
+  return TIER_CALL_SECOND_LIMITS[tier] ?? TIER_CALL_SECOND_LIMITS.free;
 }
 function getMemoLimitForUser(userId) {
   const tier = userLimits[userId]?.subscriptionTier || 'free';
@@ -1573,7 +1577,7 @@ function getLimits(sid) {
   }
   // Daily window resets at 8 AM UTC (calls + memos)
   const callWindow = getCallWindowStart();
-  if (!u.callDayStart  || u.callDayStart  < callWindow) { u.callsToday     = 0; u.callDayStart  = callWindow; }
+  if (!u.callDayStart  || u.callDayStart  < callWindow) { u.callsToday = 0; u.callSecondsToday = 0; u.callDayStart = callWindow; }
   if (!u.memoDayStart  || u.memoDayStart  < callWindow) { u.memosToday     = 0; u.memoDayStart  = callWindow; }
   if (!u.msgDayStart   || u.msgDayStart   < callWindow) { u.msgTokensToday = 0; u.msgDayStart   = callWindow; }
   // Image window is rolling 24h from first use, not a fixed daily window
@@ -1595,10 +1599,11 @@ function checkLimits(sid) {
 }
 
 function buildUsagePayload(u, userId) {
-  const callLimit = userId ? getCallLimitForUser(userId) : (TIER_CALL_LIMITS[u.subscriptionTier || 'free'] ?? TIER_CALL_LIMITS.free);
+  const callSecsLimit = userId ? getCallLimitForUser(userId) : ((TIER_CALL_SECOND_LIMITS[u.subscriptionTier || 'free']) ?? TIER_CALL_SECOND_LIMITS.free);
   const memoLimit = userId ? getMemoLimitForUser(userId) : (TIER_MEMO_LIMITS[u.subscriptionTier || 'free'] ?? TIER_MEMO_LIMITS.free);
   const imgLimit  = userId ? getImageLimitForUser(userId) : (TIER_IMAGE_LIMITS[u.subscriptionTier || 'free'] ?? TIER_IMAGE_LIMITS.free);
-  const callsRemaining = callLimit === Infinity ? 9999 : Math.max(0, callLimit - (u.callsToday || 0));
+  const callSecsToday = u.callSecondsToday || 0;
+  const callSecsRemaining = callSecsLimit === Infinity ? 99999 : Math.max(0, callSecsLimit - callSecsToday);
   const memosRemaining = memoLimit === Infinity ? 9999 : Math.max(0, memoLimit - (u.memosToday || 0));
   return {
     sessionTokens: u.sessionTokens,
@@ -1614,8 +1619,12 @@ function buildUsagePayload(u, userId) {
     regenLimit: TIER_REGEN_LIMITS[u.subscriptionTier || 'free'] ?? TIER_REGEN_LIMITS.free,
     msgTokensToday: u.msgTokensToday || 0,
     callsToday: u.callsToday || 0,
-    callsLimit: callLimit === Infinity ? 9999 : callLimit,
-    callsRemaining,
+    callSecondsToday: callSecsToday,
+    callSecondsLimit: callSecsLimit === Infinity ? 99999 : callSecsLimit,
+    callSecondsRemaining: callSecsRemaining,
+    // Legacy count fields (kept for mission display compat)
+    callsLimit: callSecsLimit === Infinity ? 9999 : Math.round(callSecsLimit / 300),
+    callsRemaining: callSecsLimit === Infinity ? 9999 : Math.floor(callSecsRemaining / 300),
     memosToday: u.memosToday || 0,
     memosLimit: memoLimit === Infinity ? 9999 : memoLimit,
     memosRemaining,
@@ -3867,13 +3876,12 @@ app.get('/api/exchange-rates', charReadLimiter, async (req, res) => {
 
 app.post('/api/call/start', requireAuth, (req, res) => {
   const userId = req.user.googleId;
-  // Voice calls have their own daily count limit; they don't share the session token pool with chat.
   const u = getLimits(userId);
-  const callLimit = getCallLimitForUser(userId);
-  if ((u.callsToday || 0) >= callLimit) {
-    return res.status(429).json({ allowed: false, type: 'call_daily_limit', callsToday: u.callsToday, callLimit, resetsAt: getCallWindowStart() + 8 * 60 * 60 * 1000 });
+  const callSecsLimit = getCallLimitForUser(userId);
+  if (callSecsLimit !== Infinity && (u.callSecondsToday || 0) >= callSecsLimit) {
+    const minsLimit = Math.round(callSecsLimit / 60);
+    return res.status(429).json({ allowed: false, type: 'call_daily_limit', callSecondsToday: u.callSecondsToday || 0, callSecondsLimit: callSecsLimit, minsLimit, resetsAt: getCallWindowStart() + 8 * 60 * 60 * 1000 });
   }
-  u.callsToday = (u.callsToday || 0) + 1;
   if (!u.callDayStart) u.callDayStart = Date.now();
   saveLimitsToDB(userId);
   res.json({ allowed: true });
@@ -3883,12 +3891,13 @@ app.post('/api/call/end', requireAuth, (req, res) => {
   const userId = req.user.googleId;
   const { duration } = req.body; // seconds this call lasted
   const u = getLimits(userId);
-  // Calls < 5 s are instant-ends (user opened and closed without speaking) — refund the slot
+  // Calls < 5 s are instant-ends — don't count them
   if (typeof duration !== 'number' || !Number.isFinite(duration) || duration < 5) {
-    u.callsToday = Math.max(0, (u.callsToday || 1) - 1);
     saveLimitsToDB(userId);
     return res.json({ ok: true, refunded: true });
   }
+  u.callSecondsToday = (u.callSecondsToday || 0) + Math.ceil(duration);
+  u.callsToday = (u.callsToday || 0) + 1; // kept for mission tracking
   const callTokenCost = Math.max(CALL_TOKEN_MIN, Math.min(CALL_TOKEN_MAX, Math.ceil(duration * CALL_TOKENS_PER_SECOND)));
   const usage = addTokens(userId, callTokenCost);
   trackMissionProgress(userId, 'call').catch(() => {});
