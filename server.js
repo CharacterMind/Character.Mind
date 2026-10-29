@@ -6364,7 +6364,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   const { charId, message, modelTier: reqModelTier, effort: reqEffort, image, callMode, chatMode, otherChars, callChained } = req.body;
   const isRpMode = chatMode !== 'chat'; // default to RP; 'chat' = normal conversation mode
   const effortUserId = req.user.googleId;
-  let effort = callMode ? 'medium' : resolveEffort(effortUserId, reqEffort);
+  let effort = callMode ? 'low' : resolveEffort(effortUserId, reqEffort);
   const modelTier = resolveModelTier(effortUserId, reqModelTier);
   if (message !== undefined && typeof message !== 'string') return res.status(400).json({ error: 'Invalid request' });
   // Book mode: a book is planned, then written one chapter per reply. Only Opys 5 (X100) can do it.
@@ -7063,8 +7063,8 @@ app.post('/api/groups/:id/chat', requireAuth, async (req, res) => {
     send({ type: 'speaker_start', charId: char.id, charName: char.name, charColor: char.color || '#7c3aed', charImage: char.image || null });
 
     let charResponse = '';
-
-    addTokens(userId, messageCost('opas', 'medium') * 3);
+    const charCost = messageCost('opas', 'low');
+    addTokens(userId, charCost);
 
     const charCtx = { aborted: false };
     const charAbortCheck = () => { if (groupAborted) charCtx.aborted = true; return charCtx.aborted; };
@@ -7088,11 +7088,12 @@ app.post('/api/groups/:id/chat', requireAuth, async (req, res) => {
       },
       (err) => {
         console.error('[group-chat] AI error for', char.name, ':', err && err.message);
+        refundTokens(userId, charCost);
         send({ type: 'speaker_end', charId: char.id });
         processNext(idx + 1);
       },
       undefined,
-      EFFORT_CONFIG.opas.medium,
+      EFFORT_CONFIG.opas.low,
       GROQ_FAST_MODELS,
       charCtx
     );
