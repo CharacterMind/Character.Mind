@@ -3347,17 +3347,14 @@ function randomizeChatColors() {
   const cbPal = cbMode && CB_PALETTES[cbMode];
   const rawHexes = cbPal ? cbPal.colors : String(currentChar.color || '').match(/#[0-9a-fA-F]{6}/gi);
   if (!rawHexes || !rawHexes.length) return;
-  let spColors = rawHexes.map(boostColor);
-  // When only one base color, add hue variants so letters aren't all the same shade
-  if (spColors.length === 1) {
-    const c = rawHexes[0];
-    spColors = [boostColor(c), boostColor(mixHex(c, '#cc44ff', 0.48)), boostColor(mixHex(c, '#44aaff', 0.48))];
-  }
-  // Shuffle CSS colour variables — every bubble recolours instantly without any DOM traversal
-  for (let i = 0; i < 6; i++) {
-    el.style.setProperty('--sp' + i, spColors[Math.floor(Math.random() * spColors.length)]);
-    el.style.setProperty('--nr' + i, spColors[Math.floor(Math.random() * spColors.length)]);
-  }
+  // New random pattern: every letter of every reply gets a fresh colour from the character's palette (red and blue for
+  // Poppy, etc.). The palette itself stays the character's own — only which letter gets which colour changes.
+  chatLetterSeed = Math.floor(Math.random() * 1e9);
+  el.querySelectorAll('.msg.ai .bubble').forEach(b => {
+    if (typeof b.dataset.raw !== 'string' || b.dataset.lite || b.classList.contains('streaming')) return; // still typing / not drawn yet
+    if (b.dataset.raw.includes('[GAME_START]')) return; // re-drawing would reset a game in progress
+    b.innerHTML = renderMarkdown(b.dataset.raw);
+  });
   // Re-randomize character name in: chat message headers, mobile header, info panel, active sidebar entry
   const freshName = colorizeNameHtml(currentChar.name, currentChar.color);
   document.querySelectorAll('#messages .msg.ai .msg-name').forEach(el => { el.innerHTML = freshName; });
@@ -10619,6 +10616,8 @@ function applyChatTheme(ch) {
   setAccentOverride(accent === 'var(--accent-l)' ? '#8b5cf6' : boostColor(accent));
 }
 // Fixed pseudo-random colour for the letter at position i (same every time, so nothing flickers while typing)
+// Changes on every click in the chat, so every letter gets a new random colour from the character's palette
+let chatLetterSeed = 0;
 function letterPick(i, len) { let h = Math.imul(i + 1, 2654435761) ^ Math.imul((i >> 2) + 7, 40503); h ^= h >>> 15; h = Math.imul(h, 2246822519); h ^= h >>> 13; return (h >>> 0) % len; }
 const LETTER_RE = /[\p{L}\p{N}]/u;
 
@@ -10683,24 +10682,30 @@ function showPhoneUnlockedToast(info) {
 function renderStoryText(text) {
   const raw = String(text == null ? '' : text).replace(/\*\*/g, '').replace(/\[\s*GIVE[\s_-]*NUMBER\s*\]/gi, '');
   const paras = raw.split(/\n\n+/);
-  const segCount = { sp: 0, nr: 0 };
-  // No per-letter rainbow: each speech / narration piece gets one solid colour (see the span below)
+  // Every letter gets one of the character's colours (k0, k1… → --sp0/--nr0… on #messages). Which letter gets which colour
+  // comes from chatLetterSeed, so the pattern stays put while a reply types and changes when the chat is clicked.
+  let li = 0;
   const emit = (kind, str) => {
+    const n = Math.min(6, (activeTheme[kind] && activeTheme[kind].colors.length) || 0);
     const parts = str.split(/(\[[^\]\n]{1,40}\]\((?:\/terms|\/privacy)\))/g);
     return parts.map(part => {
       const lm = /^\[([^\]\n]{1,40})\]\((\/terms|\/privacy)\)$/.exec(part);
       if (lm) return '<a class="chat-link" href="' + lm[2] + '" target="_blank" rel="noopener">' + escHtml(lm[1]) + '</a>';
-      return escHtml(part).replace(/\b[A-Z]{3,}\b/g, '<span class="caps-em">$&</span>');
+      if (n < 2) return escHtml(part).replace(/\b[A-Z]{3,}\b/g, '<span class="caps-em">$&</span>'); // one colour: the whole piece is that colour
+      let out = '';
+      for (const ch of part) {
+        out += LETTER_RE.test(ch) ? `<span class="k${letterPick(li++ + chatLetterSeed, n)}">${escHtml(ch)}</span>` : escHtml(ch);
+      }
+      return out;
     }).join('');
   };
   return paras.map(p => {
     if (!p.trim()) return '';
     const html = splitSpeechNarration(p).map(seg => {
       if (!seg.t.trim()) return escHtml(seg.t);
-      // Each spoken line / narration piece is ONE solid colour from the character's palette (cycling if they have several)
-      const n = Math.min(6, (activeTheme[seg.k] && activeTheme[seg.k].colors.length) || 0);
-      const slot = n ? ' c' + (segCount[seg.k]++ % n) : '';
-      return '<span class="' + seg.k + slot + '">' + emit(seg.k, seg.t) + '</span>';
+      // c0 colours the whole piece (used as-is for one-colour characters; per-letter k spans override it otherwise)
+      const n = (activeTheme[seg.k] && activeTheme[seg.k].colors.length) || 0;
+      return '<span class="' + seg.k + (n ? ' c0' : '') + '">' + emit(seg.k, seg.t) + '</span>';
     }).join('');
     return '<p>' + html.replace(/\n/g, '<br>') + '</p>';
   }).filter(Boolean).join('');
