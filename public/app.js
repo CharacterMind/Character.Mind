@@ -2787,7 +2787,7 @@ function renderPhoneContacts(query) {
       : escHtml(initial);
     return `<div class="ph-contact-card" style="--ph-color:${escHtml(color)};--ph-glow:${escHtml(color)}">
       <div class="ph-contact-avatar" style="background:${escHtml(color)}" onclick="showPhoneContactProfile('${escHtml(c.id)}',event)">${avatarContent}</div>
-      <div class="ph-contact-name">${escHtml(c.name)}</div>
+      <div class="ph-contact-name">${colorizeNameHtml(c.name, c.color)}</div>
       <div class="ph-contact-num">${escHtml(phone)}</div>
       <div class="ph-contact-btns">
         <button class="ph-contact-btn ph-contact-btn-call" onclick="callCharFromPhone('${escHtml(c.id)}',event)">
@@ -2821,7 +2821,7 @@ function showPhoneContactProfile(charId, e) {
   avatarEl.innerHTML = hasImg
     ? `<img src="${escHtml(c.image)}" alt="" onerror="this.style.display='none'">`
     : escHtml(initial);
-  document.getElementById('pcpName').textContent = c.name || '';
+  document.getElementById('pcpName').innerHTML = colorizeNameHtml(c.name || '', c.color);
   document.getElementById('pcpNum').textContent = c.phone || '';
   document.getElementById('pcpCallBtn').onclick = () => { closePhoneContactProfile(); callCharFromPhone(charId); };
   document.getElementById('pcpChatBtn').onclick = () => { closePhoneContactProfile(); openChat(charId); };
@@ -2973,7 +2973,7 @@ function showPhoneRingingThenVoicemail(char, prevChar) {
   const statusEl = document.getElementById('callStatus');
   const bgEl    = document.getElementById('callBg');
   if (overlay) {
-    if (nameEl) nameEl.innerHTML = escHtml(char.name);
+    if (nameEl) nameEl.innerHTML = colorizeNameHtml(char.name, char.color);
     if (statusEl) statusEl.textContent = 'Ringing…';
     const [co1, co2, co3] = (typeof getCharCallColors === 'function') ? getCharCallColors(char) : ['#7c3aed','#4f46e5','#a78bfa'];
     if (bgEl) { bgEl.style.setProperty('--co1', co1); bgEl.style.setProperty('--co2', co2); bgEl.style.setProperty('--co3', co3); }
@@ -3027,7 +3027,7 @@ function showVoicemailOverlay(char) {
       : escHtml((char.name||'?').charAt(0).toUpperCase());
   }
   const nameEl = document.getElementById('vmName');
-  if (nameEl) nameEl.textContent = char.name || '';
+  if (nameEl) nameEl.innerHTML = colorizeNameHtml(char.name || '', char.color);
   const textEl = document.getElementById('vmText');
   if (textEl) textEl.textContent = charVoicemailText(char);
   const playBtn = document.getElementById('vmPlayBtn');
@@ -3088,7 +3088,7 @@ function showIncomingCall(char) {
       : escHtml((char.name||'?').charAt(0).toUpperCase());
   }
   const nameEl = document.getElementById('icName');
-  if (nameEl) nameEl.textContent = char.name || '';
+  if (nameEl) nameEl.innerHTML = colorizeNameHtml(char.name || '', char.color);
   const numEl = document.getElementById('icNumber');
   if (numEl) numEl.textContent = charPhone(char.id);
   overlay.style.display = 'flex';
@@ -3188,7 +3188,7 @@ function homeCard(c) {
     ${av}
     <div class="hc-info">
       <div class="hc-name-row">
-        <span class="hc-name">${escHtml(c.name)}</span>
+        <span class="hc-name">${colorizeNameHtml(c.name, c.color)}</span>
         ${ownerEdit}
       </div>
       <div class="hc-creator">${c.isOfficial ? '<span class="hc-creator-official">By Character Mind Playtime Co</span>' : escHtml('By ' + (c.creator || 'a community creator'))}</div>
@@ -3318,16 +3318,27 @@ function boostColor(hex) {
   const clamp = v => Math.max(0, Math.min(255, Math.round(v * 255)));
   return '#' + [h2r(h + 1/3), h2r(h), h2r(h - 1/3)].map(clamp).map(x => x.toString(16).padStart(2, '0')).join('');
 }
-function colorizeNameHtml(name, c) {
+// The colours a character's name and text use: the same palette as their replies (Poppy red + blue, Lily gold/purple/cream,
+// anyone else their own colours). Colourblind mode swaps in its palette.
+function charLetterColors(name, c) {
   const cbMode = document.documentElement.dataset.colorblind;
   const cbPal = cbMode && CB_PALETTES[cbMode];
-  const rawHexes = cbPal ? cbPal.colors : String(c || '').match(/#[0-9a-fA-F]{6}/gi);
-  if (!rawHexes || !rawHexes.length) return `<span style="font-weight:900">${escHtml(name || '')}</span>`;
-  const boosted = rawHexes.map(boostColor);
+  if (cbPal) return cbPal.colors.map(boostColor);
+  return charTheme({ name, color: c }).sp.colors.map(x => x.c);
+}
+function nameLettersHtml(name, c) {
+  const cols = charLetterColors(name, c);
+  if (!cols.length) return escHtml(name || '');
   return [...(name || '')].map(ch => {
-    const col = boosted[Math.floor(Math.random() * boosted.length)];
-    return `<span style="color:${col};font-weight:900;text-shadow:0 1px 2px rgba(0,0,0,0.6)">${escHtml(ch)}</span>`;
+    if (/\s/.test(ch)) return escHtml(ch);
+    const col = cols[Math.floor(Math.random() * cols.length)];
+    return `<span style="color:${col};text-shadow:0 1px 2px rgba(0,0,0,0.6)">${escHtml(ch)}</span>`;
   }).join('');
+}
+// A character's name with every letter in one of their colours, picked at random. Tagged .cname so a click anywhere can
+// give every name on screen a new random pattern (see randomizeChatColors).
+function colorizeNameHtml(name, c) {
+  return `<span class="cname" data-n="${escHtml(name || '')}" data-c="${escHtml(c || '')}" style="font-weight:900">${nameLettersHtml(name, c)}</span>`;
 }
 function colorizeLetters(bubble, charColor) {
   if (!bubble || !charColor) return;
@@ -3340,35 +3351,21 @@ function colorizeLetters(bubble, charColor) {
 
 // Re-randomize letter colors in all visible character name labels — triggered by click in the chat.
 function randomizeChatColors() {
-  if (!currentChar) return;
+  // Every character name on screen (cards, sidebar, header, phone, calls, group chat…) gets a new random letter pattern
+  document.querySelectorAll('.cname').forEach(n => { n.innerHTML = nameLettersHtml(n.dataset.n, n.dataset.c); });
+  // …and so does every letter of every reply in the open chat. The palette stays the character's own
+  // (red and blue for Poppy, etc.) — only which letter gets which colour changes.
   const el = document.getElementById('messages');
-  if (!el) return;
-  const cbMode = document.documentElement.dataset.colorblind;
-  const cbPal = cbMode && CB_PALETTES[cbMode];
-  const rawHexes = cbPal ? cbPal.colors : String(currentChar.color || '').match(/#[0-9a-fA-F]{6}/gi);
-  if (!rawHexes || !rawHexes.length) return;
-  // New random pattern: every letter of every reply gets a fresh colour from the character's palette (red and blue for
-  // Poppy, etc.). The palette itself stays the character's own — only which letter gets which colour changes.
+  if (!el || !currentChar) return;
   chatLetterSeed = Math.floor(Math.random() * 1e9);
   el.querySelectorAll('.msg.ai .bubble').forEach(b => {
     if (typeof b.dataset.raw !== 'string' || b.dataset.lite || b.classList.contains('streaming')) return; // still typing / not drawn yet
     if (b.dataset.raw.includes('[GAME_START]')) return; // re-drawing would reset a game in progress
     b.innerHTML = renderMarkdown(b.dataset.raw);
   });
-  // Re-randomize character name in: chat message headers, mobile header, info panel, active sidebar entry
-  const freshName = colorizeNameHtml(currentChar.name, currentChar.color);
-  document.querySelectorAll('#messages .msg.ai .msg-name').forEach(el => { el.innerHTML = freshName; });
-  const mobNm = document.getElementById('mobChatName');
-  if (mobNm) mobNm.innerHTML = freshName;
-  const infoNm = document.getElementById('infoName');
-  if (infoNm) infoNm.innerHTML = freshName;
-  const sideNm = document.querySelector('.chat-item.active .chat-item-name');
-  if (sideNm) sideNm.innerHTML = freshName;
 }
-document.addEventListener('DOMContentLoaded', () => {
-  const msgs = document.getElementById('messages');
-  if (msgs) msgs.addEventListener('click', randomizeChatColors);
-});
+// Any click anywhere in the app reshuffles the colours (after the click has done its normal job)
+document.addEventListener('click', () => { try { randomizeChatColors(); } catch (_) {} });
 
 // ── Character voice tooltip (hover on cards) ──────────────────────────────────
 const CHAR_VOICE_LINES = {
@@ -4885,7 +4882,7 @@ function updateTypingAvatar() {
   const tn = document.getElementById('typingName');
   if (isCharImg(currentChar.image)) { ta.style.background = '#111'; ta.innerHTML = `<img src="${currentChar.image}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`; }
   else { ta.style.background = safeColor(currentChar.color); ta.textContent = currentChar.name[0]||'?'; }
-  if (tn) tn.textContent = currentChar.name;
+  if (tn) tn.innerHTML = colorizeNameHtml(currentChar.name, currentChar.color);
   const inp = document.getElementById('messageInput');
   if (inp) inp.placeholder = `Message ${currentChar.name}…`;
 }
@@ -5003,7 +5000,7 @@ async function generateGreeting() {
     if (!lockoutActiveErr) document.getElementById('sendBtn').disabled = false;
     if (!gotFirst) {
       document.getElementById('chatWelcome').innerHTML = `
-        <div class="chat-welcome-name">${escHtml(currentChar.name)}</div>
+        <div class="chat-welcome-name">${colorizeNameHtml(currentChar.name, currentChar.color)}</div>
         <div style="color:var(--text3);font-size:14px;margin-top:8px">${escHtml(err.name === 'AbortError' ? 'The connection went quiet. Try sending a message.' : (err.message || 'Failed to generate greeting. Try sending a message.'))}</div>`;
     } else if (bubble) {
       const errMsg = err.name === 'AbortError' ? 'The connection dropped.' : (err.message || 'Something went wrong.');
@@ -8409,7 +8406,7 @@ async function loadPastChats() {
       const msgCount = a._src === 'local' ? (a.messages?.length || 0) : (a.message_count || 0);
       const lastText = lastMsg ? String(lastMsg.card === 'nsfw' ? '' : (lastMsg.content || '')) : '';
       const preview = lastMsg ? escHtml(lastText.slice(0, 160) + (lastText.length > 160 ? '…' : '')) : 'No messages';
-      const role = (lastMsg?.role === 'user') ? 'You' : escHtml(currentChar.name || 'AI');
+      const role = (lastMsg?.role === 'user') ? 'You' : colorizeNameHtml(currentChar.name || 'AI', currentChar.color);
       const clickArg = a._src === 'local' ? `null,'local',${a._localIdx}` : `${a.id},'server'`;
       return `<div class="past-chat-entry" onclick="viewPastChat(${clickArg})">
         <div class="past-chat-meta"><span class="past-chat-date" title="${escHtml(exact)}">${escHtml(date)}</span><span class="past-chat-count">${msgCount} msg${msgCount !== 1 ? 's' : ''}<button class="past-chat-del" title="Delete this chat" aria-label="Delete this chat" onclick="deletePastChatAt(${i}, event)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></span></div>
@@ -8492,7 +8489,7 @@ async function viewPastChat(archiveId, src, localIdx) {
 
   const rows = msgs.map(m => {
     const isAi = m.role === 'assistant' || m.role === 'ai';
-    const name = isAi ? escHtml(currentChar.name || 'AI') : 'You';
+    const name = isAi ? colorizeNameHtml(currentChar.name || 'AI', currentChar.color) : 'You';
     const content = m.card === 'nsfw' ? NSFW_CARD_TITLES[Number.isInteger(m.variant) ? m.variant % NSFW_CARD_TITLES.length : 0] : (m.content || '');
     const text = escHtml(content.slice(0, 400) + (content.length > 400 ? '…' : ''));
     return `<div class="history-msg-row ${isAi ? 'ai' : 'user'}"><span class="history-msg-who">${name}</span><span class="history-msg-text">${text}</span></div>`;
@@ -10136,7 +10133,7 @@ function showCallCharPicker() {
       if (isCharImg(c.image)) imgDiv.style.backgroundImage = `url('/api/characters/${c.id}/image')`;
       else imgDiv.textContent = (c.name || '?')[0].toUpperCase();
       const nameSpan = document.createElement('span');
-      nameSpan.textContent = c.name || '';
+      nameSpan.innerHTML = colorizeNameHtml(c.name || '', c.color);
       item.appendChild(imgDiv); item.appendChild(nameSpan);
       item.onclick = () => { addCharToCall(c); hideCallCharPicker(); };
       list.appendChild(item);
@@ -12700,7 +12697,7 @@ function openGroupPicker() {
         <div class="picker-char-avatar" style="background:${color}">
           ${c.image ? `<img src="/api/characters/${c.id}/image" onerror="this.style.display='none'">` : initials}
         </div>
-        <div class="picker-char-name">${escHtml(c.name)}</div>
+        <div class="picker-char-name">${colorizeNameHtml(c.name, c.color)}</div>
         <div class="picker-check-icon">
           <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
         </div>
@@ -12829,8 +12826,7 @@ function showGroupTyping(charName, charColor) {
   const area = document.getElementById('groupTypingArea');
   const nameEl = document.getElementById('groupTypingName');
   if (!area || !nameEl) return;
-  nameEl.textContent = charName;
-  nameEl.style.color = safeColor(charColor || '#7c3aed');
+  nameEl.innerHTML = colorizeNameHtml(charName, charColor);
   area.style.display = 'block';
   const body = document.getElementById('groupChatBody');
   if (body) body.scrollTop = body.scrollHeight;
@@ -12891,7 +12887,7 @@ function startGroupCharBubble(charId, charName, charColor, charImage) {
     ? `<div class="group-msg-avatar" style="background:${color}"><img src="/api/characters/${charId}/image" onerror="this.style.display='none'"></div>`
     : `<div class="group-msg-avatar" style="background:${color}">${escHtml(charName.charAt(0).toUpperCase())}</div>`;
   const voiceIconHtml = `<button class="group-voice-btn" onclick="groupVoiceBtnClick(this)" title="Play voice"><svg class="gv-play" viewBox="0 0 24 24" fill="currentColor" width="10" height="10"><path d="M8 5v14l11-7z"/></svg><div class="gv-wave" style="display:none"><span></span><span></span><span></span><span></span></div></button>`;
-  div.innerHTML = `${avatarHtml}<div class="group-msg-content"><div class="group-msg-name-row"><div class="group-msg-name" style="color:${color}">${escHtml(charName)}</div>${voiceIconHtml}<span class="group-tok-counter"></span></div><div class="group-msg-text"></div></div><button class="group-msg-del-btn" onclick="deleteGroupMsg(this.closest('.group-msg'))" title="Delete">×</button>`;
+  div.innerHTML = `${avatarHtml}<div class="group-msg-content"><div class="group-msg-name-row"><div class="group-msg-name">${colorizeNameHtml(charName, charColor)}</div>${voiceIconHtml}<span class="group-tok-counter"></span></div><div class="group-msg-text"></div></div><button class="group-msg-del-btn" onclick="deleteGroupMsg(this.closest('.group-msg'))" title="Delete">×</button>`;
   _groupStreamCharCount = 0;
   msgs.appendChild(div);
   _currentGroupBubble = div.querySelector('.group-msg-text');
