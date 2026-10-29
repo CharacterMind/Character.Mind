@@ -563,9 +563,9 @@ async function subscribeWithCoins(planKey) {
       renderPricingCards();
       closePricingModal();
     } else {
-      alert(d.error === 'Not enough coins'
+      showWarning(d.error === 'Not enough coins'
         ? `You need ${(d.cost - d.balance).toLocaleString()} more C.M Coins to subscribe.`
-        : (d.error || 'Something went wrong. Please try again.'));
+        : (d.error || 'Something went wrong. Please try again.'), 5000);
     }
   } catch(e) {
     console.error('[subscribeWithCoins]', e);
@@ -9104,7 +9104,7 @@ async function startCallMode() {
   callStarting = true;
   const startGen = callGen;
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { callStarting = false; alert('Voice calls need a browser with speech recognition — try Chrome.'); return; }
+  if (!SR) { callStarting = false; showWarning('Voice calls need a browser with speech recognition — try Chrome.', 5000); return; }
   if (!currentChar) { callStarting = false; return; }
   // Check server-side blocks (token limits, bans, service offline)
   try {
@@ -12353,7 +12353,7 @@ function updatePickerCount() {
 
 async function createGroupFromPicker() {
   if (groupPickerSelected.size < 1) {
-    alert('Select at least 1 character.');
+    showWarning('Select at least 1 character.', 3000);
     return;
   }
   const nameInput = document.getElementById('groupNameInput');
@@ -12371,11 +12371,11 @@ async function createGroupFromPicker() {
       body: JSON.stringify({ name, memberIds: [...groupPickerSelected], respondersPerRound: Math.min(15, Math.max(1, parseInt(document.getElementById('groupRprInput')?.value) || 3)) })
     });
     const data = await res.json();
-    if (!res.ok) { alert(data.error || 'Failed to create group.'); return; }
+    if (!res.ok) { showWarning(data.error || 'Failed to create group.', 4000); return; }
     closeGroupPicker();
     openGroupChat(data.id, { id: data.id, name: data.name, memberIds: data.memberIds, respondersPerRound: data.respondersPerRound || 3, members: [...groupPickerSelected].map(id => characters.find(c => c.id === id)).filter(Boolean) });
   } catch (e) {
-    alert('Failed to create group. Please try again.');
+    showWarning('Failed to create group. Please try again.', 4000);
   }
 }
 
@@ -12518,7 +12518,7 @@ async function sendGroupMessage() {
         if (data.type === 'session') startCooldown(data.cooldownUntil, 'session', true);
         else startCooldown(data.resetsAt, 'weekly', true);
       } else {
-        alert(data.error || 'Failed to send message.');
+        showWarning(data.error || 'Failed to send message.', 4000);
       }
       groupIsStreaming = false;
       if (sendBtn) sendBtn.disabled = false;
