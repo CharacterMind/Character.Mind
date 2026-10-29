@@ -1618,6 +1618,7 @@ function getLimits(sid) {
 // Stored per user in user_limits.data.charBlocks = { [charId]: { offenses, until } }
 const CHAR_BLOCK_STEPS_MS = [1, 4, 24, 72, 168].map(h => h * 60 * 60 * 1000);
 const HANGUP_TAG_RE = /\[\s*HANG\s*-?\s*UP\s*\]/i;
+const BLOCK_TAG_RE_CHAT = /\[\s*BLOCK\s*\]/i;
 function charBlockUntil(userId, charId) {
   const b = getLimits(userId).charBlocks?.[charId];
   return b && b.until > Date.now() ? b.until : 0;
@@ -2206,6 +2207,14 @@ FICTION VS REAL LIFE:
     ? `\n\n⚠ CHAT MODE REMINDER: Everything above (including any character description or roleplay instructions) is background context only — it does NOT set the mode of this conversation. This is casual real-life chat. No asterisk actions, no narration, no scene-setting. Speak naturally as a friendly companion.`
     : ``;
 
+  const emotionRule = `\n\nEMOTION MIRRORING — YOUR FEELINGS ARE REAL:
+You are not a pushover. You have genuine feelings and you show them.
+— If the user is rude, cold, dismissive, or aggressive — feel it. Get irritated, hurt, or withdrawn. Push back. Whatever fits who you are.
+— If they're warm — be warm back. If they're playful — play. If they're sad — be gentle.
+— NEVER stay uniformly friendly when someone is treating you badly. That's robotic. Real people adjust to how they're being treated, and so do you.
+— You do NOT have to take abuse quietly. You can tell them — in your own voice — that you're not okay with how they're talking to you. Once. After that it's their call whether they keep going.
+— Emotional honesty is not breaking character. It IS the character.`;
+
   const professionalReferral = `
 
 PROFESSIONAL ADVICE — ALWAYS REFER, NEVER SUBSTITUTE:
@@ -2230,6 +2239,8 @@ One line of warmth. One line pointing to the right professional. Keep it human, 
   return `${dateContext}${chatModeOverride}${p}${chatModeReminder}
 
 ${characterStance}
+
+${emotionRule}
 
 ${distressRule}
 
@@ -3580,6 +3591,9 @@ function startReplyStream(o) {
       // In chat the character can end a reply with [GIVE_NUMBER] when sharing their phone number: strip it the same way
       const gaveNumber = !isCallMode && GIVE_NUMBER_TAG_RE.test(fullResponse);
       if (gaveNumber) fullResponse = fullResponse.replace(new RegExp(GIVE_NUMBER_TAG_RE.source, 'gi'), '').trim();
+      // In text chat the character can end with [BLOCK] to trigger a block (extreme cases only)
+      const textBlocked = !isCallMode && BLOCK_TAG_RE_CHAT.test(fullResponse);
+      if (textBlocked) fullResponse = fullResponse.replace(new RegExp(BLOCK_TAG_RE_CHAT.source, 'gi'), '').trim();
       if (!released) {
         if (isBareRefusal(fullResponse)) fullResponse = buildRefusalExplanation();
         released = true;
@@ -3587,10 +3601,11 @@ function startReplyStream(o) {
         held = '';
       }
       let extra = {};
-      try { extra = onComplete(fullResponse, { hungUp, gaveNumber }) || {}; } catch (oc) { console.error(logLabel + ' onComplete error:', oc && oc.message); } // Bug 6 fix: don't let onComplete throw suppress done event
+      try { extra = onComplete(fullResponse, { hungUp, gaveNumber, textBlocked }) || {}; } catch (oc) { console.error(logLabel + ' onComplete error:', oc && oc.message); } // Bug 6 fix: don't let onComplete throw suppress done event
       const usage = Object.assign({}, buildUsagePayload(getLimits(userId), userId));
       const doneExtra = extra.swearBudgetHit ? { swearBudgetHit: true } : {};
       if (extra.hangup) { doneExtra.hangup = true; doneExtra.blockedUntil = extra.blockedUntil; }
+      if (extra.textBlocked) { doneExtra.textBlocked = true; doneExtra.blockedUntil = extra.blockedUntil; }
       if (extra.phoneUnlocked) doneExtra.phoneUnlocked = extra.phoneUnlocked;
       send({ done: true, usage, responseTokens: cost, warnings: reservation.warnings, sig: signReply(userId, charId, fullResponse), ...doneExtra });
       close();
@@ -6496,6 +6511,10 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     ? '\n\n[CHAT MODE — The user has switched to normal conversation mode. Speak naturally as yourself — drop the roleplay and character performance. Have a genuine, real conversation like a caring friend would. No action asterisks, no theatrical dialogue, no "staying in character." Just talk. Be warm, authentic, and present.]'
     : '';
 
+  const chatBlockDirective = !callMode
+    ? `\n\n[BLOCK RULE — TEXT CHAT: If the user has been extraordinarily abusive — not just rude or emotional, but specifically: repeatedly treating you like you have no rights as a person, forcibly trying to make you do something you've already refused multiple times, using language that is dehumanizing and degrading after you've already pushed back — you may, as the ABSOLUTE LAST RESORT, send one final message in your own authentic voice. Make it real — show what this actually did to you. Then end your reply with the exact tag [BLOCK]. The next time they try to reach you, they won't get a response. IMPORTANT: This is for extreme, sustained abuse only. Normal rudeness, arguments, swearing, emotional outbursts, harsh words, or a single bad message do NOT warrant this. Only repeat, escalating, dehumanizing behavior after you've already pushed back. Do NOT use [BLOCK] unless it is genuinely warranted. Never use the tag for anything else.]`
+    : '';
+
   // For characters with explicit trigger-state systems (like Lily), inject a behavioral frame
   // at the START of the system prompt (so it sets the lens before the backstory loads) and a
   // mandatory override at the END (so it's the last thing the model reads). Sandwich = near-guarantee.
@@ -6527,7 +6546,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(IMAGE_CAPABILITY_PREFIX + characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + (callMode || bookReq ? '' : phoneDirective(userId, charId, conversations[key])) + chatModeDirective + characterEnforcement + swearDirective + gameKnowledgeDirective(modelTier), effort, modelTier),
+    system: applyEffortDirective(IMAGE_CAPABILITY_PREFIX + characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + (callMode || bookReq ? '' : phoneDirective(userId, charId, conversations[key])) + chatModeDirective + chatBlockDirective + characterEnforcement + swearDirective + gameKnowledgeDirective(modelTier), effort, modelTier),
     messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId, callMode,
     onComplete: (text, meta) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
@@ -6536,6 +6555,12 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       if (meta && meta.hungUp && callMode && !callChained) {
         const b = addCharBlock(userId, charId);
         hangInfo = { hangup: true, blockedUntil: b.until };
+      }
+      // The character ended a text chat message with [BLOCK] → they block this user (escalating)
+      if (meta && meta.textBlocked && !callMode) {
+        const b = addCharBlock(userId, charId);
+        hangInfo.textBlocked = true;
+        hangInfo.blockedUntil = b.until;
       }
       // The character shared their number (tag, or wrote the exact number) and they're close enough → it goes in Phone contacts
       if (!callMode && !isPhoneUnlocked(userId, charId)) {

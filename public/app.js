@@ -5311,7 +5311,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
     let msgEl = null, bubble = null, gotFirst = false;
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, streamCharCount = 0, streamBlocked = false, streamPhoneUnlocked = null;
+    let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, streamCharCount = 0, streamBlocked = false, streamPhoneUnlocked = null, streamJustBlocked = false, streamBlockedUntil = 0;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -5346,7 +5346,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
           }
           break;
         }
-        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; if (data.swearBudgetHit) showSwearLimitModal(); if (data.hangup && callModeActive) callHangupChar = currentChar; if (data.phoneUnlocked) streamPhoneUnlocked = data.phoneUnlocked; }
+        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; if (data.swearBudgetHit) showSwearLimitModal(); if (data.hangup && callModeActive) callHangupChar = currentChar; if (data.textBlocked && !callModeActive) { streamJustBlocked = true; streamBlockedUntil = data.blockedUntil || 0; } if (data.phoneUnlocked) streamPhoneUnlocked = data.phoneUnlocked; }
         if (data.charBlocked) { showTyping(false); streamBlocked = true; }
         if (data.text) {
           if (!gotFirst) {
@@ -5398,6 +5398,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
         setTimeout(() => listenForSpeech(), 500);
       }
       if (streamBlocked) markLastMessageNotDelivered();
+      if (streamJustBlocked) showCharBlockedNote(streamBlockedUntil);
       saveHistoryLocal();
     });
   } catch (err) {
@@ -9403,6 +9404,23 @@ async function _doStartCall(overlay) {
     if (imgEl) { imgEl.style.backgroundImage = isCharImg(currentChar.image) ? `url('${currentChar.image}')` : ''; }
     const nameEl = document.getElementById('callCharName');
     if (nameEl) { nameEl.innerHTML = colorizeNameHtml(currentChar.name || '', currentChar.color); }
+    const phoneEl = document.getElementById('callCharPhone');
+    if (phoneEl) {
+      const contact = (_phoneContacts || []).find(c => c.id === currentChar.id);
+      if (contact?.phone) {
+        phoneEl.textContent = contact.phone;
+      } else if (!_phoneContacts.length) {
+        // Contacts not loaded yet — fetch quietly and update
+        const charIdForPhone = currentChar.id;
+        loadPhoneContacts().then(() => {
+          const el = document.getElementById('callCharPhone');
+          if (el && currentChar?.id === charIdForPhone) {
+            const c = _phoneContacts.find(x => x.id === charIdForPhone);
+            if (c?.phone) el.textContent = c.phone;
+          }
+        }).catch(() => {});
+      }
+    }
     overlay.style.display = 'flex';
     setCallState('calling');
   }
@@ -9902,6 +9920,28 @@ function interruptCall() {
   const speaker = callCharacters[0] || currentChar;
   if (callAudio) { stopCallAudio(); if (callModeActive) { updateCallSpeaker(speaker); setTimeout(() => listenForSpeech(), 100); } return; }
   if (callModeActive) { updateCallSpeaker(speaker); listenForSpeech(); }
+}
+
+// Show a "blocked" note in the chat after a character ends a text conversation with [BLOCK]
+function showCharBlockedNote(blockedUntil) {
+  const msgs = document.getElementById('messages');
+  if (!msgs) return;
+  if (msgs.querySelector('.char-blocked-note')) return;
+  const note = document.createElement('div');
+  note.className = 'char-blocked-note';
+  let timeStr = '';
+  if (blockedUntil && blockedUntil > Date.now()) {
+    const diffMs = blockedUntil - Date.now();
+    const hrs = Math.ceil(diffMs / (1000 * 60 * 60));
+    timeStr = hrs <= 1 ? ' for an hour' : ` for ${hrs} hours`;
+  }
+  note.textContent = `You've been blocked${timeStr}. Their messages won't come through for a while.`;
+  msgs.appendChild(note);
+  scrollToBottom();
+  const inp = document.getElementById('messageInput');
+  if (inp) inp.disabled = true;
+  const send = document.getElementById('sendBtn');
+  if (send) send.disabled = true;
 }
 
 // Blocked characters never answer: mark the user's last chat message "Not delivered", like a phone does
