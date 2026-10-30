@@ -297,6 +297,8 @@ if (db) {
     .then(r => { if (r && r.rowCount > 0) console.log(`[MIGRATION] Normalized ${r.rowCount} non-standard greeting_mode values to fixed`); })
     .then(() => db.query(`UPDATE characters SET color = 'linear-gradient(135deg, #ef4444, #f97316, #fbbf24, #60a5fa)' WHERE id = 'custom_1790774765927' AND color NOT LIKE '%#60a5fa%'`))
     .then(r => { if (r && r.rowCount > 0) console.log('[MIGRATION] Updated Doey blue to brighter #60a5fa'); })
+    .then(() => db.query(`UPDATE characters SET color = 'linear-gradient(135deg, #1a5fe0, #cc0000, #d4a017)' WHERE id = 'huggy_wuggy' AND color NOT LIKE '%#1a5fe0%'`))
+    .then(r => { if (r && r.rowCount > 0) { console.log('[MIGRATION] Updated Huggy color to blue/red/gold'); invalidateCharList(); } })
     .catch(err => console.error('DB init error:', err));
 
   db.query(`ALTER TABLE characters ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT FALSE`)
@@ -4264,20 +4266,29 @@ app.post('/api/friendship/:charId/reset', requireAuth, async (req, res) => {
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
   const userId = req.user.googleId;
 
-  // Reset friendship score and phone unlock
+  // Reset friendship score and wipe ALL phone numbers (v386)
   const u = getLimits(userId);
   if (u.friendship) delete u.friendship[charId];
-  if (Array.isArray(u.phoneUnlocked)) u.phoneUnlocked = u.phoneUnlocked.filter(id => id !== charId);
+  u.phoneUnlocked = [];
   saveLimitsToDB(userId);
 
-  // Clear in-memory conversation
+  // Clear in-memory conversation and allow reload from DB (v386)
   const key = `${userId}:${charId}`;
   delete conversations[key];
+  convLoaded.delete(key);
 
-  // Clear DB: current chat + memories from this char's conversations
+  // Clear DB: current chat + memories, then inject story message (v386)
   if (db) {
     await db.query('DELETE FROM chat_current WHERE user_id=$1 AND char_id=$2', [userId, charId]).catch(() => {});
     await db.query('DELETE FROM user_memories WHERE user_id=$1 AND source_char=$2', [userId, charId]).catch(() => {});
+    const storyMsg = JSON.stringify([{
+      role: 'assistant',
+      content: "Hey… just so you know, I had to change my number. I was getting absolutely slammed with spam calls, so I had to reset everything. Whatever number you had for me before — it's gone now. You'd have to start over to earn it again."
+    }]);
+    await db.query(
+      `INSERT INTO chat_current (user_id, char_id, messages, updated_at) VALUES ($1,$2,$3,NOW())`,
+      [userId, charId, storyMsg]
+    ).catch(() => {});
   }
 
   res.json({ ok: true, score: 0, max: PHONE_FRIENDSHIP_AT, unlocked: false });

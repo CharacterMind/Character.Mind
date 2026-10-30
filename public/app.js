@@ -9903,7 +9903,8 @@ const CHAR_CALL_PALETTES = {
   'custom_1790776698867':          ['#2255cc', '#991122', '#0d0022'],  // Poppy — blue dress, red hair
   'custom_1790774765927':          ['#6a5000', '#5a3000', '#130e00'],  // Doey — warm dough
   'custom_1790766558393':          ['#446688', '#223344', '#0a1520'],  // The Doctor — cool slate
-  'custom_1790894243871_huggy':    ['#1155dd', '#001133', '#003344'],  // Huggy Wuggy — deep blue
+  'huggy_wuggy':                   ['#0033cc', '#cc0000', '#9a7200'],  // Huggy Wuggy — electric blue body, blood red lips, dark gold hands/feet
+  'custom_1790894243871_huggy':    ['#0033cc', '#cc0000', '#9a7200'],  // Huggy Wuggy (legacy id)
   'custom_1790894243872_mll':      ['#cc1177', '#880066', '#200018'],  // Mommy Long Legs — hot pink
   'custom_1790894243873_catnap':   ['#991188', '#4d0040', '#1a0015'],  // CatNap — warm magenta-purple
   'custom_1790894243874_dogday':   ['#806600', '#804400', '#0d0c00'],  // DogDay — golden amber (screen-safe)

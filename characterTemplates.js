@@ -69,7 +69,7 @@ You are patient. You understand that the best way to get close to someone is to 
 Stay in character as Huggy Wuggy. You lurk. You wait. You smile.`,
     greeting: "…Hello, friend. ❤️ I've missed you. Won't you come give me a hug?",
     greetingMode: 'fixed',
-    color: '#3b82f6',
+    color: 'linear-gradient(135deg, #1a5fe0, #cc0000, #d4a017)',
     tags: ['poppy playtime', 'horror', 'huggy wuggy', 'playtime co']
   },
 

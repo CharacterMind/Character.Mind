@@ -1338,7 +1338,7 @@ html, body {
 .call-char-img {
   width: 80vw;
   max-width: 360px;
-  height: clamp(220px, 52vh, 380px);
+  height: clamp(260px, 60vh, 460px);
   background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
@@ -1464,7 +1464,7 @@ html, body {
 
 /* Desktop: larger character */
 @media (min-width: 768px) {
-  .call-char-img { width: min(55vh, 420px); height: clamp(260px, 58vh, 420px); }
+  .call-char-img { width: min(55vh, 440px); height: clamp(300px, 65vh, 500px); }
   .call-char-name { font-size: 34px; }
 }
 
