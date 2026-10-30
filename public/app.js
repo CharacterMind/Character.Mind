@@ -13215,6 +13215,9 @@ let groupAutoChatAbort = null;
 let groupAutoRoundLimit = 0;
 let groupAutoRoundCount = 0;
 let _groupDrip = 0;
+let groupLastUserMessageAt = 0;   // timestamp of last user message in the group
+let groupCheckInPending = false;   // next auto-round should be a check-in
+let groupCheckInCount = 0;         // consecutive check-ins without user response
 let _groupDripTimer = null;
 
 function _dripGroupUsage() {
@@ -13375,6 +13378,7 @@ function openGroupChat(groupId, groupData) {
   groupAutoChat = false;
   if (groupAutoChatTimer) { clearTimeout(groupAutoChatTimer); groupAutoChatTimer = null; }
   clearTimeout(_groupDripTimer); _groupDripTimer = null; _groupDrip = 0;
+  groupLastUserMessageAt = 0; groupCheckInPending = false; groupCheckInCount = 0;
   const acBtn = document.getElementById('groupAutoChatBtn');
   if (acBtn) acBtn.classList.remove('active');
 
@@ -13536,6 +13540,7 @@ async function sendGroupMessage() {
   input.value = '';
   autoResize(input);
   appendUserGroupMsg(text);
+  groupLastUserMessageAt = Date.now(); groupCheckInPending = false; groupCheckInCount = 0;
   groupIsStreaming = true;
   _currentGroupBubble = null;
   _pendingGroupChar = null;
@@ -13798,10 +13803,26 @@ function toggleGroupAutoChat() {
   }
 }
 
+const GROUP_CHECKIN_AFTER_MS = 5 * 60 * 1000; // 5 min user silence triggers a check-in
+const GROUP_CHECKIN_INTERVAL_MS = 5 * 60 * 1000; // 5 min between subsequent check-ups
+
 function scheduleAutoChat(delayMs) {
   if (groupAutoChatTimer) { clearTimeout(groupAutoChatTimer); groupAutoChatTimer = null; }
   if (!groupAutoChat || !currentGroupId) return;
-  const delay = delayMs !== undefined ? delayMs : (2000 + Math.random() * 2000); // 2-4s
+
+  const msSince = groupLastUserMessageAt ? (Date.now() - groupLastUserMessageAt) : 0;
+  if (msSince > GROUP_CHECKIN_AFTER_MS) groupCheckInPending = true;
+
+  let delay;
+  if (delayMs !== undefined) {
+    delay = delayMs;
+  } else if (groupCheckInPending && groupCheckInCount > 0) {
+    // Already done one check-in — slow to 5-min intervals for periodic check-ups
+    delay = GROUP_CHECKIN_INTERVAL_MS + Math.random() * 60000;
+  } else {
+    delay = 2000 + Math.random() * 2000; // normal 2-4s cadence
+  }
+
   groupAutoChatTimer = setTimeout(() => {
     groupAutoChatTimer = null;
     if (groupAutoChat && !groupIsStreaming) runGroupAutoChat();
@@ -13817,8 +13838,14 @@ async function runGroupAutoChat() {
   const ac = new AbortController();
   groupAutoChatAbort = ac;
 
+  const isCheckIn = groupCheckInPending;
   try {
-    const res = await fetch(`/api/groups/${currentGroupId}/autochat`, { method: 'POST', signal: ac.signal });
+    const res = await fetch(`/api/groups/${currentGroupId}/autochat`, {
+      method: 'POST',
+      signal: ac.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ checkIn: isCheckIn })
+    });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       autoChatError = true;
@@ -13902,6 +13929,10 @@ async function runGroupAutoChat() {
     _currentGroupBubble = null;
     _pendingGroupChar = null;
     _pendingGroupBubbleStarted = false;
+    if (isCheckIn && !autoChatError) {
+      groupCheckInCount++;
+      groupCheckInPending = false; // will be re-set by scheduleAutoChat if user still silent
+    }
     if (groupAutoChat && !autoChatError) {
       groupAutoRoundCount++;
       if (groupAutoRoundLimit > 0 && groupAutoRoundCount >= groupAutoRoundLimit) {

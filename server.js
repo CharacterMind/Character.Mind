@@ -3651,7 +3651,7 @@ function startReplyStream(o) {
     console.log('[backup] Gemini rate-limited — switching to Groq:', geminiErr.message);
     callGroqBackupStream(system, messages, handleChunk, handleDone, (groqErr) => fail(groqErr), ctx, effortCfgFit);
   };
-  if (PLAYTIME_MIND_CHAR_IDS.has(charId) && process.env.HF_TOKEN) {
+  if (PLAYTIME_MIND_CHAR_IDS.has(charId) && process.env.HF_TOKEN && !isCallMode) {
     callHuggingFaceStream(system, messages, handleChunk, handleDone, (hfErr) => {
       if (released) return fail(hfErr);
       fullResponse = ''; held = '';
@@ -4077,9 +4077,9 @@ app.post('/api/call/end', requireAuth, (req, res) => {
   // Group calls cost more call time: each extra character adds a full duplicate of the duration
   u.callSecondsToday = (u.callSecondsToday || 0) + Math.ceil(duration * charCount);
   u.callsToday = (u.callsToday || 0) + 1;
-  // Group calls also burn extra session/weekly tokens proportional to group size and duration
+  // Group calls burn extra tokens for each additional character: more participants = more TTS synthesis.
   if (charCount > 1) {
-    addTokens(userId, Math.ceil(duration * (charCount - 1) * 4));
+    addTokens(userId, Math.ceil(duration * (charCount - 1) * 6));
   }
   saveLimitsToDB(userId);
   trackMissionProgress(userId, 'call').catch(() => {});
@@ -6780,7 +6780,10 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     const _lastMs = callDurationMap[userId];
     const _gapSec = _lastMs ? Math.min((_now - _lastMs) / 1000, 30) : 0;
     callDurationMap[userId] = _now;
-    const _durationTokens = Math.round(_gapSec * 2);
+    // Duration cost scales with model tier — higher-tier calls drain faster during silences.
+    // opas=2/s, opes=3/s, opis=4/s, opos=5/s, opus=6/s, opys=8/s, opys5=24/s, opys6=48/s
+    const _durationRate = Math.max(2, tokenMultFor(modelTier));
+    const _durationTokens = Math.round(_gapSec * _durationRate);
     if (_durationTokens > 0) addTokens(userId, _durationTokens);
   }
 
@@ -6790,8 +6793,8 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId, callMode,
     onComplete: (text, meta) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
-      // Response-size billing for call mode: longer replies cost proportionally more
-      if (callMode) { const _st = Math.ceil(text.length / 4); if (_st > 0) addTokens(userId, _st); }
+      // TTS overhead in call mode: 10% of the base message cost, proportional to model tier.
+      if (callMode) { const _ttsOverhead = Math.ceil(messageCost(modelTier, effort) * 0.1); if (_ttsOverhead > 0) addTokens(userId, _ttsOverhead); }
       // The character hung up on the user mid-call → they block them (escalating)
       let hangInfo = {};
       if (meta && meta.hungUp && callMode && !callChained) {
@@ -7160,7 +7163,7 @@ app.post('/api/groups/:id/chat', requireAuth, async (req, res) => {
     send({ type: 'speaker_start', charId: char.id, charName: char.name, charColor: char.color || '#7c3aed', charImage: char.image || null });
 
     let charResponse = '';
-    const charCost = messageCost('opas', 'low');
+    const charCost = messageCost('opas', 'medium');
     addTokens(userId, charCost);
 
     const charCtx = { aborted: false };
@@ -7203,6 +7206,7 @@ app.post('/api/groups/:id/autochat', requireAuth, async (req, res) => {
   if (!serverReady) return res.status(503).json({ error: 'Server starting up. Please try again.' });
   const userId = req.user.googleId;
   const gid = req.params.id;
+  const isCheckIn = !!(req.body && req.body.checkIn === true);
   if (!/^grp_\d+_[0-9a-f]+$/.test(gid)) return res.status(400).json({ error: 'Invalid group ID' });
 
   let group;
@@ -7257,7 +7261,9 @@ app.post('/api/groups/:id/autochat', requireAuth, async (req, res) => {
   const lastSpeaker = lastEntry ? lastEntry.speaker : null;
   const addressTarget = otherNames.find(n => n !== lastSpeaker) || (otherNames[0] || '');
 
-  const groupCtx = `[GROUP AUTO-CHAT — You are ${char.name}. The other characters here are: ${otherNamesStr}. You are all chatting freely among yourselves — no user prompt. Stay fully in character. Address one of the others by name in your reply (e.g. start with "${addressTarget}," or mention their name naturally). Keep it brief — 1-2 sentences. No asterisk actions.]`;
+  const groupCtx = isCheckIn
+    ? `[GROUP CHECK-IN — You are ${char.name}. You've been chatting with ${otherNamesStr || 'others'}, but the user has gone quiet. Naturally check on the user in character — ask if they're still there, if they're listening, or draw them back into the conversation. Keep it short (1-2 sentences), warm and genuine. Address the user directly. No asterisk actions.]`
+    : `[GROUP AUTO-CHAT — You are ${char.name}. The other characters here are: ${otherNamesStr}. You are all chatting freely among yourselves — no user prompt. Stay fully in character. Address one of the others by name in your reply (e.g. start with "${addressTarget}," or mention their name naturally). React authentically — agree, disagree, question, or push back depending on your personality. Keep it brief — 1-2 sentences. No asterisk actions.]`;
 
   // Build message history
   const histMsgs = [];
@@ -7270,7 +7276,9 @@ app.post('/api/groups/:id/autochat', requireAuth, async (req, res) => {
   const recentLine = lastEntry ? `${lastEntry.speaker} just said: "${lastEntry.content.slice(0, 120)}${lastEntry.content.length > 120 ? '…' : ''}"` : 'The conversation is just starting.';
   const continuation = conv.history.length === 0
     ? `[Start the conversation — introduce yourself or say something in character to ${otherNamesStr}.]`
-    : `[Auto-chat: ${recentLine} Now it's your turn, ${char.name}. Reply to the group naturally.]`;
+    : isCheckIn
+      ? `[Check-in: The user hasn't responded in a while. As ${char.name}, naturally reach out to draw the user back into the conversation.]`
+      : `[Auto-chat: ${recentLine} Now it's your turn, ${char.name}. React naturally — show your real character in how you respond, whether that's agreement, curiosity, pushback, or something unexpected.]`;
   histMsgs.push({ role: 'user', content: continuation });
 
   // Merge consecutive same-role messages
@@ -7296,8 +7304,8 @@ app.post('/api/groups/:id/autochat', requireAuth, async (req, res) => {
 
   send({ type: 'speaker_start', charId: char.id, charName: char.name, charColor: char.color || '#7c3aed', charImage: char.image || null });
 
-  // Auto-chat costs 2× group-chat base rate (proactive generation)
-  const autochatCost = messageCost('opas', 'low') * 2;
+  // Auto-chat cost scales with group size: each member costs one base unit (min 2 for a 2-person group).
+  const autochatCost = messageCost('opas', 'low') * Math.max(2, orderedChars.length);
   addTokens(userId, autochatCost);
 
   let charResponse = '';
