@@ -5501,7 +5501,7 @@ app.post('/api/user/reset-subscription', requireAuth, async (req, res) => {
     const hasCoin   = oldCoinTier && (!coinExp || Number(coinExp) > Date.now());
     if (!hasPaypal && !hasCoin) return res.status(400).json({ error: 'No active subscription' });
     await db.query(
-      'UPDATE users SET subscription_tier = $1, paypal_subscription_id = NULL, coin_tier = NULL, coin_tier_expires = NULL WHERE google_id = $2',
+      'UPDATE users SET subscription_tier = $1, paypal_subscription_id = NULL, coin_tier = NULL, coin_tier_expires = 0 WHERE google_id = $2',
       ['free', uid]
     );
     const lim = getLimits(uid);
@@ -5682,7 +5682,7 @@ app.post('/api/admin/revoke-subscription', requireAuth, async (req, res) => {
     const hasCoin   = oldCoinTier && (!coinExp || Number(coinExp) > Date.now());
     if (!hasPaypal && !hasCoin) return res.status(400).json({ error: 'User has no active subscription' });
     await db.query(
-      'UPDATE users SET subscription_tier = $1, paypal_subscription_id = NULL, coin_tier = NULL, coin_tier_expires = NULL WHERE google_id = $2',
+      'UPDATE users SET subscription_tier = $1, paypal_subscription_id = NULL, coin_tier = NULL, coin_tier_expires = 0 WHERE google_id = $2',
       ['free', uid]
     );
     const lim = getLimits(uid);
