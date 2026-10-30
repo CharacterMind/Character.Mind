@@ -200,10 +200,6 @@ async function sendPatchEmailToUsers(patch, deployTs) {
 app.listen(PORT, () => {
   console.log(`\nAI Character Site bound on port ${PORT} — initializing (maintenance active)...\n`);
   sendDeployNotification().catch(e => console.error('Deploy email failed:', e.message));
-  if (!db) {
-    serverReady = true;
-    console.log('No DB — skipping DB init, calling initDB for routes...');
-  }
   initDB();
 });
 
@@ -238,6 +234,7 @@ async function seedOfficialChar(id, matchKey, imgUrl, isHidden = false) {
 }
 
 function initDB() {
+let serverReady = false;
 if (db) {
   db.query(`
     CREATE TABLE IF NOT EXISTS characters (
@@ -617,6 +614,9 @@ if (db) {
   `).catch(err => console.error('platform_announcements table init error:', err));
 } else {
   console.warn('No DATABASE_URL — characters will not be persisted');
+  serverReady = true;
+  loadOwnerIds();
+  console.log('\nAI Character Site ready — no DB mode.\n');
 }
 
 // 600KB max — enough for image data URIs but rejects abuse. The raw body is kept for the PayPal webhook.
@@ -664,7 +664,6 @@ const chatBurstLimiter = rateLimit({ windowMs: 60 * 1000, max: 40, standardHeade
 // Auto-activates while the server is starting up (serverReady=false) and deactivates once fully initialized.
 // Set MAINTENANCE=1 in Render env vars to force maintenance mode for planned work; remove to lift it.
 // The page checks /api/maintenance-status every 12 s and redirects users back automatically once off.
-let serverReady = false;
 let pendingPatchEmail = null;
 const maintenanceOn = () => !serverReady || /^(1|true|on|down)$/i.test(String(process.env.MAINTENANCE || '').trim());
 const maintenanceMode = () => {
