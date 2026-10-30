@@ -5459,9 +5459,8 @@ app.post('/api/admin/reset-account', requireAuth, async (req, res) => {
   }
 });
 
-// Owner-only: reset coins + farm only (no chat history wipe)
-app.post('/api/admin/reset-coins-farm', requireAuth, async (req, res) => {
-  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+// Self-service: any logged-in user can reset their own coins + farm to zero
+app.post('/api/user/reset-coins-farm', requireAuth, async (req, res) => {
   if (!db) return res.status(503).json({ error: 'No database' });
   const uid = req.user.googleId;
   try {
@@ -5478,10 +5477,48 @@ app.post('/api/admin/reset-coins-farm', requireAuth, async (req, res) => {
       [uid]
     );
     delete userLimits[uid];
-    console.log(`[admin] coins+farm reset for owner uid=${uid}`);
+    console.log(`[user] coins+farm reset for uid=${uid}`);
     res.json({ ok: true });
   } catch (e) {
-    console.error('[admin/reset-coins-farm]', e.message);
+    console.error('[user/reset-coins-farm]', e.message);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+// Self-service: any user can cancel their own subscription and return to free tier
+app.post('/api/user/reset-subscription', requireAuth, async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'No database' });
+  const uid = req.user.googleId;
+  try {
+    const { rows } = await db.query(
+      'SELECT paypal_subscription_id, subscription_tier, coin_tier, coin_tier_expires FROM users WHERE google_id = $1',
+      [uid]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'User not found' });
+    const { paypal_subscription_id: subId, subscription_tier: oldTier,
+            coin_tier: oldCoinTier, coin_tier_expires: coinExp } = rows[0];
+    const hasPaypal = oldTier && oldTier !== 'free';
+    const hasCoin   = oldCoinTier && (!coinExp || Number(coinExp) > Date.now());
+    if (!hasPaypal && !hasCoin) return res.status(400).json({ error: 'No active subscription' });
+    await db.query(
+      'UPDATE users SET subscription_tier = $1, paypal_subscription_id = NULL, coin_tier = NULL, coin_tier_expires = NULL WHERE google_id = $2',
+      ['free', uid]
+    );
+    const lim = getLimits(uid);
+    lim.subscriptionTier = 'free'; lim.tierLoaded = true;
+    lim.coinTier = null; lim.coinTierExpires = null;
+    lim.paypalTier = 'free';
+    lim.sessionTokens = 0; lim.sessionStartedAt = null; lim.cooldownUntil = null;
+    lim.weeklyTokens = 0; lim.weeklyStart = null; lim.warned = {};
+    lim.callsToday = 0; lim.callDayStart = null;
+    lim.memosToday = 0; lim.memoDayStart = null;
+    lim.imagesDay = 0; lim.imageDayStart = null; lim.imageFirstUsedAt = null;
+    lim.regenCount = 0;
+    if (subId) cancelPayPalSubscription(subId, 'Cancelled by user').catch(() => {});
+    console.log(`[user] subscription reset: uid=${uid} was ${hasPaypal ? oldTier : oldCoinTier} -> free`);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[user/reset-subscription]', e.message);
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
