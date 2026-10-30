@@ -8245,7 +8245,7 @@ function loadCharVoice() {
   try {
     // Global fallback — last voice the user picked on any character
     const gp = localStorage.getItem('cm_tts_prov_global');
-    if (['edge','gemini','character'].includes(gp)) ttsProvider = gp;
+    if (['edge','gemini','character','off'].includes(gp)) ttsProvider = gp;
     const ggv = localStorage.getItem('cm_gem_voice_global');
     if (GEMINI_TTS_VOICES.includes(ggv)) geminiVoiceName = ggv;
     const gev = localStorage.getItem('cm_edge_voice_global');
@@ -8255,7 +8255,7 @@ function loadCharVoice() {
   try {
     // Per-character overrides take priority over global
     const p = localStorage.getItem(getTTSProviderKey());
-    if (['edge','gemini','character'].includes(p)) ttsProvider = p;
+    if (['edge','gemini','character','off'].includes(p)) ttsProvider = p;
     const gv = localStorage.getItem(getGeminiVoiceKey());
     if (GEMINI_TTS_VOICES.includes(gv)) geminiVoiceName = gv;
     const ev = localStorage.getItem(getEdgeVoiceKey());
@@ -8278,7 +8278,7 @@ function applyVoice(utterance) {
 function openVoicePanel() {
   const overlay = document.getElementById('voicePanelOverlay');
   if (!overlay) return;
-  const initialTab = (ttsProvider === 'gemini' || ttsProvider === 'edge') ? ttsProvider : 'character';
+  const initialTab = ttsProvider === 'off' ? 'off' : (ttsProvider === 'gemini' || ttsProvider === 'edge') ? ttsProvider : 'character';
   _switchVoiceTabUI(initialTab);
   renderCharVoiceSection();
   renderUserVoiceList();
@@ -8290,10 +8290,12 @@ function _switchVoiceTabUI(tab) {
     b.classList.toggle('active', b.dataset.tab === tab));
   const charPane = document.getElementById('voiceSection_char');
   const userPane = document.getElementById('voiceSection_user');
-  const aiPane  = document.getElementById('voiceSection_ai');
+  const aiPane   = document.getElementById('voiceSection_ai');
+  const offPane  = document.getElementById('voiceSection_off');
   if (charPane) charPane.style.display = tab === 'character' ? '' : 'none';
   if (userPane) userPane.style.display = tab === 'user' ? '' : 'none';
-  if (aiPane)  aiPane.style.display = (tab === 'gemini' || tab === 'edge') ? '' : 'none';
+  if (aiPane)   aiPane.style.display  = (tab === 'gemini' || tab === 'edge') ? '' : 'none';
+  if (offPane)  offPane.style.display  = tab === 'off' ? '' : 'none';
   if (tab === 'gemini' || tab === 'edge') renderVoiceList();
 }
 
@@ -8301,6 +8303,7 @@ function switchVoiceTab(tab) {
   _switchVoiceTabUI(tab);
   if (tab === 'character') setTTSProvider('character', null);
   else if (tab === 'gemini' || tab === 'edge') setTTSProvider(tab, null);
+  else if (tab === 'off') setTTSProvider('off', null);
   // 'user' tab — don't change ttsProvider; user picks a specific voice to activate
 }
 
@@ -8513,7 +8516,7 @@ function setTTSProvider(p, btn) {
   ttsProvider = p;
   try {
     if (getTTSProviderKey()) localStorage.setItem(getTTSProviderKey(), p);
-    localStorage.setItem('cm_tts_prov_global', p);
+    if (p !== 'off') localStorage.setItem('cm_tts_prov_global', p); // don't spread 'off' to other characters
   } catch(_) {}
   _updateVoiceBarLabel();
   renderCharVoiceSection();
@@ -8523,7 +8526,7 @@ function setTTSProvider(p, btn) {
 function _updateVoiceBarLabel() {
   const voiceBtn = document.getElementById('mbVoiceBtn');
   if (!voiceBtn) return;
-  const labels = { gemini: 'Gemini', edge: 'Neutral', character: 'Voice' };
+  const labels = { gemini: 'Gemini', edge: 'Neutral', character: 'Voice', off: 'No voice' };
   voiceBtn.textContent = labels[ttsProvider] || 'Voice';
 }
 
@@ -8978,7 +8981,7 @@ async function _playStreamTTSQueue() {
   if (btn) btn.classList.add('speaking');
 
   const fetchAudio = (text) => {
-    if (ttsProvider === 'browser') return Promise.resolve(null);
+    if (ttsProvider === 'browser' || ttsProvider === 'off') return Promise.resolve(null);
     return fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -9599,8 +9602,9 @@ async function callModeTTS_server(text) {
 
   // Never use XTTS/character-clone in calls — synthesis takes 10-20s which kills real-time conversation.
   // Use the character's Edge TTS voice instead (server reads EDGE_VOICE_MAP[charId] when provider='edge').
-  const callProvider = ttsProvider === 'character' ? 'edge' : ttsProvider;
+  const callProvider = (ttsProvider === 'character' || ttsProvider === 'off') ? 'edge' : ttsProvider;
   const fetchBlob = async (s) => {
+    if (ttsProvider === 'off') return null;
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -9637,9 +9641,10 @@ async function callModeTTS_server(text) {
       if (gen !== callGen) return;
       if (i === 0) setCallState('responding'); // switch to 'responding' only when audio is ready
       if (i < sentences.length - 1) {
-        await playBlobOnly(blob);
+        if (blob) await playBlobOnly(blob); // blob is null when voice is off — skip silently
       } else {
-        await playCallBlob(blob); // last sentence — playCallBlob calls listenForSpeech when done
+        if (blob) await playCallBlob(blob); // last sentence — playCallBlob calls listenForSpeech when done
+        else afterCallTTSDone(); // voice off — no audio, but still need to trigger next listen cycle
       }
       nextFetch = prefetch;
     }
@@ -13216,6 +13221,7 @@ let groupAutoRoundLimit = 0;
 let groupAutoRoundCount = 0;
 let _groupDrip = 0;
 let groupLastUserMessageAt = 0;   // timestamp of last user message in the group
+let groupChatOpenedAt = 0;         // timestamp when current group chat was opened
 let groupCheckInPending = false;   // next auto-round should be a check-in
 let groupCheckInCount = 0;         // consecutive check-ins without user response
 let _groupDripTimer = null;
@@ -13378,7 +13384,7 @@ function openGroupChat(groupId, groupData) {
   groupAutoChat = false;
   if (groupAutoChatTimer) { clearTimeout(groupAutoChatTimer); groupAutoChatTimer = null; }
   clearTimeout(_groupDripTimer); _groupDripTimer = null; _groupDrip = 0;
-  groupLastUserMessageAt = 0; groupCheckInPending = false; groupCheckInCount = 0;
+  groupLastUserMessageAt = 0; groupChatOpenedAt = Date.now(); groupCheckInPending = false; groupCheckInCount = 0;
   const acBtn = document.getElementById('groupAutoChatBtn');
   if (acBtn) acBtn.classList.remove('active');
 
@@ -13810,17 +13816,24 @@ function scheduleAutoChat(delayMs) {
   if (groupAutoChatTimer) { clearTimeout(groupAutoChatTimer); groupAutoChatTimer = null; }
   if (!groupAutoChat || !currentGroupId) return;
 
-  const msSince = groupLastUserMessageAt ? (Date.now() - groupLastUserMessageAt) : 0;
+  // Use chat-open time as reference when user has never spoken
+  const userNeverSpoke = groupLastUserMessageAt === 0;
+  const refTime = userNeverSpoke ? groupChatOpenedAt : groupLastUserMessageAt;
+  const msSince = refTime ? (Date.now() - refTime) : 0;
   if (msSince > GROUP_CHECKIN_AFTER_MS) groupCheckInPending = true;
 
   let delay;
   if (delayMs !== undefined) {
     delay = delayMs;
+  } else if (userNeverSpoke && !groupCheckInPending) {
+    // User hasn't spoken yet — wait for the full check-in window before speaking first
+    delay = Math.max(1000, GROUP_CHECKIN_AFTER_MS - msSince);
+    groupCheckInPending = true;
   } else if (groupCheckInPending && groupCheckInCount > 0) {
     // Already done one check-in — slow to 5-min intervals for periodic check-ups
     delay = GROUP_CHECKIN_INTERVAL_MS + Math.random() * 60000;
   } else {
-    delay = 2000 + Math.random() * 2000; // normal 2-4s cadence
+    delay = 2000 + Math.random() * 2000; // normal 2-4s cadence after user has spoken
   }
 
   groupAutoChatTimer = setTimeout(() => {

@@ -7133,7 +7133,7 @@ app.post('/api/groups/:id/chat', requireAuth, async (req, res) => {
 
     const char = responders[idx];
     const otherNames = orderedChars.filter(c => c.id !== char.id).map(c => c.name).join(', ');
-    const groupCtx = `[GROUP CHAT — You are in a group conversation with: ${otherNames}. The user and all these characters are chatting together. Stay fully in character as ${char.name}. React naturally to the conversation. Keep your response brief — 1-3 sentences is ideal for a group chat. Do not use asterisk actions. Speak naturally as your character would in a casual group setting.]`;
+    const groupCtx = `[GROUP CHAT — You are ${char.name}, a real person in a group chat with: ${otherNames} and the user. React to what was just said. Be yourself — speak in your actual voice, not as an AI assistant. Keep it short and natural (1-3 sentences). No asterisk actions. Don't say "As an AI" or break character.]`;
 
     // Build history for this character's call
     // Exclude the current user message + any character replies already pushed this round
@@ -7171,9 +7171,10 @@ app.post('/api/groups/:id/chat', requireAuth, async (req, res) => {
     const charCtx = { aborted: false };
     const charAbortCheck = () => { if (groupAborted) charCtx.aborted = true; return charCtx.aborted; };
 
+    const groupNaturalityReminder = `\n\n[Stay in character. Never say "As ${char.name}…" — just BE ${char.name}. Short, casual, human. No AI-speak.]`;
     callGeminiStream(
       apiKey,
-      groupCtx + '\n\n' + (char.system_prompt || `You are ${char.name}. Chat naturally in a group conversation.`),
+      groupCtx + '\n\n' + (char.system_prompt || `You are ${char.name}. You're a real person. Chat casually and naturally.`) + groupNaturalityReminder,
       cleanedHist,
       (token) => {
         if (charAbortCheck()) return;
@@ -7264,8 +7265,8 @@ app.post('/api/groups/:id/autochat', requireAuth, async (req, res) => {
   const addressTarget = otherNames.find(n => n !== lastSpeaker) || (otherNames[0] || '');
 
   const groupCtx = isCheckIn
-    ? `[GROUP CHECK-IN — You are ${char.name}. You've been chatting with ${otherNamesStr || 'others'}, but the user has gone quiet. Naturally check on the user in character — ask if they're still there, if they're listening, or draw them back into the conversation. Keep it short (1-2 sentences), warm and genuine. Address the user directly. No asterisk actions.]`
-    : `[GROUP AUTO-CHAT — You are ${char.name}. The other characters here are: ${otherNamesStr}. You are all chatting freely among yourselves — no user prompt. Stay fully in character. Address one of the others by name in your reply (e.g. start with "${addressTarget}," or mention their name naturally). React authentically — agree, disagree, question, or push back depending on your personality. Keep it brief — 1-2 sentences. No asterisk actions.]`;
+    ? `[GROUP CHECK-IN — You are ${char.name} — a real person with your own personality, not an AI. The user has gone quiet. Check on them in your own voice: "you still there?", "hello?", or however your character would actually say it. Short (1-2 sentences), natural, no asterisk actions. Speak directly to the user.]`
+    : `[GROUP CHAT — You are ${char.name} — a real person, not an AI assistant. Others here: ${otherNamesStr}. React to what was just said. Be yourself: snarky, curious, warm, blunt, whatever fits your personality. Keep it short (1-2 sentences). Don't introduce yourself. Don't say "As an AI" or anything robotic. Just chat. No asterisk actions.]`;
 
   // Build message history
   const histMsgs = [];
@@ -7277,10 +7278,10 @@ app.post('/api/groups/:id/autochat', requireAuth, async (req, res) => {
   // Auto-chat continuation prompt — tell the char exactly what happened last
   const recentLine = lastEntry ? `${lastEntry.speaker} just said: "${lastEntry.content.slice(0, 120)}${lastEntry.content.length > 120 ? '…' : ''}"` : 'The conversation is just starting.';
   const continuation = conv.history.length === 0
-    ? `[Start the conversation — introduce yourself or say something in character to ${otherNamesStr}.]`
+    ? `[Kick things off as ${char.name}. One short sentence — no intro, just be yourself.]`
     : isCheckIn
-      ? `[Check-in: The user hasn't responded in a while. As ${char.name}, naturally reach out to draw the user back into the conversation.]`
-      : `[Auto-chat: ${recentLine} Now it's your turn, ${char.name}. React naturally — show your real character in how you respond, whether that's agreement, curiosity, pushback, or something unexpected.]`;
+      ? `[The user's gone quiet. As ${char.name}, say something to get their attention — casually, naturally. 1-2 sentences max.]`
+      : `[${recentLine} Your turn as ${char.name}. One or two sentences. Be yourself — react however you actually would.]`;
   histMsgs.push({ role: 'user', content: continuation });
 
   // Merge consecutive same-role messages
@@ -7313,9 +7314,10 @@ app.post('/api/groups/:id/autochat', requireAuth, async (req, res) => {
   let charResponse = '';
   const ctx = { aborted: false };
 
+  const naturalityReminder = `\n\n[Stay in character the whole time. Never break into assistant-mode. No "As ${char.name}…" framing — just BE ${char.name}. Keep it casual, short, and human.]`;
   callGeminiStream(
     apiKey,
-    groupCtx + '\n\n' + (char.system_prompt || `You are ${char.name}. Chat naturally in a group conversation.`),
+    groupCtx + '\n\n' + (char.system_prompt || `You are ${char.name}. You're a real person with your own personality. Chat casually and naturally.`) + naturalityReminder,
     cleanedHist,
     (token) => {
       if (aborted) { ctx.aborted = true; return; }

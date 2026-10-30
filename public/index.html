@@ -1939,6 +1939,7 @@
       <button class="voice-provider-tab" data-tab="edge" onclick="switchVoiceTab('edge',this)">Neutral</button>
       <button class="voice-provider-tab" data-tab="user" onclick="switchVoiceTab('user',this)">Your Voices</button>
       <button class="voice-provider-tab" data-tab="character" onclick="switchVoiceTab('character',this)">Character.Mind</button>
+      <button class="voice-provider-tab" data-tab="off" onclick="switchVoiceTab('off',this)">No voice</button>
     </div>
 
     <!-- AI voices pane (Gemini + Neutral share this) -->
@@ -1954,6 +1955,15 @@
         <label class="upload-voice-label" title="Upload WAV, MP3, or any audio file"><input type="file" id="voiceUploadInput" accept="audio/*" style="display:none" onchange="uploadUserVoiceFile(this)"><span>↑ Upload</span></label>
       </div>
       <div id="userVoiceList" class="voice-list"></div>
+    </div>
+
+    <!-- No voice pane -->
+    <div id="voiceSection_off" class="voice-tab-pane" style="display:none">
+      <div class="voice-empty" style="padding:24px 0;text-align:center">
+        <div style="font-size:2rem;margin-bottom:12px">🔇</div>
+        <div style="font-weight:600;margin-bottom:6px">Voice is off</div>
+        <div style="font-size:13px;opacity:0.65">This character will respond with text only.</div>
+      </div>
     </div>
 
     <!-- Character.Mind voice pane -->
