@@ -1121,17 +1121,15 @@ const LIMITS = {
   CALL_DAILY: 3
 };
 
-// Session token limits. Every paid tier is an EXACT multiple of FREE_SESSION_TOKENS
-// so that "X20" really means 20×, "X50" really means 50×, etc.
-// Free = ~83 Opes (Medium) messages or ~357 Opas messages per session. Advanced = 4× that, etc.
-// Weekly = WEEKLY_SESSIONS full sessions per plan (~1 per day). Advanced gets 4× the tokens per session.
-// AVG_MESSAGE_TOKENS (one Opes Medium reply) is kept for reference and UI estimates only.
-const FREE_SESSION_TOKENS = 150000;
+// Session token limits. FREE_SESSION_TOKENS = 30 avg messages (30 × AVG_MESSAGE_TOKENS).
+// Advanced = 2× free (60 messages). Weekly = 7 sessions for every plan (~1 session/day).
+// AVG_MESSAGE_TOKENS (one Opes Medium reply) is the unit used to size session limits.
 const AVG_MESSAGE_TOKENS  = 1800;
+const FREE_SESSION_TOKENS = 30 * AVG_MESSAGE_TOKENS; // 54,000 — ~30 messages per session
 const WEEKLY_SESSIONS     = 7;
 const TIER_TOKEN_LIMITS = {
   free:     { session: FREE_SESSION_TOKENS,        weekly: FREE_SESSION_TOKENS       * WEEKLY_SESSIONS },
-  advanced: { session: FREE_SESSION_TOKENS * 4,    weekly: FREE_SESSION_TOKENS * 4   * WEEKLY_SESSIONS },
+  advanced: { session: FREE_SESSION_TOKENS * 2,    weekly: FREE_SESSION_TOKENS * 2   * WEEKLY_SESSIONS },
   x20:      { session: FREE_SESSION_TOKENS * 20,   weekly: FREE_SESSION_TOKENS * 20  * WEEKLY_SESSIONS },
   x50:      { session: FREE_SESSION_TOKENS * 50,   weekly: FREE_SESSION_TOKENS * 50  * WEEKLY_SESSIONS },
   x100:     { session: FREE_SESSION_TOKENS * 100,  weekly: FREE_SESSION_TOKENS * 100 * WEEKLY_SESSIONS },
