@@ -3232,7 +3232,7 @@ function addFriendship(userId, charId) {
 }
 // Tells the character about their in-app phone, and whether they trust the user enough to hand out the number
 function phoneDirective(userId, charId, history) {
-  const phone = userCharPhone(userId, charId);
+  const phone = userCharPhone(userId, charId, getLimits(userId).phoneGen || 0);
   if (isPhoneUnlocked(userId, charId)) {
     return `\n\n[PHONE — In Character.Mind you have your own phone. The user already has your number, ${phone}. If they ask again, you can repeat it exactly. CALL RULE: If the user asks you to call them (e.g. "call me", "give me a call", "can you call me?"), respond naturally in character agreeing to call, then end your reply with the exact tag [CALL_ME]. Never use that tag at any other time.]`;
   }
@@ -3242,9 +3242,9 @@ function phoneDirective(userId, charId, history) {
   return `\n\n[PHONE — In Character.Mind you do have your own phone, but you don't know this user well enough to give out your number yet. If they ask for it, say no warmly and in character (for example, maybe once you know them better). Don't claim you have no phone, and never make up a number.]`;
 }
 
-// Generate a stable per-user per-character phone number
-function userCharPhone(userId, charId) {
-  const seed = userId + '|' + charId;
+// Generate a phone number unique to this user+char+generation (increments on reset)
+function userCharPhone(userId, charId, gen = 0) {
+  const seed = userId + '|' + charId + '|' + gen;
   let h = 2166136261;
   for (let i = 0; i < seed.length; i++) {
     h ^= seed.charCodeAt(i);
@@ -4160,7 +4160,7 @@ app.get('/api/phone/contacts', requireAuth, async (req, res) => {
         name: r.name,
         color: r.color,
         image: r.has_image ? '/api/characters/' + encodeURIComponent(r.id) + '/image?v=' + r.image_len : null,
-        phone: userCharPhone(userId, r.id),
+        phone: userCharPhone(userId, r.id, getLimits(userId).phoneGen || 0),
       }));
     res.json(contacts);
   } catch (e) {
@@ -4266,10 +4266,11 @@ app.post('/api/friendship/:charId/reset', requireAuth, async (req, res) => {
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
   const userId = req.user.googleId;
 
-  // Reset friendship score and wipe ALL phone numbers (v386)
+  // Reset friendship score, wipe ALL phone numbers, bump phone generation (v386/v387)
   const u = getLimits(userId);
   if (u.friendship) delete u.friendship[charId];
   u.phoneUnlocked = [];
+  u.phoneGen = (u.phoneGen || 0) + 1;
   saveLimitsToDB(userId);
 
   // Clear in-memory conversation and allow reload from DB (v386)
@@ -4302,7 +4303,7 @@ app.post('/api/phone/unlock/:charId', requireAuth, (req, res) => {
   const { charId } = req.params;
   if (!/^[a-zA-Z0-9_-]{1,64}$/.test(charId)) return res.status(400).json({ error: 'invalid charId' });
   unlockPhone(userId, charId);
-  res.json({ ok: true, phone: userCharPhone(userId, charId) });
+  res.json({ ok: true, phone: userCharPhone(userId, charId, getLimits(userId).phoneGen || 0) });
 });
 
 // ── Session Credit Packs ──────────────────────────────────────────────────────
@@ -7021,7 +7022,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       }
       // The character shared their number (tag, or wrote the exact number) and they're close enough → it goes in Phone contacts
       if (!callMode && !isPhoneUnlocked(userId, charId)) {
-        const phone = userCharPhone(userId, charId);
+        const phone = userCharPhone(userId, charId, getLimits(userId).phoneGen || 0);
         if ((meta && meta.gaveNumber) || String(text || '').includes(phone)) {
           if (friendshipScore(userId, charId, conversations[key]) >= PHONE_FRIENDSHIP_AT) {
             unlockPhone(userId, charId);

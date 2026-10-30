@@ -9888,12 +9888,7 @@ async function _doStartCall(overlay) {
     if (vob) { vob.style.display = ''; clearTimeout(callVobTimer); callVobTimer = setTimeout(() => { vob.style.display = 'none'; callVobTimer = null; }, 5000); }
     setTimeout(() => {
       if (!callModeActive) return;
-      // Single-char call: have the character greet the user first
-      if (callCharacters.length === 1) {
-        sendCallCharResponse(callCharacters[0]);
-      } else {
-        listenForSpeech();
-      }
+      listenForSpeech();
     }, 400);
   }
 }

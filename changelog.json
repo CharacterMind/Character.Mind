@@ -1,5 +1,44 @@
 [
   {
+    "id": "v386-huggy-reset-contacts",
+    "version": "v386",
+    "date": "Oct 2026",
+    "title": "🫂 Friendship Reset & Huggy Update",
+    "subtitle": "Resetting a friendship now wipes all contacts — and Huggy finally looks right.",
+    "added": [
+      "Huggy Wuggy's call screen is taller so his full body is visible",
+      "Huggy now has his correct colours in the call background: electric blue, blood red, dark gold",
+      "When you reset a friendship, ALL saved phone numbers are wiped — start fresh to earn them back",
+      "After a reset the character sends a message explaining they changed their number due to spam calls",
+      "Phone numbers are now unique per reset — saving a number externally won't work after a reset"
+    ]
+  },
+  {
+    "id": "v385-poppy-voice-server",
+    "version": "v385",
+    "date": "Oct 2026",
+    "title": "🎤 Poppy Voice Server",
+    "subtitle": "Run start-voice.py on your PC to bring Poppy's cloned voice to life — no account needed.",
+    "added": [
+      "start-voice.py: one script starts the voice model + a free HTTPS tunnel and auto-registers with Character.Mind",
+      "Tunnel URL is stored in the database so it survives server restarts",
+      "POST /api/tts/announce endpoint accepts whitelisted tunnel hostnames (Cloudflare, ngrok, etc.)",
+      "Characters answer the call instead of speaking first — you go first now"
+    ]
+  },
+  {
+    "id": "v383-friendship-bar",
+    "version": "v383",
+    "date": "Oct 2026",
+    "title": "💜 Friendship Bar",
+    "subtitle": "Build trust to earn a character's phone number — and reset it all if you want a fresh start.",
+    "added": [
+      "Friendship bar fills up as you chat — reach the goal to unlock the character's phone number",
+      "Reset button wipes friendship score, chat history, and memories for a fresh start",
+      "Phone number is earned through relationship, not handed out immediately"
+    ]
+  },
+  {
     "id": "v370-calls-tokens-length",
     "version": "v370",
     "date": "Oct 2026",
