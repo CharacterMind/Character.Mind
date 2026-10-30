@@ -12,6 +12,7 @@
   --text2: #9390a8;
   --text3: #4d4960;
   --accent:      #8b5cf6;
+  --accent-btn:  #8b5cf6;   /* pinned; never changed by character accent override */
   --accent-l:    #a78bfa;
   --accent-d:    #7c3aed;
   --accent-dim:  rgba(139,92,246,0.13);
@@ -1121,7 +1122,7 @@ html, body {
 .input-wrap textarea::placeholder { color: var(--text3); }
 .btn-send {
   width: 40px; height: 40px; border-radius: 50%;
-  background: var(--accent);
+  background: var(--accent-btn);
   border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
   flex-shrink: 0; transition: opacity .15s, transform .1s; color: #fff;
 }
@@ -6255,7 +6256,7 @@ body:not(.halloween) .hw-off-label { display: inline; }
   padding: 0 16px !important;
   gap: 6px !important;
   justify-content: center !important;
-  background: var(--accent) !important;
+  background: var(--accent-btn) !important;
   border: none !important;
   color: #fff !important;
 }

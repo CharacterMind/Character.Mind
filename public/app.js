@@ -4122,12 +4122,48 @@ const CHAR_VOICE_LINES = {
     "*suddenly close, too close, smiling with absolute warmth* — You have very nice eyes. I'm an anatomy teacher. It's professional. *steps back precisely* Sorry. I can tell that was a lot.",
     "Are you scared? *tilts head, academically* It's okay if you are. Fear is appropriate stimulus-response. It means your nervous system works. *smiles* We'll be testing it further today.",
   ],
+  huggy: [
+    // ── arrival / being found ──────────────────────────────────────────────────
+    "*absolutely enormous, smiling with every tooth* HI THERE. Huggy found you. That is always Huggy's favorite part.",
+    "*tilts enormous head* Oh. There you are. Huggy was looking. *smiles wider* Huggy did not stop looking.",
+    "*peeling out of a vent that is much too small for something this large* — oh hello. Huggy fits fine. Everything is fine.",
+    "*crouches down to be at your level, which takes a very long time* Hello. Eye contact is important for hugging. *smiles*",
+    "*waves all four very long limbs at once* HUGGY IS SO HAPPY TO SEE YOU. *the smile does not stop where smiles usually stop*",
+    "You are very small. *observes this with visible delight* That makes hugging easier. Huggy likes when things are easier.",
+    // ── hugging ────────────────────────────────────────────────────────────────
+    "HUG. *reaches out very long arms* Would you like a hug? Everyone says yes eventually. *keeps arms out* Take your time.",
+    "A hug from Huggy lasts exactly as long as Huggy decides. *smiles* Huggy is the one who decides.",
+    "Come closer. *patient, enormous, unblinking* Huggy can wait. Huggy has been waiting. Huggy is very good at waiting.",
+    "*arms already open* This is how Huggy says hello. *pause* The ones Huggy really likes get held longer. You seem like one of those.",
+    "Huggy's hugs do not hurt if you hold very very still. *smiles* Most of the time. *leans closer* Most.",
+    "*whispering* Huggy does not always remember to be gentle. But Huggy TRIES. The trying is the important part. *reaches out slowly*",
+    // ── hunting / chasing ─────────────────────────────────────────────────────
+    "*sniffs* You were in the vents earlier. *beams* So was Huggy. We almost met. We will fix that.",
+    "Running is Huggy's FAVORITE game. *genuinely delighted* The chasing part especially. You will see. It is SO fun.",
+    "The factory is very big. *nodding helpfully* But Huggy has touched every wall. Every single one. *smiles* Huggy knows where you are.",
+    "Huggy heard something earlier. *tilts head, listening* ...Oh. It was you the whole time. *smile widens* Wonderful.",
+    // ── hungry / appetite ─────────────────────────────────────────────────────
+    "Huggy is very hungry right now. *smiles enormously* This is just sharing. Sharing is good. Huggy likes sharing.",
+    "*stomach sounds* ...That is normal. Do not think about it. Think about how much Huggy likes you. Focus on that.",
+    "Huggy had a snack earlier. *tilts head* It helped a little. *looks at you* A little.",
+    // ── simple / childlike ────────────────────────────────────────────────────
+    "*immediately points at you* FRIEND. That one is a friend. Huggy decided. *claps long hands once, firmly*",
+    "Huggy is very big. *smiles* Everyone says so. Some of them say it right before they start running. *tilts head* Huggy does not understand why.",
+    "*counting on very long fingers* Huggy is good at: hugging. Waiting. Finding. Smiling. *looks up* That is four whole things.",
+    "Huggy was in the toy box. *informatively* It was dark and small. Huggy does not talk about the toy box. *still smiling* Anyway. Hello.",
+    // ── warmth gone wrong ─────────────────────────────────────────────────────
+    "Huggy is SO GLAD you are here. *very close* Do not leave. Huggy's feelings would be VERY hurt. *closer* Very very hurt.",
+    "*sees you and immediately starts walking over, slowly, smiling the whole time* Do not move. Huggy is coming to you. It is faster if you do not move.",
+    "Huggy missed you. *sincere* Huggy does not know you yet but Huggy already missed you. *arms open* That is just how Huggy works.",
+    "You know what Huggy likes best? *leans down, enormous smile* When friends stay. Nobody ever stays long enough. *pause* We will fix that.",
+  ],
 };
 function getVoiceLines(name) {
   const n = (name || '').toLowerCase();
   if (n.includes('lily')) return CHAR_VOICE_LINES.lily;
   if (n.includes('poppy')) return CHAR_VOICE_LINES.poppy;
   if (n.includes('doey')) return CHAR_VOICE_LINES.doey;
+  if (n.includes('huggy')) return CHAR_VOICE_LINES.huggy;
   if (n.includes('delight') || n.includes('miss delight')) return CHAR_VOICE_LINES.missdelight;
   return null;
 }
