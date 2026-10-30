@@ -4613,6 +4613,89 @@ const VOICE_MIME_EXT = {
 const VOICE_ALLOWED_EXT = new Set(['.wav', '.mp3', '.ogg', '.flac', '.m4a', '.aac', '.webm']);
 const VOICE_EXT_MIME = { '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.flac': 'audio/flac', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.webm': 'audio/webm' };
 
+// ──────────────────────────────────────────────────────────────────────────────
+// ElevenLabs TTS — instant voice cloning for chars that have a .wav sample
+// Set ELEVENLABS_API_KEY env var to enable. Works in both chat and call modes.
+// Voice IDs are persisted in app_config so deploys don't create duplicate voices.
+// ──────────────────────────────────────────────────────────────────────────────
+const _elVoiceCache = new Map(); // charId → { voiceId, ts }
+
+async function _getElVoiceMap() {
+  try {
+    const r = await db.query("SELECT value FROM app_config WHERE key='el_voice_ids'");
+    if (r.rows[0]) return JSON.parse(r.rows[0].value);
+  } catch { /* ignore */ }
+  return {};
+}
+
+async function _saveElVoiceMap(map) {
+  await db.query(
+    "INSERT INTO app_config(key,value,updated_at) VALUES('el_voice_ids',$1,NOW()) ON CONFLICT(key) DO UPDATE SET value=$1,updated_at=NOW()",
+    [JSON.stringify(map)]
+  ).catch(e => console.warn('[el-tts] failed to persist voice map:', e.message));
+}
+
+async function _ensureElevenLabsVoice(charId, elKey) {
+  const cached = _elVoiceCache.get(charId);
+  if (cached && (Date.now() - cached.ts) < 86400000) return cached.voiceId;
+  const charEntry = CHARACTER_VOICE_MAP[charId];
+  if (!charEntry?.file) return null;
+  const dbMap = await _getElVoiceMap();
+  if (dbMap[charId]) {
+    _elVoiceCache.set(charId, { voiceId: dbMap[charId], ts: Date.now() });
+    return dbMap[charId];
+  }
+  // Upload voice sample to ElevenLabs instant voice clone
+  try {
+    const fileBuffer = await fs.promises.readFile(charEntry.file);
+    const formData = new FormData();
+    formData.append('name', `CM_${charEntry.name}_${charId.slice(-6)}`);
+    formData.append('files', new Blob([fileBuffer], { type: 'audio/wav' }), path.basename(charEntry.file));
+    formData.append('description', 'Character.Mind voice clone');
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 30000);
+    const r = await fetch('https://api.elevenlabs.io/v1/voices/add', {
+      method: 'POST', headers: { 'xi-api-key': elKey }, body: formData, signal: ctrl.signal,
+    }).finally(() => clearTimeout(t));
+    if (!r.ok) {
+      const body = await r.text().catch(() => '');
+      console.warn('[el-tts] voice creation failed:', r.status, body.slice(0, 200));
+      return null;
+    }
+    const data = await r.json();
+    if (data.voice_id) {
+      _elVoiceCache.set(charId, { voiceId: data.voice_id, ts: Date.now() });
+      dbMap[charId] = data.voice_id;
+      await _saveElVoiceMap(dbMap);
+      console.log(`[el-tts] created EL voice for ${charEntry.name}: ${data.voice_id}`);
+      return data.voice_id;
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') console.warn('[el-tts] voice creation error:', e.message);
+  }
+  return null;
+}
+
+async function elevenLabsSynthesize(text, voiceId, elKey, timeoutMs = 10000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    method: 'POST',
+    headers: { 'xi-api-key': elKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text,
+      model_id: 'eleven_flash_v2_5',
+      voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.0 },
+    }),
+    signal: ctrl.signal,
+  }).finally(() => clearTimeout(t));
+  if (!r.ok) {
+    const body = await r.text().catch(() => '');
+    throw new Error(`elevenlabs ${r.status}: ${body.slice(0, 200)}`);
+  }
+  return Buffer.from(await r.arrayBuffer());
+}
+
 // Cache: filePath → { voiceId, ts } — avoids re-uploading to remote XTTS on every request
 const _xttsVoiceCache = new Map();
 
@@ -4671,6 +4754,24 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   const geminiVoice = String(req.body?.geminiVoice || 'Aoede');
   const clientEdgeVoice = req.body?.edgeVoice && typeof req.body.edgeVoice === 'string' ? req.body.edgeVoice : null;
   if (!text) return res.status(400).json({ error: 'no_text' });
+
+  // ElevenLabs: when ELEVENLABS_API_KEY is set, use voice-cloned speech for chars that have a
+  // WAV sample. Intercepts both 'character' and 'edge' providers so calls also get the real voice.
+  const _elApiKey = process.env.ELEVENLABS_API_KEY;
+  if (_elApiKey && charId && (provider === 'character' || provider === 'edge')) {
+    try {
+      const elVoiceId = await _ensureElevenLabsVoice(charId, _elApiKey);
+      if (elVoiceId) {
+        const elAudio = await elevenLabsSynthesize(text, elVoiceId, _elApiKey);
+        res.setHeader('Content-Type', 'audio/mpeg');
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('X-TTS-Provider', 'elevenlabs');
+        return res.send(elAudio);
+      }
+    } catch (e) {
+      console.warn('[el-tts] falling through to', provider, ':', e.message);
+    }
+  }
 
   // Character voice provider — try local XTTS clone server first, fall back to Edge TTS.
   // Start tts_server/tts_server.py locally to enable voice cloning.
