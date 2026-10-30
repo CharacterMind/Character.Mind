@@ -140,22 +140,28 @@ print("  Keep this window open while using Character.Mind.")
 print("  Press Ctrl+C to stop.                           ")
 print("═══════════════════════════════════════════════════")
 
-# Register with Character.Mind in a background thread (retries until it works).
-# This handles Render being in the middle of a deploy when the script first runs.
+# Register with Character.Mind in a background thread (retries forever until it works).
+# This handles Render being in the middle of a deploy, sleeping, or redeploying.
 _registered = threading.Event()
 def _register_loop():
-    for attempt in range(1, 31):  # try for up to ~15 minutes
+    attempt = 0
+    while True:
+        attempt += 1
         try:
             result = register_url(tunnel_url)
             print(f"\n  ✓ Poppy's voice registered with Character.Mind! (attempt {attempt})")
             _registered.set()
-            return
+            # Keep re-registering every 5 minutes in case Render redeploys and loses the URL
+            while True:
+                time.sleep(300)
+                try:
+                    register_url(tunnel_url)
+                except Exception:
+                    pass  # silent re-register, don't spam the console
         except Exception as e:
             if attempt == 1:
-                print(f"\n  Render may still be deploying — retrying in background (attempt {attempt})...")
+                print(f"\n  Render may still be deploying — retrying in background...")
         time.sleep(30)
-    print(f"\n  Could not auto-register after 30 attempts.")
-    print(f"  Manual fallback: set TTS_CLONE_URL={tunnel_url} on Render.")
 
 reg_thread = threading.Thread(target=_register_loop, daemon=True)
 reg_thread.start()
