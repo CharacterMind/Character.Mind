@@ -4552,12 +4552,14 @@ const EDGE_VOICE_MAP = {
   custom_1790776698867:      'en-US-JennyNeural',  // Poppy — warm, soft, gentle
   cm_miss_delight:           'en-US-NancyNeural',  // Miss Delight — sinister sing-song
   bron:                      'en-US-BrianNeural',  // Bron — deep, clear, ancient dinosaur
+  huggy_wuggy:               'en-US-GuyNeural',    // Huggy Wuggy — deep, slow, unsettling
 };
 const EDGE_DEFAULT_VOICE = 'en-US-AriaNeural';
 
 // Hardcoded character voice map — these chars have a real voice sample file
 const CHARACTER_VOICE_MAP = {
-  'custom_1790776698867': { name: 'Poppy', voiceId: 'poppy', file: path.join(__dirname, 'public/assets/voices/poppy.wav'), edgeFallback: 'en-US-AvaNeural' },
+  'custom_1790776698867': { name: 'Poppy',        voiceId: 'poppy',  file: path.join(__dirname, 'public/assets/voices/poppy.wav'),  edgeFallback: 'en-US-AvaNeural' },
+  'huggy_wuggy':          { name: 'Huggy Wuggy',  voiceId: 'huggy',  file: path.join(__dirname, 'public/assets/voices/huggy.wav'),  edgeFallback: 'en-US-GuyNeural' },
 };
 
 // All 30 prebuilt Gemini 2.5 Flash TTS voices
