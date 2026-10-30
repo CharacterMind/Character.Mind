@@ -1121,20 +1121,24 @@ const LIMITS = {
   CALL_DAILY: 3
 };
 
-// Token limits. AVG_MESSAGE_TOKENS = one Opes Medium reply — used as the "average message" unit.
-// Session caps limit any single sitting. Weekly caps are the real usage ceiling.
-// Drain rate scales automatically: higher model tiers (MODEL_TOKEN_MULT), group/call activity costs
-// all multiply token cost per message, so heavy use hits the limit faster than the avg-msg numbers suggest.
+// Token limits.
+// AVG_MESSAGE_TOKENS = one Opes Medium reply — the "average message" reference unit.
+// CREDIT_DIVISOR = how many tokens one user-facing credit buys (1 credit = 6 tokens).
+//   → 30,000 credits = 180,000 tokens ≈ 100 opes-medium extra messages (from pack purchases).
+// Session caps: single-sitting ceiling. Weekly caps: the real usage ceiling.
+// Drain scales automatically — higher model tiers (MODEL_TOKEN_MULT), group/call overhead all
+// multiply cost per message, so intensive use exhausts limits faster than avg-msg numbers suggest.
 const AVG_MESSAGE_TOKENS  = 1800;
-const FREE_SESSION_TOKENS = 30 * AVG_MESSAGE_TOKENS;  // 54,000 — ~30 avg messages per session
+const FREE_SESSION_TOKENS = 30 * AVG_MESSAGE_TOKENS;   // 54,000  — ~30 avg msgs per session
+const CREDIT_DIVISOR      = 6;                         // 1 user-facing credit = 6 internal tokens
 const WEEKLY_SESSIONS     = 7;
 const TIER_TOKEN_LIMITS = {
-  free:     { session: FREE_SESSION_TOKENS,        weekly: 100 * AVG_MESSAGE_TOKENS },  // ~100 avg msgs/wk
-  advanced: { session: FREE_SESSION_TOKENS * 2,    weekly: 500 * AVG_MESSAGE_TOKENS },  // ~500 avg msgs/wk
-  x20:      { session: FREE_SESSION_TOKENS * 20,   weekly: FREE_SESSION_TOKENS * 20  * WEEKLY_SESSIONS },
-  x50:      { session: FREE_SESSION_TOKENS * 50,   weekly: FREE_SESSION_TOKENS * 50  * WEEKLY_SESSIONS },
-  x100:     { session: FREE_SESSION_TOKENS * 100,  weekly: FREE_SESSION_TOKENS * 100 * WEEKLY_SESSIONS },
-  x200:     { session: FREE_SESSION_TOKENS * 200,  weekly: FREE_SESSION_TOKENS * 200 * WEEKLY_SESSIONS },
+  free:     { session: FREE_SESSION_TOKENS,          weekly:  150 * AVG_MESSAGE_TOKENS },  // ~30 /sess, ~150 /wk
+  advanced: { session: 300 * AVG_MESSAGE_TOKENS,     weekly: 1000 * AVG_MESSAGE_TOKENS },  // ~300/sess, ~1000/wk
+  x20:      { session: FREE_SESSION_TOKENS * 20,     weekly: FREE_SESSION_TOKENS * 20  * WEEKLY_SESSIONS },
+  x50:      { session: FREE_SESSION_TOKENS * 50,     weekly: FREE_SESSION_TOKENS * 50  * WEEKLY_SESSIONS },
+  x100:     { session: FREE_SESSION_TOKENS * 100,    weekly: FREE_SESSION_TOKENS * 100 * WEEKLY_SESSIONS },
+  x200:     { session: FREE_SESSION_TOKENS * 200,    weekly: FREE_SESSION_TOKENS * 200 * WEEKLY_SESSIONS },
 };
 // Daily strong-profanity budget per subscription tier.
 // Free = 0 (Lily fumes but contains herself). Higher tiers unlock more.
@@ -4134,10 +4138,12 @@ app.post('/api/phone/unlock/:charId', requireAuth, (req, res) => {
 });
 
 // ── Session Credit Packs ──────────────────────────────────────────────────────
+// Tokens = CREDIT_DIVISOR × user-facing credits (sm=10k credits, md=25k, lg=50k).
+// At opes-medium (1800 tokens/msg): sm≈33 msgs, md≈83 msgs, lg≈167 msgs extra.
 const SESSION_PACKS = {
-  sm: { tokens: 10000, coins: 75  },
-  md: { tokens: 25000, coins: 175 },
-  lg: { tokens: 50000, coins: 325 },
+  sm: { tokens:  60000, coins:  450 },  // 10,000 credits
+  md: { tokens: 150000, coins: 1050 },  // 25,000 credits
+  lg: { tokens: 300000, coins: 1950 },  // 50,000 credits
 };
 app.post('/api/usage/buy-pack', requireAuth, async (req, res) => {
   if (!db) return res.status(503).json({ error: 'No database' });

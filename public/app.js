@@ -7021,7 +7021,9 @@ function updateUsageModal(u) {
     const btn    = document.getElementById('creditsToggleBtn');
     const knob   = document.getElementById('creditsToggleKnob');
 
-    if (pctEl) pctEl.textContent = credit > 0 ? (Math.round(credit / 1000) + 'K tokens') : '0 tokens';
+    const CREDIT_DIV = 6;
+    const displayCredits = credit > 0 ? Math.round(credit / CREDIT_DIV).toLocaleString() : '0';
+    if (pctEl) pctEl.textContent = displayCredits + ' credits';
     if (subEl) subEl.textContent = credit > 0
       ? 'Earned credits extend your session limit automatically.'
       : 'Buy a session boost pack below to earn credits.';
