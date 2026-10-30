@@ -191,7 +191,7 @@
 <div class="hero">
   <div class="hero-badge">Legal Document</div>
   <h1 class="hero-title">Privacy Policy</h1>
-  <p class="hero-meta">Effective <span>October 3, 2026</span> &nbsp;·&nbsp; Last updated <span>October 29, 2026</span> (v363)</p>
+  <p class="hero-meta">Effective <span>October 3, 2026</span> &nbsp;·&nbsp; Last updated <span>October 30, 2026</span></p>
 </div>
 
 <div class="layout">
@@ -243,7 +243,7 @@
         <li><strong>Usage data:</strong> Token counts, session start times, and weekly usage totals, used to enforce plan limits and display your usage dashboard. This includes how many minutes of voice calls you have used today.</li>
         <li><strong>Character relationship data:</strong> For each character, we store how many messages you have sent them (your friendship level), whether they have given you their in-app phone number, and any temporary block (when it ends and how many times they have hung up on you). This powers the Phone contacts, friendship and hang-up features. In-app phone numbers are fictional and are generated from your account ID; they are not real phone numbers.</li>
         <li><strong>Voice calls:</strong> We do not record or store call audio. Your speech is converted to text by your browser's built-in speech recognition — depending on your browser this may be processed by the browser maker (for example, Google for Chrome) under their own privacy policy. The resulting text is sent to our servers and handled like a chat message, and the character's reply text is sent to a text-to-speech provider (see Third-Party Services) to create the spoken audio.</li>
-        <li><strong>Subscription tier and PayPal subscription ID:</strong> Your current plan (Free, Advanced, or X20) and, for paid subscribers, the PayPal subscription identifier linked to your account, stored in our database.</li>
+        <li><strong>Subscription tier and PayPal subscription ID:</strong> Your current plan (Free or Advanced) and, for paid subscribers, the PayPal subscription identifier linked to your account, stored in our database.</li>
         <li><strong>C.M. Coins balance:</strong> Your virtual coin balance and daily coin-earning activity, stored in our database. Coins have no monetary value and cannot be withdrawn.</li>
         <li><strong>Push notification subscription:</strong> If you enable push notifications, your browser's push subscription endpoint and encryption keys are stored in our database so we can deliver notifications to your device. We also store the name of the character you last spoke with and a summary of the last message context (used to personalize re-engagement reminders). You can revoke this permission in your browser settings at any time. Stale subscriptions (those that return a 410 or 404 error) are automatically deleted from our database.</li>
         <li><strong>Group chat data:</strong> When you use group chat, the conversation history (character names, messages, timestamps) is stored in server memory for the duration of your session. Group chat history is not permanently persisted to our database and is cleared when the session ends or after a period of inactivity (4 hours). You may have up to 50 group conversations stored at a time.</li>
@@ -314,9 +314,10 @@
       <p>We share data with the following third parties only as necessary to operate the service:</p>
       <ul>
         <li><strong>Google OAuth 2.0</strong> — handles sign-in. We receive your basic profile information as described above.</li>
-        <li><strong>Google Gemini API</strong> — our primary AI provider. Your conversation messages (including what you say on voice calls, as text) are sent to Google's Gemini API to generate character responses; images you attach are sent to it for safety checks and image-aware replies.</li>
+        <li><strong>Google Gemini API</strong> — our primary AI provider. Your conversation messages (including what you say on voice calls, as text) are sent to Google's Gemini API to generate character responses.</li>
         <li><strong>Groq</strong> — our backup AI provider. When the primary provider is busy, your conversation messages are sent to Groq's API to generate the character's response instead.</li>
-        <li><strong>Microsoft Edge TTS / Google Translate TTS</strong> — alternative text-to-speech providers used for voice calls and read-aloud. The text of a character's reply is sent to these services to generate spoken audio. No account information is transmitted.</li>
+        <li><strong>Google Gemini TTS</strong> — our primary text-to-speech provider. The text of a character's reply is sent to Google's Gemini TTS API to generate spoken audio for voice calls. No account information beyond the reply text is transmitted.</li>
+        <li><strong>Microsoft Edge TTS / Google Translate TTS</strong> — fallback text-to-speech providers used when Gemini TTS is unavailable. The character's reply text is sent to these services to generate spoken audio. No account information is transmitted.</li>
         <li><strong>Neon (PostgreSQL)</strong> — our database host, where user data, conversations, and character definitions are stored.</li>
         <li><strong>Render</strong> — our hosting provider, where the application server runs.</li>
         <li><strong>PayPal</strong> — payment processing for paid subscriptions and C.M. Coin purchases.</li>
