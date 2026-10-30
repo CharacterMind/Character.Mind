@@ -1,14 +1,16 @@
 """
 Character.Mind Voice AI — free, local voice cloning service.
-Uses Coqui XTTS-v2 (open-source, no API keys, runs on your machine).
+Default model: YourTTS (~400 MB, faster on CPU, fits in less RAM).
+Override with TTS_MODEL=xtts_v2 env var for higher quality (needs ~2 GB RAM + GPU recommended).
 
 Setup (one time):
   pip install -r requirements.txt
-  -- first run downloads the XTTS-v2 model (~1.8 GB) --
+  -- first run downloads the model (~400 MB for YourTTS, ~1.8 GB for xtts_v2) --
 
 Run:
   python tts_server.py              (port 8765)
   TTS_PORT=9000 python tts_server.py
+  TTS_MODEL=xtts_v2 python tts_server.py   (use XTTS-v2 if you have enough RAM/GPU)
   -- or double-click start.bat on Windows --
 
 Character.Mind server.js calls this at:
@@ -98,9 +100,16 @@ for _old in BASE_DIR.glob("*.wav"):
 # Flask app
 # ---------------------------------------------------------------------------
 app  = Flask(__name__)
-_tts  = None
-_lock = threading.Lock()   # XTTS is NOT thread-safe
-_gpu  = False
+_tts       = None
+_lock      = threading.Lock()   # TTS models are NOT thread-safe
+_gpu       = False
+# YourTTS is the default: ~400 MB, works on CPU in 2-5s.
+# Set TTS_MODEL=xtts_v2 for higher quality (needs ~2 GB RAM, GPU recommended).
+_MODEL_KEY = os.environ.get("TTS_MODEL", "your_tts").lower()
+_MODEL_NAMES = {
+    "your_tts": "tts_models/multilingual/multi-dataset/your_tts",
+    "xtts_v2":  "tts_models/multilingual/multi-dataset/xtts_v2",
+}
 
 ALLOWED_EXT = {".wav", ".mp3", ".flac", ".ogg", ".m4a"}
 MAX_TEXT_CHARS = 500       # XTTS degrades on very long inputs
@@ -111,8 +120,7 @@ MAX_TEXT_CHARS = 500       # XTTS degrades on very long inputs
 def _load_model():
     global _tts, _gpu
     import torch
-    # PyTorch 2.6+ changed weights_only default to True, which breaks XTTS model loading.
-    # Monkey-patch torch.load to keep the old behaviour for these trusted model files.
+    # PyTorch 2.6+ changed weights_only default to True, which breaks model loading.
     _orig_torch_load = torch.load
     def _patched_load(*args, **kwargs):
         kwargs.setdefault('weights_only', False)
@@ -120,17 +128,19 @@ def _load_model():
     torch.load = _patched_load
     from TTS.api import TTS
     use_gpu = torch.cuda.is_available()
+    model_name = _MODEL_NAMES.get(_MODEL_KEY, _MODEL_NAMES["your_tts"])
+    size_hint = "~1.8 GB" if "xtts" in model_name else "~400 MB"
+    device_label = "GPU" if use_gpu else "CPU"
     if use_gpu:
         gpu_name = torch.cuda.get_device_name(0)
         vram_gb  = round(torch.cuda.get_device_properties(0).total_memory / 1e9, 1)
-        print(f"[voice-ai] GPU detected: {gpu_name} ({vram_gb} GB VRAM) — loading model onto GPU...", flush=True)
+        print(f"[voice-ai] GPU: {gpu_name} ({vram_gb} GB VRAM)", flush=True)
     else:
-        print("[voice-ai] No CUDA GPU — loading model onto CPU (synthesis will be slow)...", flush=True)
-    print("[voice-ai] Loading XTTS-v2 model (first run downloads ~1.8 GB)...", flush=True)
-    _tts = TTS(model_name="tts_models/multilingual/multi-dataset/xtts_v2", gpu=use_gpu)
+        print(f"[voice-ai] No GPU — using CPU (synthesis: 2-5s for YourTTS, 30-90s for XTTS)", flush=True)
+    print(f"[voice-ai] Loading {model_name} (first run downloads {size_hint})...", flush=True)
+    _tts = TTS(model_name=model_name, gpu=use_gpu)
     _gpu = use_gpu
-    device = "GPU" if use_gpu else "CPU"
-    print(f"[voice-ai] Model ready on {device}.", flush=True)
+    print(f"[voice-ai] Model ready on {device_label}.", flush=True)
     return _tts
 
 def get_tts():
@@ -173,7 +183,7 @@ def health():
     model_loaded = _tts is not None
     return jsonify({
         "ok":          True,
-        "model":       "xtts_v2",
+        "model":       _MODEL_KEY,
         "model_ready": model_loaded,
         "gpu":         _gpu,
         "voices_dir":  str(VOICES_DIR),
@@ -235,10 +245,13 @@ def delete_voice(voice_id):
 @app.route("/tts", methods=["POST"])
 def tts_endpoint():
     data = request.get_json(force=True, silent=True) or {}
-    text       = (data.get("text")        or "").strip()
+    text        = (data.get("text")        or "").strip()
     speaker_wav = (data.get("speaker_wav") or "").strip()
-    voice_id   = (data.get("voice_id")    or "").strip()
-    language   = (data.get("language")    or "en").strip()
+    voice_id    = (data.get("voice_id")    or "").strip()
+    language    = (data.get("language")    or "en").strip()
+    # YourTTS uses "en-us" not "en" — normalise so the server call doesn't need to know the model
+    if language == "en" and _MODEL_KEY == "your_tts":
+        language = "en-us"
 
     if not text:
         return jsonify({"error": "missing text"}), 400
@@ -300,7 +313,7 @@ if __name__ == "__main__":
 
     print("=" * 60, flush=True)
     print(" Character.Mind Voice AI", flush=True)
-    print(f" Free local voice cloning — powered by XTTS-v2", flush=True)
+    print(f" Free local voice cloning — model: {_MODEL_KEY}", flush=True)
     print(f" Voices directory: {VOICES_DIR}", flush=True)
     print(f" Listening on http://{host}:{port}", flush=True)
     print("=" * 60, flush=True)
