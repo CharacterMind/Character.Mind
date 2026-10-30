@@ -4855,7 +4855,7 @@ app.get('/api/xtts-status', requireAuth, async (req, res) => {
 });
 
 app.post('/api/tts', requireAuth, async (req, res) => {
-  const text = String(req.body?.text || '').replace(/[*_`#]/g, '').trim().slice(0, 400);
+  const text = String(req.body?.text || '').replace(/\*[^*]*\*/g, '').replace(/\s+/g, ' ').trim().slice(0, 400);
   const charId = String(req.body?.charId || '');
   const provider = String(req.body?.provider || 'gemini');
   const geminiVoice = String(req.body?.geminiVoice || 'Aoede');

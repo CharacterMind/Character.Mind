@@ -314,7 +314,7 @@ def tts_endpoint():
         text = text[:MAX_TEXT_CHARS]
         t0 = time.time()
         try:
-            samples, sr = kok.create(text, voice=kokoro_voice, speed=1.0, lang="en-us")
+            samples, sr = kok.create(text, voice=kokoro_voice, speed=1.3, lang="en-us")
         except Exception as e:
             return jsonify({"error": str(e)}), 500
         pcm = (np.clip(samples, -1, 1) * 32767).astype(np.int16)
@@ -358,6 +358,7 @@ def tts_endpoint():
                 speaker_wav=speaker_wav,
                 language=language,
                 file_path=out_path,
+                speed=1.3,
             )
             with open(out_path, "rb") as f:
                 audio_bytes = f.read()
