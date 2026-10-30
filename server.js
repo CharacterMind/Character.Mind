@@ -4269,6 +4269,7 @@ app.post('/api/friendship/:charId/reset', requireAuth, async (req, res) => {
   // Reset friendship score, wipe ALL phone numbers, bump phone generation (v386/v387)
   const u = getLimits(userId);
   if (u.friendship) delete u.friendship[charId];
+  const hadNumber = Array.isArray(u.phoneUnlocked) && u.phoneUnlocked.includes(charId);
   u.phoneUnlocked = [];
   u.phoneGen = (u.phoneGen || 0) + 1;
   saveLimitsToDB(userId);
@@ -4278,18 +4279,20 @@ app.post('/api/friendship/:charId/reset', requireAuth, async (req, res) => {
   delete conversations[key];
   convLoaded.delete(key);
 
-  // Clear DB: current chat + memories, then inject story message (v386)
+  // Clear DB: current chat + memories, then inject story message only if number was shared (v386/v389)
   if (db) {
     await db.query('DELETE FROM chat_current WHERE user_id=$1 AND char_id=$2', [userId, charId]).catch(() => {});
     await db.query('DELETE FROM user_memories WHERE user_id=$1 AND source_char=$2', [userId, charId]).catch(() => {});
-    const storyMsg = JSON.stringify([{
-      role: 'assistant',
-      content: "Hey… just so you know, I had to change my number. I was getting absolutely slammed with spam calls, so I had to reset everything. Whatever number you had for me before — it's gone now. You'd have to start over to earn it again."
-    }]);
-    await db.query(
-      `INSERT INTO chat_current (user_id, char_id, messages, updated_at) VALUES ($1,$2,$3,NOW())`,
-      [userId, charId, storyMsg]
-    ).catch(() => {});
+    if (hadNumber) {
+      const storyMsg = JSON.stringify([{
+        role: 'assistant',
+        content: "Hey… just so you know, I had to change my number. I was getting absolutely slammed with spam calls, so I had to reset everything. Whatever number you had for me before — it's gone now. You'd have to start over to earn it again."
+      }]);
+      await db.query(
+        `INSERT INTO chat_current (user_id, char_id, messages, updated_at) VALUES ($1,$2,$3,NOW())`,
+        [userId, charId, storyMsg]
+      ).catch(() => {});
+    }
   }
 
   res.json({ ok: true, score: 0, max: PHONE_FRIENDSHIP_AT, unlocked: false });
