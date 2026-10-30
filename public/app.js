@@ -9328,7 +9328,10 @@ async function toggleTTS(btn) {
   const ttsBody = { text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined };
   const primaryFetch = fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ttsAbort.signal, body: JSON.stringify(ttsBody) });
   let ttsFetchPromise;
-  if (ttsProvider === 'gemini') {
+  if (ttsProvider === 'gemini' || ttsProvider === 'character') {
+    // Race the selected provider against Edge TTS — Edge is ~300 ms, Gemini/XTTS are 1-25 s.
+    // For 'character' provider the primary call goes through XTTS (which may time out in 4s).
+    // The Edge race ensures audio plays within 1s even if the primary provider is slow or down.
     const edgeFetch = fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: edgeRaceAbort.signal, body: JSON.stringify({ ...ttsBody, provider: 'edge' }) });
     ttsFetchPromise = Promise.race([
       primaryFetch.then(r => { edgeRaceAbort.abort(); return r; }).catch(() => {}),
@@ -9580,11 +9583,14 @@ async function callModeTTS_server(text) {
   const sentences = clean.match(/[^.!?]+[.!?]+(?:\s|$)|[^.!?]+$/g)
     ?.map(s => s.trim()).filter(s => s.length > 0) || [clean];
 
+  // Never use XTTS/character-clone in calls — synthesis takes 10-20s which kills real-time conversation.
+  // Use the character's Edge TTS voice instead (server reads EDGE_VOICE_MAP[charId] when provider='edge').
+  const callProvider = ttsProvider === 'character' ? 'edge' : ttsProvider;
   const fetchBlob = async (s) => {
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: s, charId: (callContextChar || currentChar)?.id, provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined })
+      body: JSON.stringify({ text: s, charId: (callContextChar || currentChar)?.id, provider: callProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined })
     });
     if (!r.ok) { if (r.status === 501) serverTTSOk = false; throw new Error('tts ' + r.status); }
     return r.blob();

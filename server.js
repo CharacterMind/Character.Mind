@@ -4632,7 +4632,7 @@ async function _ensureRemoteVoice(cloneBase, filePath, charEntry) {
     const formData = new FormData();
     formData.append('file', new Blob([fileBuffer]), basename);
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 30000);
+    const t = setTimeout(() => ctrl.abort(), 5000);
     const r = await fetch(`${cloneBase}/voices`, { method: 'POST', body: formData, signal: ctrl.signal }).finally(() => clearTimeout(t));
     if (r.ok) {
       const data = await r.json();
@@ -4691,7 +4691,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
           cloneBody = { text, speaker_wav: speakerFile, language: 'en' };
         }
         const ctrl = new AbortController();
-        const cloneTimeout = setTimeout(() => ctrl.abort(), 25000);
+        const cloneTimeout = setTimeout(() => ctrl.abort(), 4000); // 4s max — if XTTS doesn't respond, fall through fast
         const cloneRes = await fetch(`${cloneBase}/tts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
