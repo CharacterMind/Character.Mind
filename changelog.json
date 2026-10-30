@@ -1,5 +1,16 @@
 [
   {
+    "id": "v369-edge-timeout",
+    "version": "v369",
+    "date": "Oct 2026",
+    "title": "⚡ Faster TTS Response",
+    "subtitle": "Edge TTS now fails fast (2.5s) instead of hanging for 10s, so audio plays sooner.",
+    "changed": [
+      "Fixed: Edge TTS WebSocket timeout reduced from 10s to 2.5s — when Edge is unavailable, falls back to Google Translate 7.5s sooner",
+      "Result: read-aloud and character speech now respond in ~3-4s instead of ~10-12s"
+    ]
+  },
+  {
     "id": "v368-cache-fix",
     "version": "v368",
     "date": "Oct 2026",

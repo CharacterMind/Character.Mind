@@ -4577,7 +4577,7 @@ function edgeSynthesize(text, voice) {
       clearTimeout(timer);
       err ? reject(err) : resolve(result);
     };
-    const timer = setTimeout(() => { try { ws.close(); } catch(_){} finish(new Error('edge-tts timeout')); }, 10000);
+    const timer = setTimeout(() => { try { ws.close(); } catch(_){} finish(new Error('edge-tts timeout')); }, 2500);
     const chunks = [];
     const AUDIO_HDR = Buffer.from('Path:audio\r\n');
     const escXml = s => s.replace(/[<>&'"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c]));
