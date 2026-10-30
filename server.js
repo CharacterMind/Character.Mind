@@ -4161,6 +4161,88 @@ app.get('/api/phone/contacts', requireAuth, async (req, res) => {
   }
 });
 
+// ── Replicate voice cloning (free credits, no local server needed) ────────────
+// Sign up at replicate.com (no credit card), copy your API token,
+// add REPLICATE_API_TOKEN=r8_xxx to Render env vars. Done.
+async function replicateVoiceClone(text, speakerWavPath) {
+  const token = process.env.REPLICATE_API_TOKEN;
+  if (!token) return null;
+
+  let speakerData;
+  try {
+    const buf = await fs.promises.readFile(speakerWavPath);
+    speakerData = 'data:audio/wav;base64,' + buf.toString('base64');
+  } catch (e) {
+    console.warn('[replicate] cannot read speaker wav:', e.message);
+    return null;
+  }
+
+  const timeoutMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 120000;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  const t0 = Date.now();
+
+  try {
+    const createRes = await fetch('https://api.replicate.com/v1/models/lucataco/xtts-v2/predictions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Token ${token}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'wait=60',  // synchronous if model is warm
+      },
+      body: JSON.stringify({
+        input: {
+          text: text.slice(0, 500),
+          speaker_wav: speakerData,
+          language: 'en',
+          cleanup_voice: false,
+        },
+      }),
+      signal: ctrl.signal,
+    });
+
+    if (!createRes.ok) {
+      const errText = await createRes.text().catch(() => '');
+      console.warn('[replicate] create failed:', createRes.status, errText.slice(0, 200));
+      return null;
+    }
+
+    let prediction = await createRes.json();
+
+    // Poll until done (for cold starts that exceed the Prefer:wait window)
+    const maxPolls = Math.ceil(timeoutMs / 1500);
+    let polls = 0;
+    while (prediction.status !== 'succeeded' && prediction.status !== 'failed' && prediction.status !== 'canceled' && polls < maxPolls) {
+      await new Promise(r => setTimeout(r, 1500));
+      polls++;
+      const pollRes = await fetch(prediction.urls.get, {
+        headers: { 'Authorization': `Token ${token}` },
+        signal: ctrl.signal,
+      });
+      if (!pollRes.ok) break;
+      prediction = await pollRes.json();
+    }
+
+    if (prediction.status !== 'succeeded' || !prediction.output) {
+      console.warn('[replicate] prediction did not succeed:', prediction.status, prediction.error);
+      return null;
+    }
+
+    // Download audio from Replicate's CDN
+    const audioRes = await fetch(prediction.output, { signal: ctrl.signal });
+    if (!audioRes.ok) { console.warn('[replicate] audio download failed:', audioRes.status); return null; }
+    const audio = Buffer.from(await audioRes.arrayBuffer());
+    console.log(`[replicate] synthesized ${text.length} chars in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    return audio;
+
+  } catch (e) {
+    if (e.name !== 'AbortError') console.warn('[replicate] error:', e.message);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ── Friendship API ────────────────────────────────────────────────────────────
 app.get('/api/friendship/:charId', requireAuth, (req, res) => {
   const { charId } = req.params;
@@ -4761,6 +4843,22 @@ app.post('/api/tts', requireAuth, async (req, res) => {
     } catch { /* no user voice assigned */ }
     if (!speakerFile) speakerFile = charEntry?.file || null;
     if (speakerFile) {
+      // 1. Replicate XTTS-v2 (free credits — no local server needed; set REPLICATE_API_TOKEN)
+      if (process.env.REPLICATE_API_TOKEN) {
+        try {
+          const repAudio = await replicateVoiceClone(text, speakerFile);
+          if (repAudio) {
+            res.setHeader('Content-Type', 'audio/wav');
+            res.setHeader('Cache-Control', 'no-store');
+            res.setHeader('X-TTS-Provider', 'replicate');
+            return res.send(repAudio);
+          }
+        } catch (e) {
+          console.warn('[char-tts] replicate error:', e.message);
+        }
+      }
+
+      // 2. Local or remote XTTS clone server (TTS_CLONE_URL or localhost:8765)
       try {
         const clonePort = process.env.TTS_CLONE_PORT || '8765';
         const cloneBase = process.env.TTS_CLONE_URL
