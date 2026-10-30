@@ -119,11 +119,18 @@ def _load_model():
         return _orig_torch_load(*args, **kwargs)
     torch.load = _patched_load
     from TTS.api import TTS
+    use_gpu = torch.cuda.is_available()
+    if use_gpu:
+        gpu_name = torch.cuda.get_device_name(0)
+        vram_gb  = round(torch.cuda.get_device_properties(0).total_memory / 1e9, 1)
+        print(f"[voice-ai] GPU detected: {gpu_name} ({vram_gb} GB VRAM) — loading model onto GPU...", flush=True)
+    else:
+        print("[voice-ai] No CUDA GPU — loading model onto CPU (synthesis will be slow)...", flush=True)
     print("[voice-ai] Loading XTTS-v2 model (first run downloads ~1.8 GB)...", flush=True)
-    _tts = TTS(model_name="tts_models/multilingual/multi-dataset/xtts_v2", gpu=False)
-    _gpu = False
-    print("[voice-ai] Running on CPU — VRAM stays free for other apps.", flush=True)
-    print("[voice-ai] Model ready.", flush=True)
+    _tts = TTS(model_name="tts_models/multilingual/multi-dataset/xtts_v2", gpu=use_gpu)
+    _gpu = use_gpu
+    device = "GPU" if use_gpu else "CPU"
+    print(f"[voice-ai] Model ready on {device}.", flush=True)
     return _tts
 
 def get_tts():
@@ -168,7 +175,7 @@ def health():
         "ok":          True,
         "model":       "xtts_v2",
         "model_ready": model_loaded,
-        "gpu":         False,
+        "gpu":         _gpu,
         "voices_dir":  str(VOICES_DIR),
         "voices":      _list_voices(),
     })
