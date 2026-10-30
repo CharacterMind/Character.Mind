@@ -270,6 +270,7 @@ async function seedOfficialChar(id, matchKey, imgUrl, isHidden = false) {
 
 function initDB() {
 let serverReady = false;
+let runtimeTtsUrl = null; // set by POST /api/tts/announce from start-voice.py
 if (db) {
   db.query(`
     CREATE TABLE IF NOT EXISTS characters (
@@ -624,6 +625,11 @@ if (db) {
     .catch(() => {});
 
   initMissionMult().catch(e => console.error('[mission-mult] startup error:', e.message));
+
+  // Restore local TTS tunnel URL persisted from start-voice.py
+  db.query("SELECT value FROM app_config WHERE key='local_tts_url'")
+    .then(r => { if (r.rows.length) { runtimeTtsUrl = r.rows[0].value; console.log('[tts] restored local TTS URL:', runtimeTtsUrl); } })
+    .catch(() => {});
 
   db.query(`
     CREATE TABLE IF NOT EXISTS processed_coin_orders (
@@ -4798,11 +4804,27 @@ async function _ensureRemoteVoice(cloneBase, filePath, charEntry) {
 
 app.get('/api/tts/status', requireAuth, (req, res) => res.json({ enabled: true }));
 
+// Called by start-voice.py on the user's PC to register the cloudflare tunnel URL.
+// Whitelist-validated so SSRF to internal addresses is impossible.
+const TUNNEL_DOMAIN_RE = /^https:\/\/[a-z0-9-]+\.(trycloudflare\.com|ngrok\.io|ngrok-free\.app|loca\.lt|bore\.pub)(:\d+)?(\/.*)?$/i;
+app.post('/api/tts/announce', express.json(), async (req, res) => {
+  const url = String(req.body?.url || '').trim().replace(/\/+$/, '');
+  if (!TUNNEL_DOMAIN_RE.test(url)) return res.status(400).json({ error: 'URL must be a recognised free-tunnel hostname (trycloudflare.com, ngrok.io, etc.)' });
+  runtimeTtsUrl = url;
+  if (db) {
+    db.query("INSERT INTO app_config(key,value,updated_at) VALUES('local_tts_url',$1,NOW()) ON CONFLICT(key) DO UPDATE SET value=$1,updated_at=NOW()", [url])
+      .catch(e => console.warn('[tts-announce] DB write failed:', e.message));
+  }
+  console.log('[tts-announce] local TTS URL registered:', url);
+  res.json({ ok: true, url });
+});
+
 // Quick check: is the XTTS clone server reachable?
 app.get('/api/xtts-status', requireAuth, async (req, res) => {
+  const effectiveUrl = process.env.TTS_CLONE_URL || runtimeTtsUrl;
   const clonePort = process.env.TTS_CLONE_PORT || '8765';
-  const cloneBase = process.env.TTS_CLONE_URL
-    ? process.env.TTS_CLONE_URL.replace(/\/tts$/, '')
+  const cloneBase = effectiveUrl
+    ? effectiveUrl.replace(/\/tts$/, '')
     : `http://127.0.0.1:${clonePort}`;
   try {
     const ctrl = new AbortController();
@@ -4858,21 +4880,22 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         }
       }
 
-      // 2. Local or remote XTTS clone server (TTS_CLONE_URL or localhost:8765)
+      // 2. Local or remote XTTS clone server (TTS_CLONE_URL, start-voice.py tunnel, or localhost:8765)
       try {
+        const effectiveCloneUrl = process.env.TTS_CLONE_URL || runtimeTtsUrl;
         const clonePort = process.env.TTS_CLONE_PORT || '8765';
-        const cloneBase = process.env.TTS_CLONE_URL
-          ? process.env.TTS_CLONE_URL.replace(/\/tts$/, '')
+        const cloneBase = effectiveCloneUrl
+          ? effectiveCloneUrl.replace(/\/tts$/, '')
           : `http://127.0.0.1:${clonePort}`;
         let cloneBody;
-        if (process.env.TTS_CLONE_URL) {
+        if (effectiveCloneUrl) {
           const voiceId = await _ensureRemoteVoice(cloneBase, speakerFile, charEntry);
           cloneBody = { text, voice_id: voiceId, language: 'en' };
         } else {
           cloneBody = { text, speaker_wav: speakerFile, language: 'en' };
         }
         const ctrl = new AbortController();
-        const localXtts = !process.env.TTS_CLONE_URL;
+        const localXtts = !effectiveCloneUrl;
         // Local: up to 180s (CPU XTTS can be slow). Remote: default 120s for CPU tunnels,
         // override with TTS_CLONE_TIMEOUT_MS env var (e.g. 8000 if you have a fast GPU).
         const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 120000;
