@@ -42,6 +42,45 @@ from pathlib import Path
 # Store XTTS-v2 model in the tts_server folder, not deep in AppData
 os.environ.setdefault("TTS_HOME", str(Path(__file__).resolve().parent / "model"))
 
+# ---------------------------------------------------------------------------
+# Kokoro ONNX — lightweight local TTS, no speaker sample needed
+# ---------------------------------------------------------------------------
+_kokoro       = None
+_kokoro_lock  = threading.Lock()
+_KOKORO_DIR   = Path(__file__).resolve().parent / "model" / "kokoro"
+_KOKORO_ONNX  = _KOKORO_DIR / "kokoro-v1.0.onnx"
+_KOKORO_VOICES = _KOKORO_DIR / "voices-v1.0.bin"
+
+KOKORO_VOICE_LIST = [
+    {"id": "af_bella",   "name": "Bella",   "accent": "American", "gender": "F"},
+    {"id": "af_heart",   "name": "Heart",   "accent": "American", "gender": "F"},
+    {"id": "af_nicole",  "name": "Nicole",  "accent": "American", "gender": "F"},
+    {"id": "af_sky",     "name": "Sky",     "accent": "American", "gender": "F"},
+    {"id": "af_sarah",   "name": "Sarah",   "accent": "American", "gender": "F"},
+    {"id": "am_adam",    "name": "Adam",    "accent": "American", "gender": "M"},
+    {"id": "am_michael", "name": "Michael", "accent": "American", "gender": "M"},
+    {"id": "bf_emma",    "name": "Emma",    "accent": "British",  "gender": "F"},
+    {"id": "bf_isabella","name": "Isabella","accent": "British",  "gender": "F"},
+    {"id": "bm_george",  "name": "George",  "accent": "British",  "gender": "M"},
+    {"id": "bm_lewis",   "name": "Lewis",   "accent": "British",  "gender": "M"},
+]
+
+def _kokoro_available():
+    return _KOKORO_ONNX.exists() and _KOKORO_VOICES.exists()
+
+def get_kokoro():
+    global _kokoro
+    if _kokoro is not None:
+        return _kokoro
+    if not _kokoro_available():
+        return None
+    with _kokoro_lock:
+        if _kokoro is None:
+            from kokoro_onnx import Kokoro as _K
+            _kokoro = _K(str(_KOKORO_ONNX), str(_KOKORO_VOICES))
+            print(f"[voice-ai] Kokoro loaded ({len(_kokoro.get_voices())} voices)", flush=True)
+    return _kokoro
+
 def _patch_torchaudio_load():
     """torchaudio 2.9+ routes torchaudio.load through torchcodec, which needs FFmpeg.
     If FFmpeg is absent (typical Windows dev setup), substitute a soundfile-based loader."""
@@ -188,6 +227,11 @@ def health():
         "gpu":         _gpu,
         "voices_dir":  str(VOICES_DIR),
         "voices":      _list_voices(),
+        "kokoro": {
+            "available": _kokoro_available(),
+            "loaded":    _kokoro is not None,
+            "voices":    KOKORO_VOICE_LIST,
+        },
     })
 
 
@@ -245,16 +289,47 @@ def delete_voice(voice_id):
 @app.route("/tts", methods=["POST"])
 def tts_endpoint():
     data = request.get_json(force=True, silent=True) or {}
-    text        = (data.get("text")        or "").strip()
-    speaker_wav = (data.get("speaker_wav") or "").strip()
-    voice_id    = (data.get("voice_id")    or "").strip()
-    language    = (data.get("language")    or "en").strip()
-    # YourTTS uses "en-us" not "en" — normalise so the server call doesn't need to know the model
-    if language == "en" and _MODEL_KEY == "your_tts":
-        language = "en-us"
+    text         = (data.get("text")        or "").strip()
+    speaker_wav  = (data.get("speaker_wav") or "").strip()
+    voice_id     = (data.get("voice_id")    or "").strip()
+    language     = (data.get("language")    or "en").strip()
+    kokoro_voice = (data.get("kokoro_voice") or "").strip()
+    # YourTTS accepts "en" directly (not "en-us")
+    if language == "en-us" and _MODEL_KEY == "your_tts":
+        language = "en"
 
     if not text:
         return jsonify({"error": "missing text"}), 400
+
+    # Kokoro path — synthesize with a named voice style, no speaker sample needed
+    if kokoro_voice:
+        import numpy as np
+        import wave
+        kok = get_kokoro()
+        if kok is None:
+            return jsonify({"error": "Kokoro model not installed — download model files first"}), 503
+        valid_ids = {v["id"] for v in KOKORO_VOICE_LIST}
+        if kokoro_voice not in valid_ids:
+            kokoro_voice = "af_bella"
+        text = text[:MAX_TEXT_CHARS]
+        t0 = time.time()
+        try:
+            samples, sr = kok.create(text, voice=kokoro_voice, speed=1.0, lang="en-us")
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        pcm = (np.clip(samples, -1, 1) * 32767).astype(np.int16)
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(sr)
+            wf.writeframes(pcm.tobytes())
+        elapsed = round(time.time() - t0, 2)
+        print(f"[voice-ai] kokoro {len(text)} chars in {elapsed}s (voice={kokoro_voice})", flush=True)
+        resp = send_file(io.BytesIO(buf.getvalue()), mimetype="audio/wav", as_attachment=False)
+        resp.headers["X-Synthesis-Time"] = str(elapsed)
+        resp.headers["X-TTS-Provider"]   = "kokoro"
+        return resp
 
     # Resolve speaker file
     if voice_id:

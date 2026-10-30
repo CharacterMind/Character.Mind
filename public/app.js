@@ -8198,9 +8198,24 @@ function dislikeBtn() {
 
 // ── Voice selection ───────────────────────────────────────────────────────────
 let selectedVoice = null;
-let ttsProvider = 'gemini'; // 'edge' | 'gemini'
+let ttsProvider = 'gemini'; // 'edge' | 'gemini' | 'kokoro' | 'character' | 'off'
 let geminiVoiceName = 'Aoede';
-let edgeVoiceName = null; // null = auto-matched per character
+let edgeVoiceName = null;    // null = auto-matched per character
+let kokoroVoiceName = 'af_bella';
+
+const KOKORO_VOICES = [
+  { id: 'af_bella',    name: 'Bella',    accent: 'American ♀' },
+  { id: 'af_heart',   name: 'Heart',    accent: 'American ♀' },
+  { id: 'af_nicole',  name: 'Nicole',   accent: 'American ♀' },
+  { id: 'af_sky',     name: 'Sky',      accent: 'American ♀' },
+  { id: 'af_sarah',   name: 'Sarah',    accent: 'American ♀' },
+  { id: 'am_adam',    name: 'Adam',     accent: 'American ♂' },
+  { id: 'am_michael', name: 'Michael',  accent: 'American ♂' },
+  { id: 'bf_emma',    name: 'Emma',     accent: 'British ♀'  },
+  { id: 'bf_isabella',name: 'Isabella', accent: 'British ♀'  },
+  { id: 'bm_george',  name: 'George',   accent: 'British ♂'  },
+  { id: 'bm_lewis',   name: 'Lewis',    accent: 'British ♂'  },
+];
 
 const GEMINI_TTS_VOICES = [
   'Zephyr','Puck','Charon','Kore','Fenrir','Leda','Orus','Aoede','Callirrhoe','Autonoe',
@@ -8244,26 +8259,32 @@ function getTTSProviderKey() { return currentChar ? `cm_tts_prov_${currentChar.i
 function getGeminiVoiceKey() { return currentChar ? `cm_gem_voice_${currentChar.id}` : null; }
 function getEdgeVoiceKey()   { return currentChar ? `cm_edge_voice_${currentChar.id}` : null; }
 
+function getKokoroVoiceKey() { return currentChar ? `cm_kokoro_voice_${currentChar.id}` : null; }
+
 function loadCharVoice() {
-  selectedVoice = null; ttsProvider = 'gemini'; geminiVoiceName = 'Aoede'; edgeVoiceName = null;
+  selectedVoice = null; ttsProvider = 'gemini'; geminiVoiceName = 'Aoede'; edgeVoiceName = null; kokoroVoiceName = 'af_bella';
   try {
     // Global fallback — last voice the user picked on any character
     const gp = localStorage.getItem('cm_tts_prov_global');
-    if (['edge','gemini','character','off'].includes(gp)) ttsProvider = gp;
+    if (['edge','gemini','character','kokoro','off'].includes(gp)) ttsProvider = gp;
     const ggv = localStorage.getItem('cm_gem_voice_global');
     if (GEMINI_TTS_VOICES.includes(ggv)) geminiVoiceName = ggv;
     const gev = localStorage.getItem('cm_edge_voice_global');
     if (gev && EDGE_TTS_VOICES.some(v => v.id === gev)) edgeVoiceName = gev;
+    const gkv = localStorage.getItem('cm_kokoro_voice_global');
+    if (gkv && KOKORO_VOICES.some(v => v.id === gkv)) kokoroVoiceName = gkv;
   } catch(_) {}
   if (!currentChar) { _updateVoiceBarLabel(); return; }
   try {
     // Per-character overrides take priority over global
     const p = localStorage.getItem(getTTSProviderKey());
-    if (['edge','gemini','character','off'].includes(p)) ttsProvider = p;
+    if (['edge','gemini','character','kokoro','off'].includes(p)) ttsProvider = p;
     const gv = localStorage.getItem(getGeminiVoiceKey());
     if (GEMINI_TTS_VOICES.includes(gv)) geminiVoiceName = gv;
     const ev = localStorage.getItem(getEdgeVoiceKey());
     if (ev && EDGE_TTS_VOICES.some(v => v.id === ev)) edgeVoiceName = ev;
+    const kv = localStorage.getItem(getKokoroVoiceKey());
+    if (kv && KOKORO_VOICES.some(v => v.id === kv)) kokoroVoiceName = kv;
     const saved = localStorage.getItem(getCharVoiceKey());
     if (saved && window.speechSynthesis) { const vs = window.speechSynthesis.getVoices(); selectedVoice = vs.find(v => v.voiceURI === saved) || null; }
   } catch(_) {}
@@ -8282,7 +8303,8 @@ function applyVoice(utterance) {
 function openVoicePanel() {
   const overlay = document.getElementById('voicePanelOverlay');
   if (!overlay) return;
-  const initialTab = ttsProvider === 'off' ? 'off' : (ttsProvider === 'gemini' || ttsProvider === 'edge') ? ttsProvider : 'character';
+  const tabMap = { off: 'off', gemini: 'gemini', edge: 'edge', kokoro: 'kokoro', character: 'character' };
+  const initialTab = tabMap[ttsProvider] || 'gemini';
   _switchVoiceTabUI(initialTab);
   renderCharVoiceSection();
   renderUserVoiceList();
@@ -8292,21 +8314,25 @@ function openVoicePanel() {
 function _switchVoiceTabUI(tab) {
   document.querySelectorAll('.voice-provider-tab[data-tab]').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === tab));
-  const charPane = document.getElementById('voiceSection_char');
-  const userPane = document.getElementById('voiceSection_user');
-  const aiPane   = document.getElementById('voiceSection_ai');
-  const offPane  = document.getElementById('voiceSection_off');
-  if (charPane) charPane.style.display = tab === 'character' ? '' : 'none';
-  if (userPane) userPane.style.display = tab === 'user' ? '' : 'none';
-  if (aiPane)   aiPane.style.display  = (tab === 'gemini' || tab === 'edge') ? '' : 'none';
-  if (offPane)  offPane.style.display  = tab === 'off' ? '' : 'none';
+  const charPane   = document.getElementById('voiceSection_char');
+  const userPane   = document.getElementById('voiceSection_user');
+  const aiPane     = document.getElementById('voiceSection_ai');
+  const offPane    = document.getElementById('voiceSection_off');
+  const kokoroPane = document.getElementById('voiceSection_kokoro');
+  if (charPane)   charPane.style.display   = tab === 'character' ? '' : 'none';
+  if (userPane)   userPane.style.display   = tab === 'user' ? '' : 'none';
+  if (aiPane)     aiPane.style.display     = (tab === 'gemini' || tab === 'edge') ? '' : 'none';
+  if (offPane)    offPane.style.display    = tab === 'off' ? '' : 'none';
+  if (kokoroPane) kokoroPane.style.display = tab === 'kokoro' ? '' : 'none';
   if (tab === 'gemini' || tab === 'edge') renderVoiceList();
+  if (tab === 'kokoro') renderKokoroVoiceList();
 }
 
 function switchVoiceTab(tab) {
   _switchVoiceTabUI(tab);
   if (tab === 'character') setTTSProvider('character', null);
   else if (tab === 'gemini' || tab === 'edge') setTTSProvider(tab, null);
+  else if (tab === 'kokoro') setTTSProvider('kokoro', null);
   else if (tab === 'off') setTTSProvider('off', null);
   // 'user' tab — don't change ttsProvider; user picks a specific voice to activate
 }
@@ -8327,9 +8353,10 @@ function renderCharVoiceSection() {
     fetch('/api/xtts-status').then(r => r.ok ? r.json() : { online: false }).catch(() => ({ online: false }))
   ]).then(([voiceR, xttsStatus]) => {
       if (voiceR.ok) {
-        // Auto-default to char voice on first visit for this character
+        // Auto-default to char voice only when the local clone server is online.
+        // This way visitors without the server running get Gemini; Dave gets Poppy's voice.
         const perCharKey = getTTSProviderKey();
-        if (perCharKey && !localStorage.getItem(perCharKey) && ttsProvider !== 'character') {
+        if (perCharKey && !localStorage.getItem(perCharKey) && ttsProvider !== 'character' && xttsStatus.online) {
           ttsProvider = 'character';
           try { localStorage.setItem(perCharKey, 'character'); } catch (_) {}
           _switchVoiceTabUI('character');
@@ -8530,7 +8557,7 @@ function setTTSProvider(p, btn) {
 function _updateVoiceBarLabel() {
   const voiceBtn = document.getElementById('mbVoiceBtn');
   if (!voiceBtn) return;
-  const labels = { gemini: 'Gemini', edge: 'Neutral', character: 'Voice', off: 'No voice' };
+  const labels = { gemini: 'Gemini', edge: 'Neutral', character: 'Clone Voice', kokoro: 'Kokoro', off: 'No voice' };
   voiceBtn.textContent = labels[ttsProvider] || 'Voice';
 }
 
@@ -8560,6 +8587,38 @@ function renderVoiceList() {
   }
 
   list.innerHTML = '';
+}
+
+function renderKokoroVoiceList() {
+  const list = document.getElementById('kokoroVoiceList');
+  if (!list) return;
+  list.innerHTML = KOKORO_VOICES.map(v =>
+    `<button class="voice-item${kokoroVoiceName === v.id ? ' active' : ''}" onclick="selectKokoroVoice('${v.id}',this)">
+      <div class="voice-item-main"><div class="voice-item-name">${v.name}</div><div class="voice-item-lang">${v.accent}</div></div>
+      <button class="voice-preview-btn" onclick="previewKokoroVoice('${v.id}',event)" title="Preview">▶</button>
+    </button>`).join('');
+}
+
+function selectKokoroVoice(v, btn) {
+  kokoroVoiceName = v;
+  try {
+    const k = getKokoroVoiceKey();
+    if (k) localStorage.setItem(k, v);
+    localStorage.setItem('cm_kokoro_voice_global', v);
+  } catch(_) {}
+  document.querySelectorAll('#kokoroVoiceList .voice-item').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function previewKokoroVoice(v, e) {
+  e?.stopPropagation();
+  try {
+    const r = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: `Hi! I'm ${currentChar?.name || 'your character'}.`, provider: 'kokoro', kokoroVoice: v, charId: currentChar?.id || '' }) });
+    if (!r.ok) return;
+    const url = URL.createObjectURL(await r.blob());
+    const a = new Audio(url); a.onended = () => URL.revokeObjectURL(url); a.play().catch(() => {});
+  } catch(_) {}
 }
 
 function selectVoice(voiceURI, btn) {
@@ -8989,7 +9048,7 @@ async function _playStreamTTSQueue() {
     return fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined })
+      body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
     }).then(r => (r.ok && _streamTTSPlaying) ? r.blob() : null).catch(() => null);
   };
 
@@ -9052,7 +9111,7 @@ function _speakStreamSentence(text) {
     fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined })
+      body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
     }).then(r => {
       if (!r.ok || !_streamTTSPlaying) { resolve(); return null; }
       return r.blob();
@@ -9337,7 +9396,7 @@ async function toggleTTS(btn) {
   // (Edge is ~300 ms; Gemini is ~1-2 s — this cuts the perceived delay significantly).
   const ttsAbort = new AbortController();
   const edgeRaceAbort = new AbortController();
-  const ttsBody = { text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined };
+  const ttsBody = { text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName };
   const primaryFetch = fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ttsAbort.signal, body: JSON.stringify(ttsBody) });
   let ttsFetchPromise;
   if (ttsProvider === 'gemini' || ttsProvider === 'character') {
@@ -9528,7 +9587,7 @@ async function speakAndHangUp(text, resetsAt) {
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: clean, charId: currentChar?.id, provider: hangUpProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined })
+      body: JSON.stringify({ text: clean, charId: currentChar?.id, provider: hangUpProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
     });
     if (r.ok) {
       const blob = await r.blob();
@@ -9612,7 +9671,7 @@ async function callModeTTS_server(text) {
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: s, charId: (callContextChar || currentChar)?.id, provider: callProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined })
+      body: JSON.stringify({ text: s, charId: (callContextChar || currentChar)?.id, provider: callProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
     });
     if (!r.ok) { if (r.status === 501) serverTTSOk = false; throw new Error('tts ' + r.status); }
     return r.blob();

@@ -4860,7 +4860,47 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   const provider = String(req.body?.provider || 'gemini');
   const geminiVoice = String(req.body?.geminiVoice || 'Aoede');
   const clientEdgeVoice = req.body?.edgeVoice && typeof req.body.edgeVoice === 'string' ? req.body.edgeVoice : null;
+  const kokoroVoice = req.body?.kokoroVoice && typeof req.body.kokoroVoice === 'string' ? req.body.kokoroVoice : 'af_bella';
   if (!text) return res.status(400).json({ error: 'no_text' });
+
+  // Kokoro provider — lightweight local TTS with named voice styles, no speaker sample needed
+  if (provider === 'kokoro') {
+    const effectiveCloneUrl = process.env.TTS_CLONE_URL || runtimeTtsUrl;
+    const clonePort = process.env.TTS_CLONE_PORT || '8765';
+    const cloneBase = effectiveCloneUrl
+      ? effectiveCloneUrl.replace(/\/tts$/, '')
+      : `http://127.0.0.1:${clonePort}`;
+    try {
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 30000);
+      const cloneRes = await fetch(`${cloneBase}/tts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, kokoro_voice: kokoroVoice }),
+        signal: ctrl.signal,
+      }).finally(() => clearTimeout(timeout));
+      if (cloneRes.ok) {
+        const audio = Buffer.from(await cloneRes.arrayBuffer());
+        res.setHeader('Content-Type', 'audio/wav');
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('X-TTS-Provider', 'kokoro');
+        return res.send(audio);
+      }
+    } catch (e) {
+      if (e.name !== 'AbortError') console.warn('[kokoro-tts] error:', e.message);
+    }
+    // Fallback to Edge TTS if Kokoro server unavailable
+    const fallbackEdge = clientEdgeVoice || 'en-US-AriaNeural';
+    try {
+      const audio = await edgeSynthesize(text, fallbackEdge);
+      if (audio && audio.length) {
+        res.setHeader('Content-Type', 'audio/mpeg');
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('X-TTS-Provider', 'kokoro-edge-fallback');
+        return res.send(audio);
+      }
+    } catch (_) {}
+  }
 
   // Character voice provider — try local XTTS clone server first, fall back to Edge TTS.
   // Start tts_server/tts_server.py locally to enable voice cloning.

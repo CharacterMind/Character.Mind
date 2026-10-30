@@ -1955,14 +1955,20 @@
     <div class="voice-provider-tabs voice-main-tabs">
       <button class="voice-provider-tab" data-tab="gemini" onclick="switchVoiceTab('gemini',this)">Gemini</button>
       <button class="voice-provider-tab" data-tab="edge" onclick="switchVoiceTab('edge',this)">Neutral</button>
+      <button class="voice-provider-tab" data-tab="kokoro" onclick="switchVoiceTab('kokoro',this)">Kokoro</button>
       <button class="voice-provider-tab" data-tab="user" onclick="switchVoiceTab('user',this)">Your Voices</button>
-      <button class="voice-provider-tab" data-tab="character" onclick="switchVoiceTab('character',this)">Character.Mind</button>
+      <button class="voice-provider-tab" data-tab="character" onclick="switchVoiceTab('character',this)">Character Clone</button>
       <button class="voice-provider-tab" data-tab="off" onclick="switchVoiceTab('off',this)">No voice</button>
     </div>
 
     <!-- AI voices pane (Gemini + Neutral share this) -->
     <div id="voiceSection_ai" class="voice-tab-pane" style="display:none">
       <div class="voice-list" id="voiceList"></div>
+    </div>
+
+    <!-- Kokoro pane -->
+    <div id="voiceSection_kokoro" class="voice-tab-pane" style="display:none">
+      <div class="voice-list" id="kokoroVoiceList"></div>
     </div>
 
     <!-- Your Voices pane -->
