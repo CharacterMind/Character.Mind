@@ -4712,7 +4712,7 @@ async function _ensureRemoteVoice(cloneBase, filePath, charEntry) {
     const formData = new FormData();
     formData.append('file', new Blob([fileBuffer]), basename);
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 5000);
+    const t = setTimeout(() => ctrl.abort(), 30000); // 30s — uploading a 6MB WAV over ngrok takes time
     const r = await fetch(`${cloneBase}/voices`, { method: 'POST', body: formData, signal: ctrl.signal }).finally(() => clearTimeout(t));
     if (r.ok) {
       const data = await r.json();
@@ -4807,9 +4807,10 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         }
         const ctrl = new AbortController();
         const localXtts = !process.env.TTS_CLONE_URL;
-        // Local CPU XTTS takes 15-180s depending on text length and system load.
-        // 180s gives even long responses time to finish; remote GPU should reply in under 8s.
-        const cloneTimeout = setTimeout(() => ctrl.abort(), localXtts ? 180000 : 8000);
+        // Local: up to 180s (CPU XTTS can be slow). Remote: default 120s for CPU tunnels,
+        // override with TTS_CLONE_TIMEOUT_MS env var (e.g. 8000 if you have a fast GPU).
+        const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 120000;
+        const cloneTimeout = setTimeout(() => ctrl.abort(), localXtts ? 180000 : remoteMs);
         const cloneRes = await fetch(`${cloneBase}/tts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
