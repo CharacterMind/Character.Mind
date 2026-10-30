@@ -1167,7 +1167,7 @@ const baseOf = (t) => {
 };
 // The most tokens one reply may use, per model (the bigger writers get more room), and how long each model writes compared with Opes
 // (Opys 5's cap is high on purpose: what it can really write at once depends on the Groq plan, see GROQ_REQUEST_BUDGET and GROQ_LENGTH_SCALE.)
-const MODEL_CAP   = { opas: 3000, opes: 5000, opis: 3200, opos: 4000, opus: 5000, opys: 6000, opys5: 40000, opys6: 40000 };
+const MODEL_CAP   = { opas: 3000, opes: 5000, opis: 6000, opos: 4000, opus: 5000, opys: 6000, opys5: 40000, opys6: 40000 };
 const MODEL_WORDS = { opas: 0.7,  opes: 1.1,  opis: 1.3,  opos: 1.5,  opus: 1.8,  opys: 2.1,  opys5: 3.5,  opys6: 5.0 };
 const MODEL_CAP_SCALE = Number(process.env.VERSION_CAP_SCALE) || 1;
 for (const k of Object.keys(MODEL_CAP)) MODEL_CAP[k] = Math.round(MODEL_CAP[k] * MODEL_CAP_SCALE);
@@ -1554,7 +1554,7 @@ function getCallLimitForUser(userId) {
   const u = userLimits[userId];
   if (u?.neverLimit) return Infinity;
   const tier = u?.subscriptionTier || 'free';
-  return TIER_CALL_SECOND_LIMITS[tier] ?? TIER_CALL_SECOND_LIMITS.free;
+  return TIER_CALL_LIMITS[tier] ?? TIER_CALL_LIMITS.free;
 }
 function getMemoLimitForUser(userId) {
   const tier = userLimits[userId]?.subscriptionTier || 'free';
@@ -1602,9 +1602,8 @@ function getLimits(sid) {
   }
   // Daily window resets at 8 AM UTC (calls + memos)
   const callWindow = getCallWindowStart();
-  // Calls reset once a day (00:00 UTC); memos, messages, regens and swears still use the 8-hour window
-  const callDay = getCallDayStart();
-  if (!u.callDayStart  || u.callDayStart  < callDay) { u.callsToday = 0; u.callSecondsToday = 0; u.callDayStart = callDay; }
+  // Calls reset every 8 hours (same window as memos etc.)
+  if (!u.callDayStart  || u.callDayStart  < callWindow) { u.callsToday = 0; u.callSecondsToday = 0; u.callDayStart = callWindow; }
   if (!u.memoDayStart  || u.memoDayStart  < callWindow) { u.memosToday     = 0; u.memoDayStart  = callWindow; }
   if (!u.msgDayStart   || u.msgDayStart   < callWindow) { u.msgTokensToday = 0; u.msgDayStart   = callWindow; }
   // Image window is rolling 24h from first use, not a fixed daily window
@@ -1647,11 +1646,11 @@ function checkLimits(sid) {
 }
 
 function buildUsagePayload(u, userId) {
-  const callSecsLimit = userId ? getCallLimitForUser(userId) : ((TIER_CALL_SECOND_LIMITS[u.subscriptionTier || 'free']) ?? TIER_CALL_SECOND_LIMITS.free);
+  const callLimit = userId ? getCallLimitForUser(userId) : (TIER_CALL_LIMITS[u.subscriptionTier || 'free'] ?? TIER_CALL_LIMITS.free);
   const memoLimit = userId ? getMemoLimitForUser(userId) : (TIER_MEMO_LIMITS[u.subscriptionTier || 'free'] ?? TIER_MEMO_LIMITS.free);
   const imgLimit  = userId ? getImageLimitForUser(userId) : (TIER_IMAGE_LIMITS[u.subscriptionTier || 'free'] ?? TIER_IMAGE_LIMITS.free);
-  const callSecsToday = u.callSecondsToday || 0;
-  const callSecsRemaining = callSecsLimit === Infinity ? 99999 : Math.max(0, callSecsLimit - callSecsToday);
+  const callsToday = u.callsToday || 0;
+  const callsRemaining = callLimit === Infinity ? 9999 : Math.max(0, callLimit - callsToday);
   const memosRemaining = memoLimit === Infinity ? 9999 : Math.max(0, memoLimit - (u.memosToday || 0));
   return {
     sessionTokens: u.sessionTokens,
@@ -1666,13 +1665,10 @@ function buildUsagePayload(u, userId) {
     regenCount: u.regenCount || 0,
     regenLimit: TIER_REGEN_LIMITS[u.subscriptionTier || 'free'] ?? TIER_REGEN_LIMITS.free,
     msgTokensToday: u.msgTokensToday || 0,
-    callsToday: u.callsToday || 0,
-    callSecondsToday: callSecsToday,
-    callSecondsLimit: callSecsLimit === Infinity ? 99999 : callSecsLimit,
-    callSecondsRemaining: callSecsRemaining,
-    // Legacy count fields (kept for mission display compat)
-    callsLimit: callSecsLimit === Infinity ? 9999 : Math.round(callSecsLimit / 300),
-    callsRemaining: callSecsLimit === Infinity ? 9999 : Math.floor(callSecsRemaining / 300),
+    callsToday,
+    callsLimit: callLimit === Infinity ? 9999 : callLimit,
+    callsRemaining,
+    callSecondsToday: u.callSecondsToday || 0,
     memosToday: u.memosToday || 0,
     memosLimit: memoLimit === Infinity ? 9999 : memoLimit,
     memosRemaining,
@@ -1680,7 +1676,7 @@ function buildUsagePayload(u, userId) {
     imageLimit: imgLimit === Infinity ? 9999 : imgLimit,
     imageResetAt: u.imageFirstUsedAt ? u.imageFirstUsedAt + 24 * 60 * 60 * 1000 : null,
     subscriptionTier: u.subscriptionTier || 'free',
-    callWindowResetsAt: getCallDayStart() + DAY_MS,
+    callWindowResetsAt: getCallWindowStart() + 8 * 60 * 60 * 1000,
     softLaunch: SOFT_LAUNCH,
     gameNextAvailableAt: (() => { const last = userId && gameLastPlayed ? gameLastPlayed.get(userId) : null; return last ? last + GAME_COOLDOWN_MS : null; })(),
     cmCoins: u.cmCoins || 0,
@@ -2128,7 +2124,7 @@ async function buildMemoryNote(modelTier, fullMsgs, key, charName, userId) {
 // How long a long reply should be. These fit inside what the free Groq plan can hold; if the Groq limits are ever raised, set
 // GROQ_LENGTH_SCALE (for example 3) together with GROQ_REQUEST_BUDGET and VERSION_CAP_SCALE (reply caps) and every length grows with them.
 const LENGTH_SCALE = Number(process.env.GROQ_LENGTH_SCALE) || 1;
-const WORDS_BY_EFFORT = { high: 800, extra: 1500, max: 2200, ultracode: 2500 };
+const WORDS_BY_EFFORT = { low: 80, medium: 250, high: 800, extra: 1500, max: 2200, ultracode: 2500 };
 function lengthTargetWords(modelTier, effort) {
   const base = baseOf(modelTier);
   if (!base || !Object.hasOwn(WORDS_BY_EFFORT, effort)) return 0;
@@ -4056,10 +4052,9 @@ app.get('/api/exchange-rates', charReadLimiter, async (req, res) => {
 app.post('/api/call/start', requireAuth, (req, res) => {
   const userId = req.user.googleId;
   const u = getLimits(userId);
-  const callSecsLimit = getCallLimitForUser(userId);
-  if (callSecsLimit !== Infinity && (u.callSecondsToday || 0) >= callSecsLimit) {
-    const minsLimit = Math.round(callSecsLimit / 60);
-    return res.status(429).json({ allowed: false, type: 'call_daily_limit', callSecondsToday: u.callSecondsToday || 0, callSecondsLimit: callSecsLimit, minsLimit, resetsAt: getCallDayStart() + DAY_MS });
+  const callLimit = getCallLimitForUser(userId);
+  if (callLimit !== Infinity && (u.callsToday || 0) >= callLimit) {
+    return res.status(429).json({ allowed: false, type: 'call_daily_limit', callsToday: u.callsToday || 0, callsLimit: callLimit, resetsAt: getCallWindowStart() + 8 * 60 * 60 * 1000 });
   }
   // A character who blocked this user won't pick up
   const { charId } = req.body || {};

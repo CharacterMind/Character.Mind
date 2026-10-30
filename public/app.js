@@ -5054,6 +5054,7 @@ async function generateGreeting() {
   const myEpoch = chatEpoch;   // taken BEFORE any waiting, so a chat switch during the request is noticed
   showTyping(true);
   isStreaming = true;
+  if (!window._gpuBoostActive && !callModeActive) window._farmBoostMult = 1.5;
   document.getElementById('sendBtn')?.setAttribute('disabled', '');
 
   let msgEl = null, bubble = null, gotFirst = false;
@@ -5071,6 +5072,7 @@ async function generateGreeting() {
       const err = await res.json().catch(() => ({}));
       watch.clear();
       showTyping(false); isStreaming = false;
+      if (!window._gpuBoostActive && !callModeActive) window._farmBoostMult = 1;
       if (res.status === 401) { window.location.href = '/'; return; }
       if (res.status === 429) {
         if (err.type === 'session') startCooldown(err.cooldownUntil, 'session', true);
@@ -5127,6 +5129,7 @@ async function generateGreeting() {
       if (msgEl) { if (streamSig) msgEl.dataset.sig = streamSig; else delete msgEl.dataset.sig; }
       if (msgEl) stopStreamStats(msgEl, streamRealTokens);
       isStreaming = false;
+      if (!window._gpuBoostActive && !callModeActive) window._farmBoostMult = 1;
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
       if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
       scrollToBottom();
@@ -6242,9 +6245,9 @@ function renderUsageBanners(usage) {
   }
 
   // \u2500\u2500 Call limit banner (all users, stacks below weekly/session banner) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-  const callSecsToday_banner = usage.callSecondsToday || 0;
-  const callSecsLimit_banner = usage.callSecondsLimit || 1800;
-  const callsMaxed = callSecsLimit_banner > 0 && callSecsToday_banner >= callSecsLimit_banner;
+  const callsToday_banner = usage.callsToday || 0;
+  const callsLimit_banner = usage.callsLimit || 6;
+  const callsMaxed = callsLimit_banner > 0 && callsToday_banner >= callsLimit_banner;
   const existingCallBanner = container.querySelector('.warning-banner[data-usage-kind="calls"]');
   if (callsMaxed && !existingCallBanner) {
     const cb = document.createElement('div');
@@ -6252,7 +6255,7 @@ function renderUsageBanners(usage) {
     cb.dataset.usageKind = 'calls';
     cb.dataset.usageLevel = 'max';
     const cbText = document.createElement('span');
-    cbText.textContent = "\uD83D\uDCF5 Call limit hit \u2014 they\u2019re filing a restraining order. Resets tomorrow.";
+    cbText.textContent = "\uD83D\uDCF5 Call limit hit \u2014 they\u2019re filing a restraining order. Resets in 8 hours.";
     cb.appendChild(cbText);
     container.appendChild(cb);
   } else if (!callsMaxed && existingCallBanner) {
@@ -7114,19 +7117,15 @@ function updateUsageModal(u) {
     if (subEl && subText !== undefined) subEl.textContent = subText;
   }
 
-  // Calls (duration-based)
-  const callSecsToday = u.callSecondsToday || 0;
-  const callSecsLimit = u.callSecondsLimit || 1800;
-  const callSecsPct = callSecsLimit > 0 ? Math.min(100, Math.round(callSecsToday / callSecsLimit * 100)) : 0;
-  const callMinsUsed = Math.floor(callSecsToday / 60);
-  const callSecsUsedR = callSecsToday % 60;
-  const secsRemaining = u.callSecondsRemaining != null ? u.callSecondsRemaining : Math.max(0, callSecsLimit - callSecsToday);
-  const callMinsRem = Math.floor(secsRemaining / 60);
-  const callSecsRem = secsRemaining % 60;
-  const usedStr = callMinsUsed > 0 ? `${callMinsUsed}m ${callSecsUsedR}s used` : `${callSecsUsedR}s used`;
-  const remStr = callMinsRem > 0 ? `${callMinsRem}m ${callSecsRem}s remaining` : `${callSecsRem}s remaining`;
-  setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callSecsPct,
-    `${usedStr} · ${remStr}`, callSecsLimit >= 99999);
+  // Calls (count-based, 8h window)
+  const callsToday = u.callsToday || 0;
+  const callsLimit = u.callsLimit || 6;
+  const callsRemaining = u.callsRemaining != null ? u.callsRemaining : Math.max(0, callsLimit - callsToday);
+  const callsPct = callsLimit > 0 ? Math.min(100, Math.round(callsToday / callsLimit * 100)) : 0;
+  const callSubStr = callsLimit >= 9999
+    ? `${callsToday} calls used`
+    : `${callsToday} of ${callsLimit} calls used · ${callsRemaining} remaining`;
+  setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct, callSubStr, callsLimit >= 9999);
 
   // Daily resets subtitle
   const dailyResetsEl = document.getElementById('usageDailyResetsSub');
@@ -9846,7 +9845,7 @@ async function _doStartCall(overlay) {
       }
       if (overlay) overlay.style.display = 'none';
       if (r.status === 429) {
-        showCallLimitModal(data.resetsAt || data.cooldownUntil || Date.now() + 3600000, null, data.minsLimit);
+        showCallLimitModal(data.resetsAt || data.cooldownUntil || Date.now() + 28800000, null, data.callsLimit);
       } else {
         const msg = data.error || data.message || 'Call service unavailable. Please try again.';
         showWarning(msg, 5000);
@@ -9858,6 +9857,7 @@ async function _doStartCall(overlay) {
   if (startGen !== callGen) { callStarting = false; if (overlay) overlay.style.display = 'none'; return; }
   callStarting = false;
   callModeActive = true;
+  if (!window._gpuBoostActive) window._farmBoostMult = 3;
   serverTTSOk = true;
   callMuted = false;
   callFirstConnect = true;
@@ -10075,8 +10075,8 @@ function showCallLimitModal(resetsAt, reason, minsLimit) {
   const headEl = document.getElementById('callLimitHeadline');
   const subEl = document.getElementById('callLimitSub');
   const msgEl = document.getElementById('callLimitCharMsg');
-  const limitStr = minsLimit ? ` (${minsLimit}-minute window)` : '';
-  if (headEl) headEl.textContent = `Call time limit reached${limitStr}.`;
+  const limitStr = minsLimit ? ` (${minsLimit} calls per 8h)` : '';
+  if (headEl) headEl.textContent = `Call limit reached${limitStr}.`;
   if (subEl) subEl.textContent = '';
   if (msgEl) msgEl.textContent = CALL_LIMIT_MESSAGES[Math.floor(Math.random() * CALL_LIMIT_MESSAGES.length)];
   let cdEl = null;
@@ -10140,6 +10140,7 @@ function endCallMode() {
   callGen++;
   callModeActive = false;
   callStarting = false;
+  if (!window._gpuBoostActive) window._farmBoostMult = 1;
   callMuted = false;
   if (_callLogStartTs > 0 && currentChar) {
     const dur = Math.round((Date.now() - _callLogStartTs) / 1000);
@@ -12877,7 +12878,7 @@ async function claimHalloweenGift() {
   function _smoothTick() {
     if (!_st.initialized) return;
     var mult = (typeof window._farmBoostMult !== 'undefined') ? window._farmBoostMult : 1;
-    _displayAccum += 0.1 * _st.ratePerSec * mult;
+    _displayAccum += 0.1 * _st.ratePerSec * mult * 50;
     _renderCounter();
   }
 
@@ -13184,7 +13185,8 @@ async function claimHalloweenGift() {
     if (lbl)  lbl.textContent = _boosting ? '⚡ Boosting' : '⚡ Boost';
     if (sub)  sub.textContent = _boosting ? ('GPU active · ' + BOOST_MULT + '× rate') : (BOOST_MULT + '× rate while active');
     if (hint) hint.textContent = _boosting ? (BOOST_MULT + '× boost active · GPU running') : 'coins/sec · max 8 hrs offline';
-    window._farmBoostMult = _boosting ? BOOST_MULT : 1;
+    window._farmBoostMult = _boosting ? BOOST_MULT : (callModeActive ? 3 : 1);
+    window._gpuBoostActive = _boosting;
     // GL loop always runs for animation; boost just changes the shader uniform
   };
 

@@ -1,5 +1,19 @@
 [
   {
+    "id": "v370-calls-tokens-length",
+    "version": "v370",
+    "date": "Oct 2026",
+    "title": "📊 Smarter Calls & Token Train",
+    "subtitle": "Calls now count (not time), reset every 8 hours, and higher model + effort always writes more. The coin farm animates faster with activity boosts.",
+    "changed": [
+      "Calls now count-based: shows 'X of Y calls used' with an 8-hour reset window instead of time tracking",
+      "Higher model tier + higher effort always produce longer replies — added low/medium effort word targets that scale with model",
+      "Fixed: opis model cap was 3200 (less than opes!) — now correctly set to 6000",
+      "Token train counter animates 50× faster for satisfying visual feedback",
+      "Activity boosts the coin farm: chatting = 1.5×, on a call = 3×, GPU boost = 5× (takes priority over activity)"
+    ]
+  },
+  {
     "id": "v369-edge-timeout",
     "version": "v369",
     "date": "Oct 2026",
