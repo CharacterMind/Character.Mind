@@ -144,7 +144,7 @@ _lock      = threading.Lock()   # TTS models are NOT thread-safe
 _gpu       = False
 # YourTTS is the default: ~400 MB, works on CPU in 2-5s.
 # Set TTS_MODEL=xtts_v2 for higher quality (needs ~2 GB RAM, GPU recommended).
-_MODEL_KEY = os.environ.get("TTS_MODEL", "your_tts").lower()
+_MODEL_KEY = os.environ.get("TTS_MODEL", "xtts_v2").lower()
 _MODEL_NAMES = {
     "your_tts": "tts_models/multilingual/multi-dataset/your_tts",
     "xtts_v2":  "tts_models/multilingual/multi-dataset/xtts_v2",

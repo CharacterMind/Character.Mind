@@ -11,5 +11,6 @@ echo  then restart this server to use it.
 echo.
 echo  First run will download the XTTS-v2 model (~1.8 GB).
 echo.
+set TTS_MODEL=xtts_v2
 python tts_server.py
 pause
