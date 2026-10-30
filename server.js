@@ -4702,7 +4702,9 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         }
         const ctrl = new AbortController();
         const localXtts = !process.env.TTS_CLONE_URL;
-        const cloneTimeout = setTimeout(() => ctrl.abort(), localXtts ? 60000 : 8000); // local CPU needs up to 60s; remote should be fast
+        // Local CPU XTTS takes 15-180s depending on text length and system load.
+        // 180s gives even long responses time to finish; remote GPU should reply in under 8s.
+        const cloneTimeout = setTimeout(() => ctrl.abort(), localXtts ? 180000 : 8000);
         const cloneRes = await fetch(`${cloneBase}/tts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
