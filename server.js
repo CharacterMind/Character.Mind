@@ -1121,15 +1121,16 @@ const LIMITS = {
   CALL_DAILY: 3
 };
 
-// Session token limits. FREE_SESSION_TOKENS = 30 avg messages (30 × AVG_MESSAGE_TOKENS).
-// Advanced = 2× free (60 messages). Weekly = 7 sessions for every plan (~1 session/day).
-// AVG_MESSAGE_TOKENS (one Opes Medium reply) is the unit used to size session limits.
+// Token limits. AVG_MESSAGE_TOKENS = one Opes Medium reply — used as the "average message" unit.
+// Session caps limit any single sitting. Weekly caps are the real usage ceiling.
+// Drain rate scales automatically: higher model tiers (MODEL_TOKEN_MULT), group/call activity costs
+// all multiply token cost per message, so heavy use hits the limit faster than the avg-msg numbers suggest.
 const AVG_MESSAGE_TOKENS  = 1800;
-const FREE_SESSION_TOKENS = 30 * AVG_MESSAGE_TOKENS; // 54,000 — ~30 messages per session
+const FREE_SESSION_TOKENS = 30 * AVG_MESSAGE_TOKENS;  // 54,000 — ~30 avg messages per session
 const WEEKLY_SESSIONS     = 7;
 const TIER_TOKEN_LIMITS = {
-  free:     { session: FREE_SESSION_TOKENS,        weekly: FREE_SESSION_TOKENS       * WEEKLY_SESSIONS },
-  advanced: { session: FREE_SESSION_TOKENS * 2,    weekly: FREE_SESSION_TOKENS * 2   * WEEKLY_SESSIONS },
+  free:     { session: FREE_SESSION_TOKENS,        weekly: 100 * AVG_MESSAGE_TOKENS },  // ~100 avg msgs/wk
+  advanced: { session: FREE_SESSION_TOKENS * 2,    weekly: 500 * AVG_MESSAGE_TOKENS },  // ~500 avg msgs/wk
   x20:      { session: FREE_SESSION_TOKENS * 20,   weekly: FREE_SESSION_TOKENS * 20  * WEEKLY_SESSIONS },
   x50:      { session: FREE_SESSION_TOKENS * 50,   weekly: FREE_SESSION_TOKENS * 50  * WEEKLY_SESSIONS },
   x100:     { session: FREE_SESSION_TOKENS * 100,  weekly: FREE_SESSION_TOKENS * 100 * WEEKLY_SESSIONS },
