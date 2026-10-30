@@ -1334,16 +1334,15 @@ html, body {
 .call-avatar-wrap {
   flex: 1; display: flex; align-items: center; justify-content: center;
 }
-/* Big centered caller photo — Android octagonal shape */
+/* Character displayed freely — no box, full image visible, green-screen style */
 .call-char-img {
-  width: min(66vw, 38vh, 240px); height: min(66vw, 38vh, 240px);
-  border-radius: 28%;
-  background-color: rgba(255,255,255,0.07);
-  background-size: cover; background-position: center;
-  border: none;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+  width: 80vw;
+  max-width: 360px;
+  height: clamp(220px, 52vh, 380px);
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
   display: flex; align-items: center; justify-content: center;
-  overflow: hidden;
 }
 /* No-photo placeholder (hidden when background-image is set via JS) */
 .call-no-photo {
@@ -1351,10 +1350,10 @@ html, body {
   width: 100%; height: 100%;
 }
 /* Soft pulse while it's ringing */
-.call-overlay[data-state="calling"] .call-char-img { animation: callRingPulse 1.6s ease-out infinite; }
+.call-overlay[data-state="calling"] .call-char-img { animation: callRingPulse 1.6s ease-in-out infinite; }
 @keyframes callRingPulse {
-  0%   { box-shadow: 0 12px 60px rgba(0,0,0,0.6), 0 0 0 0 rgba(255,255,255,0.28); }
-  100% { box-shadow: 0 12px 60px rgba(0,0,0,0.6), 0 0 0 26px rgba(255,255,255,0); }
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.82; transform: scale(1.04); }
 }
 @media (prefers-reduced-motion: reduce) {
   .call-overlay[data-state="calling"] .call-char-img { animation: none; }
@@ -1463,9 +1462,9 @@ html, body {
 }
 .call-char-picker-close:hover { background: rgba(255,255,255,0.2); }
 
-/* Desktop: slightly larger avatar and name */
+/* Desktop: larger character */
 @media (min-width: 768px) {
-  .call-char-img { width: min(40vh, 300px); height: min(40vh, 300px); }
+  .call-char-img { width: min(55vh, 420px); height: clamp(260px, 58vh, 420px); }
   .call-char-name { font-size: 34px; }
 }
 
