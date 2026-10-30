@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     autoDeploy: true
-    buildCommand: npm ci
+    buildCommand: npm ci && pip3 install --no-cache-dir -r tts_server/requirements.txt
     startCommand: npm start
     envVars:
       - key: NODE_ENV
@@ -21,3 +21,5 @@ services:
         sync: false
       - key: SITE_URL
         value: https://charactermind.onrender.com
+      - key: XTTS_AUTOSTART
+        value: "true"

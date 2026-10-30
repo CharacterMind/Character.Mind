@@ -201,7 +201,41 @@ app.listen(PORT, () => {
   console.log(`\nAI Character Site bound on port ${PORT} — initializing (maintenance active)...\n`);
   sendDeployNotification().catch(e => console.error('Deploy email failed:', e.message));
   initDB();
+  autoStartXtts();
 });
+
+// ── XTTS auto-start ───────────────────────────────────────────────────────────
+// Set XTTS_AUTOSTART=true on Render to spawn tts_server.py inside the same
+// instance. No ngrok needed. Falls back to Edge TTS while the model loads
+// (first run downloads ~1.8 GB; subsequent starts are fast from cache).
+// Only runs when neither TTS_CLONE_URL nor ELEVENLABS_API_KEY is configured.
+function autoStartXtts() {
+  if (process.env.TTS_CLONE_URL || process.env.ELEVENLABS_API_KEY) return;
+  if (process.env.XTTS_AUTOSTART !== 'true') return;
+  const { spawn } = require('child_process');
+  const ttsScript = path.join(__dirname, 'tts_server', 'tts_server.py');
+  const ttsEnv = {
+    ...process.env,
+    TTS_HOME: path.join(__dirname, 'tts_server'),
+    FLASK_ENV: 'production',
+  };
+  const proc = spawn('python3', [ttsScript], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: ttsEnv,
+    detached: false,
+  });
+  proc.stdout.on('data', d => console.log('[xtts]', d.toString().trimEnd()));
+  proc.stderr.on('data', d => {
+    const msg = d.toString().trimEnd();
+    // Filter noisy torch/triton warnings that aren't errors
+    if (!msg.includes('UserWarning') && !msg.includes('FutureWarning') && !msg.includes('triton')) {
+      console.log('[xtts]', msg);
+    }
+  });
+  proc.on('exit', (code, sig) => console.warn(`[xtts] exited code=${code} sig=${sig}`));
+  proc.on('error', err => console.error('[xtts] failed to start:', err.message));
+  console.log('[xtts] auto-started tts_server.py (model loading, TTS will be available shortly)');
+}
 
 // ── Official character seeder ─────────────────────────────────────────────────
 async function seedOfficialChar(id, matchKey, imgUrl, isHidden = false) {
