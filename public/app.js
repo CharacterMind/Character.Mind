@@ -4801,6 +4801,7 @@ async function openChat(charId) {
   const openEpoch = chatEpoch;
   currentChar = nextChar;
   applyChatTheme(currentChar);
+  loadFriendship(currentChar.id);
   updateRpModeUI();
   if (lastKnownUsage) updateNavCoinDisplay(lastKnownUsage);
   // Never leave the previous character's messages on screen while the new chat loads
@@ -5511,6 +5512,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
         playSound('done');
         if (callModeActive) callModeTTS(bubble);
         if (streamPhoneUnlocked) showPhoneUnlockedToast(streamPhoneUnlocked);
+        if (currentChar && !callModeActive) refreshFriendshipBar(currentChar.id);
       } else if (callModeActive) {
         setTimeout(() => listenForSpeech(), 500);
       }
@@ -11315,6 +11317,80 @@ function copyCodeBlock(btn) {
 }
 // A character ends the reply that shares their phone number with this tag; it is never shown
 const GIVE_NUMBER_TAG_RE = /\[\s*GIVE[\s_-]*NUMBER\s*\]/i;
+
+// ── Friendship bar ────────────────────────────────────────────────────────────
+let _currentFriendship = null;
+
+function loadFriendship(charId) {
+  if (!charId) return;
+  fetch(`/api/friendship/${encodeURIComponent(charId)}`)
+    .then(r => r.ok ? r.json() : null)
+    .then(d => d && renderFriendshipBar(d))
+    .catch(() => {});
+}
+
+function renderFriendshipBar(d) {
+  _currentFriendship = d;
+  const wrap = document.getElementById('ipFriendship');
+  const fill = document.getElementById('ipFriendshipFill');
+  const scoreEl = document.getElementById('ipFriendshipScore');
+  const hintEl = document.getElementById('ipFriendshipHint');
+  const resetBtn = document.getElementById('ipFriendshipResetBtn');
+  if (!wrap || !fill || !scoreEl || !hintEl) return;
+
+  const score = d.score || 0;
+  const max = d.max || 20;
+  const pct = Math.min(100, Math.round((score / max) * 100));
+
+  wrap.style.display = '';
+  fill.style.width = pct + '%';
+  fill.classList.toggle('ip-friendship-fill-full', d.unlocked);
+
+  if (d.unlocked) {
+    scoreEl.textContent = '💕 Unlocked';
+    hintEl.textContent = 'She trusts you — number is in Contacts';
+  } else {
+    scoreEl.textContent = `${score} / ${max}`;
+    if (score === 0) hintEl.textContent = 'Chat to earn their trust';
+    else if (score < max * 0.3) hintEl.textContent = 'Just getting started…';
+    else if (score < max * 0.6) hintEl.textContent = 'You\'re warming up!';
+    else if (score < max * 0.85) hintEl.textContent = 'She\'s starting to trust you';
+    else hintEl.textContent = 'Almost there — keep chatting!';
+  }
+
+  if (resetBtn) resetBtn.style.display = score > 0 ? '' : 'none';
+}
+
+function refreshFriendshipBar(charId) {
+  if (!charId) return;
+  fetch(`/api/friendship/${encodeURIComponent(charId)}`)
+    .then(r => r.ok ? r.json() : null)
+    .then(d => d && renderFriendshipBar(d))
+    .catch(() => {});
+}
+
+async function confirmResetFriendship() {
+  if (!currentChar) return;
+  const name = currentChar.name || 'this character';
+  if (!confirm(`Reset friendship with ${name}? This will clear your chat history and all memories. You'll start from scratch.`)) return;
+
+  try {
+    const r = await fetch(`/api/friendship/${encodeURIComponent(currentChar.id)}/reset`, { method: 'POST' });
+    if (!r.ok) throw new Error('Server error');
+    const d = await r.json();
+    renderFriendshipBar(d);
+    // Clear local chat display and reload
+    const messagesDiv = document.getElementById('messages');
+    if (messagesDiv) messagesDiv.innerHTML = '';
+    const wEl = document.getElementById('chatWelcome');
+    if (wEl) wEl.innerHTML = '';
+    try { localStorage.removeItem('cm_chat_' + currentChar.id); } catch (_) {}
+    generateGreeting();
+  } catch (e) {
+    alert('Could not reset friendship. Please try again.');
+  }
+}
+
 // "Poppy's number was added to your contacts" — tapping it opens the Phone page
 function showPhoneUnlockedToast(info) {
   const toast = document.createElement('div');

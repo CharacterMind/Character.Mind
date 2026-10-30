@@ -1903,6 +1903,37 @@ html, body {
 .ip-soc-like.active { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
 .ip-soc-gap { flex: 1; }
 
+/* Friendship bar */
+.ip-friendship {
+  margin: 4px 16px 12px;
+  padding: 10px 12px 10px;
+  background: var(--bg2);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+.ip-friendship-top {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 7px;
+}
+.ip-friendship-label { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; }
+.ip-friendship-score { font-size: 12px; font-weight: 700; color: var(--text2); }
+.ip-friendship-track {
+  height: 7px; background: var(--border); border-radius: 99px; overflow: hidden;
+  margin-bottom: 6px;
+}
+.ip-friendship-fill {
+  height: 100%; border-radius: 99px;
+  background: linear-gradient(90deg, #c084fc, #f472b6);
+  transition: width .5s cubic-bezier(.4,0,.2,1);
+}
+.ip-friendship-fill-full {
+  background: linear-gradient(90deg, #34d399, #10b981);
+}
+.ip-friendship-hint { font-size: 11px; color: var(--text3); line-height: 1.3; }
+
+.ip-friendship-reset-btn { color: var(--text3) !important; }
+.ip-friendship-reset-btn:hover { color: #f87171 !important; }
+
 /* Divider */
 .ip-divider { height: 1px; background: var(--border); margin: 0 16px; }
 .ip-divider-menu { margin: 4px 0; }

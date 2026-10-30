@@ -4161,6 +4161,40 @@ app.get('/api/phone/contacts', requireAuth, async (req, res) => {
   }
 });
 
+// ── Friendship API ────────────────────────────────────────────────────────────
+app.get('/api/friendship/:charId', requireAuth, (req, res) => {
+  const { charId } = req.params;
+  if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
+  const userId = req.user.googleId;
+  const score = getLimits(userId).friendship?.[charId] || 0;
+  const unlocked = isPhoneUnlocked(userId, charId);
+  res.json({ score, max: PHONE_FRIENDSHIP_AT, unlocked });
+});
+
+app.post('/api/friendship/:charId/reset', requireAuth, async (req, res) => {
+  const { charId } = req.params;
+  if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
+  const userId = req.user.googleId;
+
+  // Reset friendship score and phone unlock
+  const u = getLimits(userId);
+  if (u.friendship) delete u.friendship[charId];
+  if (Array.isArray(u.phoneUnlocked)) u.phoneUnlocked = u.phoneUnlocked.filter(id => id !== charId);
+  saveLimitsToDB(userId);
+
+  // Clear in-memory conversation
+  const key = `${userId}:${charId}`;
+  delete conversations[key];
+
+  // Clear DB: current chat + memories from this char's conversations
+  if (db) {
+    await db.query('DELETE FROM chat_current WHERE user_id=$1 AND char_id=$2', [userId, charId]).catch(() => {});
+    await db.query('DELETE FROM user_memories WHERE user_id=$1 AND source_char=$2', [userId, charId]).catch(() => {});
+  }
+
+  res.json({ ok: true, score: 0, max: PHONE_FRIENDSHIP_AT, unlocked: false });
+});
+
 // Unlock a character's number for the current user (called by friendship system or admin)
 app.post('/api/phone/unlock/:charId', requireAuth, (req, res) => {
   // Owner-only test tool — normal users earn numbers through friendship in chat
