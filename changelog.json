@@ -8,7 +8,8 @@
     "changed": [
       "Fixed: browsers were silently running old code from v365 — cache version now bumped so all prior fixes actually load",
       "Fixed: read-aloud race now correctly plays Edge audio even when the primary provider returns an error first",
-      "Fixed: call hang-up message no longer tries the XTTS path when character voice is selected"
+      "Fixed: call hang-up message no longer tries the XTTS path when character voice is selected",
+      "Voice panel now shows 'Voice cloning online' or 'Using built-in voice' so you know whether your uploaded WAV is actually being used"
     ]
   },
   {
