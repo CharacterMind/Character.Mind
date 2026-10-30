@@ -270,7 +270,7 @@ async function seedOfficialChar(id, matchKey, imgUrl, isHidden = false) {
 
 function initDB() {
 let serverReady = false;
-let runtimeTtsUrl = null; // set by POST /api/tts/announce from start-voice.py
+let runtimeTtsUrl = null; // set by POST /api/tts/announce from start-voice.py (v385b)
 if (db) {
   db.query(`
     CREATE TABLE IF NOT EXISTS characters (
