@@ -7164,14 +7164,22 @@ function updateUsageModal(u) {
   const callsPct = callsLimit > 0 ? Math.min(100, Math.round(callsToday / callsLimit * 100)) : 0;
   const callSubStr = callsLimit >= 9999
     ? `${callsToday} calls used`
-    : `${callsToday} of ${callsLimit} calls used · ${callsRemaining} remaining`;
+    : `${callsToday} calls used · up to ${callsLimit} per 8h window`;
   setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct, callSubStr, callsLimit >= 9999);
 
-  // Daily resets subtitle
-  const dailyResetsEl = document.getElementById('usageDailyResetsSub');
-  if (dailyResetsEl && u.callWindowResetsAt) {
-    const remaining = u.callWindowResetsAt - Date.now();
-    dailyResetsEl.textContent = remaining > 0 ? 'Resets in ' + formatCountdown(remaining) : '';
+  // Daily resets subtitle — live countdown (ticks every 30s)
+  if (_callsResetCountdownTimer) { clearInterval(_callsResetCountdownTimer); _callsResetCountdownTimer = null; }
+  const callsResetAt = u.callWindowResetsAt;
+  if (callsResetAt) {
+    const _tickCallsReset = () => {
+      const el = document.getElementById('usageDailyResetsSub');
+      if (!el) return;
+      const rem = callsResetAt - Date.now();
+      if (rem <= 0) { el.textContent = ''; clearInterval(_callsResetCountdownTimer); _callsResetCountdownTimer = null; return; }
+      el.textContent = 'Resets in ' + formatCountdown(rem);
+    };
+    _tickCallsReset();
+    _callsResetCountdownTimer = setInterval(_tickCallsReset, 30000);
   }
 
   // Halloween 2026 gift row — disabled
@@ -10056,6 +10064,7 @@ function getCharCallColors(char) {
 }
 
 let _callLimitTimer = null;
+let _callsResetCountdownTimer = null;
 let _sessionCountdownTimer = null;
 let _sessionCountdownUntil = null;
 const CALL_LIMIT_MESSAGES = [
