@@ -1286,8 +1286,8 @@ const COIN_MONTHLY_COST = { advanced: 2000, x20: 8000, x50: 20000, x100: 50000, 
 const AFK_FARM_MAX_MS = 8 * 3600 * 1000;  // cap offline accumulation at 8 hours
 const AFK_FARM_MIN_MS = 5 * 60 * 1000;    // minimum 5 min between collects
 const FARM_TIERS = [
-  { name: 'Bare dirt', rate: 0.000000012, cost: 0      }, // lv 0 — ~1 coin/day
-  { name: 'Seeds',     rate: 0.000006,    cost: 150    }, // lv 1 — ~20 coins/hr at low balance
+  { name: 'Bare dirt', rate: 0.000000012, cost: 0      }, // lv 0 — ~0.001 coins/day (intentionally tiny — just a nudge)
+  { name: 'Seeds',     rate: 0.000006,    cost: 150    }, // lv 1 — ~0.5 coins/day at zero balance
   { name: 'Sprouts',   rate: 0.000025,    cost: 600    }, // lv 2
   { name: 'Crops',     rate: 0.00008,     cost: 2500   }, // lv 3
   { name: 'Harvest',   rate: 0.00022,     cost: 10000  }, // lv 4
