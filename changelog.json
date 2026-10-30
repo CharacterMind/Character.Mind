@@ -1,5 +1,29 @@
 [
   {
+    "id": "v388-calls-ui-fixes",
+    "version": "v388",
+    "date": "Oct 2026",
+    "title": "📊 Calls Counter & Reset Timer Fixed",
+    "subtitle": "Calls now show 'up to N per 8h window' since the limit varies by tier, and the reset countdown actually ticks.",
+    "fixed": [
+      "Calls counter changed from '0 of 18 calls used · 18 remaining' to '0 calls used · up to 18 per 8h window' — the limit varies by plan so showing a fixed number was misleading",
+      "Reset countdown was frozen at the time the usage modal first opened — it now ticks live every 30 seconds",
+      "Reset window correctly shows 8 hours (was displaying 6h due to a stale label)"
+    ]
+  },
+  {
+    "id": "v387-voice-clone-fix",
+    "version": "v387",
+    "date": "Oct 2026",
+    "title": "🎤 Voice Clone Actually Works Now",
+    "subtitle": "Poppy and Huggy Wuggy's cloned voices now play — a race condition was letting Edge TTS always win.",
+    "fixed": [
+      "Clone voice (Poppy, Huggy) never played — Edge TTS (~300ms) was racing against GPU synthesis (~3-4s) and always winning first",
+      "Fixed: clone provider now bypasses the race entirely and goes directly to the GPU voice server",
+      "XTTS health check timeout increased from 1.5s to 4s so Cloudflare tunnel latency no longer makes the server appear offline"
+    ]
+  },
+  {
     "id": "v386-huggy-reset-contacts",
     "version": "v386",
     "date": "Oct 2026",

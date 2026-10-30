@@ -2002,6 +2002,24 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '388': {
+    date: 'October 2026',
+    label: 'Calls Counter & Reset Timer Fixed',
+    fixed: [
+      "Calls counter changed from '0 of 18 calls used · 18 remaining' to '0 calls used · up to 18 per 8h window' — the limit varies by plan so showing a fixed number was misleading",
+      'Reset countdown was frozen at the time the usage modal first opened — it now ticks live every 30 seconds',
+      'Reset window correctly shows 8 hours (was displaying 6h due to a stale label)',
+    ],
+  },
+  '387': {
+    date: 'October 2026',
+    label: 'Voice Clone Actually Works Now',
+    fixed: [
+      'Clone voice (Poppy, Huggy) never played — Edge TTS (~300ms) was racing against GPU synthesis (~3-4s) and always winning first',
+      'Fixed: clone provider now bypasses the race entirely and goes directly to the GPU voice server',
+      'XTTS health check timeout increased from 1.5s to 4s so Cloudflare tunnel latency no longer makes the server appear offline',
+    ],
+  },
   '371': {
     date: 'October 2026',
     label: 'Tiered Memory Quality',
