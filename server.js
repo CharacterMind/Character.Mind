@@ -4845,7 +4845,7 @@ app.get('/api/xtts-status', requireAuth, async (req, res) => {
     : `http://127.0.0.1:${clonePort}`;
   try {
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 1500);
+    const t = setTimeout(() => ctrl.abort(), 4000);
     const r = await fetch(`${cloneBase}/health`, { signal: ctrl.signal }).finally(() => clearTimeout(t));
     const data = r.ok ? await r.json().catch(() => ({})) : {};
     return res.json({ online: r.ok, modelReady: data.model_ready ?? false, url: cloneBase });

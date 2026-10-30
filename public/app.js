@@ -9428,17 +9428,18 @@ async function toggleTTS(btn) {
   }
 
   // Fire TTS and memo check in parallel — don't wait for memo before starting TTS.
-  // When provider is gemini, also race an Edge TTS request so the fastest one wins
+  // For gemini, also race an Edge TTS request so the fastest one wins
   // (Edge is ~300 ms; Gemini is ~1-2 s — this cuts the perceived delay significantly).
+  // For 'character' provider we do NOT race: the user explicitly chose the clone voice
+  // and should hear it, even though GPU synthesis takes 3-4 s. Server falls back to
+  // Edge TTS automatically if the clone server is unreachable.
   const ttsAbort = new AbortController();
   const edgeRaceAbort = new AbortController();
   const ttsBody = { text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName };
   const primaryFetch = fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ttsAbort.signal, body: JSON.stringify(ttsBody) });
   let ttsFetchPromise;
-  if (ttsProvider === 'gemini' || ttsProvider === 'character') {
-    // Race the selected provider against Edge TTS — Edge is ~300 ms, Gemini/XTTS are 1-25 s.
-    // For 'character' provider the primary call goes through XTTS (which may time out in 4s).
-    // The Edge race ensures audio plays within ~300 ms even if the primary provider is slow or down.
+  if (ttsProvider === 'gemini') {
+    // Race Gemini against Edge TTS — Edge is ~300 ms, Gemini is ~1-2 s.
     // First-OK-wins: only settle with a non-ok response if BOTH fail.
     const edgeFetch = fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: edgeRaceAbort.signal, body: JSON.stringify({ ...ttsBody, provider: 'edge' }) });
     ttsFetchPromise = new Promise(resolve => {
