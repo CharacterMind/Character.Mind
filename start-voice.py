@@ -133,17 +133,6 @@ if not tunnel_url:
 print()
 print(f"  Tunnel URL: {tunnel_url}")
 
-# 5. Register with Character.Mind
-print()
-print("Registering with Character.Mind...")
-try:
-    result = register_url(tunnel_url)
-    print(f"  ✓ Poppy's voice is now LIVE on Character.Mind!")
-    print(f"  URL registered: {result.get('url', tunnel_url)}")
-except Exception as e:
-    print(f"  Could not auto-register: {e}")
-    print(f"  Manual fallback: set TTS_CLONE_URL={tunnel_url} on Render.")
-
 print()
 print("═══════════════════════════════════════════════════")
 print("  Poppy's cloned voice is active.                 ")
@@ -151,10 +140,30 @@ print("  Keep this window open while using Character.Mind.")
 print("  Press Ctrl+C to stop.                           ")
 print("═══════════════════════════════════════════════════")
 
+# Register with Character.Mind in a background thread (retries until it works).
+# This handles Render being in the middle of a deploy when the script first runs.
+_registered = threading.Event()
+def _register_loop():
+    for attempt in range(1, 31):  # try for up to ~15 minutes
+        try:
+            result = register_url(tunnel_url)
+            print(f"\n  ✓ Poppy's voice registered with Character.Mind! (attempt {attempt})")
+            _registered.set()
+            return
+        except Exception as e:
+            if attempt == 1:
+                print(f"\n  Render may still be deploying — retrying in background (attempt {attempt})...")
+        time.sleep(30)
+    print(f"\n  Could not auto-register after 30 attempts.")
+    print(f"  Manual fallback: set TTS_CLONE_URL={tunnel_url} on Render.")
+
+reg_thread = threading.Thread(target=_register_loop, daemon=True)
+reg_thread.start()
+
 # Keep tailing cloudflared output so the window stays informative
 try:
     for line in cf_proc.stderr:
-        pass  # keep reading so the process doesn't block on a full stderr pipe
+        pass  # drain stderr so the process doesn't block
     cf_proc.wait()
 except KeyboardInterrupt:
     print("\nStopping...")
