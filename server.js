@@ -4546,6 +4546,73 @@ app.post('/api/coins/farm/upgrade', requireAuth, async (req, res) => {
 
 const TTS_DAILY_CHARS = 50000;
 
+// ---------------------------------------------------------------------------
+// ElevenLabs voice cloning — high-quality character TTS
+// Set ELEVENLABS_API_KEY in .env to enable. Voice clones are created once and
+// cached in data/elevenlabs_voices.json so the sample is only uploaded once.
+// ---------------------------------------------------------------------------
+const EL_VOICE_CACHE_PATH = path.join(__dirname, 'data', 'elevenlabs_voices.json');
+let _elVoiceCache = null;
+
+function _loadElCache() {
+  if (_elVoiceCache) return _elVoiceCache;
+  try { _elVoiceCache = JSON.parse(fs.readFileSync(EL_VOICE_CACHE_PATH, 'utf8')); }
+  catch { _elVoiceCache = {}; }
+  return _elVoiceCache;
+}
+
+function _saveElCache(c) {
+  try {
+    fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
+    fs.writeFileSync(EL_VOICE_CACHE_PATH, JSON.stringify(c, null, 2));
+  } catch (e) { console.warn('[elevenlabs] cache save failed:', e.message); }
+}
+
+async function elevenLabsCharacterTTS(text, speakerFile, charName, charId, apiKey) {
+  const cache = _loadElCache();
+  let voiceId = cache[charId];
+
+  // Clone voice on first use for this character
+  if (!voiceId) {
+    const fileBuffer = await fs.promises.readFile(speakerFile);
+    const form = new FormData();
+    form.append('name', `CM_${charName}`);
+    form.append('description', `Character.Mind cloned voice for ${charName}`);
+    form.append('files', new Blob([fileBuffer], { type: 'audio/wav' }), path.basename(speakerFile));
+    form.append('labels', JSON.stringify({}));
+    const cloneRes = await fetch('https://api.elevenlabs.io/v1/voices/add', {
+      method: 'POST',
+      headers: { 'xi-api-key': apiKey },
+      body: form,
+    });
+    if (!cloneRes.ok) {
+      const err = await cloneRes.text().catch(() => cloneRes.status);
+      throw new Error(`EL clone failed: ${err}`);
+    }
+    const cloneData = await cloneRes.json();
+    voiceId = cloneData.voice_id;
+    if (!voiceId) throw new Error('EL clone returned no voice_id');
+    cache[charId] = voiceId;
+    _saveElCache(cache);
+    console.log(`[elevenlabs] cloned voice for ${charName} → ${voiceId}`);
+  }
+
+  const ttsRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`, {
+    method: 'POST',
+    headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text,
+      model_id: 'eleven_multilingual_v2',
+      voice_settings: { stability: 0.4, similarity_boost: 0.9, style: 0.3, use_speaker_boost: true },
+    }),
+  });
+  if (!ttsRes.ok) {
+    const err = await ttsRes.text().catch(() => ttsRes.status);
+    throw new Error(`EL tts failed: ${err}`);
+  }
+  return Buffer.from(await ttsRes.arrayBuffer());
+}
+
 // Edge TTS neural voice map (free fallback — Microsoft neural voices)
 const EDGE_VOICE_MAP = {
   custom_1790897425575_lily: 'en-US-AriaNeural',  // Lily — energetic, expressive, bright
@@ -4922,6 +4989,24 @@ app.post('/api/tts', requireAuth, async (req, res) => {
     } catch { /* no user voice assigned */ }
     if (!speakerFile) speakerFile = charEntry?.file || null;
     if (speakerFile) {
+      // 0. ElevenLabs voice cloning — best quality; set ELEVENLABS_API_KEY to enable
+      if (process.env.ELEVENLABS_API_KEY) {
+        try {
+          const elAudio = await elevenLabsCharacterTTS(
+            text, speakerFile, charEntry?.name || charId, charId,
+            process.env.ELEVENLABS_API_KEY
+          );
+          if (elAudio && elAudio.length) {
+            res.setHeader('Content-Type', 'audio/mpeg');
+            res.setHeader('Cache-Control', 'no-store');
+            res.setHeader('X-TTS-Provider', 'elevenlabs');
+            return res.send(elAudio);
+          }
+        } catch (e) {
+          console.warn('[char-tts] elevenlabs error:', e.message);
+        }
+      }
+
       // 1. Replicate XTTS-v2 (free credits — no local server needed; set REPLICATE_API_TOKEN)
       if (process.env.REPLICATE_API_TOKEN) {
         try {
