@@ -8316,9 +8316,11 @@ function renderCharVoiceSection() {
   const card = document.getElementById('charVoiceCard');
   if (!card) return;
   if (!currentChar) { card.innerHTML = '<div class="voice-empty">Open a character to see their voice.</div>'; return; }
-  fetch(`/api/character-voice/${encodeURIComponent(currentChar.id)}`, { method: 'HEAD' })
-    .then(r => {
-      if (r.ok) {
+  Promise.all([
+    fetch(`/api/character-voice/${encodeURIComponent(currentChar.id)}`, { method: 'HEAD' }),
+    fetch('/api/xtts-status').then(r => r.ok ? r.json() : { online: false }).catch(() => ({ online: false }))
+  ]).then(([voiceR, xttsStatus]) => {
+      if (voiceR.ok) {
         // Auto-default to char voice on first visit for this character
         const perCharKey = getTTSProviderKey();
         if (perCharKey && !localStorage.getItem(perCharKey) && ttsProvider !== 'character') {
@@ -8327,10 +8329,14 @@ function renderCharVoiceSection() {
           _switchVoiceTabUI('character');
         }
         const isActive = ttsProvider === 'character';
+        const cloneStatusHtml = xttsStatus.online
+          ? `<div class="char-voice-clone-status online">🎙 Voice cloning online</div>`
+          : `<div class="char-voice-clone-status offline">Using built-in voice · <a href="https://github.com/CharacterMind/Character.Mind#voice-cloning" target="_blank" style="color:inherit;text-decoration:underline">enable cloning</a></div>`;
         card.innerHTML = `<button class="char-voice-card-btn${isActive ? ' active' : ''}" onclick="setTTSProvider('character',this)">
           <div class="char-voice-info">
             <div class="char-voice-name">${escHtml(currentChar.name)}</div>
-            <div class="char-voice-desc">Authentic character voice</div>
+            <div class="char-voice-desc">Character voice</div>
+            ${cloneStatusHtml}
           </div>
           <div class="char-voice-right">
             <button class="voice-preview-btn" onclick="previewCharVoice(event)" title="Preview sample">▶</button>

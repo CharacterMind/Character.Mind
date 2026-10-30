@@ -4650,6 +4650,23 @@ async function _ensureRemoteVoice(cloneBase, filePath, charEntry) {
 
 app.get('/api/tts/status', requireAuth, (req, res) => res.json({ enabled: true }));
 
+// Quick check: is the XTTS clone server reachable?
+app.get('/api/xtts-status', requireAuth, async (req, res) => {
+  const clonePort = process.env.TTS_CLONE_PORT || '8765';
+  const cloneBase = process.env.TTS_CLONE_URL
+    ? process.env.TTS_CLONE_URL.replace(/\/tts$/, '')
+    : `http://127.0.0.1:${clonePort}`;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 1500);
+    const r = await fetch(`${cloneBase}/health`, { signal: ctrl.signal }).finally(() => clearTimeout(t));
+    const data = r.ok ? await r.json().catch(() => ({})) : {};
+    return res.json({ online: r.ok, modelReady: data.model_ready ?? false, url: cloneBase });
+  } catch {
+    return res.json({ online: false, modelReady: false, url: cloneBase });
+  }
+});
+
 app.post('/api/tts', requireAuth, async (req, res) => {
   const text = String(req.body?.text || '').replace(/[*_`#]/g, '').trim().slice(0, 400);
   const charId = String(req.body?.charId || '');

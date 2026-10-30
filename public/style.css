@@ -1587,6 +1587,9 @@ html, body {
 .char-voice-desc { font-size: 11px; color: var(--text3); margin-top: 2px; }
 .char-voice-right { display: flex; align-items: center; gap: 8px; }
 .char-voice-badge { font-size: 10px; font-weight: 700; background: var(--accent); color: #fff; border-radius: 20px; padding: 2px 8px; }
+.char-voice-clone-status { font-size: 10.5px; margin-top: 4px; }
+.char-voice-clone-status.online { color: #22c55e; }
+.char-voice-clone-status.offline { color: var(--text3); }
 /* Your Voice section */
 .your-voice-row { display: flex; gap: 8px; margin-bottom: 8px; }
 .record-voice-btn {
