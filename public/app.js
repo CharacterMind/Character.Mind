@@ -9331,12 +9331,20 @@ async function toggleTTS(btn) {
   if (ttsProvider === 'gemini' || ttsProvider === 'character') {
     // Race the selected provider against Edge TTS — Edge is ~300 ms, Gemini/XTTS are 1-25 s.
     // For 'character' provider the primary call goes through XTTS (which may time out in 4s).
-    // The Edge race ensures audio plays within 1s even if the primary provider is slow or down.
+    // The Edge race ensures audio plays within ~300 ms even if the primary provider is slow or down.
+    // First-OK-wins: only settle with a non-ok response if BOTH fail.
     const edgeFetch = fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: edgeRaceAbort.signal, body: JSON.stringify({ ...ttsBody, provider: 'edge' }) });
-    ttsFetchPromise = Promise.race([
-      primaryFetch.then(r => { edgeRaceAbort.abort(); return r; }).catch(() => {}),
-      edgeFetch.then(r => { if (r.ok) { ttsAbort.abort(); return r; } return primaryFetch; }).catch(() => primaryFetch)
-    ]);
+    ttsFetchPromise = new Promise(resolve => {
+      let done = 0, settled = false, lastR;
+      const tryWin = (r, abortOther) => {
+        done++;
+        if (!settled && r?.ok) { settled = true; abortOther.abort(); resolve(r); return; }
+        if (!settled) lastR = r;
+        if (done === 2 && !settled) { settled = true; resolve(lastR); }
+      };
+      primaryFetch.then(r => tryWin(r, edgeRaceAbort)).catch(() => tryWin(null, edgeRaceAbort));
+      edgeFetch.then(r => tryWin(r, ttsAbort)).catch(() => tryWin(null, ttsAbort));
+    });
   } else {
     edgeRaceAbort.abort();
     ttsFetchPromise = primaryFetch;
@@ -9504,10 +9512,11 @@ async function speakAndHangUp(text, resetsAt) {
     showCallLimitModal(resetsAt);
   };
   try {
+    const hangUpProvider = ttsProvider === 'character' ? 'edge' : ttsProvider;
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: clean, charId: currentChar?.id, provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined })
+      body: JSON.stringify({ text: clean, charId: currentChar?.id, provider: hangUpProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined })
     });
     if (r.ok) {
       const blob = await r.blob();

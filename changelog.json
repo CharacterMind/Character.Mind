@@ -1,5 +1,17 @@
 [
   {
+    "id": "v368-cache-fix",
+    "version": "v368",
+    "date": "Oct 2026",
+    "title": "🔧 Fixes Actually Reach You Now",
+    "subtitle": "A missing cache-bust bump meant v366 and v367 fixes never loaded in browsers. This delivers them for real.",
+    "changed": [
+      "Fixed: browsers were silently running old code from v365 — cache version now bumped so all prior fixes actually load",
+      "Fixed: read-aloud race now correctly plays Edge audio even when the primary provider returns an error first",
+      "Fixed: call hang-up message no longer tries the XTTS path when character voice is selected"
+    ]
+  },
+  {
     "id": "v366-call-fix",
     "version": "v366",
     "date": "Oct 2026",
