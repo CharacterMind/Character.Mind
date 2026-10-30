@@ -202,8 +202,7 @@ app.listen(PORT, () => {
   sendDeployNotification().catch(e => console.error('Deploy email failed:', e.message));
   if (!db) {
     serverReady = true;
-    console.log('No DB — skipping DB init, site ready.');
-    return;
+    console.log('No DB — skipping DB init, calling initDB for routes...');
   }
   initDB();
 });
@@ -4703,7 +4702,8 @@ app.post('/api/tts', requireAuth, async (req, res) => {
           cloneBody = { text, speaker_wav: speakerFile, language: 'en' };
         }
         const ctrl = new AbortController();
-        const cloneTimeout = setTimeout(() => ctrl.abort(), 4000); // 4s max — if XTTS doesn't respond, fall through fast
+        const localXtts = !process.env.TTS_CLONE_URL;
+        const cloneTimeout = setTimeout(() => ctrl.abort(), localXtts ? 60000 : 8000); // local CPU needs up to 60s; remote should be fast
         const cloneRes = await fetch(`${cloneBase}/tts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
