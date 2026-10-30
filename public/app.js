@@ -9440,8 +9440,8 @@ function callModeTTS(bubble) {
   // Record to conversation log
   callConversation.push({ role: 'char', text, charId: currentChar.id, charName: currentChar.name });
   if (callConversation.length > 14) callConversation.shift();
-  // Decide if a secondary char will react after this TTS
-  callChainCount = (callCharacters.length > 1 && Math.random() < 0.45) ? 1 : 0;
+  // Decide if a secondary char will react after this TTS (higher chance in group calls)
+  callChainCount = (callCharacters.length > 1 && callInterCharRounds < 2 && Math.random() < 0.75) ? 1 : 0;
   callModeTTS_server(text);
 }
 
@@ -9679,8 +9679,10 @@ let callConversation = [];      // rolling log [{role:'user'|'char', text, charI
 let callContextChar = null;     // secondary char currently generating (null = primary)
 let callChainCount = 0;         // chain slots remaining after current TTS ends
 let callHangupChar = null;      // character who is saying goodbye and hangs up once their TTS ends
+let callInterCharRounds = 0;    // consecutive inter-char exchanges without user input
+let callSilenceChainMode = false; // next chained response should be a silence check-in
 let callUserSilenceTimer = null;
-const CALL_USER_SILENCE_MS = 10000; // 10 s before asking "are you there?"
+const CALL_USER_SILENCE_MS = 8000; // 8 s before asking "are you there?" in a group call
 
 function getCallSecsKey() {
   return 'cm_call_secs_' + new Date().toISOString().slice(0,10);
@@ -9871,6 +9873,8 @@ async function _doStartCall(overlay) {
   callContextChar = null;
   callChainCount = 0;
   callHangupChar = null;
+  callInterCharRounds = 0;
+  callSilenceChainMode = false;
   clearTimeout(callUserSilenceTimer); callUserSilenceTimer = null;
   startCallDurationTimer();
   resetCallInactivityTimer();
@@ -10164,6 +10168,8 @@ function endCallMode() {
   callContextChar = null;
   callChainCount = 0;
   callHangupChar = null;
+  callInterCharRounds = 0;
+  callSilenceChainMode = false;
   callSpeakerActive = false;
   if (callBoostGain) callBoostGain.gain.value = CALL_BASE_GAIN;
   document.getElementById('callSpeakerBtn')?.classList.remove('active');
@@ -10398,6 +10404,8 @@ function listenForSpeech() {
       // Record user utterance to conversation log
       callConversation.push({ role: 'user', text });
       if (callConversation.length > 14) callConversation.shift();
+      callInterCharRounds = 0; // user spoke — reset inter-char banter counter
+      callSilenceChainMode = false;
       sendCallMessage(text, addressed);
     }
     else if (callModeActive && !callMuted) setTimeout(() => listenForSpeech(), 300);
@@ -10509,11 +10517,14 @@ function afterCallTTSDone() {
       const nextChar = others[Math.floor(Math.random() * others.length)];
       callContextChar = nextChar;
       updateCallSpeaker(nextChar);
+      callInterCharRounds++;
       sendCallCharResponse(nextChar);
       return;
     }
   }
   callChainCount = 0;
+  callInterCharRounds = 0;
+  callSilenceChainMode = false;
   callContextChar = null;
   updateCallSpeaker(callCharacters[0] || currentChar);
   // Brief delay lets the browser audio session settle after TTS playback ends
@@ -10562,9 +10573,14 @@ async function sendCallCharResponse(charObj, userText) {
   const gen = callGen;
   const userName = getDisplayName() || 'the user';
   const answering = typeof userText === 'string' && userText.trim();
+  if (answering) { callInterCharRounds = 0; callSilenceChainMode = false; }
   const transcript = callTranscriptText(answering);
   const otherNames = callCharacters.filter(c => c.id !== charObj.id).map(c => c.name).join(', ');
+  const isSilenceChain = !answering && callSilenceChainMode;
+  if (isSilenceChain) callSilenceChainMode = false;
   const prompt = answering ? userText
+    : isSilenceChain
+    ? `[${userName} has gone completely silent on the call. In your own voice and personality, say something short to check if they're still there — 1 sentence, different from what was just said.]`
     : transcript
     ? `[Group voice call with ${userName}${otherNames ? ' and ' + otherNames : ''}. React naturally to what was just said — 1-2 sentences, your own personality and emotion.]`
     : `[You just joined a voice call with ${userName}${otherNames ? ' and ' + otherNames : ''}. Say hi — 1 sentence.]`;
@@ -10619,8 +10635,8 @@ async function sendCallCharResponse(charObj, userText) {
     if (hungUp) callHangupChar = charObj;
     callConversation.push({ role: 'char', text: fullText.trim(), charId: charObj.id, charName: charObj.name });
     if (callConversation.length > 14) callConversation.shift();
-    // After answering the user, sometimes another character chimes in
-    if (answering) callChainCount = Math.random() < 0.5 ? 1 : 0;
+    // After answering the user, another character often chimes in; inter-char chains are always allowed
+    if (answering) callChainCount = (callCharacters.length > 1 && Math.random() < 0.65) ? 1 : 0;
     callContextChar = charObj; // keep this character's voice for the whole reply
     if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
     resetCallInactivityTimer();
@@ -10636,9 +10652,14 @@ async function triggerAreYouThere() {
   if (!callModeActive || callMuted) return;
   if (callRecognition) { try { callRecognition.abort(); } catch(_){} callRecognition = null; }
   clearTimeout(callUserSilenceTimer); callUserSilenceTimer = null;
-  const char = callContextChar || (callCharacters.length > 0 ? callCharacters[Math.floor(Math.random() * callCharacters.length)] : currentChar);
-  const userName = getDisplayName() || 'Dave';
-  const prompt = `[${userName} hasn't said anything for 10 seconds. In your own personality and voice, ask if they're still there — 1 short sentence only.]`;
+  // Pick a char other than whoever just spoke (so both chars check in separately)
+  const lastSpoke = callContextChar || currentChar;
+  const silenceCandidates = callCharacters.length > 1
+    ? callCharacters.filter(c => c.id !== lastSpoke?.id)
+    : callCharacters;
+  const char = silenceCandidates.length > 0 ? silenceCandidates[Math.floor(Math.random() * silenceCandidates.length)] : (currentChar || callCharacters[0]);
+  const userName = getDisplayName() || 'the user';
+  const prompt = `[${userName} has gone quiet for a while on this call. In your own personality and voice, say something short to check if they're still there — 1 sentence only.]`;
   const gen = callGen;
   setCallState('thinking');
   try {
@@ -10666,8 +10687,14 @@ async function triggerAreYouThere() {
     }
     if (gen !== callGen) return;
     if (!fullText.trim()) { callContextChar = null; if (callModeActive && gen === callGen) listenForSpeech(); return; }
-    callContextChar = char === currentChar ? null : char;
-    callChainCount = 0; // don't chain after "are you there?" — go straight back to listening
+    callContextChar = char;
+    // In a group call, chain the second character so both check in independently
+    if (callCharacters.length > 1) {
+      callChainCount = 1;
+      callSilenceChainMode = true;
+    } else {
+      callChainCount = 0;
+    }
     setCallState('responding');
     callModeTTS_server(fullText.trim());
   } catch(_) {
@@ -13851,13 +13878,15 @@ async function runGroupAutoChat() {
   const ac = new AbortController();
   groupAutoChatAbort = ac;
 
-  const isCheckIn = groupCheckInPending;
+  // First check-in is a direct "are you there?"; subsequent rounds become gossip if user was active
+  const isCheckIn = groupCheckInPending && groupCheckInCount === 0;
+  const isGossip  = groupCheckInPending && groupCheckInCount >= 1 && groupLastUserMessageAt > 0;
   try {
     const res = await fetch(`/api/groups/${currentGroupId}/autochat`, {
       method: 'POST',
       signal: ac.signal,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ checkIn: isCheckIn })
+      body: JSON.stringify({ checkIn: isCheckIn, gossip: isGossip })
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
@@ -13942,7 +13971,7 @@ async function runGroupAutoChat() {
     _currentGroupBubble = null;
     _pendingGroupChar = null;
     _pendingGroupBubbleStarted = false;
-    if (isCheckIn && !autoChatError) {
+    if ((isCheckIn || isGossip) && !autoChatError) {
       groupCheckInCount++;
       groupCheckInPending = false; // will be re-set by scheduleAutoChat if user still silent
     }

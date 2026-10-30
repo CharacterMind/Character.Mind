@@ -1123,16 +1123,15 @@ const LIMITS = {
 
 // Session token limits. Every paid tier is an EXACT multiple of FREE_SESSION_TOKENS
 // so that "X20" really means 20×, "X50" really means 50×, etc.
-// Free = ~83 Opes (Medium) messages or ~357 Opas messages per 2-hr session. Advanced = 3× that, etc.
-// Weekly = WEEKLY_SESSIONS full sessions for EVERY plan (free included), so a paid plan is never worse than free
-// over a week, and there's headroom: ~1.4 full sessions a day, every day.
+// Free = ~83 Opes (Medium) messages or ~357 Opas messages per session. Advanced = 4× that, etc.
+// Weekly = WEEKLY_SESSIONS full sessions per plan (~1 per day). Advanced gets 4× the tokens per session.
 // AVG_MESSAGE_TOKENS (one Opes Medium reply) is kept for reference and UI estimates only.
 const FREE_SESSION_TOKENS = 150000;
 const AVG_MESSAGE_TOKENS  = 1800;
-const WEEKLY_SESSIONS     = 10;
+const WEEKLY_SESSIONS     = 7;
 const TIER_TOKEN_LIMITS = {
   free:     { session: FREE_SESSION_TOKENS,        weekly: FREE_SESSION_TOKENS       * WEEKLY_SESSIONS },
-  advanced: { session: FREE_SESSION_TOKENS * 3,    weekly: FREE_SESSION_TOKENS * 3   * WEEKLY_SESSIONS },
+  advanced: { session: FREE_SESSION_TOKENS * 4,    weekly: FREE_SESSION_TOKENS * 4   * WEEKLY_SESSIONS },
   x20:      { session: FREE_SESSION_TOKENS * 20,   weekly: FREE_SESSION_TOKENS * 20  * WEEKLY_SESSIONS },
   x50:      { session: FREE_SESSION_TOKENS * 50,   weekly: FREE_SESSION_TOKENS * 50  * WEEKLY_SESSIONS },
   x100:     { session: FREE_SESSION_TOKENS * 100,  weekly: FREE_SESSION_TOKENS * 100 * WEEKLY_SESSIONS },
@@ -7069,8 +7068,13 @@ app.post('/api/groups/:id/chat', requireAuth, async (req, res) => {
   if (orderedChars.length <= rpr) {
     responders = [...orderedChars];
   } else if (mentioned.length > 0) {
-    // User addressed specific characters — only they respond, no random fill
-    responders = mentioned.slice(0, rpr);
+    // Mentioned chars always respond. Fill remaining slots with others so their reaction
+    // is heard too (e.g. if user talks shit about Poppy, Poppy reacts AND Kissy reacts).
+    const nonMentioned = orderedChars.filter(c => !mentioned.some(m => m.id === c.id));
+    const shuffledOthers = [...nonMentioned].sort(() => Math.random() - 0.5);
+    const mentionedSlots = Math.min(mentioned.length, rpr);
+    const extraSlots = rpr - mentionedSlots;
+    responders = [...mentioned.slice(0, mentionedSlots), ...shuffledOthers.slice(0, extraSlots)];
   } else {
     const shuffled = [...orderedChars].sort(() => Math.random() - 0.5);
     responders = shuffled.slice(0, rpr);
@@ -7210,6 +7214,7 @@ app.post('/api/groups/:id/autochat', requireAuth, async (req, res) => {
   const userId = req.user.googleId;
   const gid = req.params.id;
   const isCheckIn = !!(req.body && req.body.checkIn === true);
+  const isGossip  = !!(req.body && req.body.gossip  === true);
   if (!/^grp_\d+_[0-9a-f]+$/.test(gid)) return res.status(400).json({ error: 'Invalid group ID' });
 
   let group;
@@ -7264,7 +7269,9 @@ app.post('/api/groups/:id/autochat', requireAuth, async (req, res) => {
   const lastSpeaker = lastEntry ? lastEntry.speaker : null;
   const addressTarget = otherNames.find(n => n !== lastSpeaker) || (otherNames[0] || '');
 
-  const groupCtx = isCheckIn
+  const groupCtx = isGossip
+    ? `[GROUP GOSSIP — You are ${char.name}, a real person chatting privately with ${otherNamesStr || 'your friend'} while the user has gone quiet. Say something about the user — could be playful ("why'd they go quiet all of a sudden?"), snarky ("classic, they just dipped"), curious ("think they're okay?"), or mock-dramatic. Speak TO ${otherNamesStr || 'your friend'}, not to the user. 1-2 sentences. Natural, no asterisk actions.]`
+    : isCheckIn
     ? `[GROUP CHECK-IN — You are ${char.name} — a real person with your own personality, not an AI. The user has gone quiet. Check on them in your own voice: "you still there?", "hello?", or however your character would actually say it. Short (1-2 sentences), natural, no asterisk actions. Speak directly to the user.]`
     : `[GROUP CHAT — You are ${char.name} — a real person, not an AI assistant. Others here: ${otherNamesStr}. React to what was just said. Be yourself: snarky, curious, warm, blunt, whatever fits your personality. Keep it short (1-2 sentences). Don't introduce yourself. Don't say "As an AI" or anything robotic. Just chat. No asterisk actions.]`;
 
@@ -7279,7 +7286,9 @@ app.post('/api/groups/:id/autochat', requireAuth, async (req, res) => {
   const recentLine = lastEntry ? `${lastEntry.speaker} just said: "${lastEntry.content.slice(0, 120)}${lastEntry.content.length > 120 ? '…' : ''}"` : 'The conversation is just starting.';
   const continuation = conv.history.length === 0
     ? `[Kick things off as ${char.name}. One short sentence — no intro, just be yourself.]`
-    : isCheckIn
+    : isGossip
+      ? `[The user went quiet. As ${char.name}, say something to ${otherNamesStr || 'your friend'} about the user — gossip, joke, or wonder. 1-2 sentences, casual.]`
+      : isCheckIn
       ? `[The user's gone quiet. As ${char.name}, say something to get their attention — casually, naturally. 1-2 sentences max.]`
       : `[${recentLine} Your turn as ${char.name}. One or two sentences. Be yourself — react however you actually would.]`;
   histMsgs.push({ role: 'user', content: continuation });
