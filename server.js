@@ -4911,10 +4911,9 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         }
         const ctrl = new AbortController();
         const localXtts = !effectiveCloneUrl;
-        // Local: up to 180s (CPU XTTS can be slow). Remote: default 120s for CPU tunnels,
-        // override with TTS_CLONE_TIMEOUT_MS env var (e.g. 8000 if you have a fast GPU).
-        const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 120000;
-        const cloneTimeout = setTimeout(() => ctrl.abort(), localXtts ? 180000 : remoteMs);
+        // GPU synthesis: ~1-5s per sentence. Allow 30s before aborting and falling back to Edge TTS.
+        const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 30000;
+        const cloneTimeout = setTimeout(() => ctrl.abort(), localXtts ? 60000 : remoteMs);
         const cloneRes = await fetch(`${cloneBase}/tts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

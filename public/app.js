@@ -9524,7 +9524,7 @@ async function speakAndHangUp(text, resetsAt) {
     showCallLimitModal(resetsAt);
   };
   try {
-    const hangUpProvider = ttsProvider === 'character' ? 'edge' : ttsProvider;
+    const hangUpProvider = ttsProvider;
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -9604,9 +9604,9 @@ async function callModeTTS_server(text) {
   const sentences = clean.match(/[^.!?]+[.!?]+(?:\s|$)|[^.!?]+$/g)
     ?.map(s => s.trim()).filter(s => s.length > 0) || [clean];
 
-  // Never use XTTS/character-clone in calls — synthesis takes 10-20s which kills real-time conversation.
-  // Use the character's Edge TTS voice instead (server reads EDGE_VOICE_MAP[charId] when provider='edge').
-  const callProvider = (ttsProvider === 'character' || ttsProvider === 'off') ? 'edge' : ttsProvider;
+  // Character clone voice is now allowed on calls — GPU synthesis runs in ~1-3s per sentence.
+  // Server falls back to Edge TTS automatically if no clone voice is registered for a character.
+  const callProvider = ttsProvider;
   const fetchBlob = async (s) => {
     if (ttsProvider === 'off') return null;
     const r = await fetch('/api/tts', {
