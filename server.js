@@ -5459,6 +5459,33 @@ app.post('/api/admin/reset-account', requireAuth, async (req, res) => {
   }
 });
 
+// Owner-only: reset coins + farm only (no chat history wipe)
+app.post('/api/admin/reset-coins-farm', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  if (!db) return res.status(503).json({ error: 'No database' });
+  const uid = req.user.googleId;
+  try {
+    await db.query(
+      `UPDATE users SET
+         cm_coins              = 0,
+         coins_earned_today    = 0,
+         coins_day_reset       = 0,
+         coins_earned_all_time = 0,
+         last_afk_collect      = 0,
+         farm_level            = 0,
+         farm_frac             = 0
+       WHERE google_id = $1`,
+      [uid]
+    );
+    delete userLimits[uid];
+    console.log(`[admin] coins+farm reset for owner uid=${uid}`);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[admin/reset-coins-farm]', e.message);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
 // Owner-only: full account reset for any user by email
 app.post('/api/admin/reset-account-by-email', requireAuth, async (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
