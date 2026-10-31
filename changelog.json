@@ -1,5 +1,19 @@
 [
   {
+    "id": "v411-instant-voice-analytics",
+    "version": "v411",
+    "date": "Oct 2026",
+    "title": "⚡ Instant Voice + Live Analytics",
+    "subtitle": "Play button starts the instant synthesis is ready. Admin live counter shows active users in real time.",
+    "fixed": [
+      "Play button memo check now runs truly in parallel with synthesis — zero extra wait, and it only stops on actual daily limit hit (not server errors)",
+      "Auto-speak races Gemini vs Edge during prefetch — ~300ms Edge wins instead of waiting 1-2s for Gemini"
+    ],
+    "added": [
+      "Admin analytics badge (visible to owner only) — live count of active users, total visits, and unique visitors, ticking in real time"
+    ]
+  },
+  {
     "id": "v410-zero-delay-voice",
     "version": "v410",
     "date": "Oct 2026",

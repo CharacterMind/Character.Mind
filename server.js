@@ -550,6 +550,12 @@ if (db) {
 
   db.query(`CREATE INDEX IF NOT EXISTS groups_user_idx ON groups (user_id)`)
     .catch(() => {});
+
+  // Analytics tables
+  db.query(`CREATE TABLE IF NOT EXISTS site_stats (key TEXT PRIMARY KEY, value BIGINT DEFAULT 0)`).catch(() => {});
+  db.query(`CREATE TABLE IF NOT EXISTS site_visits (id SERIAL PRIMARY KEY, user_id TEXT NOT NULL, visited_at TIMESTAMPTZ DEFAULT NOW())`).catch(() => {});
+  db.query(`CREATE INDEX IF NOT EXISTS site_visits_user_idx ON site_visits (user_id)`).catch(() => {});
+  db.query(`INSERT INTO site_stats (key, value) VALUES ('total_visits', 0) ON CONFLICT DO NOTHING`).catch(() => {});
   db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS responders_per_round INTEGER NOT NULL DEFAULT 3`).catch(() => {});
 
   db.query(`
@@ -5266,6 +5272,50 @@ app.post('/api/memo/use', requireAuth, (req, res) => {
   res.json({ allowed: true, memosToday: u.memosToday });
 });
 
+// ── Analytics ─────────────────────────────────────────────────────────────────
+app.post('/api/analytics/ping', requireAuth, async (req, res) => {
+  const userId = req.user.googleId;
+  const isNew = !_liveUsers.has(userId);
+  _liveUsers.set(userId, {
+    name: req.user.name || 'Anonymous',
+    email: req.user.email || '',
+    lastSeen: Date.now(),
+    since: _liveUsers.get(userId)?.since || Date.now(),
+  });
+  if (isNew && db) {
+    db.query(`INSERT INTO site_stats (key, value) VALUES ('total_visits', 1) ON CONFLICT (key) DO UPDATE SET value = site_stats.value + 1`).catch(() => {});
+    db.query(`INSERT INTO site_visits (user_id, visited_at) VALUES ($1, NOW())`, [userId]).catch(() => {});
+  }
+  res.json({ ok: true, activeNow: _liveUsers.size });
+});
+
+app.get('/api/admin/stats/stream', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).end();
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const push = async () => {
+    let totalVisits = 0, totalVisitors = 0;
+    if (db) {
+      const [r1, r2] = await Promise.all([
+        db.query(`SELECT value FROM site_stats WHERE key='total_visits'`).catch(() => ({ rows: [] })),
+        db.query(`SELECT COUNT(DISTINCT user_id) AS cnt FROM site_visits`).catch(() => ({ rows: [] })),
+      ]);
+      totalVisits = Number(r1.rows[0]?.value || 0);
+      totalVisitors = Number(r2.rows[0]?.cnt || 0);
+    }
+    const users = [..._liveUsers.values()].map(u => ({ name: u.name, email: u.email, since: u.since }));
+    try { res.write(`data: ${JSON.stringify({ activeNow: _liveUsers.size, users, totalVisits, totalVisitors, ts: Date.now() })}\n\n`); }
+    catch (_) { clearInterval(timer); }
+  };
+
+  await push();
+  const timer = setInterval(push, 5000);
+  req.on('close', () => clearInterval(timer));
+});
+
 app.get('/api/chat/lock-status/:charId', requireAuth, async (req, res) => {
   const { charId } = req.params;
   if (!VALID_ID.test(charId)) return res.json({ locked: false });
@@ -5426,6 +5476,13 @@ app.delete('/api/conversations/:charId/history', requireAuth, async (req, res) =
 // When true: only Lily/Poppy visible in character list. Set SOFT_LAUNCH=true in env vars to re-enable.
 const SOFT_LAUNCH = process.env.SOFT_LAUNCH === 'true';
 const OWNER_EMAILS = new Set(['support.charactermind@gmail.com']); // admin tools
+
+// ── Live user tracking (in-memory, expires after 5 min of no ping) ───────────
+const _liveUsers = new Map(); // userId → { name, email, lastSeen, since }
+setInterval(() => {
+  const cutoff = Date.now() - 5 * 60 * 1000;
+  for (const [uid, u] of _liveUsers) { if (u.lastSeen < cutoff) _liveUsers.delete(uid); }
+}, 30000);
 // Only the Character.Mind business account gets the top plan without paying. Every other account (including the
 // other admin login) gets exactly what its own subscription pays for.
 const FREE_TOP_PLAN_EMAILS = new Set(['support.charactermind@gmail.com']);

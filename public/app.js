@@ -1584,6 +1584,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     initSidebarState();
     initRpMode();
     updateModelBarLabel();
+    _initAdminStats();
 
     // Handle ?char=<id>&call=1 from push notification "Answer" tap
     const urlParams = new URLSearchParams(window.location.search);
@@ -2011,6 +2012,18 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '411': {
+    date: 'October 2026',
+    label: 'Instant Voice + Live Analytics',
+    fixed: [
+      'Play button now truly has zero delay — memo check runs in parallel with audio synthesis so neither blocks the other',
+      'Correctly stops on daily memo limit (429) while ignoring other errors that would previously mute audio',
+      'Auto-speak prefetch races Gemini vs Edge for each sentence — ~300ms Edge wins instead of waiting 1-2s for Gemini',
+    ],
+    added: [
+      'Admin live analytics badge — see active users, total visits, and unique visitors in real time',
+    ],
+  },
   '410': {
     date: 'October 2026',
     label: 'Zero-Delay Voice',
@@ -9468,6 +9481,74 @@ function clearHistoryFromPanel() {
   newChat();
 }
 
+// ── Analytics & Admin Stats ───────────────────────────────────────────────────
+(function _setupAnalytics() {
+  function ping() { if (currentUser) fetch('/api/analytics/ping', { method: 'POST' }).catch(() => {}); }
+  ping();
+  setInterval(ping, 60000);
+})();
+
+function _initAdminStats() {
+  if (!currentUser || currentUser.email !== 'support.charactermind@gmail.com') return;
+
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes adminDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
+    #adminBadge{position:fixed;bottom:136px;right:16px;background:#0d0d1f;border:1px solid #7c3aed;border-radius:20px;padding:5px 13px;font-size:12px;color:#a78bfa;cursor:pointer;z-index:8999;display:flex;align-items:center;gap:6px;box-shadow:0 2px 12px rgba(124,58,237,.4);user-select:none;transition:opacity .2s}
+    #adminBadge:hover{opacity:.9}
+    #adminBadge .ad{width:7px;height:7px;border-radius:50%;background:#22c55e;animation:adminDot 1.5s ease-in-out infinite}
+    #adminPanel{position:fixed;bottom:176px;right:16px;width:260px;background:#0a0a18;border:1px solid #7c3aed;border-radius:12px;padding:14px;z-index:9000;color:#e2e8f0;font-size:13px;box-shadow:0 8px 32px rgba(0,0,0,.6);display:none}
+    #adminPanel.open{display:block}
+    .as-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1a1a30}
+    .as-row:last-child{border:none}
+    .as-lbl{color:#64748b}
+    .as-val{color:#a78bfa;font-weight:700;font-size:15px}
+    #adminUsers{max-height:110px;overflow-y:auto;margin-top:8px;font-size:11px;color:#64748b}
+    .au-row{padding:3px 0;display:flex;justify-content:space-between}
+    .au-name{color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+  `;
+  document.head.appendChild(style);
+
+  const badge = document.createElement('div');
+  badge.id = 'adminBadge';
+  badge.innerHTML = `<span class="ad"></span><span id="adminCnt">…</span> online`;
+  document.body.appendChild(badge);
+
+  const panel = document.createElement('div');
+  panel.id = 'adminPanel';
+  panel.innerHTML = `
+    <div style="font-weight:600;color:#a78bfa;margin-bottom:10px;letter-spacing:.5px;font-size:13px">📊 LIVE ANALYTICS</div>
+    <div class="as-row"><span class="as-lbl">Active now</span><span class="as-val" id="asActive">—</span></div>
+    <div class="as-row"><span class="as-lbl">Total visits</span><span class="as-val" id="asVisits">—</span></div>
+    <div class="as-row"><span class="as-lbl">Unique visitors</span><span class="as-val" id="asUniq">—</span></div>
+    <div id="adminUsers"></div>`;
+  document.body.appendChild(panel);
+
+  badge.addEventListener('click', () => panel.classList.toggle('open'));
+
+  const es = new EventSource('/api/admin/stats/stream');
+  es.onmessage = ev => {
+    try {
+      const d = JSON.parse(ev.data);
+      const el = id => document.getElementById(id);
+      if (el('adminCnt')) el('adminCnt').textContent = d.activeNow;
+      if (el('asActive')) el('asActive').textContent = d.activeNow;
+      if (el('asVisits')) el('asVisits').textContent = Number(d.totalVisits).toLocaleString();
+      if (el('asUniq')) el('asUniq').textContent = Number(d.totalVisitors).toLocaleString();
+      if (el('adminUsers')) {
+        const users = d.users || [];
+        el('adminUsers').innerHTML = users.length
+          ? users.map(u => {
+              const ago = Math.round((Date.now() - u.since) / 60000);
+              return `<div class="au-row"><span class="au-name">👤 ${escHtml(u.name||'Anonymous')}</span><span>${ago < 1 ? 'just now' : ago + 'm'}</span></div>`;
+            }).join('')
+          : '<div style="color:#334155;padding:4px 0">No active users</div>';
+      }
+    } catch(_) {}
+  };
+  es.onerror = () => {};
+}
+
 // ── TTS (Text-to-Speech) ─────────────────────────────────────────────────────
 let activeTTSUtterance = null;
 let activeTTSBtn = null;
@@ -9981,25 +10062,28 @@ async function toggleTTS(btn) {
     return fetchBlob(s);
   });
 
-  // Fire memo check in background — don't await it before playing (eliminates the round-trip delay).
-  // If memo fails, we stop mid-playback; that's fine since it only fails for limit-exceeded cases.
-  let _memoFailed = false;
-  fetch('/api/memo/use', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ textLen: text.length }) })
+  // Race memo check against first-blob synthesis — both fire NOW, so memo never adds extra latency.
+  // Only a 429 + memo_daily_limit stops playback; every other failure is silently ignored.
+  let _memoStop = false, _memoStopData = null;
+  const _memoPromise = fetch('/api/memo/use', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ textLen: text.length }) })
     .then(async r => {
-      if (!r.ok) {
-        _memoFailed = true;
-        const memoData = await r.json().catch(() => ({}));
-        if (r.status === 429 && memoData.type === 'memo_daily_limit') showMemoLimitBanner(memoData.resetsAt);
-        else showTTSError('Memo unavailable — try again shortly');
-        if (activeTTSBtn === btn) stopActiveTTS();
+      if (r.status === 429) {
+        const d = await r.json().catch(() => ({}));
+        if (d.type === 'memo_daily_limit') { _memoStop = true; _memoStopData = d; }
       }
     }).catch(() => {});
 
   let played = false;
   for (let i = 0; i < blobPromises.length; i++) {
-    if (activeTTSBtn !== btn || _memoFailed) break;
-    const blob = await blobPromises[i];
-    if (!blob || activeTTSBtn !== btn || _memoFailed) break;
+    if (activeTTSBtn !== btn) break;
+    // First sentence: wait for both the blob and memo in parallel — ceiling is max(memo, blob), not memo+blob
+    const blob = i === 0 ? (await Promise.all([blobPromises[0], _memoPromise]))[0] : await blobPromises[i];
+    if (_memoStop) {
+      if (activeTTSBtn === btn) stopActiveTTS();
+      showMemoLimitBanner(_memoStopData?.resetsAt);
+      return;
+    }
+    if (!blob || activeTTSBtn !== btn) break;
     if (!played) { btn.classList.remove('loading'); btn.classList.add('playing'); played = true; }
     await new Promise(resolve => {
       const url = URL.createObjectURL(blob);
