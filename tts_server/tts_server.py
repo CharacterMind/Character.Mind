@@ -198,12 +198,8 @@ def get_chatterbox():
             import torch
             device = "cuda" if torch.cuda.is_available() else "cpu"
             print(f"[voice-ai] Loading Chatterbox TTS on {device.upper()}...", flush=True)
-            try:
-                from chatterbox.tts import ChatterboxTTS
-                _chatterbox = ChatterboxTTS.from_pretrained(device=device)
-            except ImportError:
-                from chatterbox.tts_turbo import ChatterboxTurboTTS
-                _chatterbox = ChatterboxTurboTTS.from_pretrained(device=device)
+            from chatterbox.tts import ChatterboxTTS
+            _chatterbox = ChatterboxTTS.from_pretrained(device=device)
             if device == "cuda":
                 torch.cuda.empty_cache()
                 used = round(torch.cuda.memory_allocated() / 1e9, 2)
@@ -567,17 +563,17 @@ def tts_endpoint():
                     if speaker_wav == _last_chatterbox_voice and model.conds is not None:
                         wav = model.generate(
                             text,
-                            exaggeration=0.3,
-                            cfg_weight=0.9,
-                            temperature=0.3,
+                            exaggeration=0.55,
+                            cfg_weight=0.5,
+                            temperature=0.6,
                         )
                     else:
                         wav = model.generate(
                             text,
                             audio_prompt_path=speaker_wav,
-                            exaggeration=0.3,
-                            cfg_weight=0.9,
-                            temperature=0.3,
+                            exaggeration=0.55,
+                            cfg_weight=0.5,
+                            temperature=0.6,
                         )
                         _last_chatterbox_voice = speaker_wav
                 if torch.cuda.is_available():
