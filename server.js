@@ -1143,7 +1143,7 @@ async function loadLimitsFromDB() {
 }
 
 // Per-user data that must never be dropped from memory or skipped when loading (it isn't "daily" or "weekly")
-const KEEP_FIELDS = ['charBlocks', 'phoneUnlocked', 'friendship', 'weeklyRulesV'];
+const KEEP_FIELDS = ['charBlocks', 'phoneUnlocked', 'friendship', 'friendshipThresholds', 'weeklyRulesV'];
 function keepFieldsOf(d) {
   const out = {};
   for (const k of KEEP_FIELDS) if (d && d[k] !== undefined && d[k] !== null) out[k] = d[k];
@@ -3230,8 +3230,19 @@ function unlockPhone(userId, charId) {
 }
 
 // Friendship = how many real messages the user has sent this character (kept in user_limits.data.friendship).
-// At PHONE_FRIENDSHIP_AT the character trusts them enough to share their number.
-const PHONE_FRIENDSHIP_AT = 20;
+// Each user gets a random threshold per character (20–100) so no one knows the exact target.
+const PHONE_FRIENDSHIP_MIN = 20;
+const PHONE_FRIENDSHIP_MAX = 100;
+
+function getFriendshipThreshold(userId, charId) {
+  const u = getLimits(userId);
+  if (!u.friendshipThresholds) u.friendshipThresholds = {};
+  if (u.friendshipThresholds[charId]) return u.friendshipThresholds[charId];
+  const t = PHONE_FRIENDSHIP_MIN + Math.floor(Math.random() * (PHONE_FRIENDSHIP_MAX - PHONE_FRIENDSHIP_MIN + 1));
+  u.friendshipThresholds[charId] = t;
+  saveLimitsToDB(userId);
+  return t;
+}
 const GIVE_NUMBER_TAG_RE = /\[\s*GIVE[\s_-]*NUMBER\s*\]/i;
 function friendshipScore(userId, charId, history) {
   const stored = getLimits(userId).friendship?.[charId] || 0;
@@ -3251,7 +3262,7 @@ function phoneDirective(userId, charId, history) {
   if (isPhoneUnlocked(userId, charId)) {
     return `\n\n[PHONE — In Character.Mind you have your own phone. The user already has your number, ${phone}. If they ask again, you can repeat it exactly. CALL RULE: If the user asks you to call them (e.g. "call me", "give me a call", "can you call me?"), respond naturally in character agreeing to call, then end your reply with the exact tag [CALL_ME]. Never use that tag at any other time.]`;
   }
-  if (friendshipScore(userId, charId, history) >= PHONE_FRIENDSHIP_AT) {
+  if (friendshipScore(userId, charId, history) >= getFriendshipThreshold(userId, charId)) {
     return `\n\n[PHONE — In Character.Mind you have your own phone, and you've grown close to this user. Your number is ${phone}. If they ask for it, or once when it feels natural, give it to them in your own voice, writing it exactly as ${phone}, and end that reply with the tag [GIVE_NUMBER]. Never use that tag at any other time.]`;
   }
   return `\n\n[PHONE — In Character.Mind you do have your own phone, but you don't know this user well enough to give out your number yet. If they ask for it, say no warmly and in character (for example, maybe once you know them better). Don't claim you have no phone, and never make up a number.]`;
@@ -4273,7 +4284,8 @@ app.get('/api/friendship/:charId', requireAuth, (req, res) => {
   const userId = req.user.googleId;
   const score = getLimits(userId).friendship?.[charId] || 0;
   const unlocked = isPhoneUnlocked(userId, charId);
-  res.json({ score, max: PHONE_FRIENDSHIP_AT, unlocked });
+  const threshold = getFriendshipThreshold(userId, charId);
+  res.json({ score, threshold, min: PHONE_FRIENDSHIP_MIN, max: PHONE_FRIENDSHIP_MAX, unlocked });
 });
 
 app.post('/api/friendship/:charId/reset', requireAuth, async (req, res) => {

@@ -11727,8 +11727,8 @@ function renderFriendshipBar(d) {
   if (!wrap || !fill || !scoreEl || !hintEl) return;
 
   const score = d.score || 0;
-  const max = d.max || 20;
-  const pct = Math.min(100, Math.round((score / max) * 100));
+  const threshold = d.threshold || d.max || 20;
+  const pct = Math.min(100, Math.round((score / threshold) * 100));
 
   wrap.style.display = '';
   fill.style.width = pct + '%';
@@ -11738,11 +11738,11 @@ function renderFriendshipBar(d) {
     scoreEl.textContent = '💕 Unlocked';
     hintEl.textContent = 'She trusts you — number is in Contacts';
   } else {
-    scoreEl.textContent = `${score} / ${max}`;
+    scoreEl.textContent = score === 0 ? '20–100 msgs' : `${score} / 20–100`;
     if (score === 0) hintEl.textContent = 'Chat to earn their trust';
-    else if (score < max * 0.3) hintEl.textContent = 'Just getting started…';
-    else if (score < max * 0.6) hintEl.textContent = 'You\'re warming up!';
-    else if (score < max * 0.85) hintEl.textContent = 'She\'s starting to trust you';
+    else if (pct < 30) hintEl.textContent = 'Just getting started…';
+    else if (pct < 60) hintEl.textContent = 'You\'re warming up!';
+    else if (pct < 85) hintEl.textContent = 'She\'s starting to trust you';
     else hintEl.textContent = 'Almost there — keep chatting!';
   }
 
