@@ -908,6 +908,10 @@ app.get('/auth/me', (req, res) => {
   res.json({ name: req.user.name, email: req.user.email, picture: req.user.picture, googleId: req.user.googleId, showWelcome, halloweenGift2026: !!limMe.halloweenGift2026 });
 });
 app.post('/auth/logout', (req, res) => {
+  const userId = req.user?.googleId;
+  if (userId && db) {
+    db.query('DELETE FROM push_subscriptions WHERE google_id = $1', [userId]).catch(() => {});
+  }
   req.logout(() => {
     req.session.destroy(() => res.json({ ok: true }));
   });
@@ -4180,7 +4184,7 @@ app.get('/api/phone/contacts', requireAuth, async (req, res) => {
     const all = result.rows;
     const u = getLimits(userId);
     const contacts = all
-      .filter(r => isPhoneUnlocked(userId, r.id))
+      .filter(r => isPhoneUnlocked(userId, r.id) && !u.removedContacts?.[r.id])
       .map(r => ({
         id: r.id,
         name: r.name,
@@ -4188,12 +4192,49 @@ app.get('/api/phone/contacts', requireAuth, async (req, res) => {
         image: r.has_image ? '/api/characters/' + encodeURIComponent(r.id) + '/image?v=' + r.image_len : null,
         phone: userCharPhone(userId, r.id, u.phoneGen || 0),
         customName: (u.customContactNames && u.customContactNames[r.id]) || null,
+        blocked: !!(u.blockedContacts && u.blockedContacts[r.id]),
       }));
     res.json(contacts);
   } catch (e) {
     console.error('phone/contacts error', e);
     res.json([]);
   }
+});
+
+// Remove a character from the user's phone (hides without revoking unlock)
+app.delete('/api/phone/contacts/:charId', requireAuth, (req, res) => {
+  const userId = req.user.googleId;
+  const { charId } = req.params;
+  if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'invalid' });
+  if (!isPhoneUnlocked(userId, charId)) return res.status(404).json({ error: 'not found' });
+  const u = getLimits(userId);
+  if (!u.removedContacts) u.removedContacts = {};
+  u.removedContacts[charId] = true;
+  if (u.customContactNames) delete u.customContactNames[charId];
+  saveLimitsToDB(userId);
+  res.json({ ok: true });
+});
+
+// Block / unblock incoming calls from a character
+app.post('/api/phone/contacts/:charId/block', requireAuth, (req, res) => {
+  const userId = req.user.googleId;
+  const { charId } = req.params;
+  if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'invalid' });
+  const u = getLimits(userId);
+  if (!u.blockedContacts) u.blockedContacts = {};
+  u.blockedContacts[charId] = true;
+  saveLimitsToDB(userId);
+  res.json({ ok: true });
+});
+
+app.post('/api/phone/contacts/:charId/unblock', requireAuth, (req, res) => {
+  const userId = req.user.googleId;
+  const { charId } = req.params;
+  if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'invalid' });
+  const u = getLimits(userId);
+  if (u.blockedContacts) delete u.blockedContacts[charId];
+  saveLimitsToDB(userId);
+  res.json({ ok: true });
 });
 
 // Save a custom display name for an unlocked contact
@@ -6822,11 +6863,17 @@ async function sendCallPushes() {
     if (!charRes.rows.length) return;
     for (const row of subscribers.rows) {
       try {
-        // Prefer the character they last chatted with; fall back to a random official character
+        const u = getLimits(row.google_id);
+        // Prefer the character they last chatted with; skip blocked ones
         let char = charRes.rows[Math.floor(Math.random() * charRes.rows.length)];
         if (row.last_character_name) {
           const last = charRes.rows.find(c => c.name.toLowerCase() === row.last_character_name.toLowerCase());
-          if (last) char = last;
+          if (last && !u.blockedContacts?.[last.id]) char = last;
+        }
+        if (u.blockedContacts?.[char.id]) {
+          const unblocked = charRes.rows.filter(c => !u.blockedContacts?.[c.id]);
+          if (!unblocked.length) continue;
+          char = unblocked[Math.floor(Math.random() * unblocked.length)];
         }
         await sendCallPushToUser(row.google_id, char);
         await new Promise(r => setTimeout(r, 200)); // gentle rate-limit between sends

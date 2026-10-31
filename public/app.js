@@ -2596,8 +2596,8 @@ async function copyContactEmail() {
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeContact(); });
 
 async function signOut() {
-  // Only show "signed out" once the server really ended the session; otherwise a reload would sign the person straight back in
   clearLockout();
+  try { await disablePushNotifications(); } catch (_) {}
   const r = await fetch('/auth/logout', { method: 'POST' }).catch(() => null);
   if (!r || !r.ok) { showWarning("Couldn't sign you out. Please try again in a moment."); return; }
   currentUser = null;
@@ -2876,6 +2876,77 @@ function showDiscover() { showView('discoverView'); setNavActive(1); renderDisco
 function showFeed() { showView('feedView'); setNavActive(2); }
 function showGroups() { showView('groupsView'); setNavActive(3); loadGroups(); }
 function showPhone()  { showView('phoneView'); setNavActive(4); showPhoneTab('contacts'); loadPhoneContacts().then(() => renderPhoneContacts('')); }
+
+// ── Coins view ────────────────────────────────────────────────────────────────
+function showCoins() {
+  showView('coinsView');
+  // Close user dropdown if open
+  const ud = document.getElementById('userDropdown');
+  if (ud) ud.classList.remove('open');
+  _populateCoinsView();
+}
+
+function _populateCoinsView() {
+  const balance = lastKnownUsage?.cmCoins || 0;
+  const balEl = document.getElementById('coinsHeroBalance');
+  if (balEl) balEl.textContent = balance.toLocaleString();
+
+  // Farm rate — use the live rate if available, else fall back to settings display
+  const farmEl = document.getElementById('coinsHeroFarm');
+  if (farmEl) {
+    const ratePill = document.getElementById('farmRatePill');
+    const rateHint = document.getElementById('farmRateHint');
+    if (ratePill && ratePill.textContent) {
+      farmEl.textContent = 'Earning ' + (rateHint ? rateHint.textContent.replace('≈ ', '') : ratePill.textContent);
+    } else if (!lastKnownUsage?.cmCoins) {
+      farmEl.textContent = 'Farm not started yet';
+    } else {
+      farmEl.textContent = 'Start your farm to earn coins passively';
+    }
+  }
+
+  // Update the user dropdown coin badge
+  const badge = document.getElementById('udCoinBadge');
+  if (badge) {
+    if (balance > 0) {
+      badge.textContent = balance.toLocaleString();
+      badge.style.display = '';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  // Update extra messages card description if we know the rate
+  const descEl = document.getElementById('coinsTopupDesc');
+  if (descEl) descEl.textContent = '+50 messages · 200 coins';
+}
+
+function showCoinMessageTopup() {
+  const balance = lastKnownUsage?.cmCoins || 0;
+  const cost = 200;
+  if (balance < cost) {
+    showWarning(`You need ${cost.toLocaleString()} coins — you have ${balance.toLocaleString()}.`);
+    return;
+  }
+  const btn = document.getElementById('coinsTopupBtn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '.6'; }
+  fetch('/api/coins/topup-messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cost }) })
+    .then(r => r.json())
+    .then(d => {
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+      if (d.error) { showWarning(d.error); return; }
+      if (lastKnownUsage) {
+        lastKnownUsage.cmCoins = d.balance;
+        if (d.msgsRemaining != null) lastKnownUsage.msgsRemaining = d.msgsRemaining;
+      }
+      showWarning(`+50 messages added! Balance: ${(d.balance || 0).toLocaleString()} coins`);
+      _populateCoinsView();
+    })
+    .catch(() => {
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+      showWarning('Something went wrong. Try again.');
+    });
+}
 
 // ── Phone / Contacts ─────────────────────────────────────────────────────────
 
@@ -3416,37 +3487,68 @@ function showPhoneContactProfile(charId, e) {
   const numMsgBtn = document.getElementById('pcpNumMsgBtn');
   if (numMsgBtn) numMsgBtn.onclick = () => { closePhoneContactProfile(); openChat(charId); };
 
-  // Delete / Block — only for custom contacts
+  // Delete / Block — shown for all contacts, wired differently by type
   const dangerEl = document.getElementById('pcpDangerActions');
-  if (dangerEl) dangerEl.style.display = isCustom ? '' : 'none';
+  if (dangerEl) dangerEl.style.display = '';
   const delBtn = document.getElementById('pcpDeleteBtn');
   const blkBtn = document.getElementById('pcpBlockBtn');
-  if (delBtn) delBtn.onclick = () => {
-    if (!confirm(`Delete ${c.customName || c.name || 'this contact'}?`)) return;
-    closePhoneContactProfile();
-    deleteCustomContact(charId);
-  };
-  if (blkBtn) {
-    const isBlocked = isCustom && !!(_customContacts.find(x => x.id === charId)?._blocked);
-    blkBtn.textContent = ''; // reset
-    blkBtn.innerHTML = isBlocked
-      ? `<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg> Unblock contact`
-      : `<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.68L5.68 16.9A7.902 7.902 0 0 1 4 12zm8 8c-1.85 0-3.55-.63-4.9-1.68l11.22-11.22A7.902 7.902 0 0 1 20 12c0 4.42-3.58 8-8 8z"/></svg> Block contact`;
-    blkBtn.onclick = () => {
-      const contact = _customContacts.find(x => x.id === charId);
-      if (!contact) return;
-      if (contact._blocked) {
-        contact._blocked = false;
-        _saveCustomContacts();
-        showPhoneContactProfile(charId, null);
-      } else {
-        if (!confirm(`Block ${contact.name}? They won't be able to call you.`)) return;
-        contact._blocked = true;
-        _saveCustomContacts();
+
+  const BLOCK_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.68L5.68 16.9A7.902 7.902 0 0 1 4 12zm8 8c-1.85 0-3.55-.63-4.9-1.68l11.22-11.22A7.902 7.902 0 0 1 20 12c0 4.42-3.58 8-8 8z"/></svg>`;
+  const UNBLOCK_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>`;
+
+  if (isCustom) {
+    if (delBtn) {
+      delBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg> Delete contact`;
+      delBtn.onclick = () => {
+        if (!confirm(`Delete ${c.name || 'this contact'}?`)) return;
         closePhoneContactProfile();
-        renderPhoneContacts(document.getElementById('phoneSearch')?.value || '');
-      }
-    };
+        deleteCustomContact(charId);
+      };
+    }
+    if (blkBtn) {
+      const isBlocked = !!(_customContacts.find(x => x.id === charId)?._blocked);
+      blkBtn.innerHTML = isBlocked ? `${UNBLOCK_SVG} Unblock contact` : `${BLOCK_SVG} Block contact`;
+      blkBtn.onclick = () => {
+        const contact = _customContacts.find(x => x.id === charId);
+        if (!contact) return;
+        if (contact._blocked) {
+          contact._blocked = false;
+          _saveCustomContacts();
+          showPhoneContactProfile(charId, null);
+        } else {
+          if (!confirm(`Block ${contact.name}? They won't be able to call you.`)) return;
+          contact._blocked = true;
+          _saveCustomContacts();
+          closePhoneContactProfile();
+          renderPhoneContacts(document.getElementById('phoneSearch')?.value || '');
+        }
+      };
+    }
+  } else {
+    // Character contact: Remove from phone / Block calls
+    if (delBtn) {
+      delBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg> Remove from phone`;
+      delBtn.onclick = () => {
+        if (!confirm(`Remove ${c.customName || c.name || 'this contact'} from your phone?`)) return;
+        closePhoneContactProfile();
+        removePhoneContact(charId);
+      };
+    }
+    if (blkBtn) {
+      const isBlocked = !!c.blocked;
+      blkBtn.innerHTML = isBlocked ? `${UNBLOCK_SVG} Allow calls` : `${BLOCK_SVG} Block calls`;
+      blkBtn.onclick = async () => {
+        if (isBlocked) {
+          await unblockPhoneContact(charId);
+          showPhoneContactProfile(charId, null);
+        } else {
+          if (!confirm(`Block calls from ${c.customName || c.name}?`)) return;
+          await blockPhoneContact(charId);
+          closePhoneContactProfile();
+          renderPhoneContacts(document.getElementById('phoneSearch')?.value || '');
+        }
+      };
+    }
   }
 
   overlay.style.display = 'block';
@@ -3459,6 +3561,24 @@ function closePhoneContactProfile() {
   const overlay = document.getElementById('phoneContactProfile');
   if (overlay) overlay.style.display = 'none';
   _pcpCharId = null;
+}
+
+async function removePhoneContact(charId) {
+  await fetch(`/api/phone/contacts/${encodeURIComponent(charId)}`, { method: 'DELETE' }).catch(() => {});
+  _phoneContacts = _phoneContacts.filter(c => c.id !== charId);
+  renderPhoneContacts(document.getElementById('phoneSearch')?.value || '');
+}
+
+async function blockPhoneContact(charId) {
+  await fetch(`/api/phone/contacts/${encodeURIComponent(charId)}/block`, { method: 'POST' }).catch(() => {});
+  const c = _phoneContacts.find(x => x.id === charId);
+  if (c) c.blocked = true;
+}
+
+async function unblockPhoneContact(charId) {
+  await fetch(`/api/phone/contacts/${encodeURIComponent(charId)}/unblock`, { method: 'POST' }).catch(() => {});
+  const c = _phoneContacts.find(x => x.id === charId);
+  if (c) c.blocked = false;
 }
 
 // ── Save contact sheet ────────────────────────────────────────────────────────
@@ -3809,6 +3929,8 @@ let incomingCallChar = null;
 let incomingCallTimer = null;
 
 function showIncomingCall(char) {
+  const _phoneEntry = _phoneContacts.find(c => c.id === char.id);
+  if (_phoneEntry?.blocked) return;
   incomingCallChar = char;
   clearTimeout(incomingCallTimer);
   const overlay = document.getElementById('incomingCallOverlay');
@@ -7886,7 +8008,19 @@ function showCoinPop(amount, anchorEl) {
   }, 2200);
 }
 
-function updateNavCoinDisplay(u) { /* coin display moved to Settings */ }
+function updateNavCoinDisplay(u) {
+  if (!u) return;
+  const balance = u.cmCoins || 0;
+  // Coins view hero balance
+  const heroEl = document.getElementById('coinsHeroBalance');
+  if (heroEl) heroEl.textContent = balance.toLocaleString();
+  // User dropdown badge
+  const badge = document.getElementById('udCoinBadge');
+  if (badge) {
+    if (balance > 0) { badge.textContent = balance.toLocaleString(); badge.style.display = ''; }
+    else badge.style.display = 'none';
+  }
+}
 
 function updateUsageModal(u) {
   if (!u) return;
