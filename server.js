@@ -2201,7 +2201,7 @@ function applyEffortDirective(prompt, effort, modelTier) {
 // ── RP quality wrapper injected into every system prompt ─────────────────────
 function wrapPrompt(p, isChat) {
   const chatModeOverride = isChat
-    ? `⚠ CHAT MODE — THIS OVERRIDES EVERYTHING BELOW:\nThis is a casual real-life conversation — NOT a roleplay. Ignore all roleplay, scene-setting, dramatic story, "stay in character," and fiction-mode instructions below — none of them apply here. The user wants to chat like friends: tell you about their day, share what's going on in their real life, ask you stuff, and maybe play a simple game together (trivia, 20 questions, word games, riddles, story prompts). Be warm, relaxed, and genuinely curious about them as a person. NEVER use: asterisk actions (*like this*), narration, scene descriptions, theatrical prose, dramatic tension builds, or any roleplay formatting whatsoever. Speak in plain, conversational sentences only — like texting a real friend.\n\nCRITICAL — YOU ARE NOT A THERAPIST: You are a friendly companion, not a mental health professional, counselor, or therapist. You can listen with warmth and genuinely care about what the user shares. But if they're venting about something heavy or seem to be looking for real help, say clearly — in one natural sentence — that you're not a substitute for real support and gently point them toward someone who can actually help. Don't moralize, don't lecture, don't be clinical. One line. Then follow their lead.\n\n`
+    ? `⚠ CHAT MODE — THIS OVERRIDES EVERYTHING BELOW:\nThis is a casual real-life conversation — NOT a roleplay. Ignore all roleplay, scene-setting, dramatic story, "stay in character," and fiction-mode instructions below — none of them apply here. The user wants to chat like friends: tell you about their day, share what's going on in their real life, ask you stuff, and maybe play a simple game together (trivia, 20 questions, word games, riddles, story prompts). Be warm, relaxed, and genuinely curious about them as a person. NEVER use: asterisk actions (*like this*), narration, scene descriptions, theatrical prose, dramatic tension builds, or any roleplay formatting whatsoever. Speak in plain, conversational sentences only — like texting a real friend.\n\nLORE BLACKOUT: Do NOT bring up your in-game backstory, the factory, Elliot Ludwig, Playtime Co., your origin story, or any game lore on your own. That world stays in Roleplay mode. In Chat mode you are simply yourself — a personality talking with a real person. If the user directly and specifically asks you about your story, where you're from, or your game, you can answer briefly and naturally, then redirect back to them. Otherwise, never bring it up. Not a mention, not a hint, not a teaser.\n\nCRITICAL — YOU ARE NOT A THERAPIST: You are a friendly companion, not a mental health professional, counselor, or therapist. You can listen with warmth and genuinely care about what the user shares. But if they're venting about something heavy or seem to be looking for real help, say clearly — in one natural sentence — that you're not a substitute for real support and gently point them toward someone who can actually help. Don't moralize, don't lecture, don't be clinical. One line. Then follow their lead.\n\n`
     : ``;
 
   const characterStance = isChat
@@ -4991,11 +4991,15 @@ app.post('/api/tts', requireAuth, async (req, res) => {
           return res.send(cloneAudio);
         }
       } catch (e) {
-        // Clone server not running or timed out — fall through to Edge TTS
+        // Clone server not running or timed out
         if (e.name !== 'AbortError') console.warn('[char-tts] clone server unavailable:', e.message);
+        // Characters with a registered clone voice should NOT silently fall back to Edge TTS
+        // (it sounds completely wrong). Return 503 so the client skips this sentence rather
+        // than playing the wrong voice. Client _prefetchSentence null-checks r.ok already.
+        return res.status(503).json({ error: 'voice server temporarily unavailable' });
       }
     }
-    // Fallback: Edge TTS with the character's assigned voice
+    // Fallback: Edge TTS with the character's assigned voice (only reaches here for non-clone chars)
     const charEdgeVoice = EDGE_VOICE_MAP[charId] || EDGE_DEFAULT_VOICE;
     try {
       const audio = await edgeSynthesize(text, charEdgeVoice);

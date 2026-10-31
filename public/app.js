@@ -7448,7 +7448,7 @@ function updateUsageModal(u) {
   const callsPct = callsLimit > 0 ? Math.min(100, Math.round(callsToday / callsLimit * 100)) : 0;
   const callSubStr = callsLimit >= 9999
     ? `${callsToday} calls used`
-    : `${callsToday} calls used · up to ${callsLimit} per 8h window`;
+    : `up to ${callsLimit} calls`;
   setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct, callSubStr, callsLimit >= 9999);
 
   // Daily resets subtitle — live countdown (ticks every 30s)
