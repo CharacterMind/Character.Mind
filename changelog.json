@@ -1,5 +1,19 @@
 [
   {
+    "id": "v420-contact-profile",
+    "version": "v420",
+    "date": "Oct 2026",
+    "title": "📱 Google Contacts Style Profile",
+    "subtitle": "Contact profiles now open full-screen with a large avatar, 4 action pill buttons, and a phone number row — just like Google Contacts.",
+    "changed": [
+      "Contact profile is now a full-screen slide-in page instead of a bottom sheet",
+      "Large circular avatar (148px) centered at top",
+      "4 pill action buttons: Call, Message, Video (coming soon), Email (coming soon)",
+      "Phone number shown in a dedicated row with call and message shortcut buttons",
+      "Header bar with back arrow, contact name, star and edit icons"
+    ]
+  },
+  {
     "id": "v419-create-contact",
     "version": "v419",
     "date": "Oct 2026",

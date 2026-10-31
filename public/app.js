@@ -3244,10 +3244,13 @@ function deleteCustomContact(id) {
 
 // ── Phone contact profile card ────────────────────────────────────────────────
 
+let _pcpCharId = null;
+
 function showPhoneContactProfile(charId, e) {
   if (e) e.stopPropagation();
   const c = _phoneContacts.find(x => x.id === charId) || (characters || []).find(x => x.id === charId);
   if (!c) return;
+  _pcpCharId = charId;
   const overlay = document.getElementById('phoneContactProfile');
   if (!overlay) return;
   const saved = !!c.customName;
@@ -3255,31 +3258,48 @@ function showPhoneContactProfile(charId, e) {
   const color = saved ? safeColor(c.color || '#7c3aed') : '#555';
   const hasImg = saved && isCharImg && isCharImg(c.image);
   const initial = (displayName || '?').charAt(0).toUpperCase();
-  document.getElementById('pcpBg').style.setProperty('--pcp-color', color);
   overlay.style.setProperty('--pcp-color', color);
+
+  // Header name
+  const headerName = document.getElementById('pcpHeaderName');
+  if (headerName) headerName.textContent = saved ? displayName : 'Unknown';
+
+  // Favourite button highlight
+  const favBtn = document.getElementById('pcpFavBtn');
+  if (favBtn) favBtn.classList.toggle('pcp-fav-active', !!(c.isFavourite));
+
+  // Avatar
   const avatarEl = document.getElementById('pcpAvatar');
   avatarEl.style.background = color;
   avatarEl.innerHTML = saved && hasImg
     ? `<img src="${escHtml(c.image)}" alt="" onerror="this.style.display='none'">`
     : saved ? escHtml(initial)
-    : `<svg viewBox="0 0 24 24" fill="currentColor" width="44" height="44"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>`;
+    : `<svg viewBox="0 0 24 24" fill="currentColor" width="56" height="56"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>`;
+
+  // Name
   const nameEl = document.getElementById('pcpName');
-  if (saved) {
-    nameEl.innerHTML = escHtml(displayName);
-    nameEl.style.fontStyle = '';
-  } else {
-    nameEl.textContent = 'Unknown';
-    nameEl.style.fontStyle = 'italic';
-  }
+  if (saved) { nameEl.textContent = displayName; nameEl.style.fontStyle = ''; }
+  else { nameEl.textContent = 'Unknown'; nameEl.style.fontStyle = 'italic'; }
+
+  // Phone number row
   document.getElementById('pcpNum').textContent = c.phone || '';
+
+  // Action buttons
   document.getElementById('pcpCallBtn').onclick = () => { closePhoneContactProfile(); callCharFromPhone(charId); };
   document.getElementById('pcpChatBtn').onclick = () => { closePhoneContactProfile(); openChat(charId); };
-  overlay.style.display = 'flex';
+  const numMsgBtn = document.getElementById('pcpNumMsgBtn');
+  if (numMsgBtn) numMsgBtn.onclick = () => { closePhoneContactProfile(); openChat(charId); };
+
+  overlay.style.display = 'block';
+  // Reset scroll
+  const body = overlay.querySelector('.pcp-body');
+  if (body) body.scrollTop = 0;
 }
 
 function closePhoneContactProfile() {
   const overlay = document.getElementById('phoneContactProfile');
   if (overlay) overlay.style.display = 'none';
+  _pcpCharId = null;
 }
 
 // ── Save contact sheet ────────────────────────────────────────────────────────
