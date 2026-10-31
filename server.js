@@ -4613,6 +4613,21 @@ const EDGE_VOICE_MAP = {
 };
 const EDGE_DEFAULT_VOICE = 'en-US-AriaNeural';
 
+// LRU audio cache — avoids re-synthesising repeated phrases (cache hit ≈ 0ms)
+const _ttsNodeCache = new Map();
+const _TTS_NODE_CACHE_MAX = 100;
+function _ttsCacheKey(provider, voiceId, text) { return `${provider}:${voiceId}:${text.slice(0, 120)}`; }
+function _ttsCacheGet(key) {
+  const val = _ttsNodeCache.get(key);
+  if (val !== undefined) { _ttsNodeCache.delete(key); _ttsNodeCache.set(key, val); }
+  return val || null;
+}
+function _ttsCacheSet(key, buf) {
+  _ttsNodeCache.delete(key);
+  if (_ttsNodeCache.size >= _TTS_NODE_CACHE_MAX) _ttsNodeCache.delete(_ttsNodeCache.keys().next().value);
+  _ttsNodeCache.set(key, buf);
+}
+
 // Hardcoded character voice map — these chars have a real voice sample file
 const CHARACTER_VOICE_MAP = {
   'custom_1790776698867': { name: 'Poppy',        voiceId: 'poppy',  file: path.join(__dirname, 'public/assets/voices/poppy.wav'),  edgeFallback: 'en-US-AvaNeural' },
@@ -4967,6 +4982,16 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   // Override clone server URL with TTS_CLONE_URL env var (e.g. for remote GPU machine via tunnel).
   if (effectiveProvider === 'character') {
     const charEntry = CHARACTER_VOICE_MAP[charId];
+    // Fast path: serve from Node-level LRU cache (avoids tts_server round-trip entirely)
+    const _charCacheKey = _ttsCacheKey('character', charEntry?.voiceId || charId, text);
+    const _charCached = _ttsCacheGet(_charCacheKey);
+    if (_charCached) {
+      res.setHeader('Content-Type', 'audio/wav');
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('X-TTS-Provider', 'character-node-cache');
+      res.setHeader('X-Synthesis-Time', '0');
+      return res.send(_charCached);
+    }
     // User-assigned voice takes priority over the character's built-in voice file
     let speakerFile = null;
     try {
@@ -5028,6 +5053,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         }).finally(() => clearTimeout(cloneTimeout));
         if (cloneRes.ok) {
           const cloneAudio = Buffer.from(await cloneRes.arrayBuffer());
+          _ttsCacheSet(_charCacheKey, cloneAudio);
           res.setHeader('Content-Type', 'audio/wav');
           res.setHeader('Cache-Control', 'no-store');
           res.setHeader('X-TTS-Provider', cloneRes.headers.get('X-TTS-Provider') || 'character-clone');

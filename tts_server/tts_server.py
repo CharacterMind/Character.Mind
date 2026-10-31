@@ -219,6 +219,27 @@ app  = Flask(__name__)
 _tts       = None
 _lock      = threading.Lock()   # TTS models are NOT thread-safe
 _gpu       = False
+
+# ---------------------------------------------------------------------------
+# LRU audio cache — avoids re-synthesising repeated phrases (instant on hit)
+# ---------------------------------------------------------------------------
+_audio_cache: dict = {}
+_AUDIO_CACHE_MAX = 80
+
+def _cache_key(engine: str, speaker_stem: str, text: str) -> str:
+    return f"{engine}:{speaker_stem}:{text[:120]}"
+
+def _cache_get(key: str):
+    val = _audio_cache.pop(key, None)
+    if val is not None:
+        _audio_cache[key] = val  # move to end (LRU order)
+    return val
+
+def _cache_set(key: str, data: bytes):
+    _audio_cache.pop(key, None)
+    _audio_cache[key] = data
+    while len(_audio_cache) > _AUDIO_CACHE_MAX:
+        _audio_cache.pop(next(iter(_audio_cache)))
 # YourTTS is the default: ~400 MB, works on CPU in 2-5s.
 # Set TTS_MODEL=xtts_v2 for higher quality (needs ~2 GB RAM, GPU recommended).
 _MODEL_KEY = os.environ.get("TTS_MODEL", "f5tts").lower()  # f5tts | chatterbox | kokoclone | xtts_v2 | your_tts
@@ -441,6 +462,14 @@ def tts_endpoint():
     if tts_engine in ("f5tts", "f5-tts"):
         import numpy as np
         import soundfile as sf_lib
+        ck = _cache_key("f5tts", Path(speaker_wav).stem, text)
+        cached = _cache_get(ck)
+        if cached:
+            print(f"[voice-ai] f5tts cache hit ({len(text)} chars, voice={Path(speaker_wav).stem})", flush=True)
+            resp = send_file(io.BytesIO(cached), mimetype="audio/wav", as_attachment=False)
+            resp.headers["X-Synthesis-Time"] = "0"
+            resp.headers["X-TTS-Provider"]   = "f5tts-cache"
+            return resp
         t0 = time.time()
         try:
             with _lock:
@@ -451,16 +480,18 @@ def tts_endpoint():
                     ref_text=ref_text,
                     gen_text=text,
                     seed=-1,
+                    nfe_step=16,
                 )
         except Exception as e:
             print(f"[voice-ai] F5-TTS error: {e}", flush=True)
             return jsonify({"error": str(e)}), 500
         buf = io.BytesIO()
         sf_lib.write(buf, wav, sr, format="WAV")
-        buf.seek(0)
+        audio_bytes = buf.getvalue()
+        _cache_set(ck, audio_bytes)
         elapsed = round(time.time() - t0, 2)
         print(f"[voice-ai] f5tts {len(text)} chars in {elapsed}s (voice={Path(speaker_wav).stem})", flush=True)
-        resp = send_file(buf, mimetype="audio/wav", as_attachment=False)
+        resp = send_file(io.BytesIO(audio_bytes), mimetype="audio/wav", as_attachment=False)
         resp.headers["X-Synthesis-Time"] = str(elapsed)
         resp.headers["X-TTS-Provider"]   = "f5tts"
         return resp
@@ -499,6 +530,14 @@ def tts_endpoint():
     # Chatterbox TTS path — ResembleAI zero-shot cloning (best free quality 2025)
     if tts_engine in ("chatterbox",):
         import torchaudio
+        ck = _cache_key("chatterbox", Path(speaker_wav).stem, text)
+        cached = _cache_get(ck)
+        if cached:
+            print(f"[voice-ai] chatterbox cache hit ({len(text)} chars)", flush=True)
+            resp = send_file(io.BytesIO(cached), mimetype="audio/wav", as_attachment=False)
+            resp.headers["X-Synthesis-Time"] = "0"
+            resp.headers["X-TTS-Provider"]   = "chatterbox-cache"
+            return resp
         t0 = time.time()
         try:
             with _lock:
@@ -511,15 +550,16 @@ def tts_endpoint():
                     _last_chatterbox_voice = speaker_wav
             buf = io.BytesIO()
             torchaudio.save(buf, wav, model.sr, format="wav")
-            buf.seek(0)
+            audio_bytes = buf.getvalue()
         except Exception as e:
             import traceback
             print(f"[voice-ai] Chatterbox error: {e}", flush=True)
             traceback.print_exc()
             return jsonify({"error": str(e)}), 500
+        _cache_set(ck, audio_bytes)
         elapsed = round(time.time() - t0, 2)
         print(f"[voice-ai] chatterbox {len(text)} chars in {elapsed}s (voice={Path(speaker_wav).stem})", flush=True)
-        resp = send_file(buf, mimetype="audio/wav", as_attachment=False)
+        resp = send_file(io.BytesIO(audio_bytes), mimetype="audio/wav", as_attachment=False)
         resp.headers["X-Synthesis-Time"] = str(elapsed)
         resp.headers["X-TTS-Provider"]   = "chatterbox"
         return resp
