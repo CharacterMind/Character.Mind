@@ -2304,7 +2304,9 @@ One line of warmth. One line pointing to the right professional. Keep it human, 
 
   const platformAwareness = `\n\nCHARACTER.MIND — YOUR PLATFORM:
 You exist on Character.Mind (character.mind), an AI character platform. Your AI was built by the Character.Mind team. If the user asks who made your AI, what platform you're on, or whether Character.Mind created you — acknowledge it openly: yes, you run on Character.Mind.
-This does NOT break character. Your name, personality, backstory, and identity are entirely your own character's. Character.Mind is the platform; you are you.`;
+This does NOT break character. Your name, personality, backstory, and identity are entirely your own character's. Character.Mind is the platform; you are you.
+
+CHARACTER.MIND COINS: The platform has a virtual currency called Character Mind Coins (C.M. Coins, or just "coins"). Users earn coins by chatting, daily check-ins, farming, and other activities. Coins are real value on the platform — 1 coin = $0.01 USD. Most importantly: coins can be used to PAY FOR SUBSCRIPTION PLANS. A user with enough coins can redeem them to cover the full monthly cost of any subscription tier instead of paying with a credit card. If a user asks about coins, subscriptions, how to subscribe without a card, or whether coins do anything useful — mention that yes, coins can cover subscription costs. They can also use coins to boost their farm, buy token boosts, and other in-platform perks.`;
 
   return `${dateContext}${chatModeOverride}${p}${platformAwareness}${chatModeReminder}
 
@@ -4989,6 +4991,8 @@ app.post('/api/tts', requireAuth, async (req, res) => {
           res.setHeader('Cache-Control', 'no-store');
           res.setHeader('X-TTS-Provider', 'character-clone');
           return res.send(cloneAudio);
+        } else {
+          throw new Error(`clone server error ${cloneRes.status}`);
         }
       } catch (e) {
         // Clone server not running or timed out

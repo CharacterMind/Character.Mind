@@ -9323,12 +9323,19 @@ let _streamTTSBuffer = '';
 let _streamTTSQueue = [];
 let _streamTTSPlaying = false;
 let _ttsPrefetchPool = new Map(); // cleaned text → Promise<Blob|null>
+let _streamTTSAudio = null; // currently playing Audio element for immediate mute
 
 function toggleAutoSpeak() {
   chatAutoSpeak = !chatAutoSpeak;
   try { localStorage.setItem('cm_autospeak', chatAutoSpeak ? '1' : '0'); } catch(_) {}
   updateAutoSpeakBtn();
-  if (!chatAutoSpeak) { _streamTTSQueue = []; _streamTTSBuffer = ''; _streamTTSPlaying = false; _ttsPrefetchPool.clear(); }
+  if (!chatAutoSpeak) {
+    // Stop currently playing audio immediately
+    if (_streamTTSAudio) { try { _streamTTSAudio.pause(); _streamTTSAudio.src = ''; } catch(_) {} _streamTTSAudio = null; }
+    _streamTTSQueue = []; _streamTTSBuffer = ''; _streamTTSPlaying = false; _ttsPrefetchPool.clear();
+    const btn = document.getElementById('autoSpeakBtn');
+    if (btn) btn.classList.remove('speaking', 'loading');
+  }
 }
 
 function updateAutoSpeakBtn() {
@@ -9410,12 +9417,15 @@ async function _playStreamTTSQueue() {
     if (ttsProvider === 'browser') {
       await _speakStreamSentence(text);
     } else if (blobPromise) {
+      if (btn) btn.classList.add('loading');
       const blob = await blobPromise;
+      if (btn) btn.classList.remove('loading');
       if (blob && _streamTTSPlaying) {
         await new Promise(resolve => {
           const url = URL.createObjectURL(blob);
           const audio = new Audio(url);
-          const done = () => { URL.revokeObjectURL(url); resolve(); };
+          _streamTTSAudio = audio;
+          const done = () => { URL.revokeObjectURL(url); if (_streamTTSAudio === audio) _streamTTSAudio = null; resolve(); };
           audio.onended = done; audio.onerror = done;
           audio.play().catch(done);
         });
@@ -9424,8 +9434,9 @@ async function _playStreamTTSQueue() {
   }
 
   _streamTTSPlaying = false;
+  _streamTTSAudio = null;
   _ttsPrefetchPool.clear();
-  if (btn) btn.classList.remove('speaking');
+  if (btn) btn.classList.remove('speaking', 'loading');
 }
 
 function _speakStreamSentence(text) {

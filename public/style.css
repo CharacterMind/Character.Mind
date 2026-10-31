@@ -1198,6 +1198,12 @@ html, body {
 .btn-autospeak.speaking .autospeak-bars span:nth-child(3) { height: 5px; animation: autospeak-bar 0.9s ease-in-out infinite .4s; }
 @keyframes autospeak-bar { 0%,100% { transform: scaleY(0.5); } 50% { transform: scaleY(1.4); } }
 .btn-autospeak.speaking { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(124,58,237,.25); }
+/* Loading state: GPU is generating audio — show animated bars at half opacity */
+.btn-autospeak.loading .autospeak-on { display: none; }
+.btn-autospeak.loading .autospeak-bars { display: flex; opacity: 0.45; }
+.btn-autospeak.loading .autospeak-bars span:nth-child(1) { height: 5px; animation: autospeak-bar 1.4s ease-in-out infinite; }
+.btn-autospeak.loading .autospeak-bars span:nth-child(2) { height: 9px; animation: autospeak-bar 1.4s ease-in-out infinite .3s; }
+.btn-autospeak.loading .autospeak-bars span:nth-child(3) { height: 5px; animation: autospeak-bar 1.4s ease-in-out infinite .6s; }
 .btn-attach--limited { color: rgba(239,68,68,0.6) !important; border-color: rgba(239,68,68,0.35) !important; cursor: not-allowed; }
 .btn-attach--limited:hover { background: rgba(239,68,68,0.08) !important; color: rgba(239,68,68,0.8) !important; }
 .btn-call, .btn-img-pick {
