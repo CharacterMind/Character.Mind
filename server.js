@@ -870,7 +870,12 @@ app.get('/auth/google', (req, res, next) => {
 app.get('/auth/google/callback',
   (req, res, next) => {
     if (!GOOGLE_AUTH_ENABLED) return res.redirect('/?auth=fail');
-    passport.authenticate('google', { failureRedirect: '/?auth=fail' })(req, res, next);
+    passport.authenticate('google', { failureRedirect: '/?auth=fail' })(req, res, (err) => {
+      // Passport calls next(err) for protocol errors (e.g. state mismatch, expired code).
+      // Catch those here so the user gets a proper retry page instead of raw JSON.
+      if (err) { console.error('[auth] Google callback error:', err.message); return res.redirect('/?auth=fail'); }
+      next();
+    });
   },
   (req, res) => {
     const isPopup = req.session.oauthPopup;
