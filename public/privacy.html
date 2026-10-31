@@ -191,7 +191,7 @@
 <div class="hero">
   <div class="hero-badge">Legal Document</div>
   <h1 class="hero-title">Privacy Policy</h1>
-  <p class="hero-meta">Effective <span>October 3, 2026</span> &nbsp;·&nbsp; Last updated <span>October 30, 2026</span></p>
+  <p class="hero-meta">Effective <span>October 3, 2026</span> &nbsp;·&nbsp; Last updated <span>October 31, 2026</span></p>
 </div>
 
 <div class="layout">
@@ -249,6 +249,7 @@
         <li><strong>Group chat data:</strong> When you use group chat, the conversation history (character names, messages, timestamps) is stored in server memory for the duration of your session. Group chat history is not permanently persisted to our database and is cleared when the session ends or after a period of inactivity (4 hours). You may have up to 50 group conversations stored at a time. Voice audio in group chats is synthesized on-demand per message and is not stored; each character is assigned a consistent voice for the duration of the session.</li>
         <li><strong>Wellness check-in preferences (optional):</strong> If you opt in to wellness check-in messages, we store your preference (on/off), your chosen frequency, and optionally a phone number you provide. The phone number is stored solely for future voice-call features; it is not used for any other purpose. You can update or remove these at any time from Settings → Wellness.</li>
         <li><strong>Content moderation records:</strong> Two types of moderation data are stored on your account: (1) per-conversation violation strike counts for our hate speech and slur policy, tied to your account and character pair; and (2) an account-level real-world violence strike count and, when applicable, a temporary ban expiry timestamp. These records exist solely to enforce our moderation policies and are not linked to your individual message content.</li>
+        <li><strong>Platform analytics:</strong> When you are signed in, the app sends a periodic ping to our servers (once per minute while the tab is open). Each ping records that your account was active at that time: we store your Google account ID and the timestamp of the visit in our database. This data is used solely for aggregate platform analytics — measuring how many people use the service, how often, and how many are active at any given moment. A running in-memory record of currently active users (name, email, time of first activity in the current session) is held on the server for up to 5 minutes after your last ping and is never written to our database. This record is visible only to the site owner.</li>
         <li><strong>User-created characters:</strong> Any characters you create, including their name, description, system prompt, and associated image.</li>
       </ul>
 
@@ -277,6 +278,7 @@
         <li>To send wellness check-in messages — periodic emails and push notifications from the AI character you chat with most — only if you have opted in. You may opt out at any time from Settings → Wellness.</li>
         <li>To credit and track your C.M. Coins balance, including coins earned through games, quizzes, the idle coin farm, and coins granted by platform giveaways</li>
         <li>To deliver push notifications to your device: real-time response notifications (when a character finishes replying, including in group chats), wellness check-in reminders, and re-engagement messages when you have not used the app in two or more days — all only if you have enabled push notifications</li>
+        <li>To track aggregate platform analytics — how many users visit the service, how often, and how many are active at a given time — using the periodic activity ping described above</li>
         <li>To detect and prevent abuse or violations of our Terms of Service</li>
       </ul>
     </div>
@@ -340,6 +342,7 @@
         <li><strong>Character relationship data</strong> (friendship levels, earned phone contacts and block history) is retained while your account is active so your progress with each character is kept. Blocks end automatically when their time is up. This data is deleted when you delete your account.</li>
         <li><strong>Account data</strong> (name, email, subscription tier, PayPal subscription ID) is retained as long as your account exists. The PayPal subscription ID is removed when a subscription is cancelled, expired, or suspended.</li>
         <li><strong>IP geolocation results</strong> are cached in server memory for up to one hour and are never stored in our database. See <a href="#s3a">Section 3a</a>.</li>
+        <li><strong>Platform analytics records</strong> (visit timestamps in the <code>site_visits</code> table) are retained while your account is active. They are included in account deletion requests and removed within the same 30-day window.</li>
         <li>If you request account deletion, we will remove your personal data from our database within 30 days, except where retention is required by law.</li>
       </ul>
     </div>
