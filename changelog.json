@@ -1,5 +1,18 @@
 [
   {
+    "id": "v421-new-contact-page",
+    "version": "v421",
+    "date": "Oct 2026",
+    "title": "📋 New Contact Page",
+    "subtitle": "Creating a new contact now opens a full-screen page styled like Google Contacts — slides in from the right with a large avatar placeholder and clean underline fields.",
+    "changed": [
+      "New contact is now a full-screen slide-in page instead of a bottom sheet modal",
+      "Header with back arrow and Save button (matching Google Contacts layout)",
+      "Large circular avatar placeholder at top",
+      "Clean underline-style name and phone fields with icons"
+    ]
+  },
+  {
     "id": "v420-contact-profile",
     "version": "v420",
     "date": "Oct 2026",

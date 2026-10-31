@@ -3188,33 +3188,40 @@ function renderPhoneContacts(query) {
 // ── New custom contact sheet ──────────────────────────────────────────────────
 
 function openNewContactSheet() {
-  let sheet = document.getElementById('newContactSheet');
-  if (!sheet) {
-    sheet = document.createElement('div');
-    sheet.id = 'newContactSheet';
-    sheet.className = 'save-contact-sheet';
-    sheet.innerHTML = `
-      <div class="save-contact-inner">
-        <div class="save-contact-title">New contact</div>
-        <div class="save-contact-field">
-          <label>Name</label>
-          <input id="newContactNameInput" type="text" placeholder="Enter a name…" maxlength="50" autocomplete="off">
+  const existing = document.getElementById('newContactSheet');
+  if (existing) existing.remove();
+  const sheet = document.createElement('div');
+  sheet.id = 'newContactSheet';
+  sheet.className = 'nc-overlay';
+  sheet.innerHTML = `
+    <div class="nc-page">
+      <div class="nc-header">
+        <button class="nc-back" onclick="closeNewContactSheet()">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        </button>
+        <span class="nc-title">New contact</span>
+        <button class="nc-save-btn" onclick="confirmNewContact()">Save</button>
+      </div>
+      <div class="nc-body">
+        <div class="nc-avatar-wrap">
+          <div class="nc-avatar-circle">
+            <svg viewBox="0 0 24 24" width="52" height="52" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+          </div>
+          <span class="nc-add-photo">Add photo</span>
         </div>
-        <div class="save-contact-field">
-          <label>Phone</label>
-          <input id="newContactPhoneInput" type="tel" placeholder="Optional phone number" maxlength="30" autocomplete="off">
+        <div class="nc-fields">
+          <div class="nc-field-row">
+            <svg class="nc-fi" viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+            <input id="newContactNameInput" type="text" placeholder="Name" maxlength="50" autocomplete="off">
+          </div>
+          <div class="nc-field-row">
+            <svg class="nc-fi" viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>
+            <input id="newContactPhoneInput" type="tel" placeholder="Phone" maxlength="30" autocomplete="off">
+          </div>
         </div>
-        <div class="save-contact-actions">
-          <button class="save-contact-cancel" onclick="closeNewContactSheet()">Cancel</button>
-          <button class="save-contact-save" onclick="confirmNewContact()">Save</button>
-        </div>
-      </div>`;
-    sheet.addEventListener('click', e => { if (e.target === sheet) closeNewContactSheet(); });
-    document.body.appendChild(sheet);
-  }
-  document.getElementById('newContactNameInput').value = '';
-  document.getElementById('newContactPhoneInput').value = '';
-  sheet.style.display = 'flex';
+      </div>
+    </div>`;
+  document.body.appendChild(sheet);
   setTimeout(() => document.getElementById('newContactNameInput').focus(), 80);
   document.getElementById('newContactNameInput').onkeydown = e => { if (e.key === 'Enter') document.getElementById('newContactPhoneInput').focus(); };
   document.getElementById('newContactPhoneInput').onkeydown = e => { if (e.key === 'Enter') confirmNewContact(); };
@@ -3222,7 +3229,7 @@ function openNewContactSheet() {
 
 function closeNewContactSheet() {
   const sheet = document.getElementById('newContactSheet');
-  if (sheet) sheet.style.display = 'none';
+  if (sheet) sheet.remove();
 }
 
 function confirmNewContact() {
