@@ -5436,7 +5436,7 @@ async function generateGreeting() {
             bubble.classList.add('streaming');
             startStreamStats(msgEl);
             startTypewriter(bubble, msgEl);
-            _streamTTSBuffer = ''; _streamTTSQueue = []; _streamTTSPlaying = false; _ttsPrefetchPool.clear();
+            _streamTTSBuffer = ''; _streamTTSQueue = []; _stopCurrentTTS();
           }
           streamText += data.text;
           feedTypewriter(data.text);
@@ -5792,7 +5792,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
             bubble.classList.add('streaming');
             startStreamStats(msgEl);
             startTypewriter(bubble, msgEl);
-            _streamTTSBuffer = ''; _streamTTSQueue = []; _streamTTSPlaying = false; _ttsPrefetchPool.clear();
+            _streamTTSBuffer = ''; _streamTTSQueue = []; _stopCurrentTTS();
           }
           streamText += data.text;
           feedTypewriter(data.text);
@@ -8341,14 +8341,13 @@ function remainingTypeMs() {
   return twSpd ? Math.ceil(twQueue.length / twSpd.chars) * twSpd.ms : 0;
 }
 
-// Typewriter speed by effort level — lower effort = slower (more visible), higher = faster
-// Replies appear almost as fast as they arrive (the effort decides how LONG a reply is, not how slowly it is shown).
+// Typewriter speed — slow enough to see generation in real time with token counter ticking
 const TW_SPEED = {
-  low:    { chars: 3, ms: 8 },
-  medium: { chars: 4, ms: 8 },
-  high:   { chars: 6, ms: 8 },
-  extra:  { chars: 10, ms: 8 },
-  max:    { chars: 16, ms: 8 },
+  low:    { chars: 1, ms: 28 },
+  medium: { chars: 2, ms: 28 },
+  high:   { chars: 3, ms: 28 },
+  extra:  { chars: 5, ms: 28 },
+  max:    { chars: 8, ms: 28 },
 };
 
 function startTypewriter(bubble, msgEl) {
@@ -8371,7 +8370,6 @@ function startTypewriter(bubble, msgEl) {
     const now = Date.now();
     credit += (now - lastTick) * perMs;
     lastTick = now;
-    credit = Math.max(credit, Math.ceil(twQueue.length / 4));   // never fall far behind what has already arrived
     if (!twQueue.length) {
       credit = 0;
       if (twOnDrain) { const cb = twOnDrain; twOnDrain = null; cb(); }
@@ -8714,41 +8712,24 @@ function renderCharVoiceSection() {
     .catch(() => { card.innerHTML = '<div class="voice-empty">No character voice available.</div>'; });
 }
 
-let _charVoicePreviewAudio = null;
-
 async function previewCharVoice(e) {
   e?.stopPropagation();
   const btn = e?.currentTarget || e?.target;
-  // If already playing, stop it
-  if (_charVoicePreviewAudio) {
-    try { _charVoicePreviewAudio.pause(); } catch (_) {}
-    _charVoicePreviewAudio = null;
-    if (btn) btn.textContent = '▶';
-    return;
-  }
   if (!currentChar) return;
+  if (_previewBtn === btn) { _stopPreview(); return; } // toggle off
+  _stopPreview();
+  if (btn) { btn.textContent = '…'; _previewBtn = btn; }
   try {
     const r = await fetch(`/api/character-voice/${encodeURIComponent(currentChar.id)}`);
-    if (!r.ok) return;
+    if (!r.ok) { if (_previewBtn === btn) { btn.textContent = '▶'; _previewBtn = null; } return; }
     const url = URL.createObjectURL(await r.blob());
     const a = new Audio(url);
-    _charVoicePreviewAudio = a;
+    _previewAudio = a;
     if (btn) btn.textContent = '■';
-    a.onended = () => {
-      URL.revokeObjectURL(url);
-      if (_charVoicePreviewAudio === a) _charVoicePreviewAudio = null;
-      if (btn) btn.textContent = '▶';
-    };
-    a.onerror = () => {
-      URL.revokeObjectURL(url);
-      if (_charVoicePreviewAudio === a) _charVoicePreviewAudio = null;
-      if (btn) btn.textContent = '▶';
-    };
-    a.play().catch(() => {
-      if (_charVoicePreviewAudio === a) _charVoicePreviewAudio = null;
-      if (btn) btn.textContent = '▶';
-    });
-  } catch (_) {}
+    const done = () => { URL.revokeObjectURL(url); if (_previewAudio === a) _previewAudio = null; if (_previewBtn === btn) { btn.textContent = '▶'; _previewBtn = null; } };
+    a.onended = done; a.onerror = done;
+    a.play().catch(done);
+  } catch (_) { if (_previewBtn === btn) { btn.textContent = '▶'; _previewBtn = null; } }
 }
 
 // ── User voice recordings ─────────────────────────────────────────────────────
@@ -8938,15 +8919,38 @@ function selectKokoroVoice(v, btn) {
   btn.classList.add('active');
 }
 
-async function previewKokoroVoice(v, e) {
-  e?.stopPropagation();
+// ── Voice preview helper — one preview at a time, with loading state ──────────
+let _previewAudio = null;
+let _previewBtn = null;
+
+function _stopPreview() {
+  if (_previewAudio) { try { _previewAudio.pause(); _previewAudio.src = ''; } catch(_) {} _previewAudio = null; }
+  if (_previewBtn) { _previewBtn.textContent = '▶'; _previewBtn = null; }
+}
+
+async function _playPreview(body, btn) {
+  e?.stopPropagation?.();
+  const clickedSame = _previewBtn === btn;
+  _stopPreview();
+  if (clickedSame) return; // toggle off
+  const el = btn;
+  if (el) { el.textContent = '…'; _previewBtn = el; }
   try {
-    const r = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: `Hi! I'm ${currentChar?.name || 'your character'}.`, provider: 'kokoro', kokoroVoice: v, charId: currentChar?.id || '' }) });
-    if (!r.ok) return;
+    const r = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!r.ok) { if (_previewBtn === el) { el.textContent = '▶'; _previewBtn = null; } return; }
     const url = URL.createObjectURL(await r.blob());
-    const a = new Audio(url); a.onended = () => URL.revokeObjectURL(url); a.play().catch(() => {});
-  } catch(_) {}
+    const a = new Audio(url);
+    _previewAudio = a;
+    if (el) el.textContent = '■';
+    const done = () => { URL.revokeObjectURL(url); if (_previewAudio === a) { _previewAudio = null; } if (_previewBtn === el && el) { el.textContent = '▶'; _previewBtn = null; } };
+    a.onended = done; a.onerror = done;
+    a.play().catch(done);
+  } catch(_) { if (_previewBtn === el) { el.textContent = '▶'; _previewBtn = null; } }
+}
+
+async function previewKokoroVoice(v, e) {
+  const btn = e?.currentTarget || e?.target;
+  await _playPreview({ text: `Hi! I'm ${currentChar?.name || 'your character'}.`, provider: 'kokoro', kokoroVoice: v, charId: currentChar?.id || '' }, btn);
 }
 
 function selectVoice(voiceURI, btn) {
@@ -8979,25 +8983,13 @@ function selectEdgeVoice(v, btn) {
 }
 
 async function previewEdgeVoice(v, e) {
-  e?.stopPropagation();
-  try {
-    const r = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: `Hi! I'm ${currentChar?.name || 'your character'}.`, provider: 'edge', edgeVoice: v, charId: currentChar?.id || '' }) });
-    if (!r.ok) return;
-    const url = URL.createObjectURL(await r.blob());
-    const a = new Audio(url); a.onended = () => URL.revokeObjectURL(url); a.play().catch(() => {});
-  } catch(_) {}
+  const btn = e?.currentTarget || e?.target;
+  await _playPreview({ text: `Hi! I'm ${currentChar?.name || 'your character'}.`, provider: 'edge', edgeVoice: v, charId: currentChar?.id || '' }, btn);
 }
 
 async function previewGeminiVoice(v, e) {
-  e?.stopPropagation();
-  try {
-    const r = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: `Hi! I'm ${currentChar?.name || 'your character'}.`, provider: 'gemini', geminiVoice: v, charId: currentChar?.id || '' }) });
-    if (!r.ok) return;
-    const url = URL.createObjectURL(await r.blob());
-    const a = new Audio(url); a.onended = () => URL.revokeObjectURL(url); a.play().catch(() => {});
-  } catch(_) {}
+  const btn = e?.currentTarget || e?.target;
+  await _playPreview({ text: `Hi! I'm ${currentChar?.name || 'your character'}.`, provider: 'gemini', geminiVoice: v, charId: currentChar?.id || '' }, btn);
 }
 
 function previewVoiceURI(voiceURI, e) {
@@ -9324,15 +9316,22 @@ let _streamTTSQueue = [];
 let _streamTTSPlaying = false;
 let _ttsPrefetchPool = new Map(); // cleaned text → Promise<Blob|null>
 let _streamTTSAudio = null; // currently playing Audio element for immediate mute
+let _ttsGeneration = 0;   // incremented each time new TTS starts; stale requests self-abort
+
+function _stopCurrentTTS() {
+  ++_ttsGeneration;
+  if (_streamTTSAudio) { try { _streamTTSAudio.pause(); _streamTTSAudio.src = ''; } catch(_) {} _streamTTSAudio = null; }
+  _streamTTSPlaying = false;
+  _ttsPrefetchPool.clear();
+}
 
 function toggleAutoSpeak() {
   chatAutoSpeak = !chatAutoSpeak;
   try { localStorage.setItem('cm_autospeak', chatAutoSpeak ? '1' : '0'); } catch(_) {}
   updateAutoSpeakBtn();
   if (!chatAutoSpeak) {
-    // Stop currently playing audio immediately
-    if (_streamTTSAudio) { try { _streamTTSAudio.pause(); _streamTTSAudio.src = ''; } catch(_) {} _streamTTSAudio = null; }
-    _streamTTSQueue = []; _streamTTSBuffer = ''; _streamTTSPlaying = false; _ttsPrefetchPool.clear();
+    _stopCurrentTTS();
+    _streamTTSQueue = []; _streamTTSBuffer = '';
     const btn = document.getElementById('autoSpeakBtn');
     if (btn) btn.classList.remove('speaking', 'loading');
   }
@@ -9371,7 +9370,10 @@ function _flushAutoSpeak() {
 }
 
 async function _playFullMessageTTS(rawText) {
-  if (_streamTTSPlaying) return;
+  // Interrupt any in-progress TTS immediately, then claim this generation slot
+  _stopCurrentTTS();
+  const myGen = _ttsGeneration; // captured AFTER increment inside _stopCurrentTTS
+
   if (ttsProvider === 'browser' || ttsProvider === 'off') return;
   const clean = ttsCleanText(rawText);
   if (!clean || clean.length <= 1) return;
@@ -9386,10 +9388,12 @@ async function _playFullMessageTTS(rawText) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: clean.slice(0, 1000), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
     });
+    if (myGen !== _ttsGeneration) return; // superseded by a newer message
     if (btn) btn.classList.remove('loading');
-    if (!r.ok || !_streamTTSPlaying) { _streamTTSPlaying = false; if (btn) btn.classList.remove('speaking', 'loading'); return; }
+    if (!r.ok) { _streamTTSPlaying = false; if (btn) btn.classList.remove('speaking', 'loading'); return; }
     const blob = await r.blob();
-    if (!blob || !_streamTTSPlaying) { _streamTTSPlaying = false; if (btn) btn.classList.remove('speaking', 'loading'); return; }
+    if (myGen !== _ttsGeneration) return; // superseded
+    if (!blob) { _streamTTSPlaying = false; if (btn) btn.classList.remove('speaking', 'loading'); return; }
     if (btn) btn.classList.add('speaking');
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
@@ -9399,10 +9403,12 @@ async function _playFullMessageTTS(rawText) {
       audio.onended = done; audio.onerror = done;
       audio.play().catch(done);
     });
-  } catch (e) { console.warn('[tts] full message error:', e); }
+  } catch (e) { if (myGen === _ttsGeneration) console.warn('[tts] full message error:', e); }
 
-  _streamTTSPlaying = false;
-  if (btn) btn.classList.remove('speaking', 'loading');
+  if (myGen === _ttsGeneration) {
+    _streamTTSPlaying = false;
+    if (btn) btn.classList.remove('speaking', 'loading');
+  }
 }
 
 async function _playStreamTTSQueue() {
