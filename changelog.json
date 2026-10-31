@@ -1,5 +1,16 @@
 [
   {
+    "id": "v410-zero-delay-voice",
+    "version": "v410",
+    "date": "Oct 2026",
+    "title": "⚡ Zero-Delay Voice",
+    "subtitle": "Play button starts instantly. Auto-speak now races providers for fastest audio.",
+    "fixed": [
+      "Play button was waiting for a server check before playing — now runs in the background so audio starts the moment synthesis is ready",
+      "Auto-speak now races Gemini vs Edge during prefetch — the faster provider (~300ms) wins instead of always waiting on Gemini (~1-2s)"
+    ]
+  },
+  {
     "id": "v409-voice-polish",
     "version": "v409",
     "date": "Oct 2026",

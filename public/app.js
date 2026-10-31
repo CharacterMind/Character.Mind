@@ -2011,6 +2011,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '410': {
+    date: 'October 2026',
+    label: 'Zero-Delay Voice',
+    fixed: [
+      'Play button no longer waits for a server check before playing — memo check now runs in the background so audio starts the moment synthesis is ready',
+      'Auto-speak now races Gemini vs Edge during streaming prefetch — the faster provider (~300ms Edge) wins, cutting the wait from ~1-2s down to nearly instant',
+    ],
+  },
   '409': {
     date: 'October 2026',
     label: 'Voice Polish: No Delay, No Cutoffs, No Pauses',
@@ -9505,11 +9513,23 @@ function _prefetchSentence(rawText) {
   if (ttsProvider === 'browser' || ttsProvider === 'off') return;
   const clean = ttsCleanText(rawText);
   if (!clean || clean.length <= 1 || _ttsPrefetchPool.has(clean)) return;
-  const p = fetch('/api/tts', {
+  const makeReq = (prov) => fetch('/api/tts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: clean.slice(0, 499), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
+    body: JSON.stringify({ text: clean.slice(0, 499), charId: currentChar?.id || '', provider: prov, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
   }).then(r => r.ok ? r.blob() : null).catch(() => null);
+  let p;
+  if (ttsProvider === 'gemini') {
+    // Race Gemini vs Edge — first non-null result wins (~300ms Edge beats ~1-2s Gemini)
+    p = new Promise(resolve => {
+      let done = 0, settled = false;
+      const win = b => { if (!settled && b) { settled = true; resolve(b); } else if (++done === 2 && !settled) { settled = true; resolve(null); } };
+      makeReq('gemini').then(win);
+      makeReq('edge').then(win);
+    });
+  } else {
+    p = makeReq(ttsProvider);
+  }
   _ttsPrefetchPool.set(clean, p);
 }
 
@@ -9961,23 +9981,25 @@ async function toggleTTS(btn) {
     return fetchBlob(s);
   });
 
-  // Memo check in parallel with synthesis — don't block audio start on it
-  try {
-    const memoR = await fetch('/api/memo/use', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ textLen: text.length }) });
-    if (!memoR.ok) {
-      stopActiveTTS();
-      const memoData = await memoR.json().catch(() => ({}));
-      if (memoR.status === 429 && memoData.type === 'memo_daily_limit') showMemoLimitBanner(memoData.resetsAt);
-      else showTTSError('Memo unavailable — try again shortly');
-      return;
-    }
-  } catch (_) {}
+  // Fire memo check in background — don't await it before playing (eliminates the round-trip delay).
+  // If memo fails, we stop mid-playback; that's fine since it only fails for limit-exceeded cases.
+  let _memoFailed = false;
+  fetch('/api/memo/use', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ textLen: text.length }) })
+    .then(async r => {
+      if (!r.ok) {
+        _memoFailed = true;
+        const memoData = await r.json().catch(() => ({}));
+        if (r.status === 429 && memoData.type === 'memo_daily_limit') showMemoLimitBanner(memoData.resetsAt);
+        else showTTSError('Memo unavailable — try again shortly');
+        if (activeTTSBtn === btn) stopActiveTTS();
+      }
+    }).catch(() => {});
 
   let played = false;
   for (let i = 0; i < blobPromises.length; i++) {
-    if (activeTTSBtn !== btn) break;
+    if (activeTTSBtn !== btn || _memoFailed) break;
     const blob = await blobPromises[i];
-    if (!blob || activeTTSBtn !== btn) break;
+    if (!blob || activeTTSBtn !== btn || _memoFailed) break;
     if (!played) { btn.classList.remove('loading'); btn.classList.add('playing'); played = true; }
     await new Promise(resolve => {
       const url = URL.createObjectURL(blob);
