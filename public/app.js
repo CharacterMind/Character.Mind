@@ -3185,57 +3185,138 @@ function renderPhoneContacts(query) {
   }).join('');
 }
 
-// ── New custom contact sheet ──────────────────────────────────────────────────
+// ── New custom contact sheet (Google Contacts style) ─────────────────────────
+
+let _ncPhones = ['']; // list of phone numbers in the new contact form
+
+function _ncRenderPhones() {
+  const wrap = document.getElementById('ncPhonesWrap');
+  if (!wrap) return;
+  wrap.innerHTML = _ncPhones.map((num, i) => `
+    <div class="nc-phone-row" id="ncPhoneRow${i}">
+      <div class="nc-phone-type-icon">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="color:var(--muted)"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="color:var(--muted);margin-left:2px"><path d="M7 10l5 5 5-5z"/></svg>
+      </div>
+      <div class="nc-field-outlined nc-phone-field-wrap">
+        <label>Phone (Mobile)</label>
+        <input class="nc-phone-input" type="tel" value="${escHtml(num)}" placeholder="" maxlength="30" autocomplete="off"
+          oninput="_ncPhones[${i}]=this.value"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();${i === _ncPhones.length - 1 ? '_ncAddPhone()' : 'document.querySelector(\'.nc-phone-input:nth-of-type('+(i+2)+')\')?.focus()'}}">
+      </div>
+      ${_ncPhones.length > 1 ? `<button class="nc-remove-phone" onclick="_ncRemovePhone(${i})" type="button">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11H7v-2h10v2z"/></svg>
+      </button>` : '<div style="width:32px;flex-shrink:0"></div>'}
+    </div>`).join('');
+}
+
+function _ncAddPhone() {
+  _ncPhones.push('');
+  _ncRenderPhones();
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('#ncPhonesWrap .nc-phone-input');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }, 50);
+}
+
+function _ncRemovePhone(i) {
+  _ncPhones.splice(i, 1);
+  _ncRenderPhones();
+}
 
 function openNewContactSheet() {
   const existing = document.getElementById('newContactSheet');
   if (existing) existing.remove();
+  _ncPhones = [''];
   const sheet = document.createElement('div');
   sheet.id = 'newContactSheet';
   sheet.className = 'nc-overlay';
   sheet.innerHTML = `
     <div class="nc-page">
       <div class="nc-header">
-        <button class="nc-back" onclick="closeNewContactSheet()">
-          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        <button class="nc-back" onclick="closeNewContactSheet()" type="button">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>
-        <span class="nc-title">New contact</span>
-        <button class="nc-save-btn" onclick="confirmNewContact()">Save</button>
+        <span class="nc-title">Create contact</span>
+        <button class="nc-save-btn" onclick="confirmNewContact()" type="button">Save</button>
       </div>
       <div class="nc-body">
-        <div class="nc-avatar-wrap">
-          <div class="nc-avatar-circle">
-            <svg viewBox="0 0 24 24" width="52" height="52" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+        <div class="nc-pic-card">
+          <div class="nc-pic-inner">
+            <div class="nc-pic-avatar">
+              <svg viewBox="0 0 24 24" width="40" height="40" fill="currentColor" style="color:var(--muted)"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+              <div class="nc-pic-edit-btn">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+              </div>
+            </div>
+            <div class="nc-calling-card-preview">
+              <div class="nc-calling-card-icon">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" style="color:rgba(255,255,255,.5)"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+              </div>
+              <div class="nc-calling-card-label">Calling card</div>
+            </div>
           </div>
+          <div class="nc-pic-card-title">Picture &amp; calling card</div>
         </div>
-        <div class="nc-fields">
-          <div class="nc-field-row">
-            <svg class="nc-fi" viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
-            <input id="newContactNameInput" type="text" placeholder="Name" maxlength="50" autocomplete="off">
+        <div class="nc-form-fields">
+          <div class="nc-field-outlined">
+            <label>First name</label>
+            <input id="ncFirstName" type="text" maxlength="50" autocomplete="off"
+              onkeydown="if(event.key==='Enter'){document.getElementById('ncLastName').focus()}">
           </div>
-          <div class="nc-field-row">
-            <svg class="nc-fi" viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>
-            <input id="newContactPhoneInput" type="tel" placeholder="Phone" maxlength="30" autocomplete="off">
+          <div class="nc-field-outlined">
+            <label>Last name</label>
+            <input id="ncLastName" type="text" maxlength="50" autocomplete="off"
+              onkeydown="if(event.key==='Enter'){document.getElementById('ncCompany').focus()}">
+          </div>
+          <div class="nc-field-outlined">
+            <label>Company</label>
+            <input id="ncCompany" type="text" maxlength="80" autocomplete="off"
+              onkeydown="if(event.key==='Enter'){document.querySelector('#ncPhonesWrap .nc-phone-input')?.focus()}">
+          </div>
+          <div id="ncPhonesWrap"></div>
+          <button class="nc-add-phone-btn" onclick="_ncAddPhone()" type="button">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+            Add phone
+          </button>
+          <div class="nc-field-outlined nc-notes-wrap">
+            <label>Notes</label>
+            <textarea id="ncNotes" maxlength="300" rows="3" autocomplete="off"></textarea>
+          </div>
+          <div class="nc-more-info-section">
+            <div class="nc-more-info-label">Add more info</div>
+            <div class="nc-more-info-pills">
+              <button class="nc-info-pill" type="button"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg> Email</button>
+              <button class="nc-info-pill" type="button"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg> Birthday</button>
+              <button class="nc-info-pill" type="button"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg> Address</button>
+              <button class="nc-info-pill" type="button"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/></svg> Labels</button>
+              <button class="nc-info-pill" type="button"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg> Other</button>
+            </div>
           </div>
         </div>
       </div>
     </div>`;
   document.body.appendChild(sheet);
-  setTimeout(() => document.getElementById('newContactNameInput').focus(), 80);
-  document.getElementById('newContactNameInput').onkeydown = e => { if (e.key === 'Enter') document.getElementById('newContactPhoneInput').focus(); };
-  document.getElementById('newContactPhoneInput').onkeydown = e => { if (e.key === 'Enter') confirmNewContact(); };
+  _ncRenderPhones();
+  setTimeout(() => document.getElementById('ncFirstName')?.focus(), 80);
 }
 
 function closeNewContactSheet() {
   const sheet = document.getElementById('newContactSheet');
   if (sheet) sheet.remove();
+  _ncPhones = [''];
 }
 
 function confirmNewContact() {
-  const name = (document.getElementById('newContactNameInput')?.value || '').trim();
-  if (!name) { document.getElementById('newContactNameInput')?.focus(); return; }
-  const phone = (document.getElementById('newContactPhoneInput')?.value || '').trim();
-  const contact = { id: 'custom_' + Date.now(), name, phone, _isCustom: true };
+  const firstName = (document.getElementById('ncFirstName')?.value || '').trim();
+  const lastName  = (document.getElementById('ncLastName')?.value  || '').trim();
+  const company   = (document.getElementById('ncCompany')?.value   || '').trim();
+  const notes     = (document.getElementById('ncNotes')?.value     || '').trim();
+  const name = [firstName, lastName].filter(Boolean).join(' ') || company;
+  if (!name) { document.getElementById('ncFirstName')?.focus(); return; }
+  const phones = _ncPhones.map(p => p.trim()).filter(Boolean);
+  const phone = phones[0] || '';
+  const contact = { id: 'custom_' + Date.now(), name, firstName, lastName, company, phone, phones, notes, _isCustom: true };
   _customContacts.push(contact);
   _saveCustomContacts();
   closeNewContactSheet();
@@ -3244,6 +3325,15 @@ function confirmNewContact() {
 
 function deleteCustomContact(id) {
   _customContacts = _customContacts.filter(c => c.id !== id);
+  _saveCustomContacts();
+  renderPhoneContacts(document.getElementById('phoneSearch')?.value || '');
+}
+
+function blockContact(id) {
+  const c = _customContacts.find(x => x.id === id);
+  if (!c) return;
+  if (!confirm(`Block ${c.name}? They won't be able to call you.`)) return;
+  c._blocked = true;
   _saveCustomContacts();
   renderPhoneContacts(document.getElementById('phoneSearch')?.value || '');
 }
@@ -3295,6 +3385,40 @@ function showPhoneContactProfile(charId, e) {
   document.getElementById('pcpChatBtn').onclick = () => { closePhoneContactProfile(); openChat(charId); };
   const numMsgBtn = document.getElementById('pcpNumMsgBtn');
   if (numMsgBtn) numMsgBtn.onclick = () => { closePhoneContactProfile(); openChat(charId); };
+
+  // Delete / Block — only for custom contacts
+  const dangerEl = document.getElementById('pcpDangerActions');
+  const isCustom = !!(_customContacts.find(x => x.id === charId));
+  if (dangerEl) dangerEl.style.display = isCustom ? '' : 'none';
+  const delBtn = document.getElementById('pcpDeleteBtn');
+  const blkBtn = document.getElementById('pcpBlockBtn');
+  if (delBtn) delBtn.onclick = () => {
+    if (!confirm(`Delete ${c.customName || c.name || 'this contact'}?`)) return;
+    closePhoneContactProfile();
+    deleteCustomContact(charId);
+  };
+  if (blkBtn) {
+    const isBlocked = isCustom && !!(_customContacts.find(x => x.id === charId)?._blocked);
+    blkBtn.textContent = ''; // reset
+    blkBtn.innerHTML = isBlocked
+      ? `<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg> Unblock contact`
+      : `<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.68L5.68 16.9A7.902 7.902 0 0 1 4 12zm8 8c-1.85 0-3.55-.63-4.9-1.68l11.22-11.22A7.902 7.902 0 0 1 20 12c0 4.42-3.58 8-8 8z"/></svg> Block contact`;
+    blkBtn.onclick = () => {
+      const contact = _customContacts.find(x => x.id === charId);
+      if (!contact) return;
+      if (contact._blocked) {
+        contact._blocked = false;
+        _saveCustomContacts();
+        showPhoneContactProfile(charId, null);
+      } else {
+        if (!confirm(`Block ${contact.name}? They won't be able to call you.`)) return;
+        contact._blocked = true;
+        _saveCustomContacts();
+        closePhoneContactProfile();
+        renderPhoneContacts(document.getElementById('phoneSearch')?.value || '');
+      }
+    };
+  }
 
   overlay.style.display = 'block';
   // Reset scroll
@@ -9750,6 +9874,8 @@ function _initAdminStats() {
     #adminUsers{max-height:110px;overflow-y:auto;margin-top:8px;font-size:11px;color:#64748b}
     .au-row{padding:3px 0;display:flex;justify-content:space-between}
     .au-name{color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+    #adminResetBtn{margin-top:10px;width:100%;background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:7px;font-size:12px;cursor:pointer;font-family:inherit}
+    #adminResetBtn:hover{background:rgba(239,68,68,.2)}
   `;
   document.head.appendChild(style);
 
@@ -9765,7 +9891,8 @@ function _initAdminStats() {
     <div class="as-row"><span class="as-lbl">Active now</span><span class="as-val" id="asActive">—</span></div>
     <div class="as-row"><span class="as-lbl">Total visits</span><span class="as-val" id="asVisits">—</span></div>
     <div class="as-row"><span class="as-lbl">Unique visitors</span><span class="as-val" id="asUniq">—</span></div>
-    <div id="adminUsers"></div>`;
+    <div id="adminUsers"></div>
+    <button id="adminResetBtn" onclick="_adminResetAnalytics()">🗑 Reset all stats</button>`;
   document.body.appendChild(panel);
 
   badge.addEventListener('click', () => panel.classList.toggle('open'));
@@ -9791,6 +9918,17 @@ function _initAdminStats() {
     } catch(_) {}
   };
   es.onerror = () => {};
+}
+
+async function _adminResetAnalytics() {
+  if (!confirm('Reset all analytics? This clears total visits, unique visitors, and active-now counts.')) return;
+  try {
+    const r = await fetch('/api/admin/analytics/reset', { method: 'POST' });
+    if (!r.ok) throw new Error(await r.text());
+    const el = id => document.getElementById(id);
+    ['asActive','asVisits','asUniq','adminCnt'].forEach(id => { if (el(id)) el(id).textContent = '0'; });
+    if (el('adminUsers')) el('adminUsers').innerHTML = '<div style="color:#334155;padding:4px 0">Stats reset</div>';
+  } catch(e) { alert('Reset failed: ' + e.message); }
 }
 
 // ── TTS (Text-to-Speech) ─────────────────────────────────────────────────────

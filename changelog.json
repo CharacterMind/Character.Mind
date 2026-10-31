@@ -1,5 +1,23 @@
 [
   {
+    "id": "v424-contacts-calls-analytics",
+    "version": "v424",
+    "date": "Oct 2026",
+    "title": "📞 Contacts, Calls & Analytics",
+    "subtitle": "Google Contacts-style new contact page, delete/block contacts, incoming character calls via push, and analytics reset.",
+    "added": [
+      "New contact page redesigned to match Google Contacts — bordered Material Design inputs, First/Last/Company fields, multi-phone with remove button, Notes, and 'Add more info' pills",
+      "Delete and Block buttons on any custom contact's profile card",
+      "Incoming character calls via Web Push Notifications — works even when the tab is closed",
+      "Service worker now sends correct message types to open app on call accept",
+      "Analytics reset button in admin panel — clears total visits, unique visitors, and active-now counts"
+    ],
+    "changed": [
+      "New contact button now shows 'Create contact' title with X close and pill Save button matching Google Contacts style",
+      "Analytics panel now shows a reset button (admin only)"
+    ]
+  },
+  {
     "id": "v423-mobile-safe-area-fix",
     "version": "v423",
     "date": "Oct 2026",

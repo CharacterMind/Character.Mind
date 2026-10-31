@@ -22,7 +22,7 @@
 <link rel="icon" type="image/svg+xml" href="/logo-icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=393">
+<link rel="stylesheet" href="style.css?v=424">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -983,6 +983,18 @@
                     </button>
                   </div>
                 </div>
+              </div>
+
+              <!-- Delete / Block actions -->
+              <div class="pcp-danger-actions" id="pcpDangerActions" style="display:none">
+                <button class="pcp-danger-btn" id="pcpDeleteBtn">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                  Delete contact
+                </button>
+                <button class="pcp-danger-btn pcp-block-btn" id="pcpBlockBtn">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.68L5.68 16.9A7.902 7.902 0 0 1 4 12zm8 8c-1.85 0-3.55-.63-4.9-1.68l11.22-11.22A7.902 7.902 0 0 1 20 12c0 4.42-3.58 8-8 8z"/></svg>
+                  Block contact
+                </button>
               </div>
             </div>
           </div>
@@ -2410,7 +2422,7 @@
 </div>
 
 
-<script src="app.js?v=422"></script>
+<script src="app.js?v=424"></script>
 
 <!-- Quiz Modal -->
 <div id="quizOverlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeQuizModal()">

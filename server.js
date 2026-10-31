@@ -5360,6 +5360,20 @@ app.get('/api/admin/stats/stream', requireAuth, async (req, res) => {
   req.on('close', () => clearInterval(timer));
 });
 
+// Admin: reset all analytics counters to zero
+app.post('/api/admin/analytics/reset', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  _liveUsers.clear();
+  if (db) {
+    await Promise.all([
+      db.query(`TRUNCATE site_visits`).catch(() => {}),
+      db.query(`UPDATE site_stats SET value = 0 WHERE key = 'total_visits'`).catch(() => {}),
+    ]);
+  }
+  console.log('[admin] analytics reset by', req.user.email);
+  res.json({ ok: true });
+});
+
 app.get('/api/chat/lock-status/:charId', requireAuth, async (req, res) => {
   const { charId } = req.params;
   if (!VALID_ID.test(charId)) return res.json({ locked: false });
@@ -5520,6 +5534,83 @@ app.delete('/api/conversations/:charId/history', requireAuth, async (req, res) =
 // When true: only Lily/Poppy visible in character list. Set SOFT_LAUNCH=true in env vars to re-enable.
 const SOFT_LAUNCH = process.env.SOFT_LAUNCH === 'true';
 const OWNER_EMAILS = new Set(['support.charactermind@gmail.com']); // admin tools
+
+// ── Web Push — incoming character calls ───────────────────────────────────────
+let _webpush = null;
+try {
+  _webpush = require('web-push');
+  const VAPID_PUBLIC  = process.env.VAPID_PUBLIC_KEY  || 'BBC1QP1T5HKsmV3EBtVMzAlukmqKShfLziLDJcWED_0CBUXNYau0AX6IXivDhCyLByPkubU7WdASWRkBmSShWcs';
+  const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || 'STdSkWEncVGlvnBuianH460mNuPxcBxAnzjTquKXdwg';
+  _webpush.setVapidDetails('mailto:support.charactermind@gmail.com', VAPID_PUBLIC, VAPID_PRIVATE);
+  console.log('[push] VAPID configured');
+} catch (e) { console.warn('[push] web-push unavailable:', e.message); _webpush = null; }
+
+if (db) {
+  db.query(`CREATE TABLE IF NOT EXISTS push_subscriptions (
+    user_id TEXT NOT NULL,
+    endpoint TEXT NOT NULL,
+    keys JSONB NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (user_id, endpoint)
+  )`).catch(() => {});
+}
+
+async function _sendPush(sub, payload) {
+  if (!_webpush) return false;
+  try {
+    await _webpush.sendNotification({ endpoint: sub.endpoint, keys: sub.keys }, JSON.stringify(payload));
+    return true;
+  } catch (e) {
+    if (e.statusCode === 410 || e.statusCode === 404) {
+      if (db) db.query(`DELETE FROM push_subscriptions WHERE endpoint = $1`, [sub.endpoint]).catch(() => {});
+    }
+    return false;
+  }
+}
+
+// Send an incoming call push to all subscriptions for a user
+async function _pushIncomingCall(userId, charId, charName, charImage) {
+  if (!db || !_webpush) return 0;
+  const subs = await db.query(`SELECT endpoint, keys FROM push_subscriptions WHERE user_id = $1`, [userId]).catch(() => ({ rows: [] }));
+  const callId = `call_${Date.now()}`;
+  let sent = 0;
+  for (const row of subs.rows) {
+    if (await _sendPush(row, { type: 'incoming_call', charId, charName, charImage, callId })) sent++;
+  }
+  return sent;
+}
+
+app.get('/api/push/vapid-public-key', (req, res) => {
+  res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || 'BBC1QP1T5HKsmV3EBtVMzAlukmqKShfLziLDJcWED_0CBUXNYau0AX6IXivDhCyLByPkubU7WdASWRkBmSShWcs' });
+});
+
+app.post('/api/push/subscribe', requireAuth, async (req, res) => {
+  const { subscription } = req.body || {};
+  if (!subscription?.endpoint || !subscription?.keys) return res.status(400).json({ error: 'invalid_subscription' });
+  if (db) {
+    await db.query(
+      `INSERT INTO push_subscriptions (user_id, endpoint, keys) VALUES ($1, $2, $3) ON CONFLICT (user_id, endpoint) DO UPDATE SET keys = $3`,
+      [req.user.googleId, subscription.endpoint, JSON.stringify(subscription.keys)]
+    ).catch(() => {});
+  }
+  res.json({ ok: true });
+});
+
+// Admin: trigger a test incoming call to any user
+app.post('/api/admin/push/test-call', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  if (!_webpush) return res.status(503).json({ error: 'Push not configured' });
+  const { charId = 'custom_1790776698867', targetEmail } = req.body || {};
+  const charRow = await db?.query(`SELECT name, image FROM characters WHERE id = $1`, [charId]).catch(() => ({ rows: [] }));
+  const char = charRow?.rows[0] || { name: 'Poppy', image: null };
+  let targetUserId = req.user.googleId;
+  if (targetEmail && db) {
+    const r = await db.query(`SELECT google_id FROM users WHERE email = $1`, [targetEmail.toLowerCase()]).catch(() => ({ rows: [] }));
+    if (r.rows[0]) targetUserId = r.rows[0].google_id;
+  }
+  const sent = await _pushIncomingCall(targetUserId, charId, char.name, char.image);
+  res.json({ ok: true, sent });
+});
 
 // ── Live user tracking (in-memory, expires after 5 min of no ping) ───────────
 const _liveUsers = new Map(); // userId → { name, email, lastSeen, since }
