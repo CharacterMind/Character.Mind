@@ -1,5 +1,17 @@
 [
   {
+    "id": "v414-save-contact",
+    "version": "v414",
+    "date": "Oct 2026",
+    "title": "📱 Save Contact",
+    "subtitle": "Phone numbers from characters now appear as unknown until you name them yourself.",
+    "added": [
+      "Contacts received from characters appear as unsaved numbers — tap Save to give them a name",
+      "New bottom-sheet UI for entering a contact name after unlocking a number",
+      "Unlock toast no longer reveals whose number it is"
+    ]
+  },
+  {
     "id": "v413-gapless-bugfix",
     "version": "v413",
     "date": "Oct 2026",

@@ -2012,6 +2012,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '414': {
+    date: 'October 2026',
+    label: 'Save Contact',
+    added: [
+      'Phone contacts now appear as unknown numbers until you save them — tap "Save" and enter the name yourself, just like a real contact',
+      'New bottom-sheet UI for naming a contact after you receive their number',
+    ],
+  },
   '413': {
     date: 'October 2026',
     label: 'Gapless Voice — Bug Fixes',
@@ -3076,7 +3084,11 @@ function renderPhoneContacts(query) {
   const container = document.getElementById('phoneContacts');
   if (!container) return;
   const q = (query || '').toLowerCase().trim();
-  const list = _phoneContacts.filter(c => !q || c.name.toLowerCase().includes(q) || (c.phone || '').includes(q));
+  const list = _phoneContacts.filter(c => {
+    if (!q) return true;
+    const displayName = c.customName || '';
+    return displayName.toLowerCase().includes(q) || (c.phone || '').includes(q);
+  });
   if (!list.length) {
     container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--muted)">
       <div style="font-size:36px;margin-bottom:12px">📵</div>
@@ -3087,20 +3099,45 @@ function renderPhoneContacts(query) {
   }
   container.innerHTML = list.map(c => {
     const phone = c.phone || '';
+    const saved = !!c.customName;
+    const displayName = c.customName || '';
     const color = safeColor(c.color || '#7c3aed');
+    const avail = charAvailability(c.id);
+    const callBtnClass = avail.busy ? 'ph-contact-btn ph-contact-btn-call ph-contact-btn-busy' : 'ph-contact-btn ph-contact-btn-call';
+
+    if (!saved) {
+      // Unsaved: show just the number with a generic avatar and "Save contact" CTA
+      return `<div class="ph-contact-card ph-contact-unsaved" onclick="openSaveContactSheet('${escHtml(c.id)}')">
+        <div class="ph-contact-avatar ph-contact-avatar-unknown">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+        </div>
+        <div class="ph-contact-name" style="color:var(--muted);font-style:italic">Unknown</div>
+        <div class="ph-contact-num">${escHtml(phone)}</div>
+        <div class="ph-contact-btns">
+          <button class="ph-contact-btn ph-save-btn" onclick="openSaveContactSheet('${escHtml(c.id)}');event.stopPropagation()">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H5V5h10v4z"/></svg>
+            Save
+          </button>
+          <button class="${callBtnClass}" onclick="callCharFromPhone('${escHtml(c.id)}',event);event.stopPropagation()">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+            ${avail.busy ? 'Busy' : 'Call'}
+          </button>
+        </div>
+      </div>`;
+    }
+
+    // Saved: show user's custom name with the character's avatar
     const hasImg = isCharImg && isCharImg(c.image);
-    const initial = (c.name || '?').charAt(0).toUpperCase();
+    const initial = (displayName || '?').charAt(0).toUpperCase();
     const avatarContent = hasImg
       ? `<img src="${escHtml(c.image)}" alt="" onerror="this.style.display='none'">`
       : escHtml(initial);
-    const avail = charAvailability(c.id);
     const availDot = avail.busy
       ? `<span class="ph-avail-dot ph-avail-busy" title="Busy right now"></span>`
       : `<span class="ph-avail-dot ph-avail-free" title="Available"></span>`;
-    const callBtnClass = avail.busy ? 'ph-contact-btn ph-contact-btn-call ph-contact-btn-busy' : 'ph-contact-btn ph-contact-btn-call';
     return `<div class="ph-contact-card" style="--ph-color:${escHtml(color)};--ph-glow:${escHtml(color)}">
       <div class="ph-contact-avatar" style="background:${escHtml(color)}" onclick="showPhoneContactProfile('${escHtml(c.id)}',event)">${avatarContent}</div>
-      <div class="ph-contact-name">${availDot}${colorizeNameHtml(c.name, c.color)}</div>
+      <div class="ph-contact-name">${availDot}${escHtml(displayName)}</div>
       <div class="ph-contact-num">${escHtml(phone)}</div>
       <div class="ph-contact-btns">
         <button class="${callBtnClass}" onclick="callCharFromPhone('${escHtml(c.id)}',event)">
@@ -3124,17 +3161,27 @@ function showPhoneContactProfile(charId, e) {
   if (!c) return;
   const overlay = document.getElementById('phoneContactProfile');
   if (!overlay) return;
-  const color = safeColor(c.color || '#7c3aed');
-  const hasImg = isCharImg && isCharImg(c.image);
-  const initial = (c.name || '?').charAt(0).toUpperCase();
+  const saved = !!c.customName;
+  const displayName = c.customName || '';
+  const color = saved ? safeColor(c.color || '#7c3aed') : '#555';
+  const hasImg = saved && isCharImg && isCharImg(c.image);
+  const initial = (displayName || '?').charAt(0).toUpperCase();
   document.getElementById('pcpBg').style.setProperty('--pcp-color', color);
   overlay.style.setProperty('--pcp-color', color);
   const avatarEl = document.getElementById('pcpAvatar');
   avatarEl.style.background = color;
-  avatarEl.innerHTML = hasImg
+  avatarEl.innerHTML = saved && hasImg
     ? `<img src="${escHtml(c.image)}" alt="" onerror="this.style.display='none'">`
-    : escHtml(initial);
-  document.getElementById('pcpName').innerHTML = colorizeNameHtml(c.name || '', c.color);
+    : saved ? escHtml(initial)
+    : `<svg viewBox="0 0 24 24" fill="currentColor" width="44" height="44"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>`;
+  const nameEl = document.getElementById('pcpName');
+  if (saved) {
+    nameEl.innerHTML = escHtml(displayName);
+    nameEl.style.fontStyle = '';
+  } else {
+    nameEl.textContent = 'Unknown';
+    nameEl.style.fontStyle = 'italic';
+  }
   document.getElementById('pcpNum').textContent = c.phone || '';
   document.getElementById('pcpCallBtn').onclick = () => { closePhoneContactProfile(); callCharFromPhone(charId); };
   document.getElementById('pcpChatBtn').onclick = () => { closePhoneContactProfile(); openChat(charId); };
@@ -3144,6 +3191,69 @@ function showPhoneContactProfile(charId, e) {
 function closePhoneContactProfile() {
   const overlay = document.getElementById('phoneContactProfile');
   if (overlay) overlay.style.display = 'none';
+}
+
+// ── Save contact sheet ────────────────────────────────────────────────────────
+
+let _saveContactCharId = null;
+
+function openSaveContactSheet(charId) {
+  _saveContactCharId = charId;
+  const c = _phoneContacts.find(x => x.id === charId);
+  let sheet = document.getElementById('saveContactSheet');
+  if (!sheet) {
+    sheet = document.createElement('div');
+    sheet.id = 'saveContactSheet';
+    sheet.className = 'save-contact-sheet';
+    sheet.innerHTML = `
+      <div class="save-contact-inner">
+        <div class="save-contact-title">Save contact</div>
+        <div class="save-contact-num" id="saveContactNum"></div>
+        <div class="save-contact-field">
+          <label>Name</label>
+          <input id="saveContactNameInput" type="text" placeholder="Enter a name…" maxlength="50" autocomplete="off">
+        </div>
+        <div class="save-contact-actions">
+          <button class="save-contact-cancel" onclick="closeSaveContactSheet()">Cancel</button>
+          <button class="save-contact-save" onclick="confirmSaveContact()">Save</button>
+        </div>
+      </div>`;
+    sheet.addEventListener('click', e => { if (e.target === sheet) closeSaveContactSheet(); });
+    document.body.appendChild(sheet);
+  }
+  document.getElementById('saveContactNum').textContent = c ? (c.phone || '') : '';
+  const input = document.getElementById('saveContactNameInput');
+  input.value = c?.customName || '';
+  sheet.style.display = 'flex';
+  setTimeout(() => input.focus(), 80);
+  input.onkeydown = e => { if (e.key === 'Enter') confirmSaveContact(); };
+}
+
+function closeSaveContactSheet() {
+  const sheet = document.getElementById('saveContactSheet');
+  if (sheet) sheet.style.display = 'none';
+  _saveContactCharId = null;
+}
+
+async function confirmSaveContact() {
+  const charId = _saveContactCharId;
+  if (!charId) return;
+  const input = document.getElementById('saveContactNameInput');
+  const name = (input?.value || '').trim();
+  if (!name) { input?.focus(); return; }
+  try {
+    const r = await fetch(`/api/phone/contacts/${encodeURIComponent(charId)}/name`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    if (!r.ok) return;
+    // Update local cache so re-render is instant
+    const c = _phoneContacts.find(x => x.id === charId);
+    if (c) c.customName = name;
+    closeSaveContactSheet();
+    renderPhoneContacts(document.getElementById('phoneSearch')?.value || '');
+  } catch (_) {}
 }
 
 // ── Keypad ───────────────────────────────────────────────────────────────────
@@ -12180,11 +12290,11 @@ async function confirmResetFriendship() {
   }
 }
 
-// "Poppy's number was added to your contacts" — tapping it opens the Phone page
+// A new number dropped — don't reveal who; user has to save the contact themselves
 function showPhoneUnlockedToast(info) {
   const toast = document.createElement('div');
   toast.className = 'toast-msg phone-unlocked-toast';
-  toast.textContent = `📱 ${info.name ? info.name + "'s" : 'Their'} number was added to your contacts`;
+  toast.textContent = `📱 You received a new number — tap to save it`;
   toast.onclick = () => { toast.remove(); if (typeof showPhone === 'function') showPhone(); };
   document.body.appendChild(toast);
   playSound('done');

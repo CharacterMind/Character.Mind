@@ -6638,3 +6638,59 @@ body:not(.halloween) .hw-off-label { display: inline; }
 
 /* "Poppy's number was added to your contacts" — tappable, opens the Phone page */
 .phone-unlocked-toast { pointer-events: auto; cursor: pointer; font-size: 14px; padding: 11px 20px; }
+
+/* Unsaved contact card */
+.ph-contact-unsaved { cursor: pointer; border-style: dashed !important; }
+.ph-contact-unsaved:hover { border-color: var(--accent, #7c3aed) !important; }
+.ph-contact-avatar-unknown {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: #3a3a4a; color: #888;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.ph-save-btn {
+  background: var(--accent, #7c3aed) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+.ph-save-btn:hover { opacity: .85; }
+
+/* Save contact bottom sheet */
+.save-contact-sheet {
+  position: fixed; inset: 0; z-index: 4000;
+  background: rgba(0,0,0,.6);
+  display: none; align-items: flex-end; justify-content: center;
+}
+.save-contact-inner {
+  background: var(--surface, #1e1e2e);
+  border-radius: 20px 20px 0 0;
+  width: 100%; max-width: 480px;
+  padding: 28px 24px 40px;
+  display: flex; flex-direction: column; gap: 18px;
+}
+.save-contact-title { font-size: 18px; font-weight: 700; color: var(--text, #f1f5f9); }
+.save-contact-num { font-size: 14px; color: var(--muted, #94a3b8); }
+.save-contact-field { display: flex; flex-direction: column; gap: 6px; }
+.save-contact-field label { font-size: 12px; font-weight: 600; color: var(--muted, #94a3b8); text-transform: uppercase; letter-spacing: .06em; }
+.save-contact-field input {
+  background: var(--surface2, rgba(255,255,255,.06));
+  border: 1px solid var(--border, rgba(255,255,255,.1));
+  border-radius: 10px; padding: 12px 14px;
+  font-size: 16px; color: var(--text, #f1f5f9);
+  outline: none; width: 100%;
+}
+.save-contact-field input:focus { border-color: var(--accent, #7c3aed); }
+.save-contact-actions { display: flex; gap: 10px; }
+.save-contact-cancel {
+  flex: 1; padding: 12px; border-radius: 10px; font-size: 15px; font-weight: 600;
+  background: var(--surface2, rgba(255,255,255,.06));
+  border: 1px solid var(--border, rgba(255,255,255,.1));
+  color: var(--text2, #94a3b8); cursor: pointer;
+}
+.save-contact-save {
+  flex: 2; padding: 12px; border-radius: 10px; font-size: 15px; font-weight: 600;
+  background: var(--accent, #7c3aed); border: none;
+  color: #fff; cursor: pointer;
+}
+.save-contact-save:hover { opacity: .9; }
+.save-contact-cancel:hover { background: var(--surface3, rgba(255,255,255,.1)); }

@@ -4178,6 +4178,7 @@ app.get('/api/phone/contacts', requireAuth, async (req, res) => {
       'SELECT id, name, color, (image IS NOT NULL AND length(image) > 0) AS has_image, COALESCE(length(image), 0) AS image_len FROM characters WHERE COALESCE(is_hidden, FALSE) = FALSE ORDER BY name ASC'
     );
     const all = result.rows;
+    const u = getLimits(userId);
     const contacts = all
       .filter(r => isPhoneUnlocked(userId, r.id))
       .map(r => ({
@@ -4185,13 +4186,28 @@ app.get('/api/phone/contacts', requireAuth, async (req, res) => {
         name: r.name,
         color: r.color,
         image: r.has_image ? '/api/characters/' + encodeURIComponent(r.id) + '/image?v=' + r.image_len : null,
-        phone: userCharPhone(userId, r.id, getLimits(userId).phoneGen || 0),
+        phone: userCharPhone(userId, r.id, u.phoneGen || 0),
+        customName: (u.customContactNames && u.customContactNames[r.id]) || null,
       }));
     res.json(contacts);
   } catch (e) {
     console.error('phone/contacts error', e);
     res.json([]);
   }
+});
+
+// Save a custom display name for an unlocked contact
+app.post('/api/phone/contacts/:charId/name', requireAuth, (req, res) => {
+  const userId = req.user.googleId;
+  const { charId } = req.params;
+  const { name } = req.body || {};
+  if (!name || typeof name !== 'string' || !name.trim()) return res.status(400).json({ error: 'name required' });
+  if (!isPhoneUnlocked(userId, charId)) return res.status(403).json({ error: 'not unlocked' });
+  const u = getLimits(userId);
+  if (!u.customContactNames) u.customContactNames = {};
+  u.customContactNames[charId] = name.trim().slice(0, 50);
+  saveLimitsToDB(userId);
+  res.json({ ok: true });
 });
 
 // ── Replicate voice cloning (free credits, no local server needed) ────────────
