@@ -6728,7 +6728,7 @@ app.post('/api/greet/:charId', requireAuth, async (req, res) => {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
-    res.write(`data: ${JSON.stringify({ text: fixedText })}\n\n`);
+    res.write(`data: ${JSON.stringify({ text: fixedText, instant: true })}\n\n`);
     res.write(`data: ${JSON.stringify({ done: true, sig, responseTokens: 0, usage: currentUsage })}\n\n`);
     res.end();
     releaseSlot();

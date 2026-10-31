@@ -5456,13 +5456,16 @@ async function generateGreeting() {
             showTyping(false);
             msgEl = createAiMessage();
             bubble = msgEl.querySelector('.bubble');
-            bubble.classList.add('streaming');
             startStreamStats(msgEl);
             startTypewriter(bubble, msgEl);
-            _streamTTSBuffer = ''; _streamTTSQueue = []; _stopCurrentTTS();
+            if (!data.instant) {
+              bubble.classList.add('streaming');
+              _streamTTSBuffer = ''; _streamTTSQueue = []; _stopCurrentTTS();
+            }
           }
           streamText += data.text;
           feedTypewriter(data.text);
+          if (data.instant) flushTypewriter(); // paste in immediately, no animation
           streamCharCount += data.text.length;
         }
       }
