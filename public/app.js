@@ -9813,17 +9813,32 @@ function _prefetchSentence(rawText) {
 function _feedAutoSpeak(chunk) {
   if (!chatAutoSpeak || callModeActive) return;
   _streamTTSBuffer += chunk;
-  // Extract complete sentences as they arrive and start GPU synthesis immediately — don't wait for stream end
+
+  // Primary: split on sentence-final punctuation — always extract complete sentences
   const parts = _streamTTSBuffer.split(/(?<=[.!?])\s+/);
-  if (parts.length <= 1) return; // no complete sentence yet
   _streamTTSBuffer = parts.pop(); // keep the incomplete tail
   for (const s of parts) {
     if (s.trim().length > 1) {
       _streamTTSQueue.push(s);
-      _prefetchSentence(s); // fire-and-forget GPU synthesis now
+      _prefetchSentence(s);
     }
   }
-  _wakeStreamTTS(); // wake sleeping player if it's waiting for more sentences
+
+  // Secondary: when the incomplete tail is long, split at the first ", " after ≥12 chars.
+  // This kicks off synthesis on shorter text sooner, reducing first-audio latency on slow
+  // providers (F5-TTS, XTTS) where synthesis time scales with input length.
+  while (_streamTTSBuffer.length > 40) {
+    const idx = _streamTTSBuffer.indexOf(', ', 12);
+    if (idx === -1) break;
+    const piece = _streamTTSBuffer.slice(0, idx + 1).trim();
+    const tail  = _streamTTSBuffer.slice(idx + 2).trimStart();
+    if (piece.length < 10) break; // too short to synthesize alone
+    _streamTTSBuffer = tail;
+    _streamTTSQueue.push(piece);
+    _prefetchSentence(piece);
+  }
+
+  _wakeStreamTTS();
   if (!_streamTTSPlaying && _streamTTSQueue.length > 0) _playStreamTTSQueue();
 }
 
@@ -9940,10 +9955,18 @@ async function _playStreamTTSQueue() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: t.slice(0, 499), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
-        }).then(r => r.ok ? r.blob() : null).catch(() => null);
+        }).then(r => {
+          if (!r.ok) return null;
+          const synth = r.headers.get('X-Synthesis-Time');
+          const prov  = r.headers.get('X-TTS-Provider') || ttsProvider;
+          if (synth) console.log(`[tts] ${prov} synthesis=${synth}s "${t.slice(0,35)}..."`);
+          return r.blob();
+        }).catch(() => null);
       }
 
+      const _ttsWaitT0 = performance.now();
       const blob = await bp;
+      console.log(`[tts-wait] player waited ${Math.round(performance.now() - _ttsWaitT0)}ms for "${t.slice(0,35)}..."`);
       if (!blob || cancel()) continue;
 
       let buf;

@@ -5030,7 +5030,9 @@ app.post('/api/tts', requireAuth, async (req, res) => {
           const cloneAudio = Buffer.from(await cloneRes.arrayBuffer());
           res.setHeader('Content-Type', 'audio/wav');
           res.setHeader('Cache-Control', 'no-store');
-          res.setHeader('X-TTS-Provider', 'character-clone');
+          res.setHeader('X-TTS-Provider', cloneRes.headers.get('X-TTS-Provider') || 'character-clone');
+          const synthTime = cloneRes.headers.get('X-Synthesis-Time');
+          if (synthTime) res.setHeader('X-Synthesis-Time', synthTime);
           return res.send(cloneAudio);
         } else {
           throw new Error(`clone server error ${cloneRes.status}`);

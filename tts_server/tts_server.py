@@ -598,4 +598,8 @@ if __name__ == "__main__":
             print(f"[voice-ai] WARNING: model failed to pre-load: {e}", flush=True)
             print("[voice-ai] Server will start anyway; requests will retry model load.", flush=True)
 
-    app.run(host=host, port=port, threaded=False, use_reloader=False)
+    # threaded=True lets Flask accept multiple connections concurrently.
+    # The _lock inside each synthesis route still serializes GPU access,
+    # but HTTP overhead (accepting connections, reading request bodies)
+    # no longer adds to synthesis latency for queued sentences.
+    app.run(host=host, port=port, threaded=True, use_reloader=False)

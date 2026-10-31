@@ -1,5 +1,17 @@
 [
   {
+    "id": "v416-tts-latency",
+    "version": "v416",
+    "date": "Oct 2026",
+    "title": "🎙️ Faster Voice Start",
+    "subtitle": "First audio plays sooner — synthesis now starts on mid-sentence comma breaks instead of waiting for the full sentence.",
+    "fixed": [
+      "Synthesis starts on shorter chunks (at comma breaks) when sentence is long — reduces first-audio latency",
+      "Browser console now shows per-sentence synthesis time and player wait time for debugging",
+      "tts_server.py now threaded so HTTP overhead doesn't add to synthesis queue time"
+    ]
+  },
+  {
     "id": "v415-tts-gapless",
     "version": "v415",
     "date": "Oct 2026",
