@@ -2011,6 +2011,16 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '409': {
+    date: 'October 2026',
+    label: 'Voice Polish: No Delay, No Cutoffs, No Pauses',
+    fixed: [
+      'Play button now starts speaking almost instantly — all sentences are synthesized in parallel the moment you click, not one at a time',
+      'Long messages no longer get cut off at 400 characters — the full text plays through every sentence to the end',
+      'Pauses between sentences removed — each sentence starts synthesis immediately when extracted from the stream, so the next one is ready before the current one ends',
+      'Group chat auto-play no longer waits to synthesize — synthesis starts at the moment the character finishes streaming, so audio is ready (or nearly ready) by the time it\'s queued',
+    ],
+  },
   '408': {
     date: 'October 2026',
     label: 'Group Chat Voices + Tier Limits',
@@ -2033,12 +2043,99 @@ const CHANGELOG_DATA = {
       'Character cards on mobile also show the full body image',
     ],
   },
+  '405': {
+    date: 'October 2026',
+    label: 'Instant Greeting (No Delay)',
+    fixed: [
+      'Opening a character no longer shows a slow typewriter effect — the greeting appears instantly',
+      'Greeting no longer consumed session tokens (it was counting against your usage limit even though it was just the intro message)',
+    ],
+  },
+  '404': {
+    date: 'October 2026',
+    label: 'Friendship Bar Cleaned Up',
+    changed: [
+      'Friendship score number removed — only the progress bar shows now (the number was confusing without context)',
+    ],
+  },
   '406': {
     date: 'October 2026',
     label: 'Bug Scan + Poppy Voice Update',
     fixed: [
       'TTS audio from a previous chat could bleed into Poppy\'s opening greeting — now properly cleared before the greeting starts',
       'Poppy\'s new Chapter 4 voice is now locked in and survives server restarts',
+    ],
+  },
+  '401': {
+    date: 'October 2026',
+    label: 'TTS & Typewriter Polish',
+    fixed: [
+      'Voice no longer overlaps with itself when a new message arrives mid-speech — the old audio now stops cleanly',
+      'Typewriter effect slowed down to feel more natural (was too fast to read comfortably)',
+      'Voice preview inside the Voice settings panel now uses a unified button that works the same as in chat',
+      'Full-message TTS removes pauses between sentences and falls through gracefully if a sentence fails',
+      'Mute now works immediately during voice playback (was continuing for a beat before stopping)',
+    ],
+  },
+  '400': {
+    date: 'October 2026',
+    label: 'Chat / RP Separation + Voice Fallback',
+    added: [
+      'Chat mode and RP mode are now clearly distinct: Chat is everyday conversation, RP is Playtime Co. universe roleplay',
+    ],
+    fixed: [
+      'Voice fallback now works correctly — if the primary voice server is down, it switches to a backup instead of going silent',
+      'Call screen display polished',
+    ],
+  },
+  '399': {
+    date: 'October 2026',
+    label: 'Poppy Voice Tuning + Clone Fix',
+    fixed: [
+      'Poppy\'s voice parameters tuned for better accuracy and less robotic sound',
+      'Voice cloning now uses Chatterbox — more natural output than the previous engine',
+      'TTS gaps between sentences reduced — audio flows more continuously',
+      'Auto-speak now defaults to ON for all new users',
+    ],
+  },
+  '398': {
+    date: 'October 2026',
+    label: 'Auth & Voice Foundation',
+    fixed: [
+      'Google login fixed — auth callback was returning raw JSON instead of redirecting',
+      'Loading screen no longer gets stuck when the server is slow to respond',
+    ],
+  },
+  '395': {
+    date: 'October 2026',
+    label: 'TOS & Privacy for Cloned Voices',
+    added: [
+      'Terms of Service and Privacy Policy updated to cover voice cloning, the coin farm, and character-specific cloned voices',
+      'Poppy\'s voice replaced with a clean recording from the real game audio',
+    ],
+  },
+  '393': {
+    date: 'October 2026',
+    label: 'Plan Copy & Farm Rewrite',
+    changed: [
+      'Plan page copy rewritten — clearer feature comparison, settings plan cards hidden to reduce clutter',
+      'Coin farm extended to level 10 with updated rate tiers',
+    ],
+  },
+  '390': {
+    date: 'October 2026',
+    label: 'Huggy Hover Quotes & Poppy Voice Lines',
+    added: [
+      'Huggy Wuggy, Poppy, and Doey now have a large library of hover quotes that appear when you mouse over their cards',
+      'Poppy\'s voice lines rewritten to match her canon personality from the game',
+    ],
+  },
+  '389': {
+    date: 'October 2026',
+    label: 'Voice Clone Engine Switched',
+    fixed: [
+      'Voice clone engine switched from YourTTS to XTTS-v2 — significantly better quality and accuracy',
+      'Character voice files now correctly override the default TTS for Poppy and Huggy Wuggy',
     ],
   },
   '403': {
@@ -9489,22 +9586,26 @@ async function _playFullMessageTTS(rawText) {
 async function _playStreamTTSQueue() {
   if (_streamTTSPlaying || _streamTTSQueue.length === 0) return;
   _streamTTSPlaying = true;
+  const myGen = _ttsGeneration;
   const btn = document.getElementById('autoSpeakBtn');
   if (btn) btn.classList.add('speaking');
 
-  const nextClean = () => {
+  while (_streamTTSPlaying && myGen === _ttsGeneration) {
+    // Pre-flush: kick off synthesis for every sentence already in the queue so
+    // they're all in flight while the current sentence is playing — minimises gaps
+    for (const s of _streamTTSQueue) {
+      const c = ttsCleanText(s);
+      if (c && c.length > 1 && !_ttsPrefetchPool.has(c)) _prefetchSentence(s);
+    }
+
+    // Dequeue next valid sentence
+    let text = null;
     while (_streamTTSQueue.length > 0) {
       const t = ttsCleanText(_streamTTSQueue.shift() || '');
-      if (t && t.length > 1) return t;
+      if (t && t.length > 1) { text = t; break; }
     }
-    return null;
-  };
-
-  while (_streamTTSPlaying) {
-    const text = nextClean();
     if (!text) break;
 
-    // Use pre-fetched audio (started when sentence was extracted); fall back to fetching now
     let blobPromise = _ttsPrefetchPool.get(text);
     _ttsPrefetchPool.delete(text);
     if (!blobPromise && ttsProvider !== 'browser' && ttsProvider !== 'off') {
@@ -9518,10 +9619,8 @@ async function _playStreamTTSQueue() {
     if (ttsProvider === 'browser') {
       await _speakStreamSentence(text);
     } else if (blobPromise) {
-      if (btn) btn.classList.add('loading');
-      const blob = await blobPromise;
-      if (btn) btn.classList.remove('loading');
-      if (blob && _streamTTSPlaying) {
+      const blob = await blobPromise; // if prefetch ran ahead, resolves instantly
+      if (blob && _streamTTSPlaying && myGen === _ttsGeneration) {
         await new Promise(resolve => {
           const url = URL.createObjectURL(blob);
           const audio = new Audio(url);
@@ -9534,10 +9633,12 @@ async function _playStreamTTSQueue() {
     }
   }
 
-  _streamTTSPlaying = false;
-  _streamTTSAudio = null;
-  _ttsPrefetchPool.clear();
-  if (btn) btn.classList.remove('speaking', 'loading');
+  if (myGen === _ttsGeneration) {
+    _streamTTSPlaying = false;
+    _streamTTSAudio = null;
+    _ttsPrefetchPool.clear();
+    if (btn) btn.classList.remove('speaking', 'loading');
+  }
 }
 
 function _speakStreamSentence(text) {
@@ -9833,78 +9934,62 @@ async function toggleTTS(btn) {
     return;
   }
 
-  // Fire TTS and memo check in parallel — don't wait for memo before starting TTS.
-  // For gemini, also race an Edge TTS request so the fastest one wins
-  // (Edge is ~300 ms; Gemini is ~1-2 s — this cuts the perceived delay significantly).
-  // For 'character' provider we do NOT race: the user explicitly chose the clone voice
-  // and should hear it, even though GPU synthesis takes 3-4 s. Server falls back to
-  // Edge TTS automatically if the clone server is unreachable.
-  const ttsAbort = new AbortController();
-  const edgeRaceAbort = new AbortController();
-  const ttsBody = { text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName };
-  const primaryFetch = fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ttsAbort.signal, body: JSON.stringify(ttsBody) });
-  let ttsFetchPromise;
-  if (ttsProvider === 'gemini') {
-    // Race Gemini against Edge TTS — Edge is ~300 ms, Gemini is ~1-2 s.
-    // First-OK-wins: only settle with a non-ok response if BOTH fail.
-    const edgeFetch = fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: edgeRaceAbort.signal, body: JSON.stringify({ ...ttsBody, provider: 'edge' }) });
-    ttsFetchPromise = new Promise(resolve => {
-      let done = 0, settled = false, lastR;
-      const tryWin = (r, abortOther) => {
-        done++;
-        if (!settled && r?.ok) { settled = true; abortOther.abort(); resolve(r); return; }
-        if (!settled) lastR = r;
-        if (done === 2 && !settled) { settled = true; resolve(lastR); }
-      };
-      primaryFetch.then(r => tryWin(r, edgeRaceAbort)).catch(() => tryWin(null, edgeRaceAbort));
-      edgeFetch.then(r => tryWin(r, ttsAbort)).catch(() => tryWin(null, ttsAbort));
-    });
-  } else {
-    edgeRaceAbort.abort();
-    ttsFetchPromise = primaryFetch;
-  }
+  // Split into sentences so all synthesis runs in parallel — fixes cutoff on long
+  // messages and means subsequent sentences are ready with zero gap after the first
+  const sentences = text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 1);
+  if (!sentences.length) sentences.push(text.slice(0, 499));
+
+  const charId = currentChar?.id || '';
+  const makeBody = (s, prov) => JSON.stringify({ text: s.slice(0, 499), charId, provider: prov || ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName });
+
+  // Kick off synthesis for ALL sentences immediately — parallel, not serial
+  const fetchBlob = (s, prov) => fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: makeBody(s, prov) })
+    .then(r => r.ok ? r.blob() : null).catch(() => null);
+
+  // For each sentence: race Gemini vs Edge (first-ok-wins) to get fastest start.
+  // For 'character' provider (clone voice): go direct — no race, keep the real voice.
+  const blobPromises = sentences.map(s => {
+    if (ttsProvider === 'gemini') {
+      const gp = fetchBlob(s);
+      const ep = fetchBlob(s, 'edge');
+      return new Promise(resolve => {
+        let done = 0, settled = false;
+        const win = b => { if (!settled && b) { settled = true; resolve(b); } else if (++done === 2 && !settled) { settled = true; resolve(null); } };
+        gp.then(win); ep.then(win);
+      });
+    }
+    return fetchBlob(s);
+  });
+
+  // Memo check in parallel with synthesis — don't block audio start on it
   try {
     const memoR = await fetch('/api/memo/use', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ textLen: text.length }) });
     if (!memoR.ok) {
-      ttsAbort.abort(); edgeRaceAbort.abort();
       stopActiveTTS();
       const memoData = await memoR.json().catch(() => ({}));
-      if (memoR.status === 429 && memoData.type === 'memo_daily_limit') {
-        showMemoLimitBanner(memoData.resetsAt);
-      } else {
-        showTTSError('Memo unavailable — try again shortly');
-      }
+      if (memoR.status === 429 && memoData.type === 'memo_daily_limit') showMemoLimitBanner(memoData.resetsAt);
+      else showTTSError('Memo unavailable — try again shortly');
       return;
     }
-  } catch (_) { /* network error — try TTS anyway */ }
+  } catch (_) {}
 
-  let serverOk = false;
-  let ttsStatus = 0;
-  try {
-    const r = await ttsFetchPromise;
-    ttsStatus = r.status;
-    if (r.ok && activeTTSBtn === btn) {
-      serverOk = true;
-      btn.classList.remove('loading'); btn.classList.add('playing');
-      const blob = await r.blob();
-      if (activeTTSBtn !== btn) { serverOk = false; } else {
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        activeTTSAudio = audio;
-        audio.onended = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
-        audio.onerror = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
-        await audio.play().catch(() => { URL.revokeObjectURL(url); stopActiveTTS(); });
-      }
-    }
-  } catch (_) {
-    if (serverOk && activeTTSBtn === btn) stopActiveTTS();
+  let played = false;
+  for (let i = 0; i < blobPromises.length; i++) {
+    if (activeTTSBtn !== btn) break;
+    const blob = await blobPromises[i];
+    if (!blob || activeTTSBtn !== btn) break;
+    if (!played) { btn.classList.remove('loading'); btn.classList.add('playing'); played = true; }
+    await new Promise(resolve => {
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      activeTTSAudio = audio;
+      const done = () => { URL.revokeObjectURL(url); if (activeTTSAudio === audio) activeTTSAudio = null; resolve(); };
+      audio.onended = done; audio.onerror = done;
+      audio.play().catch(done);
+    });
   }
-  if (activeTTSBtn === btn) btn.classList.remove('loading');
 
-  if (!serverOk && activeTTSBtn === btn) {
-    stopActiveTTS();
-    if (ttsStatus > 0) showTTSError('Voice unavailable — try again shortly');
-  }
+  if (activeTTSBtn === btn) stopActiveTTS();
 }
 
 function showTTSError(msg) {
@@ -14104,7 +14189,31 @@ function _getGroupCharVoiceParams(charId) {
   return { provider: 'gemini', geminiVoice: _GROUP_GEMINI_VOICES[h % _GROUP_GEMINI_VOICES.length] };
 }
 
-// Sequential auto-play queue for group chat — characters speak one at a time, never over each other
+// Prefetch cache for group TTS — keyed by "charId|provider|voice|text80"
+// Synthesis starts at speaker_end, so audio is ready (or nearly ready) by play time
+const _groupTTSCache = new Map();
+const _GROUP_TTS_CACHE_MAX = 40;
+
+function _groupTTSCacheKey(sentence, charId, voiceParams) {
+  return `${charId}|${voiceParams.provider||''}|${voiceParams.geminiVoice||''}|${sentence.slice(0, 80)}`;
+}
+
+function _prefetchGroupSentence(sentence, charId, voiceParams) {
+  const key = _groupTTSCacheKey(sentence, charId, voiceParams);
+  if (_groupTTSCache.has(key)) return _groupTTSCache.get(key);
+  if (_groupTTSCache.size >= _GROUP_TTS_CACHE_MAX) {
+    _groupTTSCache.delete(_groupTTSCache.keys().next().value);
+  }
+  const p = fetch('/api/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: sentence.slice(0, 499), charId, ...voiceParams })
+  }).then(r => r.ok ? r.blob() : null).catch(() => null);
+  _groupTTSCache.set(key, p);
+  return p;
+}
+
+// Sequential auto-play queue — characters speak one at a time, never over each other
 let _groupAutoTTSQueue = [];
 let _groupAutoTTSPlaying = false;
 let _groupAutoTTSAudio = null;
@@ -14115,8 +14224,25 @@ function _stopGroupAutoTTS() {
   if (_groupAutoTTSAudio) { try { _groupAutoTTSAudio.pause(); } catch (_) {} _groupAutoTTSAudio = null; }
 }
 
+function _splitSentences(text) {
+  const parts = text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 1);
+  return parts.length ? parts : [text.slice(0, 499)];
+}
+
 function _queueGroupAutoTTS(btn) {
   if (!btn) return;
+  // Start synthesis immediately at speaker_end — by the time queue reaches this item,
+  // audio is ready (or nearly ready), so playback begins with near-zero delay
+  const msgEl = btn.closest?.('.group-msg');
+  if (msgEl) {
+    const textEl = msgEl.querySelector('.group-msg-text');
+    const fullText = ttsCleanText((textEl?.innerText || textEl?.textContent || '').trim());
+    if (fullText) {
+      const charId = msgEl.dataset.charId || '';
+      const vp = _getGroupCharVoiceParams(charId);
+      for (const s of _splitSentences(fullText)) _prefetchGroupSentence(s, charId, vp);
+    }
+  }
   _groupAutoTTSQueue.push(btn);
   if (!_groupAutoTTSPlaying) _advanceGroupAutoTTS();
 }
@@ -14132,17 +14258,18 @@ async function _advanceGroupAutoTTS() {
   const text = ttsCleanText(raw);
   if (!text) { _advanceGroupAutoTTS(); return; }
   const charId = msgEl.dataset.charId || '';
-  const voiceParams = _getGroupCharVoiceParams(charId);
+  const vp = _getGroupCharVoiceParams(charId);
+  const sentences = _splitSentences(text);
   btn.classList.add('loading');
+  let firstPlayed = false;
   try {
-    const r = await fetch('/api/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.slice(0, 499), charId, ...voiceParams })
-    });
-    if (r.ok) {
-      btn.classList.remove('loading'); btn.classList.add('playing');
-      const blob = await r.blob();
+    for (const s of sentences) {
+      if (!_groupAutoTTSPlaying) break;
+      // Cache hit = synthesis already in flight or done; miss = start now
+      const blobP = _prefetchGroupSentence(s, charId, vp);
+      const blob = await blobP;
+      if (!blob || !_groupAutoTTSPlaying) break;
+      if (!firstPlayed) { btn.classList.remove('loading'); btn.classList.add('playing'); firstPlayed = true; }
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       _groupAutoTTSAudio = audio;
@@ -14151,13 +14278,12 @@ async function _advanceGroupAutoTTS() {
         audio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
         audio.play().catch(resolve);
       });
-      btn.classList.remove('playing');
       _groupAutoTTSAudio = null;
     }
   } catch (e) {
     console.error('[group-tts-auto]', e);
   }
-  btn.classList.remove('loading');
+  btn.classList.remove('loading', 'playing');
   _advanceGroupAutoTTS();
 }
 
@@ -14178,28 +14304,30 @@ async function toggleGroupTTS(btn) {
   activeTTSBtn = btn;
 
   const charId = msgEl.dataset.charId || '';
-  const voiceParams = _getGroupCharVoiceParams(charId);
+  const vp = _getGroupCharVoiceParams(charId);
+  const sentences = _splitSentences(text);
+  // Kick off all sentence synthesis in parallel immediately
+  const blobPromises = sentences.map(s => _prefetchGroupSentence(s, charId, vp));
+  let played = false;
   try {
-    const r = await fetch('/api/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.slice(0, 499), charId, ...voiceParams })
-    });
-    if (r.ok && activeTTSBtn === btn) {
-      btn.classList.remove('loading'); btn.classList.add('playing');
-      const blob = await r.blob();
-      if (activeTTSBtn !== btn) return;
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      activeTTSAudio = audio;
-      audio.onended = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
-      audio.onerror = () => { URL.revokeObjectURL(url); stopActiveTTS(); };
-      await audio.play().catch(() => { URL.revokeObjectURL(url); stopActiveTTS(); });
+    for (let i = 0; i < blobPromises.length; i++) {
+      if (activeTTSBtn !== btn) break;
+      const blob = await blobPromises[i];
+      if (!blob || activeTTSBtn !== btn) break;
+      if (!played) { btn.classList.remove('loading'); btn.classList.add('playing'); played = true; }
+      await new Promise(resolve => {
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        activeTTSAudio = audio;
+        const done = () => { URL.revokeObjectURL(url); if (activeTTSAudio === audio) activeTTSAudio = null; resolve(); };
+        audio.onended = done; audio.onerror = done;
+        audio.play().catch(done);
+      });
     }
   } catch (e) {
     console.error('[group-tts]', e);
   }
-  if (activeTTSBtn === btn) btn.classList.remove('loading');
+  if (activeTTSBtn === btn) stopActiveTTS();
 }
 
 function groupVoiceBtnClick(btn) { toggleGroupTTS(btn); }

@@ -1,5 +1,18 @@
 [
   {
+    "id": "v409-voice-polish",
+    "version": "v409",
+    "date": "Oct 2026",
+    "title": "🔊 Voice Polish — No Delay, No Cutoffs, No Pauses",
+    "subtitle": "Play button now starts almost instantly. Long messages play fully. Gaps between sentences removed.",
+    "fixed": [
+      "Play button now synthesizes all sentences in parallel — starts speaking almost immediately instead of waiting for the whole thing",
+      "Long messages were cut off at 400 characters — now every sentence plays through to the end",
+      "Gaps between auto-speak sentences eliminated — next sentence synthesis starts as soon as the previous one is extracted",
+      "Group chat auto-play delay eliminated — synthesis now starts at the moment a character finishes streaming, not when the queue reaches them"
+    ]
+  },
+  {
     "id": "v408-group-voices-tier-limits",
     "version": "v408",
     "date": "Oct 2026",
@@ -28,6 +41,27 @@
     ]
   },
   {
+    "id": "v405-instant-greeting",
+    "version": "v405",
+    "date": "Oct 2026",
+    "title": "⚡ Instant Greeting",
+    "subtitle": "Opening a character now feels instant — the greeting appears immediately with no typewriter delay and no token cost.",
+    "fixed": [
+      "Greeting no longer appears letter-by-letter with a typewriter animation — now shows instantly",
+      "Greeting was counting against your session token limit — it no longer costs any tokens"
+    ]
+  },
+  {
+    "id": "v404-friendship-bar",
+    "version": "v404",
+    "date": "Oct 2026",
+    "title": "🤝 Friendship Bar Cleaned Up",
+    "subtitle": "The friendship score number is removed — just the progress bar now.",
+    "changed": [
+      "Friendship score number hidden — the bar fills up as you chat, no raw number shown"
+    ]
+  },
+  {
     "id": "v406-bug-scan",
     "version": "v406",
     "date": "Oct 2026",
@@ -47,6 +81,76 @@
     "fixed": [
       "Phone numbers now actually unlock through friendship — an undefined constant was making the friendship check always fail silently",
       "After resetting friendship the bar now shows the correct new random target right away instead of showing 0 / 20"
+    ]
+  },
+  {
+    "id": "v401-tts-typewriter-polish",
+    "version": "v401",
+    "date": "Oct 2026",
+    "title": "🔊 Voice & Typewriter Polish",
+    "subtitle": "Voice no longer overlaps itself, typewriter speed is more natural, and the voice preview button is unified.",
+    "fixed": [
+      "Voice no longer overlaps with itself when a new message arrives — old audio stops cleanly before the new one starts",
+      "Typewriter animation slowed down to be readable and natural",
+      "Voice preview inside settings now uses the same unified button as in chat",
+      "Full-message TTS plays without pauses between sentences and handles failures gracefully"
+    ]
+  },
+  {
+    "id": "v399-poppy-voice-clone",
+    "version": "v399",
+    "date": "Oct 2026",
+    "title": "🎙️ Poppy Voice Tuned + Clone Engine Upgraded",
+    "subtitle": "Chatterbox now powers the clone voice. Poppy sounds more natural and TTS gaps between sentences are reduced.",
+    "fixed": [
+      "Voice clone engine upgraded from old TTS to Chatterbox — much more natural output",
+      "Poppy's voice parameters retuned for better accuracy",
+      "Gaps between sentences reduced for more continuous speech",
+      "Auto-speak now on by default for new users"
+    ]
+  },
+  {
+    "id": "v395-tos-voice-farm",
+    "version": "v395",
+    "date": "Oct 2026",
+    "title": "📋 TOS + Voice Cloning Disclosure",
+    "subtitle": "Terms and privacy updated for voice cloning and the coin farm. Poppy's voice replaced with real game audio.",
+    "added": [
+      "Terms of Service and Privacy Policy updated to cover voice cloning and the coin farm",
+      "Poppy's voice file replaced with clean audio from the actual game"
+    ]
+  },
+  {
+    "id": "v393-plan-farm",
+    "version": "v393",
+    "date": "Oct 2026",
+    "title": "📈 Plan Copy + Farm Expanded",
+    "subtitle": "Plan page rewritten for clarity. Coin farm now goes up to level 10.",
+    "changed": [
+      "Plan comparison page rewritten — clearer feature descriptions, settings plan cards hidden",
+      "Coin farm expanded to level 10 with updated earning rates per tier"
+    ]
+  },
+  {
+    "id": "v390-hover-quotes-voice",
+    "version": "v390",
+    "date": "Oct 2026",
+    "title": "💬 Hover Quotes + Poppy Voice Lines",
+    "subtitle": "Huggy, Poppy, and Doey now have hover quotes. Poppy's voice lines rewritten to match her game personality.",
+    "added": [
+      "Huggy Wuggy, Poppy, and Doey now have hover quotes shown when you hover their cards",
+      "Poppy's voice lines rewritten to match her canon personality from the game"
+    ]
+  },
+  {
+    "id": "v389-xtts-engine",
+    "version": "v389",
+    "date": "Oct 2026",
+    "title": "🔧 Voice Clone Engine Switched to XTTS",
+    "subtitle": "Switched from YourTTS to XTTS-v2 for dramatically better clone voice quality.",
+    "fixed": [
+      "Voice clone engine switched from YourTTS to XTTS-v2 — significantly better quality",
+      "Character voice files now correctly route Poppy and Huggy to their own clone voices"
     ]
   },
   {
