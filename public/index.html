@@ -533,80 +533,97 @@
 
     <!-- Coins View -->
     <div class="view hidden" id="coinsView">
-      <div class="coins-page">
-        <!-- Header -->
-        <div class="coins-page-hdr">
-          <h1 class="coins-page-title">Coins</h1>
-          <button class="coins-txn-btn" onclick="openUsageModal()" title="Transaction history">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      <div class="cpg">
+
+        <div class="cpg-topbar">
+          <h1 class="cpg-title">Coins</h1>
+          <button class="cpg-history-btn" onclick="openUsageModal()" title="Transaction history">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
             History
           </button>
         </div>
 
-        <!-- Balance hero -->
-        <div class="coins-balance-hero">
-          <div class="coins-hero-glow"></div>
-          <div class="coins-hero-inner">
-            <div class="coins-coin-icon">
-              <svg viewBox="0 0 48 48" width="52" height="52"><defs><radialGradient id="cg1" cx="38%" cy="30%"><stop offset="0%" stop-color="#c4b5fd"/><stop offset="100%" stop-color="#7c3aed"/></radialGradient></defs><circle cx="24" cy="24" r="22" fill="url(#cg1)"/><circle cx="24" cy="24" r="18" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="1.5"/><text x="24" y="30" text-anchor="middle" font-size="18" font-weight="900" fill="#fff" font-family="system-ui,sans-serif">C</text></svg>
+        <div class="cpg-balance-card">
+          <div class="cpg-balance-glow"></div>
+          <div class="cpg-balance-left">
+            <div class="cpg-coin-orb">
+              <svg viewBox="0 0 48 48" width="46" height="46"><defs><radialGradient id="cg1" cx="38%" cy="30%"><stop offset="0%" stop-color="#c4b5fd"/><stop offset="100%" stop-color="#7c3aed"/></radialGradient></defs><circle cx="24" cy="24" r="22" fill="url(#cg1)"/><circle cx="24" cy="24" r="18" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="1.5"/><text x="24" y="30" text-anchor="middle" font-size="18" font-weight="900" fill="#fff" font-family="system-ui,sans-serif">C</text></svg>
             </div>
-            <div class="coins-hero-num" id="coinsHeroBalance">0</div>
-            <div class="coins-hero-label">your balance</div>
-            <div class="coins-hero-farm" id="coinsHeroFarm">Farm not started</div>
-          </div>
-        </div>
-
-        <!-- Spend section -->
-        <div class="coins-section">
-          <div class="coins-section-hdr">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-            Spend your coins
-          </div>
-          <div class="coins-spend-grid">
-            <!-- Unlock a plan -->
-            <button class="coins-spend-card" onclick="openPricingModal()">
-              <div class="csc-icon-wrap csc-icon-purple">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-              </div>
-              <div class="csc-body">
-                <div class="csc-title">Unlock a plan</div>
-                <div class="csc-desc">Activate a subscription tier using coins — no payment needed</div>
-              </div>
-              <svg class="csc-arrow" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
-            </button>
-            <!-- Extra messages -->
-            <div class="coins-spend-card coins-spend-soon">
-              <div class="csc-icon-wrap csc-icon-blue">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
-              </div>
-              <div class="csc-body">
-                <div class="csc-title">Extra messages</div>
-                <div class="csc-desc">+50 messages when you hit your daily limit · 200 coins</div>
-              </div>
-              <span class="csc-soon-badge">Soon</span>
-            </div>
-            <!-- Voice credits (coming soon) -->
-            <div class="coins-spend-card coins-spend-soon">
-              <div class="csc-icon-wrap csc-icon-green">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>
-              </div>
-              <div class="csc-body">
-                <div class="csc-title">Voice call credits</div>
-                <div class="csc-desc">Extend call time beyond your daily free minutes</div>
-              </div>
-              <span class="csc-soon-badge">Soon</span>
+            <div class="cpg-balance-info">
+              <div class="cpg-balance-amount" id="coinsHeroBalance">0</div>
+              <div class="cpg-balance-label">CM Coins</div>
             </div>
           </div>
-        </div>
-
-        <!-- Get more coins CTA -->
-        <div class="coins-get-more-wrap">
-          <button class="coins-get-more-btn" onclick="openPricingModal()">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-            Get more coins
+          <button class="cpg-buy-btn" onclick="openCoinShop()">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+            Buy Coins
           </button>
-          <p class="coins-get-more-hint">Earn coins by using the app, or buy them directly.</p>
         </div>
+
+        <div class="cpg-earn-pill" id="coinsHeroFarm">Farm not started yet</div>
+
+        <div class="cpg-section">
+          <div class="cpg-section-label">Spend</div>
+          <div class="cpg-item-list">
+            <button class="cpg-item" onclick="openPricingModal()">
+              <div class="cpg-item-icon cpg-icon-purple">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+              </div>
+              <div class="cpg-item-body">
+                <div class="cpg-item-title">Unlock a plan</div>
+                <div class="cpg-item-desc">Activate a subscription tier — no payment needed</div>
+              </div>
+              <svg class="cpg-chevron" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </button>
+            <div class="cpg-item cpg-item-soon">
+              <div class="cpg-item-icon cpg-icon-blue">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+              </div>
+              <div class="cpg-item-body">
+                <div class="cpg-item-title">Extra messages</div>
+                <div class="cpg-item-desc" id="coinsTopupDesc">+50 messages · 200 coins</div>
+              </div>
+              <span class="cpg-badge-soon">Soon</span>
+            </div>
+            <div class="cpg-item cpg-item-soon">
+              <div class="cpg-item-icon cpg-icon-green">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>
+              </div>
+              <div class="cpg-item-body">
+                <div class="cpg-item-title">Voice call credits</div>
+                <div class="cpg-item-desc">Extend call time beyond your daily free minutes</div>
+              </div>
+              <span class="cpg-badge-soon">Soon</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="cpg-section">
+          <div class="cpg-section-label">Earn</div>
+          <div class="cpg-item-list">
+            <button class="cpg-item" onclick="showView('settingsView')">
+              <div class="cpg-item-icon cpg-icon-amber">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M17 8C8 10 5.9 16.17 3.82 19.9c-.44.81.16 1.76 1.06 1.76.61 0 1.17-.35 1.45-.88A11 11 0 0 1 17 15l1 2.5 1-7-7 1 2 2.5A8 8 0 0 0 5.5 12c1-2 2.5-4 5-5.5C15 4.5 17.5 3.5 20 3c.41-.07.79.25.79.67A5.5 5.5 0 0 1 17 8z"/></svg>
+              </div>
+              <div class="cpg-item-body">
+                <div class="cpg-item-title">Coin Farm</div>
+                <div class="cpg-item-desc">Grow crops and harvest coins passively over time</div>
+              </div>
+              <svg class="cpg-chevron" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </button>
+            <button class="cpg-item" onclick="openQuizModal()">
+              <div class="cpg-item-icon cpg-icon-rose">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/></svg>
+              </div>
+              <div class="cpg-item-body">
+                <div class="cpg-item-title">Daily Quiz</div>
+                <div class="cpg-item-desc">Answer questions to earn bonus coins each day</div>
+              </div>
+              <svg class="cpg-chevron" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -2240,14 +2257,25 @@
 
 <!-- Coin Shop Modal -->
 <div id="coinShopModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeCoinShop()">
-  <div style="background:var(--bg2);border-radius:16px;padding:28px 24px;max-width:480px;width:90%;max-height:90vh;overflow-y:auto;position:relative">
-    <button onclick="closeCoinShop()" style="position:absolute;top:14px;right:14px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:20px;line-height:1">✕</button>
-    <div style="font-size:22px;font-weight:700;margin-bottom:4px">🪙 Buy Coins</div>
-    <div style="font-size:13px;color:var(--text3);margin-bottom:20px">Coins can be spent on subscriptions and future features. Larger packs give better value.</div>
-    <div id="coinShopPacks" style="display:flex;flex-direction:column;gap:10px"></div>
-    <div id="coinShopStatus" style="font-size:13px;color:var(--accent-l);text-align:center;margin-top:14px;min-height:18px"></div>
-    <div id="coinShopPaypalBtn" style="margin-top:12px"></div>
-    <p style="font-size:11px;color:var(--text3);text-align:center;margin:12px 0 0">Secured by PayPal &middot; One-time purchase &middot; No subscription</p>
+  <div class="csp-modal">
+    <div class="csp-modal-hdr">
+      <button class="csp-back-btn" onclick="closeCoinShop()">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        Back
+      </button>
+      <div class="csp-modal-title">Get Coins</div>
+    </div>
+    <div class="csp-promo">
+      <div class="csp-promo-icon">🪙</div>
+      <div>
+        <div class="csp-promo-title">Power your experience</div>
+        <div class="csp-promo-desc">Larger packs give more coins per dollar. Buy once, spend anytime.</div>
+      </div>
+    </div>
+    <div id="coinShopPacks" class="csp-grid"></div>
+    <div id="coinShopStatus" class="csp-status"></div>
+    <div id="coinShopPaypalBtn" class="csp-paypal-wrap"></div>
+    <p class="csp-footer">Secured by PayPal · One-time purchase · No subscription</p>
   </div>
 </div>
 
@@ -2532,7 +2560,7 @@
 </div>
 
 
-<script src="app.js?v=431"></script>
+<script src="app.js?v=432"></script>
 
 <!-- Quiz Modal -->
 <div id="quizOverlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeQuizModal()">

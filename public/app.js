@@ -1064,21 +1064,32 @@ async function openCoinShop() {
     } catch (_) { coinPacks = []; }
   }
 
+  const TIER = [
+    { badge: null,         c1: '#c4b5fd', c2: '#7c3aed' },
+    { badge: 'Popular',    c1: '#93c5fd', c2: '#2563eb' },
+    { badge: null,         c1: '#6ee7b7', c2: '#059669' },
+    { badge: 'Best value', c1: '#fcd34d', c2: '#d97706' },
+    { badge: null,         c1: '#fda4af', c2: '#e11d48' },
+    { badge: null,         c1: '#fdba74', c2: '#ea580c' },
+  ];
+
   const container = document.getElementById('coinShopPacks');
   container.innerHTML = '';
-  for (const pack of coinPacks) {
-    const perDollar = Math.round(pack.coins / pack.price);
+  for (let i = 0; i < coinPacks.length; i++) {
+    const pack = coinPacks[i];
+    const t = TIER[i] || TIER[0];
+    const gid = `cgp${i + 1}`;
+    const coinSvg = `<svg viewBox="0 0 48 48" width="38" height="38"><defs><radialGradient id="${gid}" cx="38%" cy="30%"><stop offset="0%" stop-color="${t.c1}"/><stop offset="100%" stop-color="${t.c2}"/></radialGradient></defs><circle cx="24" cy="24" r="22" fill="url(#${gid})"/><circle cx="24" cy="24" r="18" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="1.5"/><text x="24" y="30" text-anchor="middle" font-size="18" font-weight="900" fill="#fff" font-family="system-ui,sans-serif">C</text></svg>`;
+    const amt = pack.coins >= 1000 ? (pack.coins % 1000 === 0 ? `${pack.coins / 1000}k` : pack.coins.toLocaleString()) : pack.coins;
     const card = document.createElement('div');
-    card.className = 'coin-pack-card';
+    card.className = `csp-card csp-t${i + 1}`;
     card.dataset.packId = pack.id;
     card.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-        <div>
-          <div style="font-weight:700;font-size:15px">${pack.label}</div>
-          <div style="font-size:13px;color:var(--text3);margin-top:2px">🪙 ${pack.coins.toLocaleString()} coins · ${perDollar} coins/$</div>
-        </div>
-        <div style="font-weight:700;font-size:18px;white-space:nowrap">$${pack.price.toFixed(2)}</div>
-      </div>`;
+      ${t.badge ? `<div class="csp-card-badge">${t.badge}</div>` : ''}
+      <div class="csp-card-coin">${coinSvg}</div>
+      <div class="csp-card-amount">${amt}</div>
+      <div class="csp-card-unit">coins</div>
+      <div class="csp-card-price">$${pack.price.toFixed(2)}</div>`;
     card.onclick = () => selectCoinPack(pack);
     container.appendChild(card);
   }
@@ -1248,7 +1259,7 @@ function quizPlayAgain() {
 
 async function selectCoinPack(pack) {
   coinShopSelectedPack = pack;
-  document.querySelectorAll('.coin-pack-card').forEach(c => c.classList.toggle('selected', c.dataset.packId === pack.id));
+  document.querySelectorAll('.csp-card').forEach(c => c.classList.toggle('selected', c.dataset.packId === pack.id));
   document.getElementById('coinShopStatus').textContent = '';
   const btnWrap = document.getElementById('coinShopPaypalBtn');
   btnWrap.innerHTML = '';
