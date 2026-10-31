@@ -1558,16 +1558,18 @@ window.addEventListener('DOMContentLoaded', async () => {
   } catch (_) { currentUser = null; }
 
   if (currentUser) {
-    // Check for active account ban before showing the app
-    await checkAndShowBan();
+    try {
+      // Check for active account ban before showing the app
+      await checkAndShowBan();
 
-    document.getElementById('authLanding').style.display = 'none';
-    renderUserBadge();
-    await loadCharacters();
-    renderHome();
-    checkHalloweenGift();
-    renderDiscover();
-    renderFeed();
+      document.getElementById('authLanding').style.display = 'none';
+      renderUserBadge();
+      await loadCharacters();
+      renderHome();
+      checkHalloweenGift();
+      renderDiscover();
+      renderFeed();
+    } catch (_) {}
     // Show the app only after characters are rendered — avoids a blank-page flash
     document.getElementById('appLoading').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
