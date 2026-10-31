@@ -5458,10 +5458,8 @@ async function generateGreeting() {
             bubble = msgEl.querySelector('.bubble');
             startStreamStats(msgEl);
             startTypewriter(bubble, msgEl);
-            if (!data.instant) {
-              bubble.classList.add('streaming');
-              _streamTTSBuffer = ''; _streamTTSQueue = []; _stopCurrentTTS();
-            }
+            _streamTTSBuffer = ''; _streamTTSQueue = []; _stopCurrentTTS();
+            if (!data.instant) bubble.classList.add('streaming');
           }
           streamText += data.text;
           feedTypewriter(data.text);
