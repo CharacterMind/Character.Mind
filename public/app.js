@@ -3400,7 +3400,6 @@ function showPhoneContactProfile(charId, e) {
 
   // Delete / Block — only for custom contacts
   const dangerEl = document.getElementById('pcpDangerActions');
-  const isCustom = !!(_customContacts.find(x => x.id === charId));
   if (dangerEl) dangerEl.style.display = isCustom ? '' : 'none';
   const delBtn = document.getElementById('pcpDeleteBtn');
   const blkBtn = document.getElementById('pcpBlockBtn');
