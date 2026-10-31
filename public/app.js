@@ -15764,6 +15764,7 @@ let gcallAutoTimer   = null;
 let gcallAutoAbort   = null;
 let gcallSpeakingCharId = null;
 let gcallMicActive   = false;
+let gcallMicPaused   = false;  // true while TTS is playing — prevents echo feedback
 let gcallRecognition = null;
 let _gcallTTSQueue   = [];
 let _gcallTTSPlaying = false;
@@ -15922,6 +15923,12 @@ async function _advanceGcallTTS() {
   const nowEl = document.getElementById('gcallNowSpeaking');
   if (nowEl) nowEl.textContent = `${char.name} is speaking…`;
 
+  // Pause mic while TTS plays so the character's voice isn't echoed back as user speech
+  if (gcallMicActive && gcallRecognition && !gcallMicPaused) {
+    gcallMicPaused = true;
+    try { gcallRecognition.abort(); } catch (_) {}
+  }
+
   try {
     const vp = _getGroupCharVoiceParams(char.id);
     const clean = ttsCleanText(text);
@@ -15945,6 +15952,13 @@ async function _advanceGcallTTS() {
   if (nowEl) nowEl.textContent = '';
   _gcallTTSAudio = null;
   _gcallTTSPlaying = _gcallTTSQueue.length > 0;
+
+  // Resume mic now that TTS audio is done — no more echo risk
+  if (gcallMicPaused && gcallMicActive && gcallActive && !_gcallTTSPlaying) {
+    gcallMicPaused = false;
+    if (gcallRecognition) { try { gcallRecognition.start(); } catch (_) {} }
+  }
+
   if (_gcallTTSPlaying) _advanceGcallTTS();
   else { _gcallTTSPlaying = false; if (gcallActive && gcallAutoMode) scheduleGcallTurn(2500); }
 }
@@ -16020,12 +16034,13 @@ async function toggleGroupCallMic() {
     runGcallTurn(text);
   };
   gcallRecognition.onerror = () => _stopGcallMic();
-  gcallRecognition.onend = () => { if (gcallMicActive && gcallRecognition) { try { gcallRecognition.start(); } catch (_) {} } };
+  gcallRecognition.onend = () => { if (gcallMicActive && !gcallMicPaused && gcallRecognition) { try { gcallRecognition.start(); } catch (_) {} } };
   gcallRecognition.start();
 }
 
 function _stopGcallMic() {
   gcallMicActive = false;
+  gcallMicPaused = false;
   if (gcallRecognition) { try { gcallRecognition.abort(); } catch (_) {} gcallRecognition = null; }
   const joinBtn = document.getElementById('gcallJoinBtn');
   const joinLabel = document.getElementById('gcallJoinLabel');
