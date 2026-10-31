@@ -3118,7 +3118,7 @@ function renderPhoneContacts(query) {
   container.innerHTML = allContacts.map(c => {
     if (c._isCustom) {
       const initial = (c.name || '?').charAt(0).toUpperCase();
-      return `<div class="ph-contact-card" style="--ph-color:#555;--ph-glow:#555">
+      return `<div class="ph-contact-card" style="--ph-color:#555;--ph-glow:#555" onclick="showPhoneContactProfile('${escHtml(c.id)}', event)">
         <div class="ph-contact-avatar" style="background:#555">${escHtml(initial)}</div>
         <div class="ph-contact-name">${escHtml(c.name)}</div>
         <div class="ph-contact-num">${escHtml(c.phone || '')}</div>
@@ -3344,15 +3344,17 @@ let _pcpCharId = null;
 
 function showPhoneContactProfile(charId, e) {
   if (e) e.stopPropagation();
-  const c = _phoneContacts.find(x => x.id === charId) || (characters || []).find(x => x.id === charId);
+  const _customMatch = _customContacts.find(x => x.id === charId);
+  const c = _phoneContacts.find(x => x.id === charId) || (characters || []).find(x => x.id === charId) || _customMatch;
   if (!c) return;
   _pcpCharId = charId;
   const overlay = document.getElementById('phoneContactProfile');
   if (!overlay) return;
-  const saved = !!c.customName;
-  const displayName = c.customName || '';
-  const color = saved ? safeColor(c.color || '#7c3aed') : '#555';
-  const hasImg = saved && isCharImg && isCharImg(c.image);
+  const isCustom = !!_customMatch;
+  const saved = isCustom ? true : !!c.customName;
+  const displayName = isCustom ? (c.name || '') : (c.customName || '');
+  const color = isCustom ? '#6b7280' : (saved ? safeColor(c.color || '#7c3aed') : '#555');
+  const hasImg = !isCustom && saved && isCharImg && isCharImg(c.image);
   const initial = (displayName || '?').charAt(0).toUpperCase();
   overlay.style.setProperty('--pcp-color', color);
 

@@ -1241,7 +1241,7 @@ html, body {
 /* ── Call overlay — Android Phone style ──────────────────────────────────── */
 .call-overlay {
   position: fixed; inset: 0; z-index: 900;
-  overflow: hidden;
+  overflow-y: auto;
   background: #13141f;
 }
 .call-brand-logo { display: none; }
@@ -1290,8 +1290,9 @@ html, body {
 /* ── Call content — Pixel-style flex layout ───────────────────────────────── */
 .call-content {
   position: relative; z-index: 2;
-  height: 100%; width: 100%;
+  min-height: 100%; width: 100%;
   display: flex; flex-direction: column; align-items: center;
+  justify-content: space-between;
   padding-top: max(52px, env(safe-area-inset-top, 52px));
   padding-bottom: max(40px, env(safe-area-inset-bottom, 40px));
   padding-left: 24px; padding-right: 24px;
@@ -1339,13 +1340,13 @@ html, body {
 
 /* Avatar — in natural flow, centered */
 .call-avatar-wrap {
-  flex: 1; display: flex; align-items: center; justify-content: center;
+  flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center;
 }
 /* Character displayed freely — no box, full image visible, green-screen style */
 .call-char-img {
   width: 80vw;
   max-width: 360px;
-  height: clamp(260px, 60vh, 460px);
+  height: clamp(180px, 42vh, 420px);
   background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
@@ -5278,10 +5279,11 @@ body:not(.halloween) .hw-off-label { display: inline; }
   position: fixed; inset: 0; z-index: 3000;
   background: var(--bg, #0f1117);
   animation: pcpSlideIn .22s cubic-bezier(.22,1,.36,1);
+  overflow-y: auto;
 }
 @keyframes pcpSlideIn { from { transform: translateX(100%) } to { transform: translateX(0) } }
 .pcp-page {
-  width: 100%; height: 100%; display: flex; flex-direction: column;
+  width: 100%; min-height: 100%; display: flex; flex-direction: column;
   max-width: 480px; margin: 0 auto;
 }
 /* Header */
