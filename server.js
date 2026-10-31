@@ -218,7 +218,7 @@ function autoStartXtts() {
     ...process.env,
     TTS_HOME: path.join(__dirname, 'tts_server'),
     FLASK_ENV: 'production',
-    TTS_MODEL: process.env.TTS_MODEL || 'your_tts', // YourTTS default (~400 MB); set TTS_MODEL=xtts_v2 for higher quality
+    TTS_MODEL: process.env.TTS_MODEL || 'f5tts', // F5-TTS default (zero-shot cloning, ~1.2 GB); set TTS_MODEL=kokoclone or xtts_v2 to switch
   };
   const proc = spawn('python3', [ttsScript], {
     stdio: ['ignore', 'pipe', 'pipe'],

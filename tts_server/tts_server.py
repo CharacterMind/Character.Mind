@@ -1,17 +1,21 @@
 """
 Character.Mind Voice AI — free, local voice cloning service.
-Default model: YourTTS (~400 MB, faster on CPU, fits in less RAM).
-Override with TTS_MODEL=xtts_v2 env var for higher quality (needs ~2 GB RAM + GPU recommended).
+Default model: F5-TTS (zero-shot voice cloning, ~1.2 GB, GPU recommended).
+Override with TTS_MODEL=xtts_v2 env var for XTTS-v2 (needs ~2 GB RAM + GPU).
 
 Setup (one time):
   pip install -r requirements.txt
-  -- first run downloads the model (~400 MB for YourTTS, ~1.8 GB for xtts_v2) --
+  -- first run downloads the model --
 
 Run:
   python tts_server.py              (port 8765)
   TTS_PORT=9000 python tts_server.py
-  TTS_MODEL=xtts_v2 python tts_server.py   (use XTTS-v2 if you have enough RAM/GPU)
+  TTS_MODEL=xtts_v2 python tts_server.py   (use XTTS-v2 instead of F5-TTS)
   -- or double-click start.bat on Windows --
+
+Voice reference transcriptions:
+  For each voices/name.wav, create voices/name.txt with the transcript.
+  This avoids Whisper ASR on every F5-TTS request (saves ~2s per request).
 
 Character.Mind server.js calls this at:
   http://127.0.0.1:8765/tts
@@ -24,8 +28,11 @@ GET  /voices                          -> [ { id, name, file, size_kb } ]
 POST /voices          multipart/form-data  field "file" (.wav) + optional "name"
                                       -> { id, name, file }
 POST /tts             application/json
-     { text, speaker_wav, language? } -> audio/wav
-     { text, voice_id, language? }    -> audio/wav  (use id from /voices)
+     { text, speaker_wav, language? }            -> audio/wav  (F5-TTS or XTTS)
+     { text, voice_id, language? }               -> audio/wav  (use id from /voices)
+     { text, voice_id, tts_engine: "f5tts" }     -> audio/wav  (force F5-TTS)
+     { text, voice_id, tts_engine: "xtts" }      -> audio/wav  (force XTTS-v2)
+     { text, kokoro_voice: "af_bella", ... }      -> audio/wav  (Kokoro preset voice)
 DELETE /voices/<id>                   -> { ok }
 """
 
@@ -129,6 +136,71 @@ BASE_DIR  = Path(__file__).resolve().parent
 VOICES_DIR = BASE_DIR / "voices"
 VOICES_DIR.mkdir(exist_ok=True)
 
+# ---------------------------------------------------------------------------
+# F5-TTS — zero-shot voice cloning using real reference audio
+# ---------------------------------------------------------------------------
+_f5tts      = None
+_f5tts_lock = threading.Lock()
+
+def get_f5tts():
+    global _f5tts
+    if _f5tts is not None:
+        return _f5tts
+    with _f5tts_lock:
+        if _f5tts is None:
+            from f5_tts.api import F5TTS
+            _f5tts = F5TTS()
+            print("[voice-ai] F5-TTS loaded", flush=True)
+    return _f5tts
+
+def _f5tts_ref_text(voice_wav_path: str) -> str:
+    """Load sidecar .txt transcript for a voice wav, or return '' for auto-ASR."""
+    txt = Path(voice_wav_path).with_suffix(".txt")
+    if txt.exists():
+        return txt.read_text(encoding="utf-8").strip()
+    return ""
+
+# ---------------------------------------------------------------------------
+# KokoClone — Kokoro-ONNX TTS + Kanade zero-shot voice conversion
+# ---------------------------------------------------------------------------
+_kokoclone      = None
+_kokoclone_lock = threading.Lock()
+_KOKOCLONE_DIR  = Path(__file__).resolve().parent / "kokoclone"
+
+def get_kokoclone():
+    global _kokoclone
+    if _kokoclone is not None:
+        return _kokoclone
+    with _kokoclone_lock:
+        if _kokoclone is None:
+            import sys as _sys
+            if str(_KOKOCLONE_DIR) not in _sys.path:
+                _sys.path.insert(0, str(_KOKOCLONE_DIR))
+            from core.cloner import KokoClone as _KC
+            _kokoclone = _KC()
+            print("[voice-ai] KokoClone loaded", flush=True)
+    return _kokoclone
+
+# ---------------------------------------------------------------------------
+# Chatterbox TTS — ResembleAI, MIT license, #1 free zero-shot cloner 2025
+# ---------------------------------------------------------------------------
+_chatterbox      = None
+_chatterbox_lock = threading.Lock()
+
+def get_chatterbox():
+    global _chatterbox
+    if _chatterbox is not None:
+        return _chatterbox
+    with _chatterbox_lock:
+        if _chatterbox is None:
+            import torch
+            from chatterbox.tts_turbo import ChatterboxTurboTTS
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            print(f"[voice-ai] Loading Chatterbox Turbo TTS on {device.upper()}...", flush=True)
+            _chatterbox = ChatterboxTurboTTS.from_pretrained(device=device)
+            print(f"[voice-ai] Chatterbox Turbo TTS ready on {device.upper()}", flush=True)
+    return _chatterbox
+
 # Seed VOICES_DIR with any .wav files already in BASE_DIR (backward-compat)
 for _old in BASE_DIR.glob("*.wav"):
     _dst = VOICES_DIR / _old.name
@@ -144,7 +216,7 @@ _lock      = threading.Lock()   # TTS models are NOT thread-safe
 _gpu       = False
 # YourTTS is the default: ~400 MB, works on CPU in 2-5s.
 # Set TTS_MODEL=xtts_v2 for higher quality (needs ~2 GB RAM, GPU recommended).
-_MODEL_KEY = os.environ.get("TTS_MODEL", "xtts_v2").lower()
+_MODEL_KEY = os.environ.get("TTS_MODEL", "f5tts").lower()  # f5tts | chatterbox | kokoclone | xtts_v2 | your_tts
 _MODEL_NAMES = {
     "your_tts": "tts_models/multilingual/multi-dataset/your_tts",
     "xtts_v2":  "tts_models/multilingual/multi-dataset/xtts_v2",
@@ -232,6 +304,19 @@ def health():
             "loaded":    _kokoro is not None,
             "voices":    KOKORO_VOICE_LIST,
         },
+        "f5tts": {
+            "loaded": _f5tts is not None,
+            "is_default": _MODEL_KEY == "f5tts",
+        },
+        "kokoclone": {
+            "available": _KOKOCLONE_DIR.exists(),
+            "loaded": _kokoclone is not None,
+            "is_default": _MODEL_KEY == "kokoclone",
+        },
+        "chatterbox": {
+            "loaded": _chatterbox is not None,
+            "is_default": _MODEL_KEY == "chatterbox",
+        },
     })
 
 
@@ -294,6 +379,7 @@ def tts_endpoint():
     voice_id     = (data.get("voice_id")    or "").strip()
     language     = (data.get("language")    or "en").strip()
     kokoro_voice = (data.get("kokoro_voice") or "").strip()
+    tts_engine   = (data.get("tts_engine")  or _MODEL_KEY).lower()
     # YourTTS accepts "en" directly (not "en-us")
     if language == "en-us" and _MODEL_KEY == "your_tts":
         language = "en"
@@ -314,7 +400,7 @@ def tts_endpoint():
         text = text[:MAX_TEXT_CHARS]
         t0 = time.time()
         try:
-            samples, sr = kok.create(text, voice=kokoro_voice, speed=1.3, lang="en-us")
+            samples, sr = kok.create(text, voice=kokoro_voice, speed=1.0, lang="en-us")
         except Exception as e:
             return jsonify({"error": str(e)}), 500
         pcm = (np.clip(samples, -1, 1) * 32767).astype(np.int16)
@@ -346,6 +432,89 @@ def tts_endpoint():
 
     text = text[:MAX_TEXT_CHARS]
 
+    # F5-TTS path — zero-shot voice cloning (default engine)
+    if tts_engine in ("f5tts", "f5-tts"):
+        import numpy as np
+        import soundfile as sf_lib
+        t0 = time.time()
+        try:
+            with _lock:
+                model = get_f5tts()
+                ref_text = _f5tts_ref_text(speaker_wav)
+                wav, sr, _ = model.infer(
+                    ref_file=speaker_wav,
+                    ref_text=ref_text,
+                    gen_text=text,
+                    seed=-1,
+                )
+        except Exception as e:
+            print(f"[voice-ai] F5-TTS error: {e}", flush=True)
+            return jsonify({"error": str(e)}), 500
+        buf = io.BytesIO()
+        sf_lib.write(buf, wav, sr, format="WAV")
+        buf.seek(0)
+        elapsed = round(time.time() - t0, 2)
+        print(f"[voice-ai] f5tts {len(text)} chars in {elapsed}s (voice={Path(speaker_wav).stem})", flush=True)
+        resp = send_file(buf, mimetype="audio/wav", as_attachment=False)
+        resp.headers["X-Synthesis-Time"] = str(elapsed)
+        resp.headers["X-TTS-Provider"]   = "f5tts"
+        return resp
+
+    # KokoClone path — Kokoro TTS + Kanade zero-shot voice conversion
+    if tts_engine in ("kokoclone", "koko"):
+        t0 = time.time()
+        tmp_out = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        tmp_out.close()
+        try:
+            with _lock:
+                model = get_kokoclone()
+                model.generate(
+                    text=text,
+                    lang="en",
+                    reference_audio=speaker_wav,
+                    output_path=tmp_out.name,
+                )
+            with open(tmp_out.name, "rb") as f:
+                audio_bytes = f.read()
+        except Exception as e:
+            print(f"[voice-ai] KokoClone error: {e}", flush=True)
+            return jsonify({"error": str(e)}), 500
+        finally:
+            try:
+                os.unlink(tmp_out.name)
+            except OSError:
+                pass
+        elapsed = round(time.time() - t0, 2)
+        print(f"[voice-ai] kokoclone {len(text)} chars in {elapsed}s (voice={Path(speaker_wav).stem})", flush=True)
+        resp = send_file(io.BytesIO(audio_bytes), mimetype="audio/wav", as_attachment=False)
+        resp.headers["X-Synthesis-Time"] = str(elapsed)
+        resp.headers["X-TTS-Provider"]   = "kokoclone"
+        return resp
+
+    # Chatterbox TTS path — ResembleAI zero-shot cloning (best free quality 2025)
+    if tts_engine in ("chatterbox",):
+        import torchaudio
+        t0 = time.time()
+        try:
+            with _lock:
+                model = get_chatterbox()
+                wav = model.generate(text, audio_prompt_path=speaker_wav)
+            buf = io.BytesIO()
+            torchaudio.save(buf, wav, model.sr, format="wav")
+            buf.seek(0)
+        except Exception as e:
+            import traceback
+            print(f"[voice-ai] Chatterbox error: {e}", flush=True)
+            traceback.print_exc()
+            return jsonify({"error": str(e)}), 500
+        elapsed = round(time.time() - t0, 2)
+        print(f"[voice-ai] chatterbox {len(text)} chars in {elapsed}s (voice={Path(speaker_wav).stem})", flush=True)
+        resp = send_file(buf, mimetype="audio/wav", as_attachment=False)
+        resp.headers["X-Synthesis-Time"] = str(elapsed)
+        resp.headers["X-TTS-Provider"]   = "chatterbox"
+        return resp
+
+    # XTTS-v2 / YourTTS path — fallback when TTS_MODEL=xtts_v2 or tts_engine=xtts
     t0 = time.time()
     with _lock:
         model = get_tts()
@@ -358,7 +527,7 @@ def tts_endpoint():
                 speaker_wav=speaker_wav,
                 language=language,
                 file_path=out_path,
-                speed=1.3,
+                speed=1.0,
             )
             with open(out_path, "rb") as f:
                 audio_bytes = f.read()
@@ -389,16 +558,34 @@ if __name__ == "__main__":
 
     print("=" * 60, flush=True)
     print(" Character.Mind Voice AI", flush=True)
-    print(f" Free local voice cloning — model: {_MODEL_KEY}", flush=True)
-    print(f" Voices directory: {VOICES_DIR}", flush=True)
+    print(f" Engine: {_MODEL_KEY}  |  Voices: {VOICES_DIR}", flush=True)
     print(f" Listening on http://{host}:{port}", flush=True)
     print("=" * 60, flush=True)
 
     # Pre-load model so the first request isn't slow
-    try:
-        get_tts()
-    except Exception as e:
-        print(f"[voice-ai] WARNING: model failed to pre-load: {e}", flush=True)
-        print("[voice-ai] Server will start anyway; requests will retry model load.", flush=True)
+    if _MODEL_KEY == "chatterbox":
+        try:
+            get_chatterbox()
+        except Exception as e:
+            print(f"[voice-ai] WARNING: Chatterbox failed to pre-load: {e}", flush=True)
+            print("[voice-ai] Server will start anyway; requests will retry model load.", flush=True)
+    elif _MODEL_KEY == "kokoclone":
+        try:
+            get_kokoclone()
+        except Exception as e:
+            print(f"[voice-ai] WARNING: KokoClone failed to pre-load: {e}", flush=True)
+            print("[voice-ai] Server will start anyway; requests will retry model load.", flush=True)
+    elif _MODEL_KEY == "f5tts":
+        try:
+            get_f5tts()
+        except Exception as e:
+            print(f"[voice-ai] WARNING: F5-TTS failed to pre-load: {e}", flush=True)
+            print("[voice-ai] Server will start anyway; requests will retry model load.", flush=True)
+    else:
+        try:
+            get_tts()
+        except Exception as e:
+            print(f"[voice-ai] WARNING: model failed to pre-load: {e}", flush=True)
+            print("[voice-ai] Server will start anyway; requests will retry model load.", flush=True)
 
     app.run(host=host, port=port, threaded=False, use_reloader=False)
