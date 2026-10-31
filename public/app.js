@@ -238,22 +238,22 @@ const PLAN_DATA = [
     key: 'free', name: 'Free', monthly: 0, annual: 0, coinsPerMonth: 0,
     callsPerDay: 90, memosPerDay: 50, imagesPerDay: 3,
     features: [
-      ‘Opas: fast and sharp — snappy replies, zero filler, straight to the point’,
-      ‘Opes: deeper immersion — richer storytelling, more layered replies; each message costs ~4× more tokens than Opas’,
-      ‘~80 Opes messages (or ~350 Opas) per 2-hour session · 10 sessions’ worth per week’,
-      ‘All characters unlocked — no gatekeeping’,
-      ‘90 min of calls per day · 10 regenerations & 50 memos every 8 hrs’,
+      ‘Opas — snappy replies, zero filler, straight to the point’,
+      ‘Opes — richer storytelling, ~60% longer replies with natural depth; uses ~4× more session budget per reply’,
+      ‘Up to ~80 Opes replies per session (or ~350 Opas) — reply length affects your actual count; resets every 2 hrs’,
+      ‘All characters unlocked’,
+      ‘Up to 90 min of calls per day · up to 10 regens & 50 memos every 8 hrs’,
     ],
   },
   {
-    key: 'advanced', name: 'Advanced', monthly: 9.99, annual: 59.99, coinsPerMonth: 2000,
+    key: ‘advanced’, name: ‘Advanced’, monthly: 9.99, annual: 59.99, coinsPerMonth: 2000,
     callsPerDay: 270, memosPerDay: 150, imagesPerDay: 9,
     features: [
-      ‘Opis: sharper intelligence — holds mystery, never loses the thread; costs 25% more per message than Opes’,
-      ‘Opos: full scene runner — drives plot, voices every NPC, holds the whole room; costs 50% more than Opes’,
-      ‘~250 Opes messages per 2-hour session — 3× free · 10 sessions’ worth per week’,
+      ‘Opis — sharper logic for mystery and intrigue; costs 25% more session budget per reply than Opes’,
+      ‘Opos — GM mode: drives the plot, voices every NPC, runs the whole room; costs 50% more than Opes’,
+      ‘Up to ~250 Opes replies per session — 3× more than Free · factors like reply length vary your actual count’,
       ‘2,000 C.M. Coins every month’,
-      ‘4.5 hrs of calls per day · 30 regenerations & 150 memos every 8 hrs’,
+      ‘Up to 4.5 hrs of calls per day · up to 30 regens & 150 memos every 8 hrs’,
       ‘Everything in Free, including Opas & Opes’,
     ],
   },
@@ -1337,6 +1337,8 @@ function updateSettingsPlanCard(tier) {
 function renderSettingsTiers(currentTier) {
   const el = document.getElementById('settingsTiersSection');
   if (!el) return;
+  el.style.display = 'none'; // Plans live in the pricing modal — not duplicated here
+  return;
   const t = currentTier || currentPlanKey() || 'free';
   const period = (typeof pricingPeriod !== 'undefined' && pricingPeriod) ? pricingPeriod : 'monthly';
   const chk = `<svg viewBox="0 0 24 24" fill="currentColor" width="9" height="9"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>`;

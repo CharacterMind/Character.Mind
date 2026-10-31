@@ -1286,12 +1286,17 @@ const COIN_MONTHLY_COST = { advanced: 2000, x20: 8000, x50: 20000, x100: 50000, 
 const AFK_FARM_MAX_MS = 8 * 3600 * 1000;  // cap offline accumulation at 8 hours
 const AFK_FARM_MIN_MS = 5 * 60 * 1000;    // minimum 5 min between collects
 const FARM_TIERS = [
-  { name: 'Bare dirt', rate: 0.000000012, cost: 0      }, // lv 0 — ~0.001 coins/day (intentionally tiny — just a nudge)
-  { name: 'Seeds',     rate: 0.000006,    cost: 150    }, // lv 1 — ~0.5 coins/day at zero balance
-  { name: 'Sprouts',   rate: 0.000025,    cost: 600    }, // lv 2
-  { name: 'Crops',     rate: 0.00008,     cost: 2500   }, // lv 3
-  { name: 'Harvest',   rate: 0.00022,     cost: 10000  }, // lv 4
-  { name: 'Megafarm',  rate: 0.0005,      cost: 40000  }, // lv 5
+  { name: 'Bare dirt',   rate: 0.000000012, cost: 0       }, // lv 0  — ~0.001 coins/day
+  { name: 'Seeds',       rate: 0.000006,    cost: 150     }, // lv 1  — ~0.5 coins/day
+  { name: 'Sprouts',     rate: 0.000025,    cost: 600     }, // lv 2  — ~2 coins/day
+  { name: 'Crops',       rate: 0.00008,     cost: 2500    }, // lv 3  — ~7 coins/day
+  { name: 'Harvest',     rate: 0.00022,     cost: 10000   }, // lv 4  — ~19 coins/day
+  { name: 'Megafarm',    rate: 0.0005,      cost: 40000   }, // lv 5  — ~43 coins/day
+  { name: 'Greenhouse',  rate: 0.0009,      cost: 80000   }, // lv 6  — ~78 coins/day
+  { name: 'Ranch',       rate: 0.0015,      cost: 180000  }, // lv 7  — ~130 coins/day
+  { name: 'Estate',      rate: 0.0023,      cost: 400000  }, // lv 8  — ~199 coins/day
+  { name: 'Empire',      rate: 0.0034,      cost: 900000  }, // lv 9  — ~294 coins/day
+  { name: 'Legendary',   rate: 0.005,       cost: 2000000 }, // lv 10 — ~432 coins/day
 ];
 const TIER_RANK         = { free: 0, advanced: 1, x20: 2, x50: 3, x100: 4, x200: 5 };
 
