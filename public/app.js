@@ -3217,7 +3217,7 @@ function renderPhoneContacts(query) {
   const q = (query || '').toLowerCase().trim();
   const list = _phoneContacts.filter(c => {
     if (!q) return true;
-    const displayName = c.customName || '';
+    const displayName = c.customName || c.name || '';
     return displayName.toLowerCase().includes(q) || (c.phone || '').includes(q);
   });
   const allContacts = [...list, ..._customContacts.filter(cc =>
@@ -3251,8 +3251,8 @@ function renderPhoneContacts(query) {
       </div>`;
     }
     const phone = c.phone || '';
-    const saved = !!c.customName;
-    const displayName = c.customName || '';
+    const saved = true;
+    const displayName = c.customName || c.name || '';
     const color = safeColor(c.color || '#7c3aed');
     const avail = charAvailability(c.id);
     const callBtnClass = avail.busy ? 'ph-contact-btn ph-contact-btn-call ph-contact-btn-busy' : 'ph-contact-btn ph-contact-btn-call';

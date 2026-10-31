@@ -36,6 +36,7 @@ POST /tts             application/json
 DELETE /voices/<id>                   -> { ok }
 """
 
+import contextlib
 import io
 import os
 import sys
@@ -203,16 +204,7 @@ def get_chatterbox():
             except ImportError:
                 from chatterbox.tts_turbo import ChatterboxTurboTTS
                 _chatterbox = ChatterboxTurboTTS.from_pretrained(device=device)
-            # Convert large model components to float16 to halve VRAM usage
             if device == "cuda":
-                for attr_name in ('t3', 's3gen'):
-                    m = getattr(_chatterbox, attr_name, None)
-                    if m is not None and hasattr(m, 'half'):
-                        try:
-                            setattr(_chatterbox, attr_name, m.half())
-                            print(f"[voice-ai]   {attr_name} → float16", flush=True)
-                        except Exception as fp16_err:
-                            print(f"[voice-ai]   {attr_name} fp16 skipped: {fp16_err}", flush=True)
                 torch.cuda.empty_cache()
                 used = round(torch.cuda.memory_allocated() / 1e9, 2)
                 print(f"[voice-ai] VRAM after load: {used} GB", flush=True)
@@ -330,7 +322,7 @@ def _find_voice(voice_id: str):
 # ---------------------------------------------------------------------------
 @app.route("/health", methods=["GET"])
 def health():
-    model_loaded = _tts is not None
+    model_loaded = (_chatterbox is not None) if _MODEL_KEY == 'chatterbox' else (_tts is not None)
     return jsonify({
         "ok":          True,
         "model":       _MODEL_KEY,
@@ -570,7 +562,8 @@ def tts_endpoint():
             with _lock:
                 global _last_chatterbox_voice
                 model = get_chatterbox()
-                with torch.inference_mode():
+                _autocast = torch.autocast("cuda", dtype=torch.float16) if torch.cuda.is_available() else contextlib.nullcontext()
+                with torch.inference_mode(), _autocast:
                     if speaker_wav == _last_chatterbox_voice and model.conds is not None:
                         wav = model.generate(
                             text,
