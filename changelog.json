@@ -1,5 +1,19 @@
 [
   {
+    "id": "v423-mobile-safe-area-fix",
+    "version": "v423",
+    "date": "Oct 2026",
+    "title": "📱 Mobile Layout Fix",
+    "subtitle": "Fixed multiple mobile layout issues causing the app to appear broken on iPhones.",
+    "changed": [
+      "Bottom dock (icon rail) now accounts for iPhone home indicator — buttons no longer hidden behind the swipe bar",
+      "Chat footer no longer adds extra bottom padding on iOS since the rail handles safe-area spacing",
+      "Contact profile overlay header now clears the iPhone notch and Dynamic Island",
+      "New contact page header now clears the iPhone notch and Dynamic Island",
+      "Resolved conflicting mobile CSS blocks that caused icon rail height inconsistency"
+    ]
+  },
+  {
     "id": "v422-contact-bug-fixes",
     "version": "v422",
     "date": "Oct 2026",
