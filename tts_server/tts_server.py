@@ -563,17 +563,17 @@ def tts_endpoint():
                     if speaker_wav == _last_chatterbox_voice and model.conds is not None:
                         wav = model.generate(
                             text,
-                            exaggeration=0.55,
-                            cfg_weight=0.5,
-                            temperature=0.6,
+                            exaggeration=0.65,
+                            cfg_weight=0.4,
+                            temperature=0.7,
                         )
                     else:
                         wav = model.generate(
                             text,
                             audio_prompt_path=speaker_wav,
-                            exaggeration=0.55,
-                            cfg_weight=0.5,
-                            temperature=0.6,
+                            exaggeration=0.65,
+                            cfg_weight=0.4,
+                            temperature=0.7,
                         )
                         _last_chatterbox_voice = speaker_wav
                 if torch.cuda.is_available():
