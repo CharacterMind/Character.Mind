@@ -9726,12 +9726,11 @@ function stopActiveTTS() {
   if (activeTTSAudio) { activeTTSAudio.pause(); activeTTSAudio = null; }
   if (activeTTSUtterance) { window.speechSynthesis.cancel(); activeTTSUtterance = null; }
   if (activeTTSBtn) { activeTTSBtn.classList.remove('playing', 'loading'); activeTTSBtn = null; }
-  // Stop streaming TTS queue
-  _streamTTSPlaying = false;
+  _stopCurrentTTS();
   _streamTTSQueue = [];
   _streamTTSBuffer = '';
   const asBtn = document.getElementById('autoSpeakBtn');
-  if (asBtn) asBtn.classList.remove('speaking');
+  if (asBtn) asBtn.classList.remove('speaking', 'loading');
 }
 
 async function toggleTTS(btn) {

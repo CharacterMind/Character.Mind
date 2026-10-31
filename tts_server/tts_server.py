@@ -505,9 +505,9 @@ def tts_endpoint():
                 global _last_chatterbox_voice
                 model = get_chatterbox()
                 if speaker_wav == _last_chatterbox_voice and model.conds is not None:
-                    wav = model.generate(text, exaggeration=0.55, cfg_weight=0.4, temperature=0.75)
+                    wav = model.generate(text, exaggeration=0.6, cfg_weight=0.65, temperature=0.55)
                 else:
-                    wav = model.generate(text, audio_prompt_path=speaker_wav, exaggeration=0.55, cfg_weight=0.4, temperature=0.75)
+                    wav = model.generate(text, audio_prompt_path=speaker_wav, exaggeration=0.6, cfg_weight=0.65, temperature=0.55)
                     _last_chatterbox_voice = speaker_wav
             buf = io.BytesIO()
             torchaudio.save(buf, wav, model.sr, format="wav")
