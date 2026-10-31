@@ -2747,6 +2747,9 @@ function openSettings(tab) {
   const emailSave = document.getElementById('settingsEmailSave');
   if (emailSave) { emailSave.textContent = 'Save'; emailSave.style.display = 'none'; }
 
+  const ownerCoinCard = document.getElementById('ownerSelfCoinCard');
+  if (ownerCoinCard) ownerCoinCard.style.display = isOwner() ? 'flex' : 'none';
+
   if (lastKnownUsage) updateSettingsUsage(lastKnownUsage);
   renderSettingsTiers();
   loadUsage(); // refresh usage data every time settings opens
@@ -2767,9 +2770,6 @@ function showSettingsTab(tab) {
   document.querySelectorAll('.settings-tab-content').forEach(p => p.classList.add('hidden'));
   const activePane = document.getElementById(`stab-content-${tab}`);
   if (activePane) activePane.classList.remove('hidden');
-  if (tab === 'changelog') {
-    setChangelogView('snapshot');
-  }
   if (tab === 'memory') loadMemories();
 }
 
@@ -3738,7 +3738,7 @@ let _ecmCharId = null;
 function openEditContactModal(charId) {
   if (!charId) return;
   _ecmCharId = charId;
-  const c = _phoneContacts.find(x => x.id === charId) || (characters || []).find(x => x.id === charId);
+  const c = _phoneContacts.find(x => x.id === charId) || (characters || []).find(x => x.id === charId) || _customContacts.find(x => x.id === charId);
   if (!c) return;
   const modal = document.getElementById('editContactModal');
   if (!modal) return;
@@ -3792,6 +3792,21 @@ async function saveEditContact() {
   const notes     = (document.getElementById('ecmNotes')?.value || '').trim();
   const name = [firstName, lastName].filter(Boolean).join(' ');
   if (!name) { document.getElementById('ecmFirstName')?.focus(); return; }
+
+  // Custom contacts (localStorage-only) bypass the server API
+  const customContact = _customContacts.find(x => x.id === charId);
+  if (customContact) {
+    customContact.name = name;
+    customContact.firstName = firstName;
+    customContact.lastName = lastName;
+    customContact.notes = notes;
+    _saveCustomContacts();
+    closeEditContactModal();
+    renderPhoneContacts(document.getElementById('phoneSearch')?.value || '');
+    if (_pcpCharId === charId) showPhoneContactProfile(charId);
+    return;
+  }
+
   try {
     const r = await fetch(`/api/phone/contacts/${encodeURIComponent(charId)}/name`, {
       method: 'POST',
@@ -7858,6 +7873,32 @@ async function adminSendCoinsToEmail() {
     }
   } catch (_) { if (info) info.textContent = 'Request failed.'; }
   if (btn) { btn.textContent = 'Send Gift 🎁'; btn.disabled = false; }
+}
+
+async function ownerGiveSelfCoins() {
+  if (!isOwner()) return;
+  const amount = parseInt(document.getElementById('ownerSelfCoinAmount')?.value) || 0;
+  const mode   = document.getElementById('ownerSelfCoinMode')?.value || 'add';
+  const info   = document.getElementById('ownerSelfCoinResult');
+  if (!amount) { if (info) info.textContent = 'Enter an amount.'; return; }
+  const email = currentUser?.email;
+  const btn = document.getElementById('ownerSelfCoinBtn');
+  if (btn) { btn.textContent = 'Applying…'; btn.disabled = true; }
+  if (info) info.textContent = '';
+  try {
+    const d = await fetch('/api/admin/edit-coins', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, amount, mode })
+    }).then(r => r.json());
+    if (d.ok) {
+      if (info) info.textContent = `✓ Balance: ${d.newBalance.toLocaleString()} coins`;
+      showWarning(`💰 Done — ${d.newBalance.toLocaleString()} coins`, 4000);
+    } else {
+      if (info) info.textContent = d.error || 'Failed.';
+    }
+  } catch (_) { if (info) info.textContent = 'Request failed.'; }
+  if (btn) { btn.textContent = '💰 Apply'; btn.disabled = false; }
 }
 
 async function adminCoinLookup() {
