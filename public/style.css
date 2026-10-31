@@ -2351,6 +2351,14 @@ html, body {
 .crop-zoom-btn:hover { background: var(--bg4); }
 .crop-zoom-slider { flex: 1; height: 3px; accent-color: var(--accent); cursor: pointer; }
 .crop-actions { display: flex; gap: 9px; justify-content: flex-end; }
+.crop-rect-overlay {
+  display: none; position: absolute; inset: 0;
+  border: 2px solid rgba(255,255,255,.6); border-radius: 4px;
+  pointer-events: none; box-shadow: 0 0 0 9999px rgba(0,0,0,.55);
+}
+#cropModal.crop-mode-banner .crop-container { aspect-ratio: 3/1; }
+#cropModal.crop-mode-banner .crop-circle-overlay { display: none; }
+#cropModal.crop-mode-banner .crop-rect-overlay { display: block; }
 
 /* ── User Dropdown ────────────────────────────────────────────────────────── */
 .user-dropdown {
@@ -2548,6 +2556,19 @@ html, body {
   cursor: pointer; padding: 0; margin-top: -10px;
 }
 .settings-pfp-remove:hover { color: var(--danger, #ef4444); }
+.settings-banner-section { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
+.settings-banner-wrap {
+  position: relative; width: 100%; height: 88px;
+  border-radius: 10px; overflow: hidden;
+  background: var(--bg3); cursor: pointer; border: 1.5px solid var(--border2);
+}
+.settings-banner-preview { width: 100%; height: 100%; background-size: cover; background-position: center; }
+.settings-banner-overlay {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  gap: 6px; font-size: 12px; font-weight: 500;
+  color: var(--text3); transition: color .15s, background .15s;
+}
+.settings-banner-wrap:hover .settings-banner-overlay { background: rgba(0,0,0,.3); color: #fff; }
 .settings-profile-avatar { width: 72px; height: 72px; border-radius: 50%; overflow: hidden; }
 .settings-profile-avatar .ub-avatar-img { width: 72px; height: 72px; }
 .settings-profile-avatar .ub-initial { width: 72px; height: 72px; font-size: 28px; }

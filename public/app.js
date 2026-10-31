@@ -1888,6 +1888,46 @@ function removePfp() {
   refreshAllAvatars();
 }
 
+function openPfpCrop(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const allowed = ['image/jpeg','image/jpg','image/png','image/webp','image/gif'];
+  if (!allowed.includes(file.type)) { showWarning('Only JPEG, PNG, WebP, or GIF images are allowed.'); event.target.value=''; return; }
+  if (file.size > 10*1024*1024) { showWarning('Image too large — use one under 10 MB.'); event.target.value=''; return; }
+  cropMode = 'pfp';
+  const reader = new FileReader();
+  reader.onload = ev => openCropModal(ev.target.result);
+  reader.readAsDataURL(file);
+}
+
+function openBannerCrop(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const allowed = ['image/jpeg','image/jpg','image/png','image/webp','image/gif'];
+  if (!allowed.includes(file.type)) { showWarning('Only JPEG, PNG, WebP, or GIF images are allowed.'); event.target.value=''; return; }
+  if (file.size > 10*1024*1024) { showWarning('Image too large — use one under 10 MB.'); event.target.value=''; return; }
+  cropMode = 'banner';
+  const reader = new FileReader();
+  reader.onload = ev => openCropModal(ev.target.result);
+  reader.readAsDataURL(file);
+}
+
+function _refreshSettingsBanner() {
+  if (!currentUser) return;
+  let url;
+  try { url = localStorage.getItem(`cm_banner_${currentUser.googleId}`); } catch {}
+  const preview = document.getElementById('settingsBannerPreview');
+  if (preview) preview.style.backgroundImage = url ? `url(${url})` : '';
+  const removeBtn = document.getElementById('bannerRemoveBtn');
+  if (removeBtn) removeBtn.style.display = url ? 'inline-flex' : 'none';
+}
+
+function removeBanner() {
+  if (!currentUser) return;
+  try { localStorage.removeItem(`cm_banner_${currentUser.googleId}`); } catch {}
+  _refreshSettingsBanner();
+}
+
 function renderUserBadge() {
   const badge = document.getElementById('userBadge');
   if (!badge || !currentUser) return;
@@ -2620,6 +2660,7 @@ function openSettings(tab) {
   if (profAvatar) profAvatar.innerHTML = avatarHtml(currentUser, 72);
   const removeBtn = document.getElementById('pfpRemoveBtn');
   if (removeBtn) removeBtn.style.display = getCustomPfp() ? 'inline-flex' : 'none';
+  _refreshSettingsBanner();
 
   const sel = document.getElementById('colorblindMode');
   if (sel) sel.value = document.documentElement.dataset.colorblind || '';
@@ -3430,8 +3471,8 @@ function showPhoneContactProfile(charId, e) {
   const overlay = document.getElementById('phoneContactProfile');
   if (!overlay) return;
   const isCustom = !!_customMatch;
-  const saved = isCustom ? true : !!c.customName;
-  const displayName = isCustom ? (c.name || '') : (c.customName || '');
+  const saved = isCustom ? true : !!c;
+  const displayName = isCustom ? (c.name || '') : (c.customName || c.name || '');
   const color = isCustom ? '#6b7280' : (saved ? safeColor(c.color || '#7c3aed') : '#555');
   const hasImg = !isCustom && saved && isCharImg && isCharImg(c.image);
   const initial = (displayName || '?').charAt(0).toUpperCase();
@@ -12989,6 +13030,7 @@ function updateCount(fieldId, countId, max) {
 }
 
 // ── Avatar Crop ────────────────────────────────────────────────────────────────
+let cropMode = 'avatar'; // 'avatar' | 'pfp' | 'banner'
 const crop = { scale: 1, ox: 0, oy: 0, imgW: 0, imgH: 0, dragging: false, lx: 0, ly: 0, ready: false };
 
 function previewAvatar(e) {
@@ -13011,8 +13053,14 @@ function previewAvatar(e) {
 }
 
 function openCropModal(dataUrl) {
+  const modal = document.getElementById('cropModal');
+  modal.classList.toggle('crop-mode-banner', cropMode === 'banner');
   const img = document.getElementById('cropImg');
-  img.onerror = () => { showWarning('Could not read the image file. Try a different file.'); document.getElementById('avatarUpload').value = ''; };
+  img.onerror = () => {
+    showWarning('Could not read the image file. Try a different file.');
+    const inputId = cropMode === 'pfp' ? 'pfpFileInput' : cropMode === 'banner' ? 'bannerFileInput' : 'avatarUpload';
+    const el = document.getElementById(inputId); if (el) el.value = '';
+  };
   img.onload = () => {
     document.getElementById('cropModal').style.display = 'flex';
     requestAnimationFrame(() => {
@@ -13031,8 +13079,12 @@ function openCropModal(dataUrl) {
 }
 
 function closeCropModal() {
-  document.getElementById('cropModal').style.display = 'none';
-  document.getElementById('avatarUpload').value = '';
+  const modal = document.getElementById('cropModal');
+  modal.style.display = 'none';
+  modal.classList.remove('crop-mode-banner');
+  const inputId = cropMode === 'pfp' ? 'pfpFileInput' : cropMode === 'banner' ? 'bannerFileInput' : 'avatarUpload';
+  const el = document.getElementById(inputId); if (el) el.value = '';
+  cropMode = 'avatar';
 }
 
 function applyCropTransform() {
@@ -13062,24 +13114,53 @@ function setZoomFromSlider(val) {
 }
 
 function confirmCrop() {
-  const size = 400;
+  const isBanner = cropMode === 'banner';
+  const outW = isBanner ? 900 : 400;
+  const outH = isBanner ? 300 : 400;
   const c = document.getElementById('cropContainer');
   const cw = c.clientWidth || 360;
   const canvas = document.createElement('canvas');
-  canvas.width = size; canvas.height = size;
+  canvas.width = outW; canvas.height = outH;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, size, size);
-  const s = size / cw;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, outW, outH);
+  const s = outW / cw;
   ctx.drawImage(document.getElementById('cropImg'), crop.ox*s, crop.oy*s, crop.imgW*crop.scale*s, crop.imgH*crop.scale*s);
-  // Try lower quality if the output is too large for the server (512KB limit)
+
   let quality = 0.92;
   let dataUrl = canvas.toDataURL('image/jpeg', quality);
   if (dataUrl.length > 480000) { dataUrl = canvas.toDataURL('image/jpeg', 0.75); }
   if (dataUrl.length > 480000) { dataUrl = canvas.toDataURL('image/jpeg', 0.6); }
+
+  const modal = document.getElementById('cropModal');
+
+  if (cropMode === 'pfp') {
+    if (!currentUser) { showWarning('Not signed in.'); return; }
+    try { localStorage.setItem(`cm_pfp_${currentUser.googleId}`, dataUrl); } catch {
+      showWarning('Could not save photo — storage may be full. Try clearing some browser data.');
+      const el = document.getElementById('pfpFileInput'); if (el) el.value = ''; return;
+    }
+    refreshAllAvatars();
+    modal.style.display = 'none'; modal.classList.remove('crop-mode-banner'); cropMode = 'avatar';
+    return;
+  }
+
+  if (cropMode === 'banner') {
+    if (!currentUser) { showWarning('Not signed in.'); return; }
+    if (dataUrl.length > 700000) { dataUrl = canvas.toDataURL('image/jpeg', 0.5); }
+    try { localStorage.setItem(`cm_banner_${currentUser.googleId}`, dataUrl); } catch {
+      showWarning('Could not save banner — storage may be full. Try clearing some browser data.');
+      const el = document.getElementById('bannerFileInput'); if (el) el.value = ''; return;
+    }
+    _refreshSettingsBanner();
+    modal.style.display = 'none'; modal.classList.remove('crop-mode-banner'); cropMode = 'avatar';
+    return;
+  }
+
+  // Original avatar (character creation) mode
   if (dataUrl.length > 512000) { showWarning('Image is too large even after compression. Try a smaller or simpler photo.'); document.getElementById('avatarUpload').value = ''; return; }
   pendingAvatarData = dataUrl;
   document.getElementById('avatarPreview').innerHTML = `<img src="${pendingAvatarData}" alt="avatar">`;
-  document.getElementById('cropModal').style.display = 'none';
+  modal.style.display = 'none';
 }
 
 function initCropEvents() {

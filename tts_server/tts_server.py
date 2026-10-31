@@ -203,6 +203,19 @@ def get_chatterbox():
             except ImportError:
                 from chatterbox.tts_turbo import ChatterboxTurboTTS
                 _chatterbox = ChatterboxTurboTTS.from_pretrained(device=device)
+            # Convert large model components to float16 to halve VRAM usage
+            if device == "cuda":
+                for attr_name in ('t3', 's3gen'):
+                    m = getattr(_chatterbox, attr_name, None)
+                    if m is not None and hasattr(m, 'half'):
+                        try:
+                            setattr(_chatterbox, attr_name, m.half())
+                            print(f"[voice-ai]   {attr_name} → float16", flush=True)
+                        except Exception as fp16_err:
+                            print(f"[voice-ai]   {attr_name} fp16 skipped: {fp16_err}", flush=True)
+                torch.cuda.empty_cache()
+                used = round(torch.cuda.memory_allocated() / 1e9, 2)
+                print(f"[voice-ai] VRAM after load: {used} GB", flush=True)
             print(f"[voice-ai] Chatterbox TTS ready on {device.upper()}", flush=True)
     return _chatterbox
 
@@ -489,6 +502,10 @@ def tts_endpoint():
         sf_lib.write(buf, wav, sr, format="WAV")
         audio_bytes = buf.getvalue()
         _cache_set(ck, audio_bytes)
+        try:
+            import torch
+            if torch.cuda.is_available(): torch.cuda.empty_cache()
+        except Exception: pass
         elapsed = round(time.time() - t0, 2)
         print(f"[voice-ai] f5tts {len(text)} chars in {elapsed}s (voice={Path(speaker_wav).stem})", flush=True)
         resp = send_file(io.BytesIO(audio_bytes), mimetype="audio/wav", as_attachment=False)
@@ -549,14 +566,29 @@ def tts_endpoint():
             return resp
         t0 = time.time()
         try:
+            import torch
             with _lock:
                 global _last_chatterbox_voice
                 model = get_chatterbox()
-                if speaker_wav == _last_chatterbox_voice and model.conds is not None:
-                    wav = model.generate(text, exaggeration=0.6, cfg_weight=0.65, temperature=0.55)
-                else:
-                    wav = model.generate(text, audio_prompt_path=speaker_wav, exaggeration=0.6, cfg_weight=0.65, temperature=0.55)
-                    _last_chatterbox_voice = speaker_wav
+                with torch.inference_mode():
+                    if speaker_wav == _last_chatterbox_voice and model.conds is not None:
+                        wav = model.generate(
+                            text,
+                            exaggeration=0.3,
+                            cfg_weight=0.9,
+                            temperature=0.3,
+                        )
+                    else:
+                        wav = model.generate(
+                            text,
+                            audio_prompt_path=speaker_wav,
+                            exaggeration=0.3,
+                            cfg_weight=0.9,
+                            temperature=0.3,
+                        )
+                        _last_chatterbox_voice = speaker_wav
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
             buf = io.BytesIO()
             torchaudio.save(buf, wav, model.sr, format="wav")
             audio_bytes = buf.getvalue()
