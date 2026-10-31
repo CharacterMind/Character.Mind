@@ -11796,9 +11796,11 @@ function renderFriendshipBar(d) {
 
   if (d.unlocked) {
     scoreEl.textContent = '💕 Unlocked';
+    scoreEl.style.display = '';
     hintEl.textContent = 'She trusts you — number is in Contacts';
   } else {
-    scoreEl.textContent = score === 0 ? `0 / ${threshold}` : `${score} / ${threshold}`;
+    scoreEl.textContent = '';
+    scoreEl.style.display = 'none';
     if (score === 0) hintEl.textContent = 'Chat to earn their trust';
     else if (pct < 30) hintEl.textContent = 'Just getting started…';
     else if (pct < 60) hintEl.textContent = 'You\'re warming up!';
