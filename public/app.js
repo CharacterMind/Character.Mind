@@ -3167,8 +3167,8 @@ function renderPhoneContacts(query) {
     const availDot = avail.busy
       ? `<span class="ph-avail-dot ph-avail-busy" title="Busy right now"></span>`
       : `<span class="ph-avail-dot ph-avail-free" title="Available"></span>`;
-    return `<div class="ph-contact-card" style="--ph-color:${escHtml(color)};--ph-glow:${escHtml(color)}">
-      <div class="ph-contact-avatar" style="background:${escHtml(color)}" onclick="showPhoneContactProfile('${escHtml(c.id)}',event)">${avatarContent}</div>
+    return `<div class="ph-contact-card" style="--ph-color:${escHtml(color)};--ph-glow:${escHtml(color)}" onclick="showPhoneContactProfile('${escHtml(c.id)}',event)">
+      <div class="ph-contact-avatar" style="background:${escHtml(color)}">${avatarContent}</div>
       <div class="ph-contact-name">${availDot}${escHtml(displayName)}</div>
       <div class="ph-contact-num">${escHtml(phone)}</div>
       <div class="ph-contact-btns">
@@ -3386,15 +3386,25 @@ function showPhoneContactProfile(charId, e) {
 
   // Name
   const nameEl = document.getElementById('pcpName');
-  if (saved) { nameEl.textContent = displayName; nameEl.style.fontStyle = ''; }
-  else { nameEl.textContent = 'Unknown'; nameEl.style.fontStyle = 'italic'; }
+  if (nameEl) {
+    if (saved) { nameEl.textContent = displayName; nameEl.style.fontStyle = ''; }
+    else { nameEl.textContent = 'Unknown'; nameEl.style.fontStyle = 'italic'; }
+  }
 
   // Phone number row
-  document.getElementById('pcpNum').textContent = c.phone || '';
+  const numEl = document.getElementById('pcpNum');
+  if (numEl) numEl.textContent = c.phone || '';
+  const numSub = document.querySelector('#phoneContactProfile .pcp-row-sub');
+  if (numSub) {
+    const avail = typeof charAvailability === 'function' ? charAvailability(c.id) : null;
+    numSub.textContent = avail?.busy ? 'Character · Busy' : 'Character · Mobile';
+  }
 
   // Action buttons
-  document.getElementById('pcpCallBtn').onclick = () => { closePhoneContactProfile(); callCharFromPhone(charId); };
-  document.getElementById('pcpChatBtn').onclick = () => { closePhoneContactProfile(); openChat(charId); };
+  const callBtn = document.getElementById('pcpCallBtn');
+  if (callBtn) callBtn.onclick = () => { closePhoneContactProfile(); callCharFromPhone(charId); };
+  const chatBtn = document.getElementById('pcpChatBtn');
+  if (chatBtn) chatBtn.onclick = () => { closePhoneContactProfile(); openChat(charId); };
   const numMsgBtn = document.getElementById('pcpNumMsgBtn');
   if (numMsgBtn) numMsgBtn.onclick = () => { closePhoneContactProfile(); openChat(charId); };
 
