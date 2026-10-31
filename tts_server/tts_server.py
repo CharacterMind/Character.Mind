@@ -498,6 +498,14 @@ def tts_endpoint():
 
     # KokoClone path — Kokoro TTS + Kanade zero-shot voice conversion
     if tts_engine in ("kokoclone", "koko"):
+        ck = _cache_key("kokoclone", Path(speaker_wav).stem, text)
+        cached = _cache_get(ck)
+        if cached:
+            print(f"[voice-ai] kokoclone cache hit ({len(text)} chars, voice={Path(speaker_wav).stem})", flush=True)
+            resp = send_file(io.BytesIO(cached), mimetype="audio/wav", as_attachment=False)
+            resp.headers["X-Synthesis-Time"] = "0"
+            resp.headers["X-TTS-Provider"]   = "kokoclone-cache"
+            return resp
         t0 = time.time()
         tmp_out = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
         tmp_out.close()
@@ -520,6 +528,7 @@ def tts_endpoint():
                 os.unlink(tmp_out.name)
             except OSError:
                 pass
+        _cache_set(ck, audio_bytes)
         elapsed = round(time.time() - t0, 2)
         print(f"[voice-ai] kokoclone {len(text)} chars in {elapsed}s (voice={Path(speaker_wav).stem})", flush=True)
         resp = send_file(io.BytesIO(audio_bytes), mimetype="audio/wav", as_attachment=False)
@@ -621,7 +630,24 @@ if __name__ == "__main__":
             print("[voice-ai] Server will start anyway; requests will retry model load.", flush=True)
     elif _MODEL_KEY == "kokoclone":
         try:
-            get_kokoclone()
+            model = get_kokoclone()
+            # Pre-warm Kokoro ONNX (first synthesis loads it; do it now so first real request is fast)
+            _prewarm_voices = [str(VOICES_DIR / "poppy.wav"), str(VOICES_DIR / "huggy.wav")]
+            _prewarm_voice  = next((v for v in _prewarm_voices if os.path.exists(v)), None)
+            if _prewarm_voice:
+                _pw_tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+                _pw_tmp.close()
+                try:
+                    model.generate(text="Hi.", lang="en", reference_audio=_prewarm_voice, output_path=_pw_tmp.name)
+                    # Store in cache so "Hi." is also instant
+                    with open(_pw_tmp.name, "rb") as _f:
+                        _cache_set(_cache_key("kokoclone", Path(_prewarm_voice).stem, "Hi."), _f.read())
+                    print("[voice-ai] KokoClone pre-warmed (Kokoro ONNX ready)", flush=True)
+                except Exception as _e:
+                    print(f"[voice-ai] KokoClone pre-warm skipped: {_e}", flush=True)
+                finally:
+                    try: os.unlink(_pw_tmp.name)
+                    except OSError: pass
         except Exception as e:
             print(f"[voice-ai] WARNING: KokoClone failed to pre-load: {e}", flush=True)
             print("[voice-ai] Server will start anyway; requests will retry model load.", flush=True)

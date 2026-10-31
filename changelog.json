@@ -1,13 +1,25 @@
 [
   {
+    "id": "v418-tts-prewarm",
+    "version": "v418",
+    "date": "Oct 2026",
+    "title": "🎙️ Warmed Voice on Startup",
+    "subtitle": "KokoClone now pre-warms Kokoro ONNX at server start — first real phrase is fast instead of cold.",
+    "fixed": [
+      "tts_server.py pre-synthesises a short phrase at startup to warm Kokoro ONNX into memory",
+      "Pre-warm result is stored in cache — 'Hi.' is instant from the very first message",
+      "start-voice.py now explicitly defaults to KokoClone (GPU) over F5-TTS"
+    ]
+  },
+  {
     "id": "v417-tts-fast",
     "version": "v417",
     "date": "Oct 2026",
     "title": "🎙️ Nearly Instant Voice",
-    "subtitle": "Switched from Chatterbox (6-15s) to F5-TTS (0.8-1.5s) — plus LRU audio cache makes repeated phrases play instantly.",
+    "subtitle": "Switched from Chatterbox (6-15s) to KokoClone GPU (~2s) — repeated phrases are instant (0ms) via LRU audio cache.",
     "fixed": [
-      "start-voice.py now defaults to F5-TTS instead of Chatterbox — 5-10x faster synthesis",
-      "F5-TTS uses 16 diffusion steps instead of 32 — 2x faster with negligible quality loss",
+      "start-voice.py now defaults to KokoClone (GPU) instead of Chatterbox — 5-10x faster synthesis",
+      "KokoClone pre-warms Kokoro ONNX on startup so the first real phrase is fast, not cold",
       "LRU audio cache in tts_server.py — repeated phrases return instantly (0ms)",
       "LRU audio cache in server.js — cached phrases skip tts_server entirely",
       "Both caches hold 80-100 entries; common greetings and phrases stay warm all session"
