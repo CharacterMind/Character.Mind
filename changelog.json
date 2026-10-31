@@ -1,5 +1,20 @@
 [
   {
+    "id": "v425-voice-fix-owner-analytics",
+    "version": "v425",
+    "date": "Oct 2026",
+    "title": "🎙️ Voice & Analytics Fix",
+    "subtitle": "Chatterbox TTS dependency fixed, owner account excluded from analytics, TTS call timeout added.",
+    "added": [
+      "Owner account excluded from analytics — owner visits no longer pollute user stats"
+    ],
+    "fixed": [
+      "Chatterbox TTS fails to load due to pyarrow/NumPy version conflict — fixed by pinning pyarrow 15.0.2",
+      "Voice calls freeze indefinitely when TTS server is down — 18s AbortController timeout now lets calls fail gracefully"
+    ],
+    "changed": []
+  },
+  {
     "id": "v424-contacts-calls-analytics",
     "version": "v424",
     "date": "Oct 2026",

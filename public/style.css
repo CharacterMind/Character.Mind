@@ -5312,7 +5312,61 @@ body:not(.halloween) .hw-off-label { display: inline; }
 .pcp-hdr-icon.pcp-fav-active { color: #fbbf24; }
 /* Scrollable body */
 .pcp-body { flex: 1; overflow-y: auto; }
-/* Hero */
+/* Picture & calling card widget */
+.pcp-pic-card-wrap {
+  margin: 12px 16px 4px;
+  background: var(--bg2, #1a1d2e);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.pcp-pic-inner { display: flex; height: 130px; }
+.pcp-pic-left {
+  width: 110px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  background: var(--bg3, #252840);
+  border-right: 1px solid var(--border, rgba(255,255,255,.07));
+}
+.pcp-avatar-sm {
+  width: 70px !important; height: 70px !important;
+  font-size: 26px !important;
+}
+.pcp-pic-edit-sm {
+  position: absolute; bottom: 14px; right: 10px;
+  width: 22px; height: 22px;
+  background: var(--bg, #0f1117);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text2, #c7cce0);
+}
+.pcp-calling-card {
+  flex: 1;
+  background: linear-gradient(160deg, var(--pcp-color, #7c3aed) 0%, rgba(0,0,0,.75) 100%);
+  display: flex; flex-direction: column;
+  overflow: hidden; position: relative;
+}
+.pcp-calling-card-photo {
+  flex: 1;
+  background-size: cover;
+  background-position: center top;
+  opacity: .65;
+}
+.pcp-calling-card-footer {
+  padding: 6px 10px;
+  display: flex; justify-content: flex-end;
+  background: linear-gradient(transparent, rgba(0,0,0,.45));
+  color: rgba(255,255,255,.75);
+}
+.pcp-pic-card-title {
+  padding: 6px 12px 9px;
+  font-size: 12px; color: var(--muted, #6b7280);
+}
+/* Name below the card */
+.pcp-name {
+  text-align: center; font-size: 26px; font-weight: 400;
+  color: var(--text, #f1f5f9); margin: 10px 20px 0; padding-bottom: 4px;
+}
+/* Hero — kept for backward compat if referenced elsewhere */
 .pcp-hero { display: flex; flex-direction: column; align-items: center; padding: 20px 20px 12px; }
 .pcp-avatar {
   width: 148px; height: 148px; border-radius: 50%;
@@ -5322,10 +5376,6 @@ body:not(.halloween) .hw-off-label { display: inline; }
   overflow: hidden; flex-shrink: 0;
 }
 .pcp-avatar img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
-.pcp-name {
-  text-align: center; font-size: 28px; font-weight: 400;
-  color: var(--text, #f1f5f9); margin: 16px 20px 0;
-}
 /* 4 pill action buttons */
 .pcp-actions {
   display: flex; gap: 10px; justify-content: center;

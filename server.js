@@ -5318,6 +5318,7 @@ app.post('/api/memo/use', requireAuth, (req, res) => {
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
 app.post('/api/analytics/ping', requireAuth, async (req, res) => {
+  if (OWNER_EMAILS.has(req.user.email)) return res.json({ ok: true, activeNow: _liveUsers.size });
   const userId = req.user.googleId;
   const isNew = !_liveUsers.has(userId);
   _liveUsers.set(userId, {
