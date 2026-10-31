@@ -1,5 +1,63 @@
 [
   {
+    "id": "v429-voice-contacts-fix",
+    "version": "v429",
+    "date": "Oct 2026",
+    "title": "🎙️ Voice & Contacts Fix",
+    "subtitle": "Poppy's cloned voice fully restored, phone contacts no longer show as Unknown.",
+    "fixed": [
+      "Poppy's voice sample replaced with a clean 8-second clip — previous file was too long for Chatterbox conditioning and produced degraded quality",
+      "Voice server health check now correctly reports Chatterbox as ready — was always reporting 'not ready' due to checking the wrong variable, causing fallback to Edge TTS",
+      "Phone contacts without a custom nickname now show the character's real name instead of 'Unknown'",
+      "Phone contact search now finds contacts by character name, not only by custom nickname",
+      "Voice synthesis uses torch.autocast fp16 instead of manual half() cast — prevents tensor type mismatch errors on some GPUs"
+    ]
+  },
+  {
+    "id": "v428-contact-profile-banner-tts",
+    "version": "v428",
+    "date": "Oct 2026",
+    "title": "🖼️ Profile Banner + Contact Fix",
+    "subtitle": "Add a banner image to your profile, and character contact names display correctly.",
+    "added": [
+      "Profile banner — upload and crop a banner image from the Settings profile tab"
+    ],
+    "fixed": [
+      "Character phone contacts now correctly show their name and avatar in the contact profile — was showing 'Unknown' with a blank avatar for any character without a custom nickname",
+      "Chatterbox VRAM usage halved on GPU — model layers now cast to float16 after load, freeing memory for synthesis"
+    ]
+  },
+  {
+    "id": "v427-phone-delete-block-call-gates",
+    "version": "v427",
+    "date": "Oct 2026",
+    "title": "📵 Delete & Block Contacts",
+    "subtitle": "Remove characters from your phone or block their calls entirely. Sign-out now clears push notifications cleanly.",
+    "added": [
+      "Remove from phone — tap Remove on any character contact to hide them from your contacts list (the friendship unlock stays intact)",
+      "Block calls — block any contact so their incoming call ring never shows again; unblock any time from the contact profile",
+      "Blocked characters are also skipped when the app picks who calls you via push notification"
+    ],
+    "fixed": [
+      "Signing out now correctly disables push notifications before logging out — no more ghost call notifications after sign-out",
+      "Poppy's voice restored to standard Chatterbox as the priority engine (Turbo is the fallback)"
+    ]
+  },
+  {
+    "id": "v426-ios-scroll-chatterbox",
+    "version": "v426",
+    "date": "Oct 2026",
+    "title": "📱 iOS Scroll Fixes + Chatterbox Voice",
+    "subtitle": "Smoother scrolling on iPhone and Chatterbox is now the default voice engine.",
+    "fixed": [
+      "App height now adjusts correctly when the iOS on-screen keyboard appears — no more content hidden behind the keyboard",
+      "Chat, group chat, and call screens now scroll smoothly on iOS with momentum scrolling and no over-bounce"
+    ],
+    "changed": [
+      "Chatterbox is now the default voice engine in start-voice.py — higher quality clone voice active by default"
+    ]
+  },
+  {
     "id": "v425-voice-fix-owner-analytics",
     "version": "v425",
     "date": "Oct 2026",
