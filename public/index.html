@@ -22,7 +22,7 @@
 <link rel="icon" type="image/svg+xml" href="/logo-icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=391">
+<link rel="stylesheet" href="style.css?v=392">
 <style>
   #nl-badge-frame { display: none !important; }
 </style>
@@ -550,6 +550,9 @@
           <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
           <input id="phoneSearch" class="ph-search" placeholder="Search contacts…" oninput="renderPhoneContacts(this.value)">
         </div>
+        <button class="ph-add-btn" onclick="openNewContactSheet()" title="New contact">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+        </button>
       </div>
       <!-- Tab bar -->
       <div class="ph-tabs" id="phTabs">
@@ -2407,7 +2410,7 @@
 </div>
 
 
-<script src="app.js?v=421"></script>
+<script src="app.js?v=422"></script>
 
 <!-- Quiz Modal -->
 <div id="quizOverlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeQuizModal()">

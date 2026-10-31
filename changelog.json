@@ -1,5 +1,18 @@
 [
   {
+    "id": "v422-contact-bug-fixes",
+    "version": "v422",
+    "date": "Oct 2026",
+    "title": "🔧 Contact Bug Fixes",
+    "subtitle": "Four bugs squashed in the contacts system.",
+    "changed": [
+      "Fixed broken SVG in unknown-contact profile avatar (missing </svg> closing tag)",
+      "Fixed profile showing stale name after editing via pencil icon — profile now refreshes instantly",
+      "Added + button in phone header so new contacts can be created even when contacts exist",
+      "Removed non-functional 'Add photo' label from new contact page"
+    ]
+  },
+  {
     "id": "v421-new-contact-page",
     "version": "v421",
     "date": "Oct 2026",

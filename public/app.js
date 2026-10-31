@@ -3207,7 +3207,6 @@ function openNewContactSheet() {
           <div class="nc-avatar-circle">
             <svg viewBox="0 0 24 24" width="52" height="52" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
           </div>
-          <span class="nc-add-photo">Add photo</span>
         </div>
         <div class="nc-fields">
           <div class="nc-field-row">
@@ -3281,7 +3280,7 @@ function showPhoneContactProfile(charId, e) {
   avatarEl.innerHTML = saved && hasImg
     ? `<img src="${escHtml(c.image)}" alt="" onerror="this.style.display='none'">`
     : saved ? escHtml(initial)
-    : `<svg viewBox="0 0 24 24" fill="currentColor" width="56" height="56"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>`;
+    : `<svg viewBox="0 0 24 24" fill="currentColor" width="56" height="56"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>`;
 
   // Name
   const nameEl = document.getElementById('pcpName');
@@ -3369,6 +3368,8 @@ async function confirmSaveContact() {
     if (c) c.customName = name;
     closeSaveContactSheet();
     renderPhoneContacts(document.getElementById('phoneSearch')?.value || '');
+    // Refresh contact profile if it's open for the same character
+    if (_pcpCharId === charId) showPhoneContactProfile(charId);
   } catch (_) {}
 }
 
