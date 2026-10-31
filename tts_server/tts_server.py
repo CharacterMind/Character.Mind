@@ -186,6 +186,7 @@ def get_kokoclone():
 # ---------------------------------------------------------------------------
 _chatterbox      = None
 _chatterbox_lock = threading.Lock()
+_last_chatterbox_voice = None  # path of the last prepared speaker wav
 
 def get_chatterbox():
     global _chatterbox
@@ -501,8 +502,13 @@ def tts_endpoint():
         t0 = time.time()
         try:
             with _lock:
+                global _last_chatterbox_voice
                 model = get_chatterbox()
-                wav = model.generate(text, audio_prompt_path=speaker_wav)
+                if speaker_wav == _last_chatterbox_voice and model.conds is not None:
+                    wav = model.generate(text, exaggeration=0.55, cfg_weight=0.4, temperature=0.75)
+                else:
+                    wav = model.generate(text, audio_prompt_path=speaker_wav, exaggeration=0.55, cfg_weight=0.4, temperature=0.75)
+                    _last_chatterbox_voice = speaker_wav
             buf = io.BytesIO()
             torchaudio.save(buf, wav, model.sr, format="wav")
             buf.seek(0)

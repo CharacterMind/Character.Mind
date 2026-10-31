@@ -5436,7 +5436,7 @@ async function generateGreeting() {
             bubble.classList.add('streaming');
             startStreamStats(msgEl);
             startTypewriter(bubble, msgEl);
-            _streamTTSBuffer = ''; _streamTTSQueue = []; _streamTTSPlaying = false;
+            _streamTTSBuffer = ''; _streamTTSQueue = []; _streamTTSPlaying = false; _ttsPrefetchPool.clear();
           }
           streamText += data.text;
           feedTypewriter(data.text);
@@ -5792,7 +5792,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
             bubble.classList.add('streaming');
             startStreamStats(msgEl);
             startTypewriter(bubble, msgEl);
-            _streamTTSBuffer = ''; _streamTTSQueue = []; _streamTTSPlaying = false;
+            _streamTTSBuffer = ''; _streamTTSQueue = []; _streamTTSPlaying = false; _ttsPrefetchPool.clear();
           }
           streamText += data.text;
           feedTypewriter(data.text);
@@ -9317,17 +9317,18 @@ let activeTTSBtn = null;
 let activeTTSAudio = null;
 
 // ── Streaming TTS (auto-speak during generation) ──────────────────────────────
-let chatAutoSpeak = false;
-try { chatAutoSpeak = localStorage.getItem('cm_autospeak') === '1'; } catch(_) {}
+let chatAutoSpeak = true; // default ON
+try { const v = localStorage.getItem('cm_autospeak'); if (v !== null) chatAutoSpeak = v === '1'; } catch(_) {}
 let _streamTTSBuffer = '';
 let _streamTTSQueue = [];
 let _streamTTSPlaying = false;
+let _ttsPrefetchPool = new Map(); // cleaned text → Promise<Blob|null>
 
 function toggleAutoSpeak() {
   chatAutoSpeak = !chatAutoSpeak;
   try { localStorage.setItem('cm_autospeak', chatAutoSpeak ? '1' : '0'); } catch(_) {}
   updateAutoSpeakBtn();
-  if (!chatAutoSpeak) { _streamTTSQueue = []; _streamTTSBuffer = ''; _streamTTSPlaying = false; }
+  if (!chatAutoSpeak) { _streamTTSQueue = []; _streamTTSBuffer = ''; _streamTTSPlaying = false; _ttsPrefetchPool.clear(); }
 }
 
 function updateAutoSpeakBtn() {
@@ -9335,6 +9336,18 @@ function updateAutoSpeakBtn() {
   if (!btn) return;
   btn.classList.toggle('active', chatAutoSpeak);
   btn.title = chatAutoSpeak ? 'Auto-speak on' : 'Auto-speak off';
+}
+
+function _prefetchSentence(rawText) {
+  if (ttsProvider === 'browser' || ttsProvider === 'off') return;
+  const clean = ttsCleanText(rawText);
+  if (!clean || clean.length <= 1 || _ttsPrefetchPool.has(clean)) return;
+  const p = fetch('/api/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: clean.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
+  }).then(r => r.ok ? r.blob() : null).catch(() => null);
+  _ttsPrefetchPool.set(clean, p);
 }
 
 function _feedAutoSpeak(chunk) {
@@ -9348,7 +9361,7 @@ function _feedAutoSpeak(chunk) {
     const curr = buf[i];
     if ('.!?'.includes(prev) && (curr === ' ' || curr === '\n')) {
       const sentence = buf.slice(start, i).trim();
-      if (sentence.length > 2) _streamTTSQueue.push(sentence);
+      if (sentence.length > 2) { _streamTTSQueue.push(sentence); _prefetchSentence(sentence); }
       start = i;
       while (start < buf.length && (buf[start] === ' ' || buf[start] === '\n')) start++;
       i = start;
@@ -9361,7 +9374,7 @@ function _feedAutoSpeak(chunk) {
 function _flushAutoSpeak() {
   if (!chatAutoSpeak || callModeActive) return;
   const sentence = _streamTTSBuffer.trim();
-  if (sentence.length > 2) { _streamTTSQueue.push(sentence); _playStreamTTSQueue(); }
+  if (sentence.length > 2) { _streamTTSQueue.push(sentence); _prefetchSentence(sentence); _playStreamTTSQueue(); }
   _streamTTSBuffer = '';
 }
 
@@ -9371,15 +9384,6 @@ async function _playStreamTTSQueue() {
   const btn = document.getElementById('autoSpeakBtn');
   if (btn) btn.classList.add('speaking');
 
-  const fetchAudio = (text) => {
-    if (ttsProvider === 'browser' || ttsProvider === 'off') return Promise.resolve(null);
-    return fetch('/api/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
-    }).then(r => (r.ok && _streamTTSPlaying) ? r.blob() : null).catch(() => null);
-  };
-
   const nextClean = () => {
     while (_streamTTSQueue.length > 0) {
       const t = ttsCleanText(_streamTTSQueue.shift() || '');
@@ -9388,20 +9392,26 @@ async function _playStreamTTSQueue() {
     return null;
   };
 
-  // Kick off first fetch immediately; then pre-fetch next while current plays
-  let pendingText = nextClean();
-  let pending = pendingText ? fetchAudio(pendingText) : null;
+  while (_streamTTSPlaying) {
+    const text = nextClean();
+    if (!text) break;
 
-  while (pending !== null && _streamTTSPlaying) {
-    const nextText = nextClean();
-    const futureFetch = nextText ? fetchAudio(nextText) : null;
+    // Use pre-fetched audio (started when sentence was extracted); fall back to fetching now
+    let blobPromise = _ttsPrefetchPool.get(text);
+    _ttsPrefetchPool.delete(text);
+    if (!blobPromise && ttsProvider !== 'browser' && ttsProvider !== 'off') {
+      blobPromise = fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
+      }).then(r => r.ok ? r.blob() : null).catch(() => null);
+    }
 
-    const blob = await pending;
-
-    if (_streamTTSPlaying) {
-      if (ttsProvider === 'browser') {
-        await _speakStreamSentence(pendingText);
-      } else if (blob) {
+    if (ttsProvider === 'browser') {
+      await _speakStreamSentence(text);
+    } else if (blobPromise) {
+      const blob = await blobPromise;
+      if (blob && _streamTTSPlaying) {
         await new Promise(resolve => {
           const url = URL.createObjectURL(blob);
           const audio = new Audio(url);
@@ -9411,17 +9421,10 @@ async function _playStreamTTSQueue() {
         });
       }
     }
-
-    pending = futureFetch;
-    pendingText = nextText;
-    // Pick up any sentences that arrived while we were playing
-    if (pending === null) {
-      const t = nextClean();
-      if (t) { pending = fetchAudio(t); pendingText = t; }
-    }
   }
 
   _streamTTSPlaying = false;
+  _ttsPrefetchPool.clear();
   if (btn) btn.classList.remove('speaking');
 }
 
