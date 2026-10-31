@@ -2006,6 +2006,16 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '407': {
+    date: 'October 2026',
+    label: 'Instant Voice + Huggy Card Fixed',
+    fixed: [
+      'Voice now starts speaking during the reply — not after it finishes — so you hear the first sentence as soon as it\'s ready',
+      'Long replies no longer cut off mid-speech — the full message is spoken in one continuous pipeline',
+      'Huggy Wuggy\'s card now shows his whole body (no more cropping)',
+      'Character cards on mobile also show the full body image',
+    ],
+  },
   '406': {
     date: 'October 2026',
     label: 'Bug Scan + Poppy Voice Update',
@@ -9384,7 +9394,7 @@ function _prefetchSentence(rawText) {
   const p = fetch('/api/tts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: clean.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
+    body: JSON.stringify({ text: clean.slice(0, 499), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
   }).then(r => r.ok ? r.blob() : null).catch(() => null);
   _ttsPrefetchPool.set(clean, p);
 }
@@ -9392,14 +9402,29 @@ function _prefetchSentence(rawText) {
 function _feedAutoSpeak(chunk) {
   if (!chatAutoSpeak || callModeActive) return;
   _streamTTSBuffer += chunk;
-  // Just buffer — full message is sent as ONE TTS request when streaming ends (no inter-sentence pauses)
+  // Extract complete sentences as they arrive and start GPU synthesis immediately — don't wait for stream end
+  const parts = _streamTTSBuffer.split(/(?<=[.!?])\s+/);
+  if (parts.length <= 1) return; // no complete sentence yet
+  _streamTTSBuffer = parts.pop(); // keep the incomplete tail
+  for (const s of parts) {
+    if (s.trim().length > 1) {
+      _streamTTSQueue.push(s);
+      _prefetchSentence(s); // fire-and-forget GPU synthesis now
+    }
+  }
+  if (!_streamTTSPlaying && _streamTTSQueue.length > 0) _playStreamTTSQueue();
 }
 
 function _flushAutoSpeak() {
   if (!chatAutoSpeak || callModeActive) return;
-  const fullText = _streamTTSBuffer.trim();
+  // Push any remaining text (last fragment without terminal punctuation) into the queue
+  const remaining = _streamTTSBuffer.trim();
   _streamTTSBuffer = '';
-  if (fullText.length > 1) _playFullMessageTTS(fullText);
+  if (remaining.length > 1) {
+    _streamTTSQueue.push(remaining);
+    _prefetchSentence(remaining);
+  }
+  if (!_streamTTSPlaying && _streamTTSQueue.length > 0) _playStreamTTSQueue();
 }
 
 async function _playFullMessageTTS(rawText) {
@@ -9419,7 +9444,7 @@ async function _playFullMessageTTS(rawText) {
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: clean.slice(0, 1000), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
+      body: JSON.stringify({ text: clean.slice(0, 499), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
     });
     if (myGen !== _ttsGeneration) return; // superseded by a newer message
     if (btn) btn.classList.remove('loading');
@@ -9469,7 +9494,7 @@ async function _playStreamTTSQueue() {
       blobPromise = fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
+        body: JSON.stringify({ text: text.slice(0, 499), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
       }).then(r => r.ok ? r.blob() : null).catch(() => null);
     }
 
@@ -9512,7 +9537,7 @@ function _speakStreamSentence(text) {
     fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.slice(0, 400), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
+      body: JSON.stringify({ text: text.slice(0, 499), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
     }).then(r => {
       if (!r.ok || !_streamTTSPlaying) { resolve(); return null; }
       return r.blob();

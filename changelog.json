@@ -1,5 +1,18 @@
 [
   {
+    "id": "v407-tts-instant-huggy-fix",
+    "version": "v407",
+    "date": "Oct 2026",
+    "title": "🔊 Instant Voice + Huggy Card Fixed",
+    "subtitle": "Voice starts speaking during the reply, not after. Long replies play in full. Huggy's card shows his whole body.",
+    "fixed": [
+      "Voice used to wait until the full reply finished — now starts speaking the first sentence as soon as it's ready",
+      "Long replies were cut off at 1000 characters — full message now plays through to the end",
+      "Huggy Wuggy's card image was cropped (only showing his lower body) — whole body visible now",
+      "Character cards on mobile also show the full image instead of a cropped square"
+    ]
+  },
+  {
     "id": "v406-bug-scan",
     "version": "v406",
     "date": "Oct 2026",

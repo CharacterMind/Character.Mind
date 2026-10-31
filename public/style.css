@@ -6356,12 +6356,17 @@ body:not(.halloween) .hw-off-label { display: inline; }
 }
 
 .hc-avatar {
-  width: 96px !important;
-  height: 96px !important;
-  border-radius: 14px !important;
+  width: 100% !important;
+  height: 155px !important;
+  border-radius: 12px !important;
   font-size: 44px !important;
-  margin: 0 auto 16px !important;
+  margin: 0 0 16px 0 !important;
   flex-shrink: 0 !important;
+}
+.hc-avatar img {
+  object-fit: contain !important;
+  object-position: center !important;
+  border-radius: 8px !important;
 }
 
 .hc-info {
@@ -6482,7 +6487,7 @@ body:not(.halloween) .hw-off-label { display: inline; }
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 10px !important;
   }
-  .hc-avatar { width: 72px !important; height: 72px !important; font-size: 32px !important; }
+  .hc-avatar { width: 100% !important; height: 120px !important; font-size: 32px !important; }
   .app-body { order: 1 !important; }
 }
 
