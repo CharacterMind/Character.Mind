@@ -318,7 +318,14 @@ def _find_voice(voice_id: str):
 # ---------------------------------------------------------------------------
 @app.route("/health", methods=["GET"])
 def health():
-    model_loaded = (_chatterbox is not None) if _MODEL_KEY == 'chatterbox' else (_tts is not None)
+    if _MODEL_KEY == 'chatterbox':
+        model_loaded = _chatterbox is not None
+    elif _MODEL_KEY == 'f5tts':
+        model_loaded = _f5tts is not None
+    elif _MODEL_KEY == 'kokoclone':
+        model_loaded = _kokoclone is not None
+    else:
+        model_loaded = _tts is not None
     return jsonify({
         "ok":          True,
         "model":       _MODEL_KEY,
