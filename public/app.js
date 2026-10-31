@@ -2006,6 +2006,21 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '402': {
+    date: 'October 2026',
+    label: 'Sessions Survive Deploys + Friendship Fixes',
+    added: [
+      '⚡ Max button (owner only) fills friendship instantly for testing',
+    ],
+    fixed: [
+      'Logging out on every deploy is fixed — sessions now persist in the database so redeploys keep you signed in',
+      'Friendship reset now generates a NEW random threshold (was reusing the old one)',
+      'Friendship bar now shows your exact score vs the target (e.g. 15 / 87) instead of the confusing 15 / 20–100',
+      'Poppy no longer says she has no phone number — she correctly says she has one but isn\'t sharing it yet',
+      'Voice preview now stops automatically when you close the Voice panel',
+      'What\'s New megaphone now visible in the sidebar at all times (not just on the home screen)',
+    ],
+  },
   '388': {
     date: 'October 2026',
     label: 'Calls Counter & Reset Timer Fixed',
@@ -8664,6 +8679,7 @@ function switchVoiceTab(tab) {
 }
 
 function closeVoicePanel() {
+  _stopPreview();
   const overlay = document.getElementById('voicePanelOverlay');
   if (overlay) overlay.style.display = 'none';
 }
@@ -11774,7 +11790,7 @@ function renderFriendshipBar(d) {
     scoreEl.textContent = '💕 Unlocked';
     hintEl.textContent = 'She trusts you — number is in Contacts';
   } else {
-    scoreEl.textContent = score === 0 ? '20–100 msgs' : `${score} / 20–100`;
+    scoreEl.textContent = score === 0 ? `0 / ${threshold}` : `${score} / ${threshold}`;
     if (score === 0) hintEl.textContent = 'Chat to earn their trust';
     else if (pct < 30) hintEl.textContent = 'Just getting started…';
     else if (pct < 60) hintEl.textContent = 'You\'re warming up!';
@@ -11783,6 +11799,27 @@ function renderFriendshipBar(d) {
   }
 
   if (resetBtn) resetBtn.style.display = score > 0 ? '' : 'none';
+
+  // Owner-only: fill friendship instantly for testing
+  let maxBtn = document.getElementById('ipFriendshipMaxBtn');
+  if (isOwner() && !d.unlocked) {
+    if (!maxBtn) {
+      maxBtn = document.createElement('button');
+      maxBtn.id = 'ipFriendshipMaxBtn';
+      maxBtn.className = 'ip-friendship-reset-btn';
+      maxBtn.style.cssText = 'margin-left:6px;background:var(--accent);color:#fff;';
+      maxBtn.textContent = '⚡ Max';
+      maxBtn.onclick = async () => {
+        if (!currentChar) return;
+        const r = await fetch(`/api/admin/fill-friendship/${encodeURIComponent(currentChar.id)}`, { method: 'POST' });
+        if (r.ok) refreshFriendshipBar(currentChar.id);
+      };
+      if (resetBtn) resetBtn.parentNode.insertBefore(maxBtn, resetBtn.nextSibling);
+    }
+    maxBtn.style.display = '';
+  } else if (maxBtn) {
+    maxBtn.style.display = 'none';
+  }
 }
 
 function refreshFriendshipBar(charId) {

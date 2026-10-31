@@ -1,5 +1,20 @@
 [
   {
+    "id": "v402-session-fixes",
+    "version": "v402",
+    "date": "Oct 2026",
+    "title": "🔒 Sessions Stay Alive + Friendship Fixed",
+    "subtitle": "Deploys no longer log you out. Friendship bar now shows your real target, and resetting gives you a new random goal.",
+    "fixed": [
+      "Logged out on every deploy — sessions now persist in the database so server restarts keep you signed in",
+      "Friendship reset now generates a NEW random target number instead of reusing the old one",
+      "Friendship bar now shows your exact score vs the target (e.g. 15 / 87) instead of the confusing '20–100' range",
+      "Poppy no longer claims she has no phone number — she correctly says she has one but isn't giving it out yet",
+      "Voice preview now stops automatically when you close the Voice settings panel",
+      "What's New megaphone now visible in the sidebar at all times, not just on the home screen"
+    ]
+  },
+  {
     "id": "v388-calls-ui-fixes",
     "version": "v388",
     "date": "Oct 2026",

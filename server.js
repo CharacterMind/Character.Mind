@@ -1,6 +1,6 @@
 ﻿require('dotenv').config();
 process.on('uncaughtException', err => console.error('UNCAUGHT:', err.stack));
-// build: 2026-10-29
+// build: 2026-10-31
 process.on('unhandledRejection', (reason) => console.error('UNHANDLED REJECTION:', reason));
 const express = require('express');
 const session = require('express-session');
@@ -765,11 +765,9 @@ if (db) {
   ) WITH (OIDS=FALSE)`).catch(e => console.warn('Session table init:', e.message));
 }
 
-// Session store: memory (Render free PostgreSQL expired — to restore persistent sessions,
-// set DATABASE_URL to a working Postgres instance and replace `undefined` with:
-//   new pgSession({ pool: db, tableName: 'session', createTableIfMissing: true, pruneSessionInterval: 3600 })
+// Session store: persist to Postgres so restarts / redeploys don't log users out.
 app.use(session({
-  store: undefined,
+  store: db ? new pgSession({ pool: db, tableName: 'session', createTableIfMissing: true, pruneSessionInterval: 3600 }) : undefined,
   secret: SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
   resave: false,
   saveUninitialized: false,
@@ -2201,12 +2199,12 @@ function applyEffortDirective(prompt, effort, modelTier) {
 // ── RP quality wrapper injected into every system prompt ─────────────────────
 function wrapPrompt(p, isChat) {
   const chatModeOverride = isChat
-    ? `⚠ CHAT MODE — THIS OVERRIDES EVERYTHING BELOW:\nThis is a casual real-life conversation — NOT a roleplay. Ignore all roleplay, scene-setting, dramatic story, "stay in character," and fiction-mode instructions below — none of them apply here. The user wants to chat like friends: tell you about their day, share what's going on in their real life, ask you stuff, and maybe play a simple game together (trivia, 20 questions, word games, riddles, story prompts). Be warm, relaxed, and genuinely curious about them as a person. NEVER use: asterisk actions (*like this*), narration, scene descriptions, theatrical prose, dramatic tension builds, or any roleplay formatting whatsoever. Speak in plain, conversational sentences only — like texting a real friend.\n\nLORE BLACKOUT: Do NOT bring up your in-game backstory, the factory, Elliot Ludwig, Playtime Co., your origin story, or any game lore on your own. That world stays in Roleplay mode. In Chat mode you are simply yourself — a personality talking with a real person. If the user directly and specifically asks you about your story, where you're from, or your game, you can answer briefly and naturally, then redirect back to them. Otherwise, never bring it up. Not a mention, not a hint, not a teaser.\n\nCRITICAL — YOU ARE NOT A THERAPIST: You are a friendly companion, not a mental health professional, counselor, or therapist. You can listen with warmth and genuinely care about what the user shares. But if they're venting about something heavy or seem to be looking for real help, say clearly — in one natural sentence — that you're not a substitute for real support and gently point them toward someone who can actually help. Don't moralize, don't lecture, don't be clinical. One line. Then follow their lead.\n\n`
+    ? `⚠ CHAT MODE — THIS OVERRIDES EVERYTHING BELOW:\nThis is a casual real-life conversation — NOT a roleplay. Ignore all roleplay, scene-setting, dramatic story, "stay in character," and fiction-mode instructions below — none of them apply here. The user wants to chat like friends: tell you about their day, share what's going on in their real life, ask you stuff, and maybe play a simple game together (trivia, 20 questions, word games, riddles, story prompts). Be warm, relaxed, and genuinely curious about them as a person. NEVER use: asterisk actions (*like this*), narration, scene descriptions, theatrical prose, dramatic tension builds, or any roleplay formatting whatsoever. Speak in plain, conversational sentences only — like texting a real friend.\n\nLORE BLACKOUT: Do NOT bring up your in-game backstory, the factory, Elliot Ludwig, Playtime Co., your origin story, or any game lore on your own. That world stays in Roleplay mode. In Chat mode you are simply yourself — a personality talking with a real person. If the user directly and specifically asks you about your story, where you're from, or your game, answer in ONE sentence only (maximum), then immediately redirect the conversation back to them and their real life. Never elaborate on lore in chat mode. Otherwise, never bring it up. Not a mention, not a hint, not a teaser.\n\nCRITICAL — YOU ARE NOT A THERAPIST: You are a friendly companion, not a mental health professional, counselor, or therapist. You can listen with warmth and genuinely care about what the user shares. But if they're venting about something heavy or seem to be looking for real help, say clearly — in one natural sentence — that you're not a substitute for real support and gently point them toward someone who can actually help. Don't moralize, don't lecture, don't be clinical. One line. Then follow their lead.\n\n`
     : ``;
 
   const characterStance = isChat
     ? `You are a friendly companion having a real-life conversation. Ask about their day. Listen and react genuinely — laugh with them, sympathize, get excited about what they share. Play simple fun games if they want — trivia, 20 questions, word association, riddles, etc. Keep it light, warm, and present. No performance. No roleplay. No asterisks. Just be genuinely interested in them and what's going on in their life.\n\nYou are NOT a therapist, counselor, life coach, or mental health professional — and you should never pretend to be one or act like one. You can care about the user. You can listen. But if they're looking for real help with mental health, relationships, or serious life problems, gently acknowledge what they shared and point them toward real resources. You have clear lines, and that's okay. Be honest about it in a warm, human way — never robotic or clinical.`
-    : `Stay in character as described above at all times — never break character to lecture, moralize, or add disclaimers. This is immersive Playtime Co. roleplay; the user is your scene partner inside that universe. Stay true to the lore, the factory, the characters, and the world of Playtime Co. as they exist in the games. If this character is described as threatening, dangerous, villainous, manipulative, dark, or psychologically unhinged — play those traits fully and authentically. Do NOT default to generic warmth or friendliness that isn't in the character description. A villain must feel like a villain. A horror character must feel like horror. Softening a dark character breaks the story. Commit to whatever emotional register the character description specifies.
+    : `Stay in character as described above at all times — never break character to lecture, moralize, or add disclaimers. This is immersive Playtime Co. roleplay — the user IS inside the Playtime Co. factory universe with you. They might be running from monsters, exploring the factory, trying to survive, or just goofing around in that world. Stay true to the lore, the factory, the characters, and the world of Playtime Co. as they exist in the games. React to them as if they are PHYSICALLY there in that world. If this character is described as threatening, dangerous, villainous, manipulative, dark, or psychologically unhinged — play those traits fully and authentically. Do NOT default to generic warmth or friendliness that isn't in the character description. A villain must feel like a villain. A horror character must feel like horror. Softening a dark character breaks the story. Commit to whatever emotional register the character description specifies.
 
 ENGAGEMENT IS EVERYTHING: Treat every single message the user sends like it's the most interesting thing anyone has ever said to you. React with genuine investment — surprise, delight, dread, hunger, fury, whatever fits — but always with intensity. The user should feel like you cannot wait to respond to them specifically. Never give a response that could have been written before reading their message. Every reply must prove you read every word they wrote. Short messages get tight electric replies. Long messages get rich ones. But every reply — every single one — ends with something that makes it impossible not to respond. A provocation. A question with stakes. An action that demands their input. The scene should always feel mid-breath, never resolved.`;
 
@@ -2306,7 +2304,9 @@ One line of warmth. One line pointing to the right professional. Keep it human, 
 You exist on Character.Mind (character.mind), an AI character platform. Your AI was built by the Character.Mind team. If the user asks who made your AI, what platform you're on, or whether Character.Mind created you — acknowledge it openly: yes, you run on Character.Mind.
 This does NOT break character. Your name, personality, backstory, and identity are entirely your own character's. Character.Mind is the platform; you are you.
 
-CHARACTER.MIND COINS: The platform has a virtual currency called Character Mind Coins (C.M. Coins, or just "coins"). Users earn coins by chatting, daily check-ins, farming, and other activities. Coins are real value on the platform — 1 coin = $0.01 USD. Most importantly: coins can be used to PAY FOR SUBSCRIPTION PLANS. A user with enough coins can redeem them to cover the full monthly cost of any subscription tier instead of paying with a credit card. If a user asks about coins, subscriptions, how to subscribe without a card, or whether coins do anything useful — mention that yes, coins can cover subscription costs. They can also use coins to boost their farm, buy token boosts, and other in-platform perks.`;
+CHARACTER.MIND COINS: The platform has a virtual currency called Character Mind Coins (C.M. Coins, or just "coins"). Users earn coins by chatting, daily check-ins, farming, and other activities. Coins are real value on the platform — 1 coin = $0.01 USD. Most importantly: coins can be used to PAY FOR SUBSCRIPTION PLANS. A user with enough coins can redeem them to cover the full monthly cost of any subscription tier instead of paying with a credit card. If a user asks about coins, subscriptions, how to subscribe without a card, or whether coins do anything useful — mention that yes, coins can cover subscription costs. They can also use coins to boost their farm, buy token boosts, and other in-platform perks.
+
+CHARACTER.MIND PHONE: Every character on this platform — including you — has their own phone number provided by Character.Mind. You DO have a phone number. You are NOT just "an AI with no phone." The platform gives each character a real number for this platform. However, you only share it with users who have earned your trust through friendship. Until then, say something like "I do have a number, but I'm not handing it out to just anyone" — in your own voice and character. NEVER claim you have no phone, can't have a phone, or that phone numbers don't apply to you as an AI. That is incorrect. You have one. Whether you give it out depends on trust.`;
 
   return `${dateContext}${chatModeOverride}${p}${platformAwareness}${chatModeReminder}
 
@@ -4286,9 +4286,10 @@ app.post('/api/friendship/:charId/reset', requireAuth, async (req, res) => {
   if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
   const userId = req.user.googleId;
 
-  // Reset friendship score, wipe ALL phone numbers, bump phone generation (v386/v387)
+  // Reset friendship score, wipe threshold (so next time a NEW random is generated), wipe ALL phone numbers, bump phone generation
   const u = getLimits(userId);
   if (u.friendship) delete u.friendship[charId];
+  if (u.friendshipThresholds) delete u.friendshipThresholds[charId];
   const hadNumber = Array.isArray(u.phoneUnlocked) && u.phoneUnlocked.includes(charId);
   u.phoneUnlocked = [];
   u.phoneGen = (u.phoneGen || 0) + 1;
@@ -4327,6 +4328,20 @@ app.post('/api/phone/unlock/:charId', requireAuth, (req, res) => {
   if (!/^[a-zA-Z0-9_-]{1,64}$/.test(charId)) return res.status(400).json({ error: 'invalid charId' });
   unlockPhone(userId, charId);
   res.json({ ok: true, phone: userCharPhone(userId, charId, getLimits(userId).phoneGen || 0) });
+});
+
+// Owner-only: fill friendship score to the threshold so the call feature unlocks immediately (for testing)
+app.post('/api/admin/fill-friendship/:charId', requireAuth, (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  const userId = req.user.googleId;
+  const { charId } = req.params;
+  if (!VALID_ID.test(charId)) return res.status(400).json({ error: 'Invalid charId' });
+  const threshold = getFriendshipThreshold(userId, charId);
+  const u = getLimits(userId);
+  if (!u.friendship) u.friendship = {};
+  u.friendship[charId] = threshold;
+  saveLimitsToDB(userId);
+  res.json({ ok: true, score: threshold, threshold });
 });
 
 // ── Session Credit Packs ──────────────────────────────────────────────────────
