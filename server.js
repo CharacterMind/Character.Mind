@@ -88,6 +88,8 @@ const db = process.env.DATABASE_URL
     })
   : null;
 
+if (db) db.on('error', err => console.error('[db] Pool error:', err.message));
+
 if (!process.env.DATABASE_URL) {
   console.warn('[WARN] DATABASE_URL is not set — character save/load will not work');
 }
@@ -763,8 +765,11 @@ if (db) {
   ) WITH (OIDS=FALSE)`).catch(e => console.warn('Session table init:', e.message));
 }
 
+// Session store: memory (Render free PostgreSQL expired — to restore persistent sessions,
+// set DATABASE_URL to a working Postgres instance and replace `undefined` with:
+//   new pgSession({ pool: db, tableName: 'session', createTableIfMissing: true, pruneSessionInterval: 3600 })
 app.use(session({
-  store: db ? new pgSession({ pool: db, tableName: 'session', createTableIfMissing: false }) : undefined,
+  store: undefined,
   secret: SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
   resave: false,
   saveUninitialized: false,

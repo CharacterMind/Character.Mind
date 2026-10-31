@@ -194,11 +194,15 @@ def get_chatterbox():
     with _chatterbox_lock:
         if _chatterbox is None:
             import torch
-            from chatterbox.tts_turbo import ChatterboxTurboTTS
             device = "cuda" if torch.cuda.is_available() else "cpu"
-            print(f"[voice-ai] Loading Chatterbox Turbo TTS on {device.upper()}...", flush=True)
-            _chatterbox = ChatterboxTurboTTS.from_pretrained(device=device)
-            print(f"[voice-ai] Chatterbox Turbo TTS ready on {device.upper()}", flush=True)
+            print(f"[voice-ai] Loading Chatterbox TTS on {device.upper()}...", flush=True)
+            try:
+                from chatterbox.tts import ChatterboxTTS
+                _chatterbox = ChatterboxTTS.from_pretrained(device=device)
+            except ImportError:
+                from chatterbox.tts_turbo import ChatterboxTurboTTS
+                _chatterbox = ChatterboxTurboTTS.from_pretrained(device=device)
+            print(f"[voice-ai] Chatterbox TTS ready on {device.upper()}", flush=True)
     return _chatterbox
 
 # Seed VOICES_DIR with any .wav files already in BASE_DIR (backward-compat)
