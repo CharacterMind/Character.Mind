@@ -2006,6 +2006,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '406': {
+    date: 'October 2026',
+    label: 'Bug Scan + Poppy Voice Update',
+    fixed: [
+      'TTS audio from a previous chat could bleed into Poppy\'s opening greeting — now properly cleared before the greeting starts',
+      'Poppy\'s new Chapter 4 voice is now locked in and survives server restarts',
+    ],
+  },
   '403': {
     date: 'October 2026',
     label: 'Critical Phone Unlock Bug Fixed',

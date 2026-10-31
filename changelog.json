@@ -1,5 +1,16 @@
 [
   {
+    "id": "v406-bug-scan",
+    "version": "v406",
+    "date": "Oct 2026",
+    "title": "🐛 Bug Scan + Poppy Voice Update",
+    "subtitle": "Full pressure test of every system. One subtle audio bug found and fixed, plus Poppy's new voice is now locked in.",
+    "fixed": [
+      "TTS audio from a previous chat could bleed into Poppy's opening greeting — now properly cleared before the greeting starts",
+      "Poppy's Chapter 4 voice is now committed so it survives server restarts and fresh deployments"
+    ]
+  },
+  {
     "id": "v403-phone-unlock-fix",
     "version": "v403",
     "date": "Oct 2026",
