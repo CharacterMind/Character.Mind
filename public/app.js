@@ -15263,6 +15263,7 @@ async function createGroupFromPicker() {
 }
 
 function openGroupChat(groupId, groupData) {
+  if (groupAutoChatAbort) { groupAutoChatAbort.abort(); groupAutoChatAbort = null; }
   currentGroupId = groupId;
   groupIsStreaming = false;
   groupAutoChat = false;
@@ -16131,15 +16132,11 @@ function scheduleAutoChat(delayMs) {
   let delay;
   if (delayMs !== undefined) {
     delay = delayMs;
-  } else if (userNeverSpoke && !groupCheckInPending) {
-    // User hasn't spoken yet — wait for the full check-in window before speaking first
-    delay = Math.max(1000, GROUP_CHECKIN_AFTER_MS - msSince);
-    groupCheckInPending = true;
   } else if (groupCheckInPending && groupCheckInCount > 0) {
     // Already done one check-in — slow to 5-min intervals for periodic check-ups
     delay = GROUP_CHECKIN_INTERVAL_MS + Math.random() * 60000;
   } else {
-    delay = 2000 + Math.random() * 2000; // normal 2-4s cadence after user has spoken
+    delay = 2000 + Math.random() * 2000;
   }
 
   groupAutoChatTimer = setTimeout(() => {
