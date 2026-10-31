@@ -3072,8 +3072,19 @@ function charPhone(id) {
 function phoneNumDigitsOnly(phone) { return phone.replace(/\D/g, ''); }
 
 let _phoneContacts = []; // earned contacts from server
+let _customContacts = []; // user-created contacts (localStorage)
+
+function _loadCustomContacts() {
+  try {
+    _customContacts = JSON.parse(localStorage.getItem('_customContacts') || '[]');
+  } catch (_) { _customContacts = []; }
+}
+function _saveCustomContacts() {
+  try { localStorage.setItem('_customContacts', JSON.stringify(_customContacts)); } catch (_) {}
+}
 
 async function loadPhoneContacts() {
+  _loadCustomContacts();
   try {
     const r = await fetch('/api/phone/contacts');
     if (r.ok) _phoneContacts = await r.json();
@@ -3089,15 +3100,36 @@ function renderPhoneContacts(query) {
     const displayName = c.customName || '';
     return displayName.toLowerCase().includes(q) || (c.phone || '').includes(q);
   });
-  if (!list.length) {
+  const allContacts = [...list, ..._customContacts.filter(cc =>
+    !q || cc.name.toLowerCase().includes(q) || (cc.phone || '').includes(q)
+  )];
+  if (!allContacts.length) {
     container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--muted)">
       <div style="font-size:36px;margin-bottom:12px">📵</div>
       <div style="font-weight:600;color:var(--text2);margin-bottom:6px">No contacts yet</div>
-      <div style="font-size:13px;line-height:1.5">Build a friendship with a character.<br>When they trust you enough, they'll give you their number.</div>
+      <div style="font-size:13px;line-height:1.5;margin-bottom:20px">Build a friendship with a character.<br>When they trust you enough, they'll give you their number.</div>
+      <button onclick="openNewContactSheet()" style="display:inline-flex;align-items:center;gap:7px;padding:10px 22px;border-radius:20px;background:var(--accent,#7c3aed);color:#fff;border:none;font-size:14px;font-weight:600;cursor:pointer;letter-spacing:.01em">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+        Create new contact
+      </button>
     </div>`;
     return;
   }
-  container.innerHTML = list.map(c => {
+  container.innerHTML = allContacts.map(c => {
+    if (c._isCustom) {
+      const initial = (c.name || '?').charAt(0).toUpperCase();
+      return `<div class="ph-contact-card" style="--ph-color:#555;--ph-glow:#555">
+        <div class="ph-contact-avatar" style="background:#555">${escHtml(initial)}</div>
+        <div class="ph-contact-name">${escHtml(c.name)}</div>
+        <div class="ph-contact-num">${escHtml(c.phone || '')}</div>
+        <div class="ph-contact-btns">
+          <button class="ph-contact-btn" onclick="deleteCustomContact('${escHtml(c.id)}');event.stopPropagation()" style="color:var(--danger,#ef4444)">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+            Delete
+          </button>
+        </div>
+      </div>`;
+    }
     const phone = c.phone || '';
     const saved = !!c.customName;
     const displayName = c.customName || '';
@@ -3151,6 +3183,63 @@ function renderPhoneContacts(query) {
       </div>
     </div>`;
   }).join('');
+}
+
+// ── New custom contact sheet ──────────────────────────────────────────────────
+
+function openNewContactSheet() {
+  let sheet = document.getElementById('newContactSheet');
+  if (!sheet) {
+    sheet = document.createElement('div');
+    sheet.id = 'newContactSheet';
+    sheet.className = 'save-contact-sheet';
+    sheet.innerHTML = `
+      <div class="save-contact-inner">
+        <div class="save-contact-title">New contact</div>
+        <div class="save-contact-field">
+          <label>Name</label>
+          <input id="newContactNameInput" type="text" placeholder="Enter a name…" maxlength="50" autocomplete="off">
+        </div>
+        <div class="save-contact-field">
+          <label>Phone</label>
+          <input id="newContactPhoneInput" type="tel" placeholder="Optional phone number" maxlength="30" autocomplete="off">
+        </div>
+        <div class="save-contact-actions">
+          <button class="save-contact-cancel" onclick="closeNewContactSheet()">Cancel</button>
+          <button class="save-contact-save" onclick="confirmNewContact()">Save</button>
+        </div>
+      </div>`;
+    sheet.addEventListener('click', e => { if (e.target === sheet) closeNewContactSheet(); });
+    document.body.appendChild(sheet);
+  }
+  document.getElementById('newContactNameInput').value = '';
+  document.getElementById('newContactPhoneInput').value = '';
+  sheet.style.display = 'flex';
+  setTimeout(() => document.getElementById('newContactNameInput').focus(), 80);
+  document.getElementById('newContactNameInput').onkeydown = e => { if (e.key === 'Enter') document.getElementById('newContactPhoneInput').focus(); };
+  document.getElementById('newContactPhoneInput').onkeydown = e => { if (e.key === 'Enter') confirmNewContact(); };
+}
+
+function closeNewContactSheet() {
+  const sheet = document.getElementById('newContactSheet');
+  if (sheet) sheet.style.display = 'none';
+}
+
+function confirmNewContact() {
+  const name = (document.getElementById('newContactNameInput')?.value || '').trim();
+  if (!name) { document.getElementById('newContactNameInput')?.focus(); return; }
+  const phone = (document.getElementById('newContactPhoneInput')?.value || '').trim();
+  const contact = { id: 'custom_' + Date.now(), name, phone, _isCustom: true };
+  _customContacts.push(contact);
+  _saveCustomContacts();
+  closeNewContactSheet();
+  renderPhoneContacts(document.getElementById('phoneSearch')?.value || '');
+}
+
+function deleteCustomContact(id) {
+  _customContacts = _customContacts.filter(c => c.id !== id);
+  _saveCustomContacts();
+  renderPhoneContacts(document.getElementById('phoneSearch')?.value || '');
 }
 
 // ── Phone contact profile card ────────────────────────────────────────────────

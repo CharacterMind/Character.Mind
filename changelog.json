@@ -1,5 +1,17 @@
 [
   {
+    "id": "v419-create-contact",
+    "version": "v419",
+    "date": "Oct 2026",
+    "title": "📇 Create New Contact",
+    "subtitle": "You can now add your own contacts manually — no friendship unlock required.",
+    "added": [
+      "\"Create new contact\" button appears in the Phone when you have no contacts yet",
+      "Enter a name and optional phone number to save a personal contact",
+      "Custom contacts appear in your phone contacts list and can be deleted"
+    ]
+  },
+  {
     "id": "v418-tts-prewarm",
     "version": "v418",
     "date": "Oct 2026",
