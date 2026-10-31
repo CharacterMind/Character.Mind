@@ -5738,7 +5738,7 @@ async function generateGreeting() {
             bubble = msgEl.querySelector('.bubble');
             startStreamStats(msgEl);
             startTypewriter(bubble, msgEl);
-            _streamTTSBuffer = ''; _streamTTSQueue = []; _stopCurrentTTS();
+            _streamTTSBuffer = ''; _streamTTSQueue = []; _streamTTSDone = false; _stopCurrentTTS();
             if (!data.instant) bubble.classList.add('streaming');
           }
           streamText += data.text;
@@ -6096,7 +6096,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
             bubble.classList.add('streaming');
             startStreamStats(msgEl);
             startTypewriter(bubble, msgEl);
-            _streamTTSBuffer = ''; _streamTTSQueue = []; _stopCurrentTTS();
+            _streamTTSBuffer = ''; _streamTTSQueue = []; _streamTTSDone = false; _stopCurrentTTS();
           }
           streamText += data.text;
           feedTypewriter(data.text);
@@ -9692,6 +9692,8 @@ let _streamTTSPlaying = false;
 let _ttsPrefetchPool = new Map(); // cleaned text → Promise<Blob|null>
 let _streamTTSAudio = null; // currently playing Audio element for immediate mute
 let _ttsGeneration = 0;   // incremented each time new TTS starts; stale requests self-abort
+let _streamTTSWake = null; // resolver to wake the player loop when a new sentence arrives
+let _streamTTSDone = false; // true once _flushAutoSpeak fires; tells the wait to exit
 
 // ── Gapless TTS player (Web Audio API) ───────────────────────────────────────
 // Decodes blobs → AudioBuffers and schedules them back-to-back with sample-level
@@ -9752,8 +9754,13 @@ function _makeGaplessPlayer(blobPromises, cancelSignal, onFirstAudio) {
   return { promise, stop };
 }
 
+function _wakeStreamTTS() {
+  if (_streamTTSWake) { const r = _streamTTSWake; _streamTTSWake = null; r(); }
+}
+
 function _stopCurrentTTS() {
   ++_ttsGeneration;
+  _wakeStreamTTS(); // unblock sleeping player loop so it can see the cancelled generation
   if (_streamTTSPlayer) { _streamTTSPlayer.stop(); _streamTTSPlayer = null; }
   if (_streamTTSAudio) { try { _streamTTSAudio.pause(); _streamTTSAudio.src = ''; } catch(_) {} _streamTTSAudio = null; }
   _streamTTSPlaying = false;
@@ -9816,6 +9823,7 @@ function _feedAutoSpeak(chunk) {
       _prefetchSentence(s); // fire-and-forget GPU synthesis now
     }
   }
+  _wakeStreamTTS(); // wake sleeping player if it's waiting for more sentences
   if (!_streamTTSPlaying && _streamTTSQueue.length > 0) _playStreamTTSQueue();
 }
 
@@ -9828,6 +9836,8 @@ function _flushAutoSpeak() {
     _streamTTSQueue.push(remaining);
     _prefetchSentence(remaining);
   }
+  _streamTTSDone = true; // no more sentences after this; wake the player so it can exit cleanly
+  _wakeStreamTTS();
   if (!_streamTTSPlaying && _streamTTSQueue.length > 0) _playStreamTTSQueue();
 }
 
@@ -9880,57 +9890,90 @@ async function _playStreamTTSQueue() {
   const btn = document.getElementById('autoSpeakBtn');
   if (btn) btn.classList.add('speaking');
 
-  while (_streamTTSPlaying && myGen === _ttsGeneration && _streamTTSQueue.length > 0) {
-    // Kick off synthesis for every queued sentence immediately
-    for (const s of _streamTTSQueue) {
-      const c = ttsCleanText(s);
-      if (c && c.length > 1 && !_ttsPrefetchPool.has(c)) _prefetchSentence(s);
-    }
+  const cancel = () => !_streamTTSPlaying || myGen !== _ttsGeneration;
 
-    // Drain the whole current queue into one batch
-    const batch = [];
-    while (_streamTTSQueue.length > 0) {
-      const t = ttsCleanText(_streamTTSQueue.shift() || '');
-      if (t && t.length > 1) batch.push(t);
-    }
-    if (!batch.length) break;
+  // Single AudioContext for the entire response — no gap between sentences
+  let ctx = null;
+  let scheduleAt = 0;
+  let lastEndP = null;
 
-    if (ttsProvider === 'browser') {
-      for (const t of batch) {
-        if (!_streamTTSPlaying || myGen !== _ttsGeneration) break;
-        await _speakStreamSentence(t);
+  try {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
+    scheduleAt = ctx.currentTime + 0.08;
+    _streamTTSPlayer = { stop: () => { try { if (ctx) { ctx.close(); ctx = null; } } catch(_) {} } };
+
+    while (!cancel()) {
+      // Queue empty — wait for the next sentence (AI may still be mid-generation)
+      if (_streamTTSQueue.length === 0) {
+        if (_streamTTSDone) break; // stream is complete, nothing more coming
+        await new Promise(resolve => {
+          _streamTTSWake = resolve;
+          // Re-check immediately to close the race window between the outer check and here
+          if (_streamTTSQueue.length > 0 || _streamTTSDone || cancel()) { _streamTTSWake = null; resolve(); }
+        });
+        if (_streamTTSQueue.length === 0 || cancel()) break;
+        continue;
       }
-    } else if (ttsProvider !== 'off') {
-      // Resolve blob promise for each sentence (prefetch pool first, else new fetch)
-      const blobPromises = batch.map(t => {
-        let bp = _ttsPrefetchPool.get(t);
-        _ttsPrefetchPool.delete(t);
-        if (!bp) {
-          bp = fetch('/api/tts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: t.slice(0, 499), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
-          }).then(r => r.ok ? r.blob() : null).catch(() => null);
-        }
-        return bp;
-      });
 
-      // Play whole batch gaplessly — zero gap between sentences in the batch
-      const player = _makeGaplessPlayer(
-        blobPromises,
-        () => !_streamTTSPlaying || myGen !== _ttsGeneration,
-        null
-      );
-      _streamTTSPlayer = player;
-      await player.promise;
-      _streamTTSPlayer = null;
+      // Kick off synthesis for all queued sentences in parallel
+      for (const s of _streamTTSQueue) {
+        const c = ttsCleanText(s);
+        if (c && c.length > 1 && !_ttsPrefetchPool.has(c)) _prefetchSentence(s);
+      }
+
+      const raw = _streamTTSQueue.shift() || '';
+      const t = ttsCleanText(raw);
+      if (!t || t.length <= 1) continue;
+
+      if (ttsProvider === 'browser') {
+        await _speakStreamSentence(t);
+        continue;
+      }
+      if (ttsProvider === 'off') continue;
+
+      // Use prefetched promise or start a new fetch
+      let bp = _ttsPrefetchPool.get(t);
+      _ttsPrefetchPool.delete(t);
+      if (!bp) {
+        bp = fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: t.slice(0, 499), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
+        }).then(r => r.ok ? r.blob() : null).catch(() => null);
+      }
+
+      const blob = await bp;
+      if (!blob || cancel()) continue;
+
+      let buf;
+      try {
+        const ab = await blob.arrayBuffer();
+        if (cancel()) break;
+        buf = await ctx.decodeAudioData(ab);
+      } catch(_) { continue; }
+      if (cancel()) break;
+
+      // Catch up if synthesis took longer than the previous clip's playback time
+      const now = ctx.currentTime;
+      if (scheduleAt < now) scheduleAt = now + 0.04;
+
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
+      src.start(scheduleAt);
+      scheduleAt += buf.duration;
+      lastEndP = new Promise(r => { src.onended = r; });
     }
-    // If more sentences arrived while we were playing, loop and process them
-  }
+  } catch(_) {}
+
+  // Let the last scheduled clip finish naturally
+  if (lastEndP && !cancel()) await lastEndP;
+  try { if (ctx) { ctx.close(); ctx = null; } } catch(_) {}
+  _streamTTSPlayer = null;
 
   if (myGen === _ttsGeneration) {
     _streamTTSPlaying = false;
-    _streamTTSPlayer = null;
     _ttsPrefetchPool.clear();
     if (btn) btn.classList.remove('speaking', 'loading');
   }

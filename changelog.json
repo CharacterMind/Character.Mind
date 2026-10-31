@@ -1,5 +1,17 @@
 [
   {
+    "id": "v415-tts-gapless",
+    "version": "v415",
+    "date": "Oct 2026",
+    "title": "🎙️ Smoother Voice",
+    "subtitle": "Auto-speak now uses a single audio session per response — no more gaps between sentences.",
+    "fixed": [
+      "Eliminated the audible gap between sentence groups in auto-speak mode",
+      "Persistent AudioContext now threads across all sentences in a response",
+      "Wake mechanism keeps the player alive while the AI is still generating text"
+    ]
+  },
+  {
     "id": "v414-save-contact",
     "version": "v414",
     "date": "Oct 2026",
