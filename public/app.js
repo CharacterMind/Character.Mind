@@ -101,6 +101,11 @@ const OPES_COST = { low: 1050, medium: 1800, high: 2700, extra: 3900, max: 6000,
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3, opys5: 10, opys6: 20 };
 const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1, opus: 2, opys: 3, opys5: 4, opys6: 5 };
 const PLAN_RANK = { free: 0, advanced: 1, x20: 2, x50: 3, x100: 4, x200: 5 };
+const GROUP_MEMBER_LIMITS = { free: 3, advanced: 8, x20: 15, x50: 15, x100: 15, x200: 15 };
+function getGroupMemberLimit() {
+  const tier = lastKnownUsage?.subscriptionTier || 'free';
+  return GROUP_MEMBER_LIMITS[tier] || 3;
+}
 function clientMessageCost(tier, effort) {
   tier = baseTierOf(tier) || tier;
   if (tier === 'opas' || !(tier in COST_FACTOR_VS_OPES)) return OPAS_COST[effort];
@@ -2006,6 +2011,18 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '408': {
+    date: 'October 2026',
+    label: 'Group Chat Voices + Tier Limits',
+    added: [
+      'Every character in a group chat now has their own distinct voice — you can tell who\'s talking by sound alone',
+      'Group voice plays sequentially — characters speak one at a time, never talking over each other',
+      'Group chat tier limits: Free users can add up to 3 characters, Advanced up to 8, paid plans up to 15',
+    ],
+    fixed: [
+      'Group TTS was always using the same generic Edge voice for all characters — now each character gets their own auto-assigned voice',
+    ],
+  },
   '407': {
     date: 'October 2026',
     label: 'Instant Voice + Huggy Card Fixed',
@@ -13943,7 +13960,13 @@ function togglePickerChar(charId, el) {
     groupPickerSelected.delete(charId);
     el.classList.remove('selected');
   } else {
-    if (groupPickerSelected.size >= 15) return;
+    const limit = getGroupMemberLimit();
+    if (groupPickerSelected.size >= limit) {
+      const tier = lastKnownUsage?.subscriptionTier || 'free';
+      if (tier === 'free') showWarning(`Free plan allows up to ${limit} characters per group. Upgrade to Advanced for up to 8.`, 4000);
+      else if (tier === 'advanced') showWarning(`Advanced plan allows up to ${limit} characters per group. Upgrade for up to 15.`, 4000);
+      return;
+    }
     groupPickerSelected.add(charId);
     el.classList.add('selected');
   }
@@ -13952,7 +13975,8 @@ function togglePickerChar(charId, el) {
 
 function updatePickerCount() {
   const el = document.getElementById('groupPickerCount');
-  if (el) el.textContent = `${groupPickerSelected.size} / 15 selected`;
+  const limit = getGroupMemberLimit();
+  if (el) el.textContent = `${groupPickerSelected.size} / ${limit} selected`;
   const rprInput = document.getElementById('groupRprInput');
   if (rprInput && groupPickerSelected.size > 0) {
     rprInput.max = groupPickerSelected.size;
@@ -13992,6 +14016,7 @@ function openGroupChat(groupId, groupData) {
   currentGroupId = groupId;
   groupIsStreaming = false;
   groupAutoChat = false;
+  _stopGroupAutoTTS();
   if (groupAutoChatTimer) { clearTimeout(groupAutoChatTimer); groupAutoChatTimer = null; }
   clearTimeout(_groupDripTimer); _groupDripTimer = null; _groupDrip = 0;
   groupLastUserMessageAt = 0; groupChatOpenedAt = Date.now(); groupCheckInPending = false; groupCheckInCount = 0;
@@ -14066,6 +14091,76 @@ let _pendingGroupChar = null;
 let _pendingGroupBubbleStarted = false;
 let _groupStreamCharCount = 0;
 
+// 16-voice palette for auto-assigning distinct Gemini voices to group characters
+const _GROUP_GEMINI_VOICES = [
+  'Zephyr','Puck','Charon','Kore','Fenrir','Leda','Orus','Aoede',
+  'Callirrhoe','Autonoe','Enceladus','Iapetus','Umbriel','Algieba','Despina','Erinome'
+];
+function _getGroupCharVoiceParams(charId) {
+  // Server overrides to clone voice if charId is in CHARACTER_VOICE_MAP — just pass charId + any provider
+  // For all others: deterministic Gemini voice based on charId so same char always sounds the same
+  let h = 0;
+  for (let i = 0; i < charId.length; i++) h = (h * 31 + charId.charCodeAt(i)) >>> 0;
+  return { provider: 'gemini', geminiVoice: _GROUP_GEMINI_VOICES[h % _GROUP_GEMINI_VOICES.length] };
+}
+
+// Sequential auto-play queue for group chat — characters speak one at a time, never over each other
+let _groupAutoTTSQueue = [];
+let _groupAutoTTSPlaying = false;
+let _groupAutoTTSAudio = null;
+
+function _stopGroupAutoTTS() {
+  _groupAutoTTSQueue = [];
+  _groupAutoTTSPlaying = false;
+  if (_groupAutoTTSAudio) { try { _groupAutoTTSAudio.pause(); } catch (_) {} _groupAutoTTSAudio = null; }
+}
+
+function _queueGroupAutoTTS(btn) {
+  if (!btn) return;
+  _groupAutoTTSQueue.push(btn);
+  if (!_groupAutoTTSPlaying) _advanceGroupAutoTTS();
+}
+
+async function _advanceGroupAutoTTS() {
+  if (_groupAutoTTSQueue.length === 0) { _groupAutoTTSPlaying = false; return; }
+  _groupAutoTTSPlaying = true;
+  const btn = _groupAutoTTSQueue.shift();
+  const msgEl = btn?.closest?.('.group-msg');
+  if (!msgEl) { _advanceGroupAutoTTS(); return; }
+  const textEl = msgEl.querySelector('.group-msg-text');
+  const raw = (textEl?.innerText || textEl?.textContent || '').trim();
+  const text = ttsCleanText(raw);
+  if (!text) { _advanceGroupAutoTTS(); return; }
+  const charId = msgEl.dataset.charId || '';
+  const voiceParams = _getGroupCharVoiceParams(charId);
+  btn.classList.add('loading');
+  try {
+    const r = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text.slice(0, 499), charId, ...voiceParams })
+    });
+    if (r.ok) {
+      btn.classList.remove('loading'); btn.classList.add('playing');
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      _groupAutoTTSAudio = audio;
+      await new Promise(resolve => {
+        audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
+        audio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+        audio.play().catch(resolve);
+      });
+      btn.classList.remove('playing');
+      _groupAutoTTSAudio = null;
+    }
+  } catch (e) {
+    console.error('[group-tts-auto]', e);
+  }
+  btn.classList.remove('loading');
+  _advanceGroupAutoTTS();
+}
+
 async function toggleGroupTTS(btn) {
   const msgEl = btn.closest('.group-msg');
   if (!msgEl) return;
@@ -14076,17 +14171,19 @@ async function toggleGroupTTS(btn) {
 
   const wasSame = activeTTSBtn === btn;
   stopActiveTTS();
+  _stopGroupAutoTTS();
   if (wasSame) return;
 
   btn.classList.add('loading');
   activeTTSBtn = btn;
 
   const charId = msgEl.dataset.charId || '';
+  const voiceParams = _getGroupCharVoiceParams(charId);
   try {
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.slice(0, 400), charId, provider: 'edge' })
+      body: JSON.stringify({ text: text.slice(0, 499), charId, ...voiceParams })
     });
     if (r.ok && activeTTSBtn === btn) {
       btn.classList.remove('loading'); btn.classList.add('playing');
@@ -14149,6 +14246,8 @@ async function sendGroupMessage() {
 
   // Abort any running auto-chat stream so user message goes through immediately
   if (groupAutoChatAbort) { groupAutoChatAbort.abort(); groupAutoChatAbort = null; }
+  // Stop any queued auto-TTS so characters don't keep speaking while user is typing a reply
+  _stopGroupAutoTTS();
   // Wait one tick for the abort to flush the finally block
   if (groupIsStreaming) await new Promise(r => setTimeout(r, 80));
   if (groupIsStreaming) return; // still streaming after abort — don't double-send
@@ -14225,7 +14324,7 @@ async function sendGroupMessage() {
             const _speakText = (_currentGroupBubble.textContent || '').trim();
             const _speakTok = _speakMsgEl?.querySelector('.group-tok-counter');
             if (_speakTok) _speakTok.textContent = '';
-            if (_speakBtn && _speakText) toggleGroupTTS(_speakBtn);
+            if (_speakBtn && _speakText) _queueGroupAutoTTS(_speakBtn);
           }
           _currentGroupBubble = null;
           _pendingGroupChar = null;
@@ -14525,7 +14624,7 @@ async function runGroupAutoChat() {
             const _speakText = (_currentGroupBubble.textContent || '').trim();
             const _speakTok = _speakMsgEl?.querySelector('.group-tok-counter');
             if (_speakTok) _speakTok.textContent = '';
-            if (_speakBtn && _speakText) toggleGroupTTS(_speakBtn);
+            if (_speakBtn && _speakText) _queueGroupAutoTTS(_speakBtn);
           }
           _currentGroupBubble = null;
           _pendingGroupChar = null;

@@ -1,5 +1,20 @@
 [
   {
+    "id": "v408-group-voices-tier-limits",
+    "version": "v408",
+    "date": "Oct 2026",
+    "title": "🗣️ Group Chat Voices + Tier Limits",
+    "subtitle": "Every character in a group chat now has their own voice. Free users get 3 characters, Advanced gets 8, paid plans get up to 15.",
+    "added": [
+      "Each character in a group chat has a distinct auto-assigned voice — you can tell who's talking by sound alone",
+      "Group voice plays sequentially — characters speak one at a time, never over each other",
+      "Group chat now enforces tier limits: Free = 3 characters, Advanced = 8, x20+ = 15"
+    ],
+    "fixed": [
+      "Group TTS was using the same generic voice for all characters — now every character sounds unique"
+    ]
+  },
+  {
     "id": "v407-tts-instant-huggy-fix",
     "version": "v407",
     "date": "Oct 2026",

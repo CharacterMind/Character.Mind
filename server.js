@@ -7300,14 +7300,21 @@ app.get('/api/groups', requireAuth, async (req, res) => {
   });
 });
 
+const GROUP_MAX_MEMBERS = { free: 3, advanced: 8, x20: 15, x50: 15, x100: 15, x200: 15 };
+function groupMemberLimit(sid) {
+  const tier = userLimits[sid]?.subscriptionTier || 'free';
+  return GROUP_MAX_MEMBERS[tier] || 3;
+}
+
 app.post('/api/groups', requireAuth, async (req, res) => {
   if (!db) return res.status(503).json({ error: 'DB unavailable' });
   const userId = req.user.googleId;
   const { name, memberIds, respondersPerRound } = req.body || {};
   if (!name || typeof name !== 'string' || name.trim().length < 1 || name.trim().length > 80)
     return res.status(400).json({ error: 'Group name must be 1–80 characters.' });
-  if (!Array.isArray(memberIds) || memberIds.length < 1 || memberIds.length > 15)
-    return res.status(400).json({ error: 'Groups need 1–15 members.' });
+  const maxMembers = groupMemberLimit(req.session?.id);
+  if (!Array.isArray(memberIds) || memberIds.length < 1 || memberIds.length > maxMembers)
+    return res.status(400).json({ error: `Your plan allows up to ${maxMembers} characters per group.` });
   if (!memberIds.every(id => VALID_ID.test(id)))
     return res.status(400).json({ error: 'Invalid member ID.' });
   const rpr = Math.min(15, Math.max(1, parseInt(respondersPerRound) || 3));
@@ -7325,8 +7332,9 @@ app.put('/api/groups/:id', requireAuth, async (req, res) => {
   const gid = req.params.id;
   if (!/^grp_\d+_[0-9a-f]+$/.test(gid)) return res.status(400).json({ error: 'Invalid group ID' });
   const { memberIds } = req.body || {};
-  if (!Array.isArray(memberIds) || memberIds.length < 1 || memberIds.length > 15)
-    return res.status(400).json({ error: 'Groups need 1–15 members.' });
+  const maxMembers = groupMemberLimit(req.session?.id);
+  if (!Array.isArray(memberIds) || memberIds.length < 1 || memberIds.length > maxMembers)
+    return res.status(400).json({ error: `Your plan allows up to ${maxMembers} characters per group.` });
   if (!memberIds.every(id => VALID_ID.test(id)))
     return res.status(400).json({ error: 'Invalid member ID.' });
   const { rowCount } = await db.query(
