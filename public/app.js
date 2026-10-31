@@ -3179,6 +3179,21 @@ function _logCall(char, type, extraData) {
   _saveCallLog(log);
 }
 
+function _appendCallBubble(char, incoming, durationSecs) {
+  const msgs = document.getElementById('messages');
+  if (!msgs || !char) return;
+  const mm = Math.floor(durationSecs / 60);
+  const ss = String(durationSecs % 60).padStart(2, '0');
+  const durStr = durationSecs > 0 ? ` · ${mm}:${ss}` : '';
+  const arrow = incoming ? '↙' : '↗';
+  const label = incoming ? 'Incoming call' : 'Outgoing call';
+  const div = document.createElement('div');
+  div.className = 'msg call-log-entry';
+  div.innerHTML = `<div class="call-log-pill"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13" style="flex-shrink:0"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg><span>${arrow} ${label}${durStr}</span></div>`;
+  msgs.appendChild(div);
+  scrollToBottom();
+}
+
 let _callLogStartTs = 0;
 let _callIsIncoming = false;
 
@@ -11865,9 +11880,12 @@ function endCallMode() {
   callMuted = false;
   if (_callLogStartTs > 0 && currentChar) {
     const dur = Math.round((Date.now() - _callLogStartTs) / 1000);
-    _logCall(currentChar, _callIsIncoming ? 'incoming' : 'outgoing', { duration: dur });
+    const _wasIncoming = _callIsIncoming;
+    const _loggedChar = currentChar;
+    _logCall(_loggedChar, _wasIncoming ? 'incoming' : 'outgoing', { duration: dur });
     _callLogStartTs = 0;
     _callIsIncoming = false;
+    _appendCallBubble(_loggedChar, _wasIncoming, dur);
   }
   stopCallDurationTimer();
   clearCallInactivityTimer();

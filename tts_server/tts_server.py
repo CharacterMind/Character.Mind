@@ -149,9 +149,17 @@ def get_f5tts():
         return _f5tts
     with _f5tts_lock:
         if _f5tts is None:
+            import torch
             from f5_tts.api import F5TTS
             _f5tts = F5TTS()
-            print("[voice-ai] F5-TTS loaded", flush=True)
+            # Convert weights to bfloat16 to halve RAM (~2.5 GB → ~1.3 GB).
+            # bfloat16 has the same exponent range as float32 so it's numerically safer
+            # than float16 and well-supported on modern CPUs.
+            try:
+                _f5tts.model = _f5tts.model.to(dtype=torch.bfloat16)
+                print("[voice-ai] F5-TTS loaded (bfloat16)", flush=True)
+            except Exception as _bf16_err:
+                print(f"[voice-ai] F5-TTS loaded (float32 — bfloat16 failed: {_bf16_err})", flush=True)
     return _f5tts
 
 def _f5tts_ref_text(voice_wav_path: str) -> str:
