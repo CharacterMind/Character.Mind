@@ -2749,6 +2749,8 @@ function openSettings(tab) {
 
   const ownerCoinCard = document.getElementById('ownerSelfCoinCard');
   if (ownerCoinCard) ownerCoinCard.style.display = isOwner() ? 'flex' : 'none';
+  const ownerSendCoinCard = document.getElementById('ownerSendCoinCard');
+  if (ownerSendCoinCard) ownerSendCoinCard.style.display = isOwner() ? 'flex' : 'none';
 
   if (lastKnownUsage) updateSettingsUsage(lastKnownUsage);
   renderSettingsTiers();
@@ -7875,6 +7877,33 @@ async function adminSendCoinsToEmail() {
   if (btn) { btn.textContent = 'Send Gift 🎁'; btn.disabled = false; }
 }
 
+async function ownerSendCoinsToAccount() {
+  if (!isOwner()) return;
+  const email  = (document.getElementById('ownerSendCoinEmail')?.value || '').trim();
+  const amount = parseInt(document.getElementById('ownerSendCoinAmount')?.value) || 0;
+  const mode   = document.getElementById('ownerSendCoinMode')?.value || 'add';
+  const info   = document.getElementById('ownerSendCoinResult');
+  if (!email) { if (info) info.textContent = 'Enter an email address.'; return; }
+  if (!amount) { if (info) info.textContent = 'Enter an amount.'; return; }
+  const btn = document.getElementById('ownerSendCoinBtn');
+  if (btn) { btn.textContent = 'Sending…'; btn.disabled = true; }
+  if (info) info.textContent = '';
+  try {
+    const d = await fetch('/api/admin/edit-coins', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, amount, mode })
+    }).then(r => r.json());
+    if (d.ok) {
+      if (info) info.textContent = `✓ ${d.name || d.email} — balance: ${d.newBalance.toLocaleString()} coins`;
+      showWarning(`📤 Done — ${d.name || d.email}: ${d.newBalance.toLocaleString()} coins`, 5000);
+    } else {
+      if (info) info.textContent = d.error || 'Failed.';
+    }
+  } catch (_) { if (info) info.textContent = 'Request failed.'; }
+  if (btn) { btn.textContent = '📤 Send'; btn.disabled = false; }
+}
+
 async function ownerGiveSelfCoins() {
   if (!isOwner()) return;
   const amount = parseInt(document.getElementById('ownerSelfCoinAmount')?.value) || 0;
@@ -9732,15 +9761,16 @@ async function toggleVoiceRecording(btn) {
     _voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     _voiceChunks = [];
     _voiceMediaRecorder = new MediaRecorder(_voiceStream);
+    const _recMimeType = _voiceMediaRecorder.mimeType || 'audio/webm';
     _voiceMediaRecorder.ondataavailable = e => { if (e.data.size > 0) _voiceChunks.push(e.data); };
     _voiceMediaRecorder.onstop = async () => {
       _voiceStream?.getTracks().forEach(t => t.stop()); _voiceStream = null;
       const recBtn = document.getElementById('recordVoiceBtn');
       if (recBtn) { recBtn.innerHTML = '<span class="rec-dot"></span>Record'; recBtn.classList.remove('recording'); }
       if (!_voiceChunks.length) return;
-      const blob = new Blob(_voiceChunks, { type: 'audio/webm' });
+      const blob = new Blob(_voiceChunks, { type: _recMimeType });
       try {
-        await fetch('/api/user-voices', { method: 'POST', headers: { 'Content-Type': 'audio/webm' }, body: blob });
+        await fetch('/api/user-voices', { method: 'POST', headers: { 'Content-Type': _recMimeType }, body: blob });
         renderUserVoiceList();
       } catch (_) {}
     };

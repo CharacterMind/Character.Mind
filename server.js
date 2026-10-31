@@ -670,9 +670,9 @@ if (db) {
   console.log('\nAI Character Site ready — no DB mode.\n');
 }
 
-// 600KB max — enough for image data URIs but rejects abuse. The raw body is kept for the PayPal webhook.
+// 2MB max — covers mobile camera image data URIs (base64 overhead ~33%). The raw body is kept for the PayPal webhook.
 app.use(express.json({
-  limit: '600kb',
+  limit: '2mb',
   verify: (req, res, buf) => { if (req.originalUrl && req.originalUrl.startsWith('/api/webhooks/paypal')) req.rawBody = buf; }
 }));
 // Basic security headers
@@ -5374,8 +5374,9 @@ app.post('/api/user-voices', requireAuth, express.raw({ type: ['audio/*', 'appli
   const ts = Date.now();
   const ct = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
   const ext = VOICE_MIME_EXT[ct] || '.webm';
-  const isRecording = ct === 'audio/webm';
-  const filename = isRecording ? `rec_${ts}.webm` : `voice_${ts}${ext}`;
+  const isRecording = ct === 'audio/webm' || ct === 'audio/mp4';
+  const recExt = ct === 'audio/mp4' ? '.m4a' : '.webm';
+  const filename = isRecording ? `rec_${ts}${recExt}` : `voice_${ts}${ext}`;
   await fs.promises.writeFile(path.join(dir, filename), req.body);
   res.json({ id: ts, filename });
 });
@@ -7130,7 +7131,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   }
   if (image !== undefined) {
     if (typeof image !== 'string') return res.status(400).json({ error: 'Invalid image' });
-    const ALLOWED_IMG = ['data:image/jpeg;base64,','data:image/jpg;base64,','data:image/png;base64,','data:image/webp;base64,','data:image/gif;base64,'];
+    const ALLOWED_IMG = ['data:image/jpeg;base64,','data:image/jpg;base64,','data:image/png;base64,','data:image/webp;base64,','data:image/gif;base64,','data:image/heic;base64,','data:image/heif;base64,'];
     if (!ALLOWED_IMG.some(t => image.startsWith(t))) return res.status(400).json({ error: 'Invalid image format' });
     if (image.length > 1400000) return res.status(400).json({ error: 'Image too large (max ~1MB)' });
   }

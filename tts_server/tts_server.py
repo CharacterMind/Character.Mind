@@ -414,6 +414,10 @@ def tts_endpoint():
     language     = (data.get("language")    or "en").strip()
     kokoro_voice = (data.get("kokoro_voice") or "").strip()
     tts_engine   = (data.get("tts_engine")  or _MODEL_KEY).lower()
+    # Chatterbox tuning params (passed per-request, or fall back to better defaults)
+    cb_exaggeration = float(data.get("exaggeration", 0.4))
+    cb_cfg_weight   = float(data.get("cfg_weight",   0.6))
+    cb_temperature  = float(data.get("temperature",  0.6))
     # YourTTS accepts "en" directly (not "en-us")
     if language == "en-us" and _MODEL_KEY == "your_tts":
         language = "en"
@@ -488,7 +492,7 @@ def tts_endpoint():
                     ref_text=ref_text,
                     gen_text=text,
                     seed=-1,
-                    nfe_step=16,
+                    nfe_step=32,
                 )
         except Exception as e:
             print(f"[voice-ai] F5-TTS error: {e}", flush=True)
@@ -551,7 +555,23 @@ def tts_endpoint():
     # Chatterbox TTS path — ResembleAI zero-shot cloning (best free quality 2025)
     if tts_engine in ("chatterbox",):
         import torchaudio
-        ck = _cache_key("chatterbox", Path(speaker_wav).stem, text)
+        # Trim reference audio to 10s max — longer clips degrade Chatterbox quality
+        _MAX_REF_SECS = 10.0
+        effective_wav = speaker_wav
+        try:
+            _ref_info = torchaudio.info(speaker_wav)
+            if _ref_info.num_frames / _ref_info.sample_rate > _MAX_REF_SECS:
+                _trimmed_path = speaker_wav + ".__trim10s.wav"
+                if not os.path.exists(_trimmed_path):
+                    _ref_wav, _ref_sr = torchaudio.load(speaker_wav)
+                    _max_frames = int(_MAX_REF_SECS * _ref_sr)
+                    _ref_wav = _ref_wav[..., :_max_frames]
+                    torchaudio.save(_trimmed_path, _ref_wav, _ref_sr)
+                    print(f"[voice-ai] Trimmed reference to {_MAX_REF_SECS}s: {Path(_trimmed_path).name}", flush=True)
+                effective_wav = _trimmed_path
+        except Exception as _trim_err:
+            print(f"[voice-ai] Trim check failed ({_trim_err}), using full reference", flush=True)
+        ck = _cache_key("chatterbox", f"{Path(effective_wav).stem}_ex{cb_exaggeration}_cfg{cb_cfg_weight}_t{cb_temperature}", text)
         cached = _cache_get(ck)
         if cached:
             print(f"[voice-ai] chatterbox cache hit ({len(text)} chars)", flush=True)
@@ -567,22 +587,22 @@ def tts_endpoint():
                 model = get_chatterbox()
                 _autocast = torch.autocast("cuda", dtype=torch.float16) if torch.cuda.is_available() else contextlib.nullcontext()
                 with torch.inference_mode(), _autocast:
-                    if speaker_wav == _last_chatterbox_voice and model.conds is not None:
+                    if effective_wav == _last_chatterbox_voice and model.conds is not None:
                         wav = model.generate(
                             text,
-                            exaggeration=0.65,
-                            cfg_weight=0.4,
-                            temperature=0.7,
+                            exaggeration=cb_exaggeration,
+                            cfg_weight=cb_cfg_weight,
+                            temperature=cb_temperature,
                         )
                     else:
                         wav = model.generate(
                             text,
-                            audio_prompt_path=speaker_wav,
-                            exaggeration=0.65,
-                            cfg_weight=0.4,
-                            temperature=0.7,
+                            audio_prompt_path=effective_wav,
+                            exaggeration=cb_exaggeration,
+                            cfg_weight=cb_cfg_weight,
+                            temperature=cb_temperature,
                         )
-                        _last_chatterbox_voice = speaker_wav
+                        _last_chatterbox_voice = effective_wav
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
             buf = io.BytesIO()
