@@ -4192,6 +4192,7 @@ app.get('/api/phone/contacts', requireAuth, async (req, res) => {
         image: r.has_image ? '/api/characters/' + encodeURIComponent(r.id) + '/image?v=' + r.image_len : null,
         phone: userCharPhone(userId, r.id, u.phoneGen || 0),
         customName: (u.customContactNames && u.customContactNames[r.id]) || null,
+        notes: (u.customContactNotes && u.customContactNotes[r.id]) || null,
         blocked: !!(u.blockedContacts && u.blockedContacts[r.id]),
       }));
     res.json(contacts);
@@ -4237,18 +4238,140 @@ app.post('/api/phone/contacts/:charId/unblock', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-// Save a custom display name for an unlocked contact
+// Save a custom display name (and optional notes) for an unlocked contact
 app.post('/api/phone/contacts/:charId/name', requireAuth, (req, res) => {
   const userId = req.user.googleId;
   const { charId } = req.params;
-  const { name } = req.body || {};
+  const { name, notes } = req.body || {};
   if (!name || typeof name !== 'string' || !name.trim()) return res.status(400).json({ error: 'name required' });
   if (!isPhoneUnlocked(userId, charId)) return res.status(403).json({ error: 'not unlocked' });
   const u = getLimits(userId);
   if (!u.customContactNames) u.customContactNames = {};
   u.customContactNames[charId] = name.trim().slice(0, 50);
+  if (notes !== undefined) {
+    if (!u.customContactNotes) u.customContactNotes = {};
+    if (notes && String(notes).trim()) u.customContactNotes[charId] = String(notes).trim().slice(0, 500);
+    else if (u.customContactNotes) delete u.customContactNotes[charId];
+  }
   saveLimitsToDB(userId);
   res.json({ ok: true });
+});
+
+// ── Group voice call (ephemeral AI-to-AI rounds) ─────────────────────────────
+// Generates one speaker turn for a live group voice call.
+// History is passed from the client (ephemeral — not stored server-side).
+app.post('/api/groups/:id/voice-round', requireAuth, async (req, res) => {
+  if (!serverReady) return res.status(503).json({ error: 'Server starting up. Please try again.' });
+  const userId = req.user.googleId;
+  const gid = req.params.id;
+  const { history = [], userText = null } = req.body || {};
+  if (!/^grp_\d+_[0-9a-f]+$/.test(gid)) return res.status(400).json({ error: 'Invalid group ID' });
+
+  let group;
+  if (db) {
+    const { rows } = await db.query(
+      'SELECT id, name, member_ids FROM groups WHERE id=$1 AND user_id=$2', [gid, userId]
+    ).catch(() => ({ rows: [] }));
+    group = rows[0];
+  }
+  if (!group) return res.status(404).json({ error: 'Group not found.' });
+
+  const memberIds = Array.isArray(group.member_ids) ? group.member_ids : [];
+  if (!memberIds.length) return res.status(400).json({ error: 'Group has no members.' });
+
+  const limitCheck = checkLimits(userId);
+  if (limitCheck.blocked) return res.status(429).json({ error: limitCheck.type === 'session' ? 'Session limit reached' : 'Weekly limit reached', ...limitCheck });
+
+  let chars = [];
+  if (db) {
+    const { rows } = await db.query(
+      'SELECT id, name, color, image, system_prompt FROM characters WHERE id = ANY($1)', [memberIds]
+    ).catch(() => ({ rows: [] }));
+    chars = rows;
+  }
+  if (!chars.length) return res.status(400).json({ error: 'No characters found.' });
+
+  const charsByIdMap = Object.fromEntries(chars.map(c => [c.id, c]));
+  const orderedChars = memberIds.map(id => charsByIdMap[id]).filter(Boolean);
+
+  // Avoid repeating the last speaker
+  const safeHist = Array.isArray(history) ? history.slice(-20) : [];
+  const lastSpeakerId = safeHist.slice().reverse().find(m => m.role === 'assistant')?.charId || null;
+  const candidates = orderedChars.length > 1 ? orderedChars.filter(c => c.id !== lastSpeakerId) : orderedChars;
+  const char = candidates[Math.floor(Math.random() * candidates.length)];
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'AI service not configured.' });
+
+  const otherNames = orderedChars.filter(c => c.id !== char.id).map(c => c.name).join(', ');
+  const participants = [otherNames, 'the user'].filter(Boolean).join(' and ');
+
+  const groupCallCtx = userText
+    ? `[VOICE CALL — You are ${char.name}, in a live group voice call with ${participants}. The user just said: "${String(userText).slice(0, 200)}". Reply naturally, 1-2 sentences, in-character. You're on a real phone call — be yourself. No asterisk actions, no "As an AI".]`
+    : `[VOICE CALL — You are ${char.name}, in a live group voice call with ${participants}. Keep the conversation going. 1-2 sentences, casual and in-character. Occasionally invite the user to chime in. No asterisk actions.]`;
+
+  // Build history for the model
+  const histMsgs = [];
+  for (const m of safeHist) {
+    if (m.role === 'user') histMsgs.push({ role: 'user', content: `User: ${String(m.content).slice(0, 300)}` });
+    else if (m.role === 'assistant') histMsgs.push({ role: 'model', content: `[${m.speaker || 'Character'}]: ${String(m.content).slice(0, 300)}` });
+  }
+  histMsgs.push({ role: 'user', content: groupCallCtx });
+
+  // Merge consecutive same-role messages
+  const cleanedHist = [];
+  for (const m of histMsgs) {
+    const last = cleanedHist[cleanedHist.length - 1];
+    if (last && last.role === m.role) last.content += '\n' + m.content;
+    else cleanedHist.push({ role: m.role, content: m.content });
+  }
+  if (!cleanedHist.length || cleanedHist[0].role !== 'user') {
+    cleanedHist.unshift({ role: 'user', content: groupCallCtx });
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const send = (obj) => { try { res.write('data: ' + JSON.stringify(obj) + '\n\n'); } catch (_) {} };
+  const pingTimer = setInterval(() => { try { if (!res.writableEnded) res.write(': k\n\n'); } catch (_) {} }, 10000);
+  if (pingTimer.unref) pingTimer.unref();
+  let aborted = false;
+  res.on('close', () => { aborted = true; });
+
+  send({ type: 'speaker_start', charId: char.id, charName: char.name, charColor: char.color || '#7c3aed', charImage: char.image || null });
+
+  const vcCost = messageCost('opas', 'low') * Math.max(2, orderedChars.length);
+  addTokens(userId, vcCost);
+
+  let charResponse = '';
+  const ctx = { aborted: false };
+  callGeminiStream(
+    apiKey,
+    groupCallCtx + '\n\n' + (char.system_prompt || `You are ${char.name}. Respond naturally.`),
+    cleanedHist,
+    (token) => { if (aborted) { ctx.aborted = true; return; } charResponse += token; send({ type: 'token', token }); },
+    () => {
+      clearInterval(pingTimer);
+      if (!charResponse.trim()) charResponse = '...';
+      send({ type: 'speaker_end', charId: char.id });
+      send({ done: true, usage: buildUsagePayload(getLimits(userId), userId) });
+      try { res.end(); } catch (_) {}
+    },
+    (err) => {
+      clearInterval(pingTimer);
+      refundTokens(userId, vcCost);
+      send({ type: 'speaker_end', charId: char.id });
+      send({ done: true, usage: buildUsagePayload(getLimits(userId), userId) });
+      try { res.end(); } catch (_) {}
+    },
+    undefined,
+    EFFORT_CONFIG.opas.low,
+    GROQ_FAST_MODELS,
+    ctx
+  );
 });
 
 // ── Replicate voice cloning (free credits, no local server needed) ────────────
@@ -8423,6 +8546,46 @@ app.post('/api/admin/send-coins-to-email', requireAuth, async (req, res) => {
   }
 
   res.json({ ok: true, email: email.trim(), name: user.name, coins: totalCoins, bonus, tokens, newBalance: ul.cmCoins });
+});
+
+// ── Admin: set or add coins directly on any account ────────────────────────────
+app.post('/api/admin/edit-coins', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  if (!db) return res.status(503).json({ error: 'No database' });
+  const { email, amount, mode } = req.body;
+  if (!email || typeof email !== 'string') return res.status(400).json({ error: 'Email required' });
+  const coins = parseInt(amount);
+  if (!Number.isFinite(coins)) return res.status(400).json({ error: 'Invalid amount' });
+  if (mode !== 'set' && mode !== 'add') return res.status(400).json({ error: 'mode must be set or add' });
+  if (mode === 'set' && coins < 0) return res.status(400).json({ error: 'Cannot set balance below 0' });
+
+  let user;
+  try {
+    const r = await db.query(`SELECT google_id, name FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`, [email.trim()]);
+    user = r.rows[0];
+  } catch (e) { return res.status(500).json({ error: 'DB error' }); }
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  let newRow;
+  try {
+    if (mode === 'set') {
+      newRow = await db.query(
+        `UPDATE users SET cm_coins = $1 WHERE google_id = $2 RETURNING cm_coins`,
+        [Math.max(0, coins), user.google_id]
+      );
+    } else {
+      newRow = await db.query(
+        `UPDATE users SET cm_coins = GREATEST(0, COALESCE(cm_coins,0) + $1) WHERE google_id = $2 RETURNING cm_coins`,
+        [coins, user.google_id]
+      );
+    }
+  } catch (e) { return res.status(500).json({ error: 'DB error' }); }
+
+  const newBalance = newRow.rows[0]?.cm_coins ?? 0;
+  const ul = getLimits(user.google_id);
+  ul.cmCoins = newBalance;
+  console.log(`[admin] edit-coins: ${mode} ${coins} → ${email} (${user.google_id}), new balance: ${newBalance}`);
+  res.json({ ok: true, email: email.trim(), name: user.name, newBalance });
 });
 
 // ── PayPal ─────────────────────────────────────────────────────────────────────

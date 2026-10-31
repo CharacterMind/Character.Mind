@@ -2071,6 +2071,17 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '431': {
+    date: 'October 2026',
+    label: 'F5-TTS Voice Engine',
+    added: [
+      'Switched default voice engine to F5-TTS — zero-shot voice cloning with reference audio produces more natural, in-character speech',
+    ],
+    fixed: [
+      "Poppy's reference audio restored to the approved recording — previous replacement degraded voice quality",
+      'Voice server health endpoint now correctly reports engine readiness for F5-TTS, Chatterbox, and all other backends',
+    ],
+  },
   '430': {
     date: 'October 2026',
     label: 'Push Notifications Fix',
@@ -3159,6 +3170,7 @@ function _logCall(char, type, extraData) {
 }
 
 let _callLogStartTs = 0;
+let _callIsIncoming = false;
 
 // ── Phone tab state ───────────────────────────────────────────────────────────
 let _phoneActiveTab = 'contacts';
@@ -3182,8 +3194,8 @@ function _callListHtml(entries, emptyMsg) {
     const dt = new Date(e.ts);
     const dateStr = dt.toLocaleDateString('en-US',{month:'short',day:'numeric'});
     const timeStr = dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-    const icon = e.type === 'voicemail' ? '📞' : e.type === 'missed' ? '↙' : '↗';
-    const iconCls = e.type === 'missed' ? 'ph-call-icon-missed' : 'ph-call-icon-out';
+    const icon = e.type === 'voicemail' ? '📞' : e.type === 'missed' ? '↙' : e.type === 'incoming' ? '↙' : '↗';
+    const iconCls = (e.type === 'missed') ? 'ph-call-icon-missed' : (e.type === 'incoming') ? 'ph-call-icon-in' : 'ph-call-icon-out';
     const color = safeColor(e.charColor || '#7c3aed');
     const hasImg = isCharImg && isCharImg(e.charImage);
     const avatarContent = hasImg ? `<img src="${escHtml(e.charImage)}" alt="" onerror="this.style.display='none'">` : escHtml((e.charName||'?').charAt(0));
@@ -3654,6 +3666,9 @@ function showPhoneContactProfile(charId, e) {
     }
   }
 
+  // Call history for this character
+  renderPcpCallHistory(charId);
+
   overlay.style.display = 'block';
   // Reset scroll
   const body = overlay.querySelector('.pcp-body');
@@ -3664,6 +3679,38 @@ function closePhoneContactProfile() {
   const overlay = document.getElementById('phoneContactProfile');
   if (overlay) overlay.style.display = 'none';
   _pcpCharId = null;
+}
+
+function renderPcpCallHistory(charId) {
+  const el = document.getElementById('pcpCallHist');
+  if (!el) return;
+  const entries = _getCallLog().filter(e => e.charId === charId).slice(0, 6);
+  if (!entries.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="pcp-call-hist-title">Recent</div>` + entries.map(e => {
+    const dt = new Date(e.ts);
+    const now = new Date();
+    let dateStr;
+    if (dt.toDateString() === now.toDateString()) dateStr = 'Today';
+    else { const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1); dateStr = dt.toDateString() === yesterday.toDateString() ? 'Yesterday' : dt.toLocaleDateString('en-US', {month:'short', day:'numeric'}); }
+    const timeStr = dt.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
+    const isMissed = e.type === 'missed';
+    const isIncoming = e.type === 'incoming';
+    const icon = isMissed ? '↙' : isIncoming ? '↙' : '↗';
+    const iconCls = isMissed ? 'ph-call-icon-missed' : isIncoming ? 'ph-call-icon-in' : 'ph-call-icon-out';
+    const dur = e.duration ? ` · ${Math.floor(e.duration/60)}:${String(e.duration%60).padStart(2,'0')}` : '';
+    const label = isMissed ? '<span style="color:#ef4444">Missed</span>' : isIncoming ? 'Incoming' : 'Outgoing';
+    return `<div class="ph-call-entry" onclick="callCharFromPhone('${escHtml(charId)}')">
+      <div class="ph-call-info" style="flex:1">
+        <div class="ph-call-meta"><span class="${iconCls}">${icon}</span> ${label} · ${dateStr}, ${timeStr}${dur}</div>
+      </div>
+      <div class="ph-call-actions">
+        <button class="ph-contact-btn ph-contact-btn-call" onclick="callCharFromPhone('${escHtml(charId)}',event);event.stopPropagation()">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="11" height="11"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+          Call
+        </button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 async function removePhoneContact(charId) {
@@ -3684,67 +3731,78 @@ async function unblockPhoneContact(charId) {
   if (c) c.blocked = false;
 }
 
-// ── Save contact sheet ────────────────────────────────────────────────────────
+// ── Edit Contact Modal (Google Pixel style) ──────────────────────────────────
 
-let _saveContactCharId = null;
+let _ecmCharId = null;
 
-function openSaveContactSheet(charId) {
-  _saveContactCharId = charId;
-  const c = _phoneContacts.find(x => x.id === charId);
-  let sheet = document.getElementById('saveContactSheet');
-  if (!sheet) {
-    sheet = document.createElement('div');
-    sheet.id = 'saveContactSheet';
-    sheet.className = 'save-contact-sheet';
-    sheet.innerHTML = `
-      <div class="save-contact-inner">
-        <div class="save-contact-title">Save contact</div>
-        <div class="save-contact-num" id="saveContactNum"></div>
-        <div class="save-contact-field">
-          <label>Name</label>
-          <input id="saveContactNameInput" type="text" placeholder="Enter a name…" maxlength="50" autocomplete="off">
-        </div>
-        <div class="save-contact-actions">
-          <button class="save-contact-cancel" onclick="closeSaveContactSheet()">Cancel</button>
-          <button class="save-contact-save" onclick="confirmSaveContact()">Save</button>
-        </div>
-      </div>`;
-    sheet.addEventListener('click', e => { if (e.target === sheet) closeSaveContactSheet(); });
-    document.body.appendChild(sheet);
-  }
-  document.getElementById('saveContactNum').textContent = c ? (c.phone || '') : '';
-  const input = document.getElementById('saveContactNameInput');
-  input.value = c?.customName || '';
-  sheet.style.display = 'flex';
-  setTimeout(() => input.focus(), 80);
-  input.onkeydown = e => { if (e.key === 'Enter') confirmSaveContact(); };
-}
-
-function closeSaveContactSheet() {
-  const sheet = document.getElementById('saveContactSheet');
-  if (sheet) sheet.style.display = 'none';
-  _saveContactCharId = null;
-}
-
-async function confirmSaveContact() {
-  const charId = _saveContactCharId;
+function openEditContactModal(charId) {
   if (!charId) return;
-  const input = document.getElementById('saveContactNameInput');
-  const name = (input?.value || '').trim();
-  if (!name) { input?.focus(); return; }
+  _ecmCharId = charId;
+  const c = _phoneContacts.find(x => x.id === charId) || (characters || []).find(x => x.id === charId);
+  if (!c) return;
+  const modal = document.getElementById('editContactModal');
+  if (!modal) return;
+
+  // Hero / avatar
+  const color = safeColor(c.color || '#7c3aed');
+  const hasImg = isCharImg && isCharImg(c.image);
+  const displayName = c.customName || c.name || '';
+  const initial = (displayName || '?').charAt(0).toUpperCase();
+  const avatarEl = document.getElementById('ecmAvatar');
+  if (avatarEl) {
+    avatarEl.style.background = color;
+    avatarEl.innerHTML = hasImg ? `<img src="${escHtml(c.image)}" alt="" onerror="this.style.display='none'">` : escHtml(initial);
+  }
+  const hero = document.getElementById('ecmHero');
+  if (hero) hero.style.background = `linear-gradient(180deg, ${color}55 0%, transparent 100%)`;
+
+  // Name fields — split existing custom name into first/last
+  const parts = displayName.split(' ');
+  const firstInput = document.getElementById('ecmFirstName');
+  const lastInput = document.getElementById('ecmLastName');
+  if (firstInput) firstInput.value = parts[0] || '';
+  if (lastInput) lastInput.value = parts.slice(1).join(' ') || '';
+
+  // Phone
+  const phoneInput = document.getElementById('ecmPhone');
+  if (phoneInput) phoneInput.value = c.phone || charPhone(charId);
+
+  // Notes
+  const notesInput = document.getElementById('ecmNotes');
+  if (notesInput) notesInput.value = c.notes || '';
+
+  modal.style.display = 'flex';
+  setTimeout(() => firstInput?.focus(), 80);
+}
+
+// Shim so old references to openSaveContactSheet still work
+function openSaveContactSheet(charId) { openEditContactModal(charId); }
+
+function closeEditContactModal() {
+  const modal = document.getElementById('editContactModal');
+  if (modal) modal.style.display = 'none';
+  _ecmCharId = null;
+}
+
+async function saveEditContact() {
+  const charId = _ecmCharId;
+  if (!charId) return;
+  const firstName = (document.getElementById('ecmFirstName')?.value || '').trim();
+  const lastName  = (document.getElementById('ecmLastName')?.value || '').trim();
+  const notes     = (document.getElementById('ecmNotes')?.value || '').trim();
+  const name = [firstName, lastName].filter(Boolean).join(' ');
+  if (!name) { document.getElementById('ecmFirstName')?.focus(); return; }
   try {
     const r = await fetch(`/api/phone/contacts/${encodeURIComponent(charId)}/name`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name })
+      body: JSON.stringify({ name, notes })
     });
     if (!r.ok) return;
-    // Update local cache so re-render is instant
     const c = _phoneContacts.find(x => x.id === charId);
-    if (c) c.customName = name;
-    closeSaveContactSheet();
+    if (c) { c.customName = name; c.notes = notes; }
+    closeEditContactModal();
     renderPhoneContacts(document.getElementById('phoneSearch')?.value || '');
-    // Refresh contact profile if it's open for the same character
     if (_pcpCharId === charId) showPhoneContactProfile(charId);
   } catch (_) {}
 }
@@ -3870,6 +3928,7 @@ async function callCharFromPhone(charId, e) {
   if (charAvailability(charId).busy) {
     showPhoneRingingThenVoicemail(char, prevChar);
   } else {
+    _callIsIncoming = false;
     _callLogStartTs = Date.now();
     startCallMode();
   }
@@ -4069,6 +4128,8 @@ function answerIncomingCall() {
   if (!char) return;
   currentChar = char;
   applyChatTheme(char);
+  _callIsIncoming = true;
+  _callLogStartTs = Date.now();
   startCallMode();
 }
 
@@ -4080,6 +4141,7 @@ function declineIncomingCall(auto = false) {
   const overlay = document.getElementById('incomingCallOverlay');
   if (overlay) overlay.style.display = 'none';
   if (!char) return;
+  _logCall(char, 'missed', {});
   // Character sends a follow-up DM
   setTimeout(async () => {
     try {
@@ -7798,6 +7860,56 @@ async function adminSendCoinsToEmail() {
   if (btn) { btn.textContent = 'Send Gift 🎁'; btn.disabled = false; }
 }
 
+async function adminCoinLookup() {
+  if (!isOwner()) return;
+  const email = (document.getElementById('coinEditEmail')?.value || '').trim();
+  const info = document.getElementById('coinEditResult');
+  if (!email) { if (info) info.textContent = 'Enter an email first.'; return; }
+  const btn = document.getElementById('coinLookupBtn');
+  if (btn) { btn.textContent = 'Looking…'; btn.disabled = true; }
+  try {
+    const d = await fetch('/api/admin/edit-coins', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, amount: 0, mode: 'add' })
+    }).then(r => r.json());
+    if (d.ok) {
+      if (info) info.textContent = `${d.name || d.email}: ${d.newBalance.toLocaleString()} coins`;
+    } else {
+      if (info) info.textContent = d.error || 'Not found.';
+    }
+  } catch (_) { if (info) info.textContent = 'Request failed.'; }
+  if (btn) { btn.textContent = 'Look up balance'; btn.disabled = false; }
+}
+
+async function adminEditCoins() {
+  if (!isOwner()) return;
+  const email  = (document.getElementById('coinEditEmail')?.value || '').trim();
+  const amount = parseInt(document.getElementById('coinEditAmount')?.value) || 0;
+  const mode   = document.getElementById('coinEditMode')?.value || 'set';
+  const info   = document.getElementById('coinEditResult');
+  if (!email) { if (info) info.textContent = 'Enter an email.'; return; }
+  const label = mode === 'set' ? `Set balance to ${amount}` : (amount >= 0 ? `Add ${amount}` : `Subtract ${Math.abs(amount)}`);
+  if (!confirm(`${label} coins for ${email}?`)) return;
+  const btn = document.getElementById('coinEditBtn');
+  if (btn) { btn.textContent = 'Applying…'; btn.disabled = true; }
+  if (info) info.textContent = '';
+  try {
+    const d = await fetch('/api/admin/edit-coins', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, amount, mode })
+    }).then(r => r.json());
+    if (d.ok) {
+      showWarning(`💰 Done — ${d.name || d.email}: ${d.newBalance.toLocaleString()} coins`, 5000);
+      if (info) info.textContent = `✓ ${d.name || d.email}: ${d.newBalance.toLocaleString()} coins`;
+    } else {
+      if (info) info.textContent = d.error || 'Failed.';
+    }
+  } catch (_) { if (info) info.textContent = 'Request failed.'; }
+  if (btn) { btn.textContent = 'Apply Coins 💰'; btn.disabled = false; }
+}
+
 async function adminResetAccountByEmail() {
   if (!isOwner()) return;
   const email = (document.getElementById('sendToEmail')?.value || '').trim();
@@ -8328,6 +8440,24 @@ function startUsageModalTimer() {
   }, 10000);
 }
 
+// Convert a CHANGELOG_DATA entry to the announcement shape renderWhatsNew expects.
+function _changelogToAnn(ver) {
+  const e = CHANGELOG_DATA[String(ver)];
+  if (!e) return null;
+  return { id: 'v' + ver, version: 'v' + ver, date: e.date || '', title: e.label || '', added: e.added, fixed: e.fixed, changed: e.changed, note: e.note };
+}
+
+// Prepend any CHANGELOG_DATA versions newer than the latest DB entry.
+function _supplementAnns(dbData) {
+  const maxDbVer = dbData.reduce((m, a) => {
+    const vm = (a.version || '').match(/v?(\d+)/i);
+    return vm ? Math.max(m, parseInt(vm[1], 10)) : m;
+  }, 0);
+  const localNewer = Object.keys(CHANGELOG_DATA).map(Number).filter(v => v > maxDbVer).sort((a, b) => b - a);
+  const extras = localNewer.map(_changelogToAnn).filter(Boolean);
+  return [...extras, ...dbData];
+}
+
 async function openWhatsNew() {
   const modal = document.getElementById('whatsNewModal');
   if (!modal) return;
@@ -8344,12 +8474,13 @@ async function openWhatsNew() {
     const r = await fetch('/api/announcements');
     const data = await r.json();
     window._announcements = data;
-    try { localStorage.setItem('cm_wn_seen', data[0]?.id || ''); } catch (_) {}
-    renderWhatsNew(data, body);
+    const merged = _supplementAnns(data);
+    try { localStorage.setItem('cm_wn_seen', merged[0]?.id || ''); } catch (_) {}
+    renderWhatsNew(merged, body);
   } catch (_) {
     // Fall back to cached data if network fails
     if (window._announcements) {
-      renderWhatsNew(window._announcements, body);
+      renderWhatsNew(_supplementAnns(window._announcements), body);
     } else {
       body.innerHTML = '<div class="whats-new-loading">Failed to load.</div>';
     }
@@ -8606,10 +8737,11 @@ async function checkWhatsNewDot() {
     const r = await fetch('/api/announcements');
     const data = await r.json();
     window._announcements = data;
-    if (!data.length) return;
+    const merged = _supplementAnns(data);
+    if (!merged.length) return;
     let seen = '';
     try { seen = localStorage.getItem('cm_wn_seen') || ''; } catch (_) {}
-    if (seen !== data[0].id) {
+    if (seen !== merged[0].id) {
       const dot = document.getElementById('whatsNewDot');
       if (dot) dot.hidden = false;
       const mobDot2 = document.getElementById('mobWhatsNewDot');
@@ -11253,6 +11385,7 @@ let callRecognition = null;
 
 function callCharFromChat() {
   if (!currentChar) return;
+  _callIsIncoming = false;
   _callLogStartTs = Date.now();
   startCallMode();
 }
@@ -11653,8 +11786,9 @@ function endCallMode() {
   callMuted = false;
   if (_callLogStartTs > 0 && currentChar) {
     const dur = Math.round((Date.now() - _callLogStartTs) / 1000);
-    _logCall(currentChar, 'outgoing', { duration: dur });
+    _logCall(currentChar, _callIsIncoming ? 'incoming' : 'outgoing', { duration: dur });
     _callLogStartTs = 0;
+    _callIsIncoming = false;
   }
   stopCallDurationTimer();
   clearCallInactivityTimer();
@@ -15537,6 +15671,295 @@ async function saveMemberChanges() {
     if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GROUP VOICE CALL  (Discord-like: AI-to-AI live voice, user can join)
+// ═══════════════════════════════════════════════════════════════════════════
+
+let gcallActive      = false;
+let gcallGroupId     = null;
+let gcallGroupData   = null;
+let gcallConversation = [];   // ephemeral call history (client-side only)
+let gcallAutoMode    = true;
+let gcallAutoTimer   = null;
+let gcallAutoAbort   = null;
+let gcallSpeakingCharId = null;
+let gcallMicActive   = false;
+let gcallRecognition = null;
+let _gcallTTSQueue   = [];
+let _gcallTTSPlaying = false;
+let _gcallTTSAudio   = null;
+
+function startGroupCall(groupId, groupData) {
+  if (!groupId) return;
+  if (!groupData) {
+    fetch('/api/groups').then(r => r.json()).then(d => {
+      const g = (d.groups || []).find(g => g.id === groupId);
+      if (g) startGroupCall(groupId, g);
+    }).catch(() => {});
+    return;
+  }
+  gcallGroupId     = groupId;
+  gcallGroupData   = groupData;
+  gcallConversation = [];
+  gcallActive      = true;
+  gcallAutoMode    = true;
+  gcallSpeakingCharId = null;
+  gcallMicActive   = false;
+
+  renderGcallParticipants(groupData);
+  const overlay = document.getElementById('groupCallOverlay');
+  if (overlay) overlay.style.display = 'flex';
+
+  const autoBtn = document.getElementById('gcallAutoBtn');
+  if (autoBtn) autoBtn.classList.add('active');
+
+  scheduleGcallTurn(1200);
+}
+
+function endGroupCall() {
+  gcallActive = false;
+  if (gcallMicActive) _stopGcallMic();
+  _stopGcallTTS();
+  if (gcallAutoTimer) { clearTimeout(gcallAutoTimer); gcallAutoTimer = null; }
+  if (gcallAutoAbort) { gcallAutoAbort.abort(); gcallAutoAbort = null; }
+  const overlay = document.getElementById('groupCallOverlay');
+  if (overlay) overlay.style.display = 'none';
+  gcallGroupId = null; gcallGroupData = null; gcallConversation = [];
+  gcallSpeakingCharId = null;
+}
+
+function scheduleGcallTurn(delay) {
+  if (gcallAutoTimer) { clearTimeout(gcallAutoTimer); gcallAutoTimer = null; }
+  if (!gcallActive || !gcallAutoMode) return;
+  const d = (delay || 2500) + Math.random() * 2000;
+  gcallAutoTimer = setTimeout(() => {
+    gcallAutoTimer = null;
+    if (gcallActive && gcallAutoMode && !_gcallTTSPlaying) runGcallTurn(null);
+  }, d);
+}
+
+async function runGcallTurn(userText) {
+  if (!gcallActive || !gcallGroupId) return;
+  const ac = new AbortController();
+  gcallAutoAbort = ac;
+  try {
+    const r = await fetch(`/api/groups/${gcallGroupId}/voice-round`, {
+      method: 'POST', signal: ac.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ history: gcallConversation.slice(-20), userText: userText || null })
+    });
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      gcallAutoMode = false;
+      const autoBtn = document.getElementById('gcallAutoBtn');
+      if (autoBtn) autoBtn.classList.remove('active');
+      if (r.status === 429) {
+        if (data.type === 'session') startCooldown(data.cooldownUntil, 'session', true);
+        else startCooldown(data.resetsAt, 'weekly', true);
+      }
+      return;
+    }
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '', streamDone = false;
+    let curId = null, curName = null, curColor = null, curText = '';
+
+    while (!streamDone) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n'); buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim(); if (!raw) continue;
+        let evt; try { evt = JSON.parse(raw); } catch (_) { continue; }
+
+        if (evt.type === 'speaker_start') {
+          curId = evt.charId; curName = evt.charName; curColor = evt.charColor; curText = '';
+          gcallSpeakingCharId = curId;
+          _gcallSetSpeaking(curId, true);
+          const nowEl = document.getElementById('gcallNowSpeaking');
+          if (nowEl) nowEl.textContent = `${curName} is speaking…`;
+          const textEl = document.getElementById('gcallSpeechText');
+          if (textEl) textEl.textContent = '';
+        } else if (evt.type === 'token') {
+          curText += (evt.token || '');
+          const textEl = document.getElementById('gcallSpeechText');
+          if (textEl) textEl.textContent = curText;
+        } else if (evt.type === 'speaker_end') {
+          if (curText && curId) {
+            gcallConversation.push({ role: 'assistant', speaker: curName, charId: curId, content: curText });
+            if (gcallConversation.length > 30) gcallConversation.shift();
+            _queueGcallTTS(curText, { id: curId, name: curName, color: curColor });
+          }
+          _gcallSetSpeaking(curId, false);
+          curId = null; curText = '';
+          gcallSpeakingCharId = null;
+          const nowEl = document.getElementById('gcallNowSpeaking');
+          if (nowEl) nowEl.textContent = '';
+        } else if (evt.done) {
+          streamDone = true;
+          if (evt.usage) updateUsageBars(evt.usage);
+          break;
+        }
+      }
+    }
+  } catch (e) {
+    if (e?.name !== 'AbortError') console.error('[gcall]', e);
+  } finally {
+    gcallAutoAbort = null;
+    if (gcallActive && gcallAutoMode && !_gcallTTSPlaying) scheduleGcallTurn(3000);
+  }
+}
+
+function _gcallSetSpeaking(charId, on) {
+  const el = charId ? document.getElementById(`gcallBubble_${charId}`) : null;
+  if (el) el.classList.toggle('gcall-speaking', on);
+}
+
+function _queueGcallTTS(text, char) {
+  _gcallTTSQueue.push({ text, char });
+  if (!_gcallTTSPlaying) _advanceGcallTTS();
+}
+
+function _stopGcallTTS() {
+  _gcallTTSQueue = []; _gcallTTSPlaying = false;
+  if (_gcallTTSAudio) { try { _gcallTTSAudio.pause(); } catch (_) {} _gcallTTSAudio = null; }
+  const nowEl = document.getElementById('gcallNowSpeaking');
+  if (nowEl) nowEl.textContent = '';
+}
+
+async function _advanceGcallTTS() {
+  if (!_gcallTTSQueue.length || !gcallActive) {
+    _gcallTTSPlaying = false;
+    if (gcallActive && gcallAutoMode) scheduleGcallTurn(2500);
+    return;
+  }
+  _gcallTTSPlaying = true;
+  const { text, char } = _gcallTTSQueue.shift();
+  gcallSpeakingCharId = char.id;
+  _gcallSetSpeaking(char.id, true);
+  const nowEl = document.getElementById('gcallNowSpeaking');
+  if (nowEl) nowEl.textContent = `${char.name} is speaking…`;
+
+  try {
+    const vp = _getGroupCharVoiceParams(char.id);
+    const clean = ttsCleanText(text);
+    const r = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: clean.slice(0, 499), charId: char.id, ...vp })
+    });
+    if (r.ok && gcallActive) {
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      _gcallTTSAudio = audio;
+      await new Promise(resolve => { audio.onended = resolve; audio.onerror = resolve; audio.play().catch(resolve); });
+      URL.revokeObjectURL(url);
+    }
+  } catch (_) {}
+
+  _gcallSetSpeaking(char.id, false);
+  gcallSpeakingCharId = null;
+  if (nowEl) nowEl.textContent = '';
+  _gcallTTSAudio = null;
+  _gcallTTSPlaying = _gcallTTSQueue.length > 0;
+  if (_gcallTTSPlaying) _advanceGcallTTS();
+  else { _gcallTTSPlaying = false; if (gcallActive && gcallAutoMode) scheduleGcallTurn(2500); }
+}
+
+function renderGcallParticipants(groupData) {
+  const container = document.getElementById('gcallParticipants');
+  if (!container) return;
+  const titleEl = document.getElementById('gcallTitle');
+  if (titleEl) titleEl.textContent = groupData.name || 'Group Call';
+  const members = (groupData.members || []).slice(0, 5);
+  container.innerHTML = members.map(m => {
+    const color = safeColor(m.color || '#7c3aed');
+    const hasImg = m.image;
+    const initial = (m.name || '?').charAt(0).toUpperCase();
+    return `<div class="gcall-bubble" id="gcallBubble_${escHtml(m.id)}">
+      <div class="gcall-bubble-avatar" style="background:${color}">
+        ${hasImg ? `<img src="/api/characters/${escHtml(m.id)}/image" alt="" onerror="this.style.display='none'">` : escHtml(initial)}
+        <div class="gcall-speaking-ring"></div>
+      </div>
+      <div class="gcall-bubble-name">${escHtml(m.name || 'Character')}</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleGcallAuto() {
+  gcallAutoMode = !gcallAutoMode;
+  const btn = document.getElementById('gcallAutoBtn');
+  if (btn) btn.classList.toggle('active', gcallAutoMode);
+  if (gcallAutoMode && !_gcallTTSPlaying) scheduleGcallTurn(500);
+  else if (!gcallAutoMode && gcallAutoTimer) { clearTimeout(gcallAutoTimer); gcallAutoTimer = null; }
+}
+
+async function toggleGroupCallMic() {
+  if (gcallMicActive) { _stopGcallMic(); return; }
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { showWarning('Speech recognition requires Chrome.', 4000); return; }
+
+  try {
+    if (navigator.mediaDevices?.getUserMedia) {
+      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      s.getTracks().forEach(t => t.stop());
+    }
+  } catch (e) {
+    if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+      showWarning('Microphone access is required.', 5000); return;
+    }
+  }
+
+  gcallMicActive = true;
+  // Pause auto while user is preparing to speak
+  if (gcallAutoTimer) { clearTimeout(gcallAutoTimer); gcallAutoTimer = null; }
+  _stopGcallTTS();
+
+  const joinBtn = document.getElementById('gcallJoinBtn');
+  const joinLabel = document.getElementById('gcallJoinLabel');
+  if (joinBtn) joinBtn.classList.add('active');
+  if (joinLabel) joinLabel.textContent = 'Leave';
+  const userBubble = document.getElementById('gcallUserBubble');
+  if (userBubble) userBubble.classList.add('gcall-user-active');
+
+  gcallRecognition = new SR();
+  gcallRecognition.continuous = true;
+  gcallRecognition.interimResults = false;
+  gcallRecognition.lang = 'en-US';
+
+  gcallRecognition.onresult = (e) => {
+    const text = Array.from(e.results).slice(e.resultIndex).filter(r => r.isFinal).map(r => r[0].transcript).join(' ').trim();
+    if (!text || !gcallActive) return;
+    gcallConversation.push({ role: 'user', speaker: 'You', content: text });
+    const userTextEl = document.getElementById('gcallUserText');
+    if (userTextEl) { userTextEl.textContent = text; setTimeout(() => { if (userTextEl.textContent === text) userTextEl.textContent = ''; }, 4000); }
+    runGcallTurn(text);
+  };
+  gcallRecognition.onerror = () => _stopGcallMic();
+  gcallRecognition.onend = () => { if (gcallMicActive && gcallRecognition) { try { gcallRecognition.start(); } catch (_) {} } };
+  gcallRecognition.start();
+}
+
+function _stopGcallMic() {
+  gcallMicActive = false;
+  if (gcallRecognition) { try { gcallRecognition.abort(); } catch (_) {} gcallRecognition = null; }
+  const joinBtn = document.getElementById('gcallJoinBtn');
+  const joinLabel = document.getElementById('gcallJoinLabel');
+  if (joinBtn) joinBtn.classList.remove('active');
+  if (joinLabel) joinLabel.textContent = 'Join';
+  const userBubble = document.getElementById('gcallUserBubble');
+  if (userBubble) userBubble.classList.remove('gcall-user-active');
+  const userTextEl = document.getElementById('gcallUserText');
+  if (userTextEl) userTextEl.textContent = '';
+  if (gcallActive && gcallAutoMode) scheduleGcallTurn(1000);
+}
+
+// ─── end GROUP VOICE CALL ──────────────────────────────────────────────────────
 
 async function deleteCurrentGroup() {
   if (!currentGroupId) return;
