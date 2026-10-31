@@ -1,5 +1,16 @@
 [
   {
+    "id": "v413-gapless-bugfix",
+    "version": "v413",
+    "date": "Oct 2026",
+    "title": "🐛 Gapless Voice — Bug Fixes",
+    "subtitle": "Two bugs in the v412 Web Audio player that could silence auto-speak entirely.",
+    "fixed": [
+      "AudioContext resume: context was left suspended by browser autoplay policy, silencing auto-speak — now resumed before scheduling",
+      "Auto-speak no longer fires TTS fetches when voice provider is set to off"
+    ]
+  },
+  {
     "id": "v412-gapless-voice",
     "version": "v412",
     "date": "Oct 2026",

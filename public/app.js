@@ -2012,6 +2012,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '413': {
+    date: 'October 2026',
+    label: 'Gapless Voice — Bug Fixes',
+    fixed: [
+      'AudioContext resume: Web Audio API context was left suspended by browser autoplay policy, silencing auto-speak entirely — now resumed before scheduling',
+      'Auto-speak no longer fires TTS fetches when voice is disabled (provider = off)',
+    ],
+  },
   '412': {
     date: 'October 2026',
     label: 'Gapless Voice Playback',
@@ -9592,6 +9600,9 @@ function _makeGaplessPlayer(blobPromises, cancelSignal, onFirstAudio) {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
     } catch (e) { return; } // Web Audio not available — silent fail
 
+    // Browsers suspend AudioContext until a user gesture — resume before scheduling
+    if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
+
     let scheduleAt = ctx.currentTime + 0.08; // 80 ms initial buffer
     let lastEndP = null;
     let firstPlayed = false;
@@ -9779,7 +9790,7 @@ async function _playStreamTTSQueue() {
         if (!_streamTTSPlaying || myGen !== _ttsGeneration) break;
         await _speakStreamSentence(t);
       }
-    } else {
+    } else if (ttsProvider !== 'off') {
       // Resolve blob promise for each sentence (prefetch pool first, else new fetch)
       const blobPromises = batch.map(t => {
         let bp = _ttsPrefetchPool.get(t);
