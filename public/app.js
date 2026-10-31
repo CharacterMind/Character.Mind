@@ -2060,6 +2060,57 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '430': {
+    date: 'October 2026',
+    label: 'Push Notifications Fix',
+    fixed: [
+      'Push subscriptions were silently failing — a duplicate route handler with the wrong DB schema ran first and swallowed the error, so nobody received call or message notifications',
+      'Admin test-call endpoint updated to use the correct push function',
+    ],
+  },
+  '429': {
+    date: 'October 2026',
+    label: 'Voice & Contacts Fix',
+    fixed: [
+      "Poppy's voice sample replaced with a clean 8-second clip — previous file was too long for Chatterbox conditioning",
+      "Voice server health check now correctly reports Chatterbox as ready — was always reporting 'not ready', causing fallback to Edge TTS",
+      "Phone contacts without a custom nickname now show the character's real name instead of 'Unknown'",
+      'Phone contact search now finds contacts by character name, not only by custom nickname',
+      'Voice synthesis uses torch.autocast fp16 instead of manual half() cast — prevents tensor type mismatch errors',
+    ],
+  },
+  '428': {
+    date: 'October 2026',
+    label: 'Profile Banner + Contact Fix',
+    added: [
+      'Profile banner image — upload and crop a banner photo on your public profile',
+      'Banner remove button in settings',
+    ],
+    fixed: [
+      'Phone contacts no longer show as Unknown when no custom nickname is set',
+      'Voice synthesis VRAM usage reduced with fp16 autocast',
+    ],
+  },
+  '427': {
+    date: 'October 2026',
+    label: 'Contact Actions + Call Gates',
+    added: [
+      'Delete contact — remove a contact from your phone entirely',
+      'Block contact — blocked contacts cannot call you',
+      'Unblock contact from their profile',
+    ],
+    fixed: [
+      'Blocked contacts no longer trigger incoming call UI',
+    ],
+  },
+  '426': {
+    date: 'October 2026',
+    label: 'iOS Scroll + Chatterbox Default',
+    fixed: [
+      'iOS overscroll/bounce no longer causes the page to jump or get stuck',
+      'Chatterbox is now the default TTS engine when the local voice server is online',
+    ],
+  },
   '414': {
     date: 'October 2026',
     label: 'Save Contact',
@@ -10284,15 +10335,24 @@ function _feedAutoSpeak(chunk) {
   }
 
   // Secondary: when the incomplete tail is long, split at the first ", " after ≥12 chars.
-  // This kicks off synthesis on shorter text sooner, reducing first-audio latency on slow
-  // providers (F5-TTS, XTTS) where synthesis time scales with input length.
-  while (_streamTTSBuffer.length > 40) {
+  // Skip for character voice (Chatterbox ~5s/call) — short fragments cause more gaps than
+  // waiting for a complete sentence.
+  while (ttsProvider !== 'character' && _streamTTSBuffer.length > 40) {
     const idx = _streamTTSBuffer.indexOf(', ', 12);
     if (idx === -1) break;
     const piece = _streamTTSBuffer.slice(0, idx + 1).trim();
     const tail  = _streamTTSBuffer.slice(idx + 2).trimStart();
     if (piece.length < 10) break; // too short to synthesize alone
     _streamTTSBuffer = tail;
+    _streamTTSQueue.push(piece);
+    _prefetchSentence(piece);
+  }
+  // For character voice: force-split at 400 chars to avoid server 500-char truncation
+  while (ttsProvider === 'character' && _streamTTSBuffer.length > 400) {
+    const idx = _streamTTSBuffer.lastIndexOf(' ', 390);
+    if (idx < 50) break;
+    const piece = _streamTTSBuffer.slice(0, idx).trim();
+    _streamTTSBuffer = _streamTTSBuffer.slice(idx + 1).trimStart();
     _streamTTSQueue.push(piece);
     _prefetchSentence(piece);
   }
@@ -10755,10 +10815,19 @@ async function toggleTTS(btn) {
     return;
   }
 
-  // Split into sentences so all synthesis runs in parallel — fixes cutoff on long
-  // messages and means subsequent sentences are ready with zero gap after the first
-  const sentences = text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 1);
-  if (!sentences.length) sentences.push(text.slice(0, 499));
+  // Split into sentences; for character voice (Chatterbox ~5-7s/call) merge them into
+  // ~350-char chunks so fewer synthesis calls cover more audio → no inter-sentence gaps
+  const rawSentences = text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 1);
+  if (!rawSentences.length) rawSentences.push(text.slice(0, 499));
+  const sentences = (ttsProvider === 'character') ? (() => {
+    const chunks = []; let cur = '';
+    for (const s of rawSentences) {
+      if (cur && cur.length + 1 + s.length > 350) { chunks.push(cur); cur = s; }
+      else cur = cur ? cur + ' ' + s : s;
+    }
+    if (cur) chunks.push(cur);
+    return chunks;
+  })() : rawSentences;
 
   const charId = currentChar?.id || '';
   const makeBody = (s, prov) => JSON.stringify({ text: s.slice(0, 499), charId, provider: prov || ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName });
@@ -11003,12 +11072,20 @@ async function callModeTTS_server(text) {
 
   if (ttsProvider === 'browser') { callModeTTS_browser(text, gen); return; }
 
-  // Split into sentences so we can start playing the first sentence immediately
-  // while pre-fetching the next one — reduces the "falling behind" latency.
-  const sentences = clean.match(/[^.!?]+[.!?]+(?:\s|$)|[^.!?]+$/g)
+  // Split into sentences; for character voice merge into ~300-char chunks (Chatterbox ~5-7s/call)
+  // so each synthesis produces more audio and gaps between chunks are minimised.
+  const rawCallSentences = clean.match(/[^.!?]+[.!?]+(?:\s|$)|[^.!?]+$/g)
     ?.map(s => s.trim()).filter(s => s.length > 0) || [clean];
+  const sentences = (ttsProvider === 'character' && rawCallSentences.length > 1) ? (() => {
+    const chunks = []; let cur = '';
+    for (const s of rawCallSentences) {
+      if (cur && cur.length + 1 + s.length > 300) { chunks.push(cur); cur = s; }
+      else cur = cur ? cur + ' ' + s : s;
+    }
+    if (cur) chunks.push(cur);
+    return chunks;
+  })() : rawCallSentences;
 
-  // Character clone voice is now allowed on calls — GPU synthesis runs in ~1-3s per sentence.
   // Server falls back to Edge TTS automatically if no clone voice is registered for a character.
   const callProvider = ttsProvider;
   const fetchBlob = async (s) => {
