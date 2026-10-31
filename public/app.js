@@ -2006,6 +2006,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '403': {
+    date: 'October 2026',
+    label: 'Critical Phone Unlock Bug Fixed',
+    fixed: [
+      'Phone numbers now actually unlock through friendship — a missing constant (PHONE_FRIENDSHIP_AT) was making the check always fail, so no normal user could ever earn a character\'s number through chat',
+      'After resetting friendship, the bar now shows the correct new random target immediately (was showing 0 / 20 until the next message)',
+    ],
+  },
   '402': {
     date: 'October 2026',
     label: 'Sessions Survive Deploys + Friendship Fixes',
@@ -11839,7 +11847,7 @@ async function confirmResetFriendship() {
     const r = await fetch(`/api/friendship/${encodeURIComponent(currentChar.id)}/reset`, { method: 'POST' });
     if (!r.ok) throw new Error('Server error');
     const d = await r.json();
-    renderFriendshipBar(d);
+    refreshFriendshipBar(currentChar.id);
     // Clear local chat display and reload
     const messagesDiv = document.getElementById('messages');
     if (messagesDiv) messagesDiv.innerHTML = '';

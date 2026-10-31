@@ -4316,7 +4316,7 @@ app.post('/api/friendship/:charId/reset', requireAuth, async (req, res) => {
     }
   }
 
-  res.json({ ok: true, score: 0, max: PHONE_FRIENDSHIP_AT, unlocked: false });
+  res.json({ ok: true, score: 0, threshold: getFriendshipThreshold(userId, charId), min: PHONE_FRIENDSHIP_MIN, max: PHONE_FRIENDSHIP_MAX, unlocked: false });
 });
 
 // Unlock a character's number for the current user (called by friendship system or admin)
@@ -7180,7 +7180,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       if (!callMode && !isPhoneUnlocked(userId, charId)) {
         const phone = userCharPhone(userId, charId, getLimits(userId).phoneGen || 0);
         if ((meta && meta.gaveNumber) || String(text || '').includes(phone)) {
-          if (friendshipScore(userId, charId, conversations[key]) >= PHONE_FRIENDSHIP_AT) {
+          if (friendshipScore(userId, charId, conversations[key]) >= getFriendshipThreshold(userId, charId)) {
             unlockPhone(userId, charId);
             hangInfo.phoneUnlocked = { charId, name: (dbChar && dbChar.name) || charId, phone };
           }

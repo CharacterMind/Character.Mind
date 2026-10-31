@@ -1,5 +1,16 @@
 [
   {
+    "id": "v403-phone-unlock-fix",
+    "version": "v403",
+    "date": "Oct 2026",
+    "title": "🔑 Phone Unlock Bug Fixed",
+    "subtitle": "A critical bug was preventing anyone from ever earning a character's phone number through friendship. Now fixed.",
+    "fixed": [
+      "Phone numbers now actually unlock through friendship — an undefined constant was making the friendship check always fail silently",
+      "After resetting friendship the bar now shows the correct new random target right away instead of showing 0 / 20"
+    ]
+  },
+  {
     "id": "v402-session-fixes",
     "version": "v402",
     "date": "Oct 2026",
