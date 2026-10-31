@@ -4875,7 +4875,7 @@ app.get('/api/xtts-status', requireAuth, async (req, res) => {
 });
 
 app.post('/api/tts', requireAuth, async (req, res) => {
-  const text = String(req.body?.text || '').replace(/\*[^*]*\*/g, '').replace(/\s+/g, ' ').trim().slice(0, 400);
+  const text = String(req.body?.text || '').replace(/\*[^*]*\*/g, '').replace(/\s+/g, ' ').trim().slice(0, 1000);
   const charId = String(req.body?.charId || '');
   const provider = String(req.body?.provider || 'gemini');
   const geminiVoice = String(req.body?.geminiVoice || 'Aoede');
@@ -4944,6 +4944,10 @@ app.post('/api/tts', requireAuth, async (req, res) => {
       }
     } catch { /* no user voice assigned */ }
     if (!speakerFile) speakerFile = charEntry?.file || null;
+    if (!speakerFile) {
+      // No voice file found — return 503 rather than silently falling through to Edge TTS
+      return res.status(503).json({ error: 'No voice file configured for this character' });
+    }
     if (speakerFile) {
       // 1. Replicate XTTS-v2 (free credits — no local server needed; set REPLICATE_API_TOKEN)
       if (process.env.REPLICATE_API_TOKEN) {

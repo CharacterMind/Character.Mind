@@ -9360,29 +9360,49 @@ function _prefetchSentence(rawText) {
 function _feedAutoSpeak(chunk) {
   if (!chatAutoSpeak || callModeActive) return;
   _streamTTSBuffer += chunk;
-  // Extract complete sentences (ending in .!? followed by whitespace)
-  const buf = _streamTTSBuffer;
-  let start = 0;
-  for (let i = 1; i < buf.length; i++) {
-    const prev = buf[i - 1];
-    const curr = buf[i];
-    if ('.!?'.includes(prev) && (curr === ' ' || curr === '\n')) {
-      const sentence = buf.slice(start, i).trim();
-      if (sentence.length > 2) { _streamTTSQueue.push(sentence); _prefetchSentence(sentence); }
-      start = i;
-      while (start < buf.length && (buf[start] === ' ' || buf[start] === '\n')) start++;
-      i = start;
-    }
-  }
-  _streamTTSBuffer = buf.slice(start);
-  _playStreamTTSQueue();
+  // Just buffer — full message is sent as ONE TTS request when streaming ends (no inter-sentence pauses)
 }
 
 function _flushAutoSpeak() {
   if (!chatAutoSpeak || callModeActive) return;
-  const sentence = _streamTTSBuffer.trim();
-  if (sentence.length > 2) { _streamTTSQueue.push(sentence); _prefetchSentence(sentence); _playStreamTTSQueue(); }
+  const fullText = _streamTTSBuffer.trim();
   _streamTTSBuffer = '';
+  if (fullText.length > 1) _playFullMessageTTS(fullText);
+}
+
+async function _playFullMessageTTS(rawText) {
+  if (_streamTTSPlaying) return;
+  if (ttsProvider === 'browser' || ttsProvider === 'off') return;
+  const clean = ttsCleanText(rawText);
+  if (!clean || clean.length <= 1) return;
+
+  _streamTTSPlaying = true;
+  const btn = document.getElementById('autoSpeakBtn');
+  if (btn) { btn.classList.remove('speaking'); btn.classList.add('loading'); }
+
+  try {
+    const r = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: clean.slice(0, 1000), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
+    });
+    if (btn) btn.classList.remove('loading');
+    if (!r.ok || !_streamTTSPlaying) { _streamTTSPlaying = false; if (btn) btn.classList.remove('speaking', 'loading'); return; }
+    const blob = await r.blob();
+    if (!blob || !_streamTTSPlaying) { _streamTTSPlaying = false; if (btn) btn.classList.remove('speaking', 'loading'); return; }
+    if (btn) btn.classList.add('speaking');
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    _streamTTSAudio = audio;
+    await new Promise(resolve => {
+      const done = () => { URL.revokeObjectURL(url); if (_streamTTSAudio === audio) _streamTTSAudio = null; resolve(); };
+      audio.onended = done; audio.onerror = done;
+      audio.play().catch(done);
+    });
+  } catch (e) { console.warn('[tts] full message error:', e); }
+
+  _streamTTSPlaying = false;
+  if (btn) btn.classList.remove('speaking', 'loading');
 }
 
 async function _playStreamTTSQueue() {
