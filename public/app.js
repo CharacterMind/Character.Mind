@@ -1501,6 +1501,14 @@ setInterval(checkForUpdate, 90000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
 
 window.addEventListener('DOMContentLoaded', async () => {
+  // Fix iOS virtual keyboard: keep --vvh in sync with the visual viewport so the
+  // app height shrinks correctly when the on-screen keyboard appears.
+  if (window.visualViewport) {
+    const syncVVH = () =>
+      document.documentElement.style.setProperty('--vvh', window.visualViewport.height + 'px');
+    window.visualViewport.addEventListener('resize', syncVVH);
+    syncVVH();
+  }
   checkWhatsNewDot();
   // Re-pop limit modal on ANY input interaction when locked out
   const inputEl = document.getElementById('messageInput');

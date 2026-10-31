@@ -18,7 +18,7 @@ import subprocess, time, urllib.request, urllib.error, json, sys, re, os, shutil
 
 SITE_URL   = "https://charactermind.onrender.com"
 TTS_PORT   = int(os.environ.get("TTS_PORT", 8765))
-TTS_MODEL  = os.environ.get("TTS_MODEL", "kokoclone")
+TTS_MODEL  = os.environ.get("TTS_MODEL", "chatterbox")
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def pip_install():

@@ -156,7 +156,7 @@ html, body {
 .user-badge.dd-open .ub-chevron { transform: rotate(180deg); }
 
 /* ── Layout ─────────────────────────────────────────────────────────────── */
-.app { display: flex; flex-direction: row; height: 100vh; height: 100dvh; overflow: hidden; }
+.app { display: flex; flex-direction: row; height: 100vh; height: 100dvh; height: var(--vvh, 100dvh); overflow: hidden; }
 .app-body { display: flex; flex: 1; overflow: hidden; min-height: 0; min-width: 0; }
 
 /* ── Icon Rail ──────────────────────────────────────────────────────────── */
@@ -882,6 +882,8 @@ html, body {
 
 .chat-body {
   flex: 1; overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   padding: 32px 24px 16px;
   display: flex; flex-direction: column;
   background: var(--bg);
@@ -1242,6 +1244,7 @@ html, body {
 .call-overlay {
   position: fixed; inset: 0; z-index: 900;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: #13141f;
 }
 .call-brand-logo { display: none; }
@@ -5883,6 +5886,8 @@ body:not(.halloween) .hw-off-label { display: inline; }
 .group-chat-body {
   flex: 1;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   padding: 16px 12px;
   display: flex;
   flex-direction: column;
