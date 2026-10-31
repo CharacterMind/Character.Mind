@@ -2626,6 +2626,151 @@ html, body {
 .settings-coin-slots-btn { margin-left: auto; flex-shrink: 0; background: linear-gradient(135deg, #1e3a5f, #2563eb); color: #fff; border: none; border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .settings-coin-slots-btn:hover { opacity: .88; }
 
+/* ── Farm View (full-screen) ─────────────────────────────────────────────── */
+#farmView { overflow-y: auto; }
+.farm-view-wrap { display: flex; flex-direction: column; min-height: 100%; }
+.farm-view-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 10px;
+  position: sticky;
+  top: 0;
+  background: var(--bg-primary, #0f1117);
+  z-index: 5;
+}
+.farm-view-back {
+  background: none;
+  border: none;
+  color: var(--text-primary, #e2e8f0);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  opacity: .7;
+}
+.farm-view-back:hover { opacity: 1; }
+.farm-view-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary, #e2e8f0);
+}
+
+/* scenic banner */
+.farm-view-banner {
+  position: relative;
+  height: 160px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.farm-banner-sky {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #1a3a5c 0%, #2d6a4f 60%, #40916c 100%);
+}
+.farm-banner-sun {
+  position: absolute;
+  top: 20px;
+  right: 28px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fde68a 30%, #fbbf24 70%, transparent 100%);
+  box-shadow: 0 0 30px 10px rgba(251,191,36,.35);
+}
+.farm-banner-clouds { position: absolute; inset: 0; pointer-events: none; }
+.farm-cloud {
+  position: absolute;
+  background: rgba(255,255,255,.18);
+  border-radius: 40px;
+}
+.farm-cloud::before, .farm-cloud::after {
+  content: '';
+  position: absolute;
+  background: inherit;
+  border-radius: 50%;
+}
+.farm-cloud-1 { width: 70px; height: 22px; top: 24px; left: 15%; animation: farmCloudDrift 28s linear infinite; }
+.farm-cloud-1::before { width: 35px; height: 35px; top: -18px; left: 10px; }
+.farm-cloud-2 { width: 50px; height: 16px; top: 40px; left: 45%; animation: farmCloudDrift 40s linear infinite; opacity: .6; }
+.farm-cloud-2::before { width: 25px; height: 25px; top: -12px; left: 8px; }
+.farm-cloud-3 { width: 60px; height: 18px; top: 18px; left: 65%; animation: farmCloudDrift 33s linear infinite; opacity: .5; }
+.farm-cloud-3::before { width: 30px; height: 30px; top: -14px; left: 10px; }
+@keyframes farmCloudDrift { from { transform: translateX(0); } to { transform: translateX(120vw); } }
+
+.farm-banner-field {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 68px;
+  background: linear-gradient(180deg, #1b4332 0%, #2d6a4f 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 2px solid rgba(74,222,128,.15);
+}
+.farm-crop-row { display: flex; gap: 14px; }
+.farm-crop {
+  font-size: 1.8rem;
+  animation: farmCropSway 3s ease-in-out infinite;
+  display: inline-block;
+}
+.farm-crop:nth-child(2n)   { animation-delay: .4s; }
+.farm-crop:nth-child(3n)   { animation-delay: .8s; }
+.farm-crop:nth-child(4n)   { animation-delay: 1.2s; }
+.farm-crop:nth-child(5n)   { animation-delay: 1.6s; }
+.farm-crop:nth-child(6n)   { animation-delay: 2s; }
+.farm-crop:nth-child(7n)   { animation-delay: 2.4s; }
+@keyframes farmCropSway {
+  0%, 100% { transform: rotate(-4deg); }
+  50%       { transform: rotate(4deg); }
+}
+
+/* big farm card inside farmView */
+.farm-view-card {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(74,222,128,.15);
+  border-radius: 16px;
+  padding: 18px 16px 14px;
+  margin: 14px 14px 0;
+}
+.farm-view-card .farm-card-title { font-size: .9rem; }
+.farm-view-card .farm-card-sub   { font-size: .8rem; }
+.farm-view-card .farm-counter    { font-size: 2.2rem; }
+.farm-view-card .farm-rate-pill  { font-size: .8rem; padding: 5px 12px; }
+.farm-view-card .farm-collect-btn { padding: 10px 22px; font-size: .88rem; }
+
+.farm-view-tip {
+  margin: 14px 14px 24px;
+  font-size: .72rem;
+  color: var(--text-muted, #718096);
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* settings link (replaces old settings farm card) */
+.settings-farm-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  color: var(--text-primary, #e2e8f0);
+  text-align: left;
+}
+.settings-farm-link:hover { background: rgba(255,255,255,.07); }
+.settings-farm-link-info { flex: 1; }
+.settings-farm-link-title { font-size: .82rem; font-weight: 600; }
+.settings-farm-link-sub   { font-size: .72rem; color: var(--text-muted, #718096); margin-top: 2px; }
+
 /* ── AFK Coin Farm ───────────────────────────────────────────────────────── */
 .settings-farm-card {
   background: rgba(255,255,255,0.04);

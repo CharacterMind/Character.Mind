@@ -627,7 +627,7 @@
         <div class="cpg-section">
           <div class="cpg-section-label">Earn</div>
           <div class="cpg-item-list">
-            <button class="cpg-item" onclick="showView('settingsView')">
+            <button class="cpg-item" onclick="showFarm()">
               <div class="cpg-item-icon cpg-icon-amber">
                 <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M17 8C8 10 5.9 16.17 3.82 19.9c-.44.81.16 1.76 1.06 1.76.61 0 1.17-.35 1.45-.88A11 11 0 0 1 17 15l1 2.5 1-7-7 1 2 2.5A8 8 0 0 0 5.5 12c1-2 2.5-4 5-5.5C15 4.5 17.5 3.5 20 3c.41-.07.79.25.79.67A5.5 5.5 0 0 1 17 8z"/></svg>
               </div>
@@ -650,6 +650,82 @@
           </div>
         </div>
 
+      </div>
+    </div>
+
+    <!-- Farm View -->
+    <div class="view hidden" id="farmView">
+      <div class="farm-view-wrap">
+        <div class="farm-view-topbar">
+          <button class="farm-view-back" onclick="showCoins()">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+          </button>
+          <span class="farm-view-title">Coin Farm</span>
+        </div>
+
+        <!-- scenic farm banner -->
+        <div class="farm-view-banner">
+          <div class="farm-banner-sky"></div>
+          <div class="farm-banner-clouds">
+            <div class="farm-cloud farm-cloud-1"></div>
+            <div class="farm-cloud farm-cloud-2"></div>
+            <div class="farm-cloud farm-cloud-3"></div>
+          </div>
+          <div class="farm-banner-sun"></div>
+          <div class="farm-banner-field">
+            <div class="farm-crop-row">
+              <span class="farm-crop">🌾</span><span class="farm-crop">🌾</span><span class="farm-crop">🌾</span><span class="farm-crop">🌾</span><span class="farm-crop">🌾</span><span class="farm-crop">🌾</span><span class="farm-crop">🌾</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- big farm card -->
+        <div class="farm-view-card" id="farmCard">
+          <canvas class="farm-gl-canvas" id="farmGlCanvas"></canvas>
+          <div class="farm-card-header">
+            <span class="farm-card-icon">🌾</span>
+            <div class="farm-card-info">
+              <div class="farm-card-title">Coin Farm</div>
+              <div class="farm-card-sub" id="farmTierName">Bare dirt</div>
+            </div>
+            <div class="farm-badge" id="farmBadge">LV 0</div>
+          </div>
+          <div class="farm-counter" id="farmCounter">0<span class="farm-frac">.000000000</span></div>
+          <div class="farm-rate-row">
+            <div class="farm-rate-pill" id="farmRatePill">0.000000012/sec</div>
+            <div class="farm-rate-hint" id="farmRateHint">coins/sec · max 8 hrs offline</div>
+          </div>
+          <div class="farm-progress-row">
+            <div class="farm-progress-track">
+              <div class="farm-progress-fill" id="farmProgressFill" style="width:0%"></div>
+            </div>
+          </div>
+          <div class="farm-footer">
+            <div class="farm-timer" id="farmTimer">Tap Start to begin farming</div>
+            <button class="farm-collect-btn" id="farmCollectBtn" onclick="farmCollect()">Start</button>
+          </div>
+          <div class="farm-boost-row" id="farmBoostRow" style="display:none">
+            <div class="farm-boost-info">
+              <div class="farm-boost-label" id="farmBoostLabel">GPU Boost</div>
+              <div class="farm-boost-sub" id="farmBoostSub">5× rate while active</div>
+            </div>
+            <button class="farm-boost-btn" id="farmBoostBtn" onclick="farmBoostToggle()">
+              <span id="farmBoostBtnLabel">⚡ Boost</span>
+            </button>
+          </div>
+          <div class="farm-upgrade-row" id="farmUpgradeRow">
+            <div class="farm-upgrade-info">
+              <div class="farm-upgrade-name" id="farmUpgradeName">Seeds</div>
+              <div class="farm-upgrade-rate" id="farmUpgradeRate">0.0003/sec</div>
+            </div>
+            <button class="farm-upgrade-btn" id="farmUpgradeBtn" onclick="farmUpgrade()" disabled>
+              <span id="farmUpgradeCost">150 coins</span>
+              <span class="farm-upgrade-arrow">↑</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="farm-view-tip">Your farm keeps growing while Character.Mind is open — up to 8 hrs offline too.</div>
       </div>
     </div>
 
@@ -2177,51 +2253,15 @@
           <div id="ownerSendCoinResult" style="font-size:12px;color:var(--text3);min-height:14px"></div>
           <button class="settings-coin-slots-btn" id="ownerSendCoinBtn" onclick="ownerSendCoinsToAccount()" style="background:linear-gradient(135deg,#1e3a5f,#2563eb)">📤 Send</button>
         </div>
-        <!-- AFK Coin Farm -->
-        <div class="settings-farm-card" id="farmCard">
-          <canvas class="farm-gl-canvas" id="farmGlCanvas"></canvas>
-          <div class="farm-card-header">
-            <span class="farm-card-icon">🌾</span>
-            <div class="farm-card-info">
-              <div class="farm-card-title">Coin Farm</div>
-              <div class="farm-card-sub" id="farmTierName">Bare dirt</div>
-            </div>
-            <div class="farm-badge" id="farmBadge">LV 0</div>
+        <!-- AFK Coin Farm — now lives in farmView, link to it from here -->
+        <button class="settings-farm-link" onclick="showFarm()">
+          <span class="farm-card-icon">🌾</span>
+          <div class="settings-farm-link-info">
+            <div class="settings-farm-link-title">Coin Farm</div>
+            <div class="settings-farm-link-sub" id="settingsFarmSub">Earning passively</div>
           </div>
-          <div class="farm-counter" id="farmCounter">0<span class="farm-frac">.000000000</span></div>
-          <div class="farm-rate-row">
-            <div class="farm-rate-pill" id="farmRatePill">0.000000012/sec</div>
-            <div class="farm-rate-hint" id="farmRateHint">coins/sec · max 8 hrs offline</div>
-          </div>
-          <div class="farm-progress-row">
-            <div class="farm-progress-track">
-              <div class="farm-progress-fill" id="farmProgressFill" style="width:0%"></div>
-            </div>
-          </div>
-          <div class="farm-footer">
-            <div class="farm-timer" id="farmTimer">Tap Start to begin farming</div>
-            <button class="farm-collect-btn" id="farmCollectBtn" onclick="farmCollect()">Start</button>
-          </div>
-          <div class="farm-boost-row" id="farmBoostRow" style="display:none">
-            <div class="farm-boost-info">
-              <div class="farm-boost-label" id="farmBoostLabel">GPU Boost</div>
-              <div class="farm-boost-sub" id="farmBoostSub">5× rate while active</div>
-            </div>
-            <button class="farm-boost-btn" id="farmBoostBtn" onclick="farmBoostToggle()">
-              <span id="farmBoostBtnLabel">⚡ Boost</span>
-            </button>
-          </div>
-          <div class="farm-upgrade-row" id="farmUpgradeRow">
-            <div class="farm-upgrade-info">
-              <div class="farm-upgrade-name" id="farmUpgradeName">Seeds</div>
-              <div class="farm-upgrade-rate" id="farmUpgradeRate">0.0003/sec</div>
-            </div>
-            <button class="farm-upgrade-btn" id="farmUpgradeBtn" onclick="farmUpgrade()" disabled>
-              <span id="farmUpgradeCost">150 coins</span>
-              <span class="farm-upgrade-arrow">↑</span>
-            </button>
-          </div>
-        </div>
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" style="opacity:.4"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+        </button>
         <div id="settingsTiersSection" class="settings-tiers-section"></div>
         <div class="settings-usage-section">
           <div class="settings-usage-row">

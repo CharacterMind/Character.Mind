@@ -2994,6 +2994,14 @@ function showGroups() { showView('groupsView'); setNavActive(3); loadGroups(); }
 function showPhone()  { showView('phoneView'); setNavActive(4); showPhoneTab('contacts'); loadPhoneContacts().then(() => renderPhoneContacts('')); }
 
 // ── Coins view ────────────────────────────────────────────────────────────────
+function showFarm() {
+  showView('farmView');
+  // sync the settings link subtitle when farm is viewed
+  const sub = document.getElementById('settingsFarmSub');
+  const ratePill = document.getElementById('farmRatePill');
+  if (sub && ratePill?.textContent) sub.textContent = 'Earning ' + ratePill.textContent;
+}
+
 function showCoins() {
   showView('coinsView');
   // Close user dropdown if open
