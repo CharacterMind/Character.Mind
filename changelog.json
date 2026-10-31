@@ -1,5 +1,17 @@
 [
   {
+    "id": "v412-gapless-voice",
+    "version": "v412",
+    "date": "Oct 2026",
+    "title": "🎙 Gapless Voice Playback",
+    "subtitle": "Web Audio API schedules sentences back-to-back with zero gap. No more pauses or cuts.",
+    "fixed": [
+      "Zero gap between sentences — clips are decoded and scheduled with sample-level precision",
+      "Auto-speak plays entire batches gaplessly rather than pausing between each sentence",
+      "Audio cuts fixed — decode errors skip the sentence instead of halting all playback"
+    ]
+  },
+  {
     "id": "v411-instant-voice-analytics",
     "version": "v411",
     "date": "Oct 2026",

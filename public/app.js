@@ -2012,6 +2012,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '412': {
+    date: 'October 2026',
+    label: 'Gapless Voice Playback',
+    fixed: [
+      'Zero gap between sentences — Web Audio API schedules clips back-to-back with sample-level precision instead of creating new Audio elements each time',
+      'Auto-speak now plays entire batches gaplessly rather than pausing between each sentence',
+      'Audio cuts and missing sentences fixed — Web Audio decode errors skip the sentence rather than halting playback',
+    ],
+  },
   '411': {
     date: 'October 2026',
     label: 'Instant Voice + Live Analytics',
@@ -9553,6 +9562,8 @@ function _initAdminStats() {
 let activeTTSUtterance = null;
 let activeTTSBtn = null;
 let activeTTSAudio = null;
+let _activeTTSPlayer = null; // gapless player for play button
+let _streamTTSPlayer = null; // gapless player for auto-speak
 
 // ── Streaming TTS (auto-speak during generation) ──────────────────────────────
 let chatAutoSpeak = true; // default ON
@@ -9564,8 +9575,65 @@ let _ttsPrefetchPool = new Map(); // cleaned text → Promise<Blob|null>
 let _streamTTSAudio = null; // currently playing Audio element for immediate mute
 let _ttsGeneration = 0;   // incremented each time new TTS starts; stale requests self-abort
 
+// ── Gapless TTS player (Web Audio API) ───────────────────────────────────────
+// Decodes blobs → AudioBuffers and schedules them back-to-back with sample-level
+// precision. No gap between sentences. Call .stop() to interrupt immediately.
+function _makeGaplessPlayer(blobPromises, cancelSignal, onFirstAudio) {
+  let ctx = null;
+  let stopped = false;
+
+  const stop = () => {
+    stopped = true;
+    try { if (ctx) { ctx.close(); ctx = null; } } catch (_) {}
+  };
+
+  const promise = (async () => {
+    try {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) { return; } // Web Audio not available — silent fail
+
+    let scheduleAt = ctx.currentTime + 0.08; // 80 ms initial buffer
+    let lastEndP = null;
+    let firstPlayed = false;
+
+    for (let i = 0; i < blobPromises.length; i++) {
+      if (stopped || cancelSignal()) break;
+
+      const blob = await blobPromises[i];
+      if (!blob || stopped || cancelSignal()) continue;
+
+      let buf;
+      try {
+        const ab = await blob.arrayBuffer();
+        if (stopped || cancelSignal()) break;
+        buf = await ctx.decodeAudioData(ab);
+      } catch (_) { continue; }
+
+      if (stopped || cancelSignal()) break;
+
+      if (!firstPlayed) { onFirstAudio?.(); firstPlayed = true; }
+
+      const now = ctx.currentTime;
+      if (scheduleAt < now + 0.01) scheduleAt = now + 0.03; // catch up
+
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
+      src.start(scheduleAt);
+      scheduleAt += buf.duration;
+      lastEndP = new Promise(r => { src.onended = r; });
+    }
+
+    if (lastEndP && !stopped) await lastEndP;
+    stop();
+  })();
+
+  return { promise, stop };
+}
+
 function _stopCurrentTTS() {
   ++_ttsGeneration;
+  if (_streamTTSPlayer) { _streamTTSPlayer.stop(); _streamTTSPlayer = null; }
   if (_streamTTSAudio) { try { _streamTTSAudio.pause(); _streamTTSAudio.src = ''; } catch(_) {} _streamTTSAudio = null; }
   _streamTTSPlaying = false;
   _ttsPrefetchPool.clear();
@@ -9691,52 +9759,57 @@ async function _playStreamTTSQueue() {
   const btn = document.getElementById('autoSpeakBtn');
   if (btn) btn.classList.add('speaking');
 
-  while (_streamTTSPlaying && myGen === _ttsGeneration) {
-    // Pre-flush: kick off synthesis for every sentence already in the queue so
-    // they're all in flight while the current sentence is playing — minimises gaps
+  while (_streamTTSPlaying && myGen === _ttsGeneration && _streamTTSQueue.length > 0) {
+    // Kick off synthesis for every queued sentence immediately
     for (const s of _streamTTSQueue) {
       const c = ttsCleanText(s);
       if (c && c.length > 1 && !_ttsPrefetchPool.has(c)) _prefetchSentence(s);
     }
 
-    // Dequeue next valid sentence
-    let text = null;
+    // Drain the whole current queue into one batch
+    const batch = [];
     while (_streamTTSQueue.length > 0) {
       const t = ttsCleanText(_streamTTSQueue.shift() || '');
-      if (t && t.length > 1) { text = t; break; }
+      if (t && t.length > 1) batch.push(t);
     }
-    if (!text) break;
-
-    let blobPromise = _ttsPrefetchPool.get(text);
-    _ttsPrefetchPool.delete(text);
-    if (!blobPromise && ttsProvider !== 'browser' && ttsProvider !== 'off') {
-      blobPromise = fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text.slice(0, 499), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
-      }).then(r => r.ok ? r.blob() : null).catch(() => null);
-    }
+    if (!batch.length) break;
 
     if (ttsProvider === 'browser') {
-      await _speakStreamSentence(text);
-    } else if (blobPromise) {
-      const blob = await blobPromise; // if prefetch ran ahead, resolves instantly
-      if (blob && _streamTTSPlaying && myGen === _ttsGeneration) {
-        await new Promise(resolve => {
-          const url = URL.createObjectURL(blob);
-          const audio = new Audio(url);
-          _streamTTSAudio = audio;
-          const done = () => { URL.revokeObjectURL(url); if (_streamTTSAudio === audio) _streamTTSAudio = null; resolve(); };
-          audio.onended = done; audio.onerror = done;
-          audio.play().catch(done);
-        });
+      for (const t of batch) {
+        if (!_streamTTSPlaying || myGen !== _ttsGeneration) break;
+        await _speakStreamSentence(t);
       }
+    } else {
+      // Resolve blob promise for each sentence (prefetch pool first, else new fetch)
+      const blobPromises = batch.map(t => {
+        let bp = _ttsPrefetchPool.get(t);
+        _ttsPrefetchPool.delete(t);
+        if (!bp) {
+          bp = fetch('/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: t.slice(0, 499), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
+          }).then(r => r.ok ? r.blob() : null).catch(() => null);
+        }
+        return bp;
+      });
+
+      // Play whole batch gaplessly — zero gap between sentences in the batch
+      const player = _makeGaplessPlayer(
+        blobPromises,
+        () => !_streamTTSPlaying || myGen !== _ttsGeneration,
+        null
+      );
+      _streamTTSPlayer = player;
+      await player.promise;
+      _streamTTSPlayer = null;
     }
+    // If more sentences arrived while we were playing, loop and process them
   }
 
   if (myGen === _ttsGeneration) {
     _streamTTSPlaying = false;
-    _streamTTSAudio = null;
+    _streamTTSPlayer = null;
     _ttsPrefetchPool.clear();
     if (btn) btn.classList.remove('speaking', 'loading');
   }
@@ -10000,7 +10073,8 @@ function ttsCleanText(raw) {
 }
 
 function stopActiveTTS() {
-  if (activeTTSAudio) { activeTTSAudio.pause(); activeTTSAudio = null; }
+  if (_activeTTSPlayer) { _activeTTSPlayer.stop(); _activeTTSPlayer = null; }
+  if (activeTTSAudio) { try { activeTTSAudio.pause(); activeTTSAudio.src = ''; } catch(_) {} activeTTSAudio = null; }
   if (activeTTSUtterance) { window.speechSynthesis.cancel(); activeTTSUtterance = null; }
   if (activeTTSBtn) { activeTTSBtn.classList.remove('playing', 'loading'); activeTTSBtn = null; }
   _stopCurrentTTS();
@@ -10062,8 +10136,7 @@ async function toggleTTS(btn) {
     return fetchBlob(s);
   });
 
-  // Race memo check against first-blob synthesis — both fire NOW, so memo never adds extra latency.
-  // Only a 429 + memo_daily_limit stops playback; every other failure is silently ignored.
+  // Race memo check against synthesis — both fire NOW. Only 429+memo_daily_limit stops playback.
   let _memoStop = false, _memoStopData = null;
   const _memoPromise = fetch('/api/memo/use', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ textLen: text.length }) })
     .then(async r => {
@@ -10073,28 +10146,20 @@ async function toggleTTS(btn) {
       }
     }).catch(() => {});
 
-  let played = false;
-  for (let i = 0; i < blobPromises.length; i++) {
-    if (activeTTSBtn !== btn) break;
-    // First sentence: wait for both the blob and memo in parallel — ceiling is max(memo, blob), not memo+blob
-    const blob = i === 0 ? (await Promise.all([blobPromises[0], _memoPromise]))[0] : await blobPromises[i];
-    if (_memoStop) {
-      if (activeTTSBtn === btn) stopActiveTTS();
-      showMemoLimitBanner(_memoStopData?.resetsAt);
-      return;
-    }
-    if (!blob || activeTTSBtn !== btn) break;
-    if (!played) { btn.classList.remove('loading'); btn.classList.add('playing'); played = true; }
-    await new Promise(resolve => {
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      activeTTSAudio = audio;
-      const done = () => { URL.revokeObjectURL(url); if (activeTTSAudio === audio) activeTTSAudio = null; resolve(); };
-      audio.onended = done; audio.onerror = done;
-      audio.play().catch(done);
-    });
-  }
+  // Wait for first blob AND memo together — ceiling is max(memo, blob), not memo+blob
+  const [firstBlob] = await Promise.all([blobPromises[0], _memoPromise]);
 
+  if (_memoStop) { if (activeTTSBtn === btn) stopActiveTTS(); showMemoLimitBanner(_memoStopData?.resetsAt); return; }
+  if (!firstBlob || activeTTSBtn !== btn) { if (activeTTSBtn === btn) stopActiveTTS(); return; }
+
+  // Play all sentences gaplessly via Web Audio API — zero gap between clips
+  const player = _makeGaplessPlayer(
+    blobPromises, // blobPromises[0] already resolved, rest decode while playing
+    () => activeTTSBtn !== btn,
+    () => { btn.classList.remove('loading'); btn.classList.add('playing'); }
+  );
+  _activeTTSPlayer = player;
+  await player.promise;
   if (activeTTSBtn === btn) stopActiveTTS();
 }
 
