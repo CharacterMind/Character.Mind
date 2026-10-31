@@ -17,7 +17,8 @@ Poppy's cloned voice will be active. Close the window to stop.
 import subprocess, time, urllib.request, urllib.error, json, sys, re, os, shutil, threading
 
 SITE_URL   = "https://charactermind.onrender.com"
-TTS_PORT   = 8765
+TTS_PORT   = int(os.environ.get("TTS_PORT", 8765))
+TTS_MODEL  = os.environ.get("TTS_MODEL", "chatterbox")
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def pip_install():
@@ -92,7 +93,7 @@ print("[2/4] Starting voice model (first load ~30s, later loads ~5s)...")
 tts_proc = subprocess.Popen(
     [sys.executable, tts_script],
     cwd=os.path.join(SCRIPT_DIR, "tts_server"),
-    env={**os.environ, "TTS_PORT": str(TTS_PORT)},
+    env={**os.environ, "TTS_PORT": str(TTS_PORT), "TTS_MODEL": TTS_MODEL},
 )
 print(f"  Waiting for model to be ready", end="", flush=True)
 if not wait_for_health(TTS_PORT):

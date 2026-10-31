@@ -4955,9 +4955,9 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         let cloneBody;
         if (effectiveCloneUrl) {
           const voiceId = await _ensureRemoteVoice(cloneBase, speakerFile, charEntry);
-          cloneBody = { text, voice_id: voiceId, tts_engine: 'f5tts', language: 'en' };
+          cloneBody = { text, voice_id: voiceId, language: 'en' };
         } else {
-          cloneBody = { text, speaker_wav: speakerFile, tts_engine: 'f5tts', language: 'en' };
+          cloneBody = { text, speaker_wav: speakerFile, language: 'en' };
         }
         const ctrl = new AbortController();
         const localXtts = !effectiveCloneUrl;
