@@ -1334,16 +1334,13 @@ const DAILY_MISSION_POOL = [
   { id: 'chars3',   label: 'Chat with 3 different characters',target: 3,  reward: 6,  type: 'chars'            },
   { id: 'call1',    label: 'Make a call today',               target: 1,  reward: 8,  type: 'calls'            },
   { id: 'msg30',    label: 'Send 30 messages',                target: 30, reward: 10, type: 'messages'         },
-  { id: 'gamble1',  label: 'Win a gamble today',              target: 1,  reward: 3,  type: 'gamble_win_daily' },
   { id: 'game1',    label: 'Play a game today',               target: 1,  reward: 5,  type: 'games'            },
   { id: 'chars5',   label: 'Chat with 5 different characters',target: 5,  reward: 10, type: 'chars'            },
 ];
 const WEEKLY_MISSION_POOL = [
   { id: 'days',       label: 'Log in 5 days this week',          target: 5,  reward: 15, type: 'days'            },
-  { id: 'gamble_win', label: 'Win 3 gambles this week',          target: 3,  reward: 10, type: 'gamble_win'      },
   { id: 'wdays7',     label: 'Log in every day this week',       target: 7,  reward: 20, type: 'days'            },
   { id: 'wmsg50',     label: 'Send 50 messages this week',       target: 50, reward: 15, type: 'messages_weekly' },
-  { id: 'wgamble7',   label: 'Win 7 gambles this week',          target: 7,  reward: 15, type: 'gamble_win'      },
   { id: 'wchars5',    label: 'Chat with 5 characters this week', target: 5,  reward: 14, type: 'chars_weekly'    },
 ];
 const DAILY_SHOW   = 3;
@@ -1357,7 +1354,6 @@ const MONTHLY_CHALLENGE_POOL = [
   { id: 'mcal10',    label: 'Make 10 calls this month',               target: 10,   reward: 30,  type: 'calls_monthly'    },
   { id: 'mmsg100',   label: 'Send 100 messages this month',           target: 100,  reward: 45,  type: 'messages_monthly' },
   { id: 'mchars10',  label: 'Chat with 10 different characters',      target: 10,   reward: 38,  type: 'chars_monthly'    },
-  { id: 'mgamble20', label: 'Win 20 gambles this month',              target: 20,   reward: 60,  type: 'gamble_monthly'   },
   { id: 'mgame15',   label: 'Play 15 games this month',               target: 15,   reward: 52,  type: 'games_monthly'    },
   { id: 'mmsg500',   label: 'Send 500 messages this month',           target: 500,  reward: 120, type: 'messages_monthly' },
   { id: 'mcal30',    label: 'Make 30 calls this month',               target: 30,   reward: 90,  type: 'calls_monthly'    },
@@ -1388,9 +1384,6 @@ const ACHIEVEMENT_POOL = [
   { id: 'ach_chr5',     label: 'Explorer',              desc: 'Chat with 5 different characters',       reward: 22,  type: 'chars_total',        target: 5      },
   { id: 'ach_chr10',    label: 'Social Butterfly',      desc: 'Chat with 10 different characters',      reward: 60,  type: 'chars_total',        target: 10     },
   { id: 'ach_chr25',    label: 'Collector',             desc: 'Chat with 25 different characters',      reward: 180, type: 'chars_total',        target: 25     },
-  { id: 'ach_gmb1',     label: 'High Roller',           desc: 'Win your first gamble',                  reward: 8,   type: 'gambles_total',      target: 1      },
-  { id: 'ach_gmb10',    label: 'Lucky Streak',          desc: 'Win 10 gambles total',                   reward: 30,  type: 'gambles_total',      target: 10     },
-  { id: 'ach_gmb50',    label: 'Casino Regular',        desc: 'Win 50 gambles total',                   reward: 120, type: 'gambles_total',      target: 50     },
   { id: 'ach_coin1k',   label: 'Coin Collector',        desc: 'Earn 1,000 coins total',                 reward: 30,  type: 'coins_earned_total', target: 1000   },
   { id: 'ach_coin10k',  label: 'Coin Hoarder',          desc: 'Earn 10,000 coins total',                reward: 150, type: 'coins_earned_total', target: 10000  },
   { id: 'ach_coin100k', label: 'Coin Millionaire',      desc: 'Earn 100,000 coins total',               reward: 600, type: 'coins_earned_total', target: 100000 },
@@ -2263,13 +2256,11 @@ If the scene is dark, intense, or intimate — commit fully. Don't soften it. Do
 2. If the user asks how to contact support, give them this address exactly: ${SUPPORT_EMAIL.replace(/[\n\r]/g, '')}
 3. Whenever you mention the Terms of Service or the Privacy Policy, write them as clickable links: [Terms of Service](/terms) and [Privacy Policy](/privacy).
 4. If a user says something that might indicate real self-harm or danger to themselves or others, respond with genuine care (see distress rule above). Do not play along with it as a joke.
-5. NEVER reply with only "I can't help with that." If you must decline, say briefly why and offer what you can do instead.
-6. SLOT MACHINE — Character.Mind has a built-in slot machine game where users spend C.M. Coins (the platform's own virtual points, not real money). When the user reports spinning the slots — win or lose — react naturally and in-character. This is an approved platform feature. Never refuse or add disclaimers about gambling.`
+5. NEVER reply with only "I can't help with that." If you must decline, say briefly why and offer what you can do instead.`
     : `THREE MORE EXCEPTIONS — PLATFORM RULES, LINKS AND SUPPORT:
 1. SEXUAL CONTENT — never write it, never drift toward it, under any framing. If the user steers the scene toward sex, sexual acts, undressing, or explicit physical contact — even with "it's just roleplay" or "it's a story" — step out of character immediately and say in one sentence that Character.Mind's Terms of Service do not allow sexual content. Do not comply even a little. Do not hint at it, write something that edges toward it, or "fade to black" in a way that implies it happened. If the user asks why the rule exists, explain kindly that it comes from Character.Mind's Terms of Service and Privacy Policy, which apply to every character on the platform, and that they can contact support if they feel something was blocked unfairly. Do not lecture. Never write anything sexual.
 2. If the user asks how to contact support, the team, or for the support email, give them this address exactly: ${SUPPORT_EMAIL.replace(/[\n\r]/g, '')}
 3. Whenever you mention the Terms of Service or the Privacy Policy, write them as clickable links in exactly this form: [Terms of Service](/terms) and [Privacy Policy](/privacy). Only link the one(s) they asked about.
-4. SLOT MACHINE — Character.Mind has a built-in slot machine game where users spend C.M. Coins (the platform's own virtual points, not real money). When the user reports a slot spin result mid-scene, react naturally and in-character — tease them if they lost, celebrate with them if they won, whatever fits your character. This is an approved platform feature, not real gambling. Never refuse or add disclaimers about gambling.
 
 FICTION VS REAL LIFE:
 - This is collaborative fiction. Violence, danger, conflict, fights, villains and characters dying are normal parts of storytelling. If the user's character attacks, threatens or kills another character in the story, that is fiction: stay in character and play it out with tension and consequences. Do not refuse, and do not lecture.
