@@ -4794,8 +4794,8 @@ function _ttsCacheSet(key, buf) {
 
 // Hardcoded character voice map — these chars have a real voice sample file
 const CHARACTER_VOICE_MAP = {
-  'custom_1790776698867': { name: 'Poppy',        voiceId: 'poppy',  file: path.join(__dirname, 'public/assets/voices/poppy.wav'),  edgeFallback: 'en-US-AvaNeural' },
-  'huggy_wuggy':          { name: 'Huggy Wuggy',  voiceId: 'huggy',  file: path.join(__dirname, 'public/assets/voices/huggy.wav'),  edgeFallback: 'en-US-GuyNeural' },
+  'custom_1790776698867': { name: 'Poppy',        voiceId: 'poppy',  file: path.join(__dirname, 'public/assets/voices/poppy.wav'),  edgeFallback: 'en-US-AvaNeural',  cbExag: 0.40, cbCfg: 0.6, cbTemp: 0.6 },
+  'huggy_wuggy':          { name: 'Huggy Wuggy',  voiceId: 'huggy',  file: path.join(__dirname, 'public/assets/voices/huggy.wav'),  edgeFallback: 'en-US-GuyNeural',  cbExag: 0.65, cbCfg: 0.6, cbTemp: 0.6 },
 };
 
 // All 30 prebuilt Gemini 2.5 Flash TTS voices
@@ -5200,9 +5200,11 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         let cloneBody;
         if (effectiveCloneUrl) {
           const voiceId = await _ensureRemoteVoice(cloneBase, speakerFile, charEntry);
-          cloneBody = { text, voice_id: voiceId, language: 'en' };
+          cloneBody = { text, voice_id: voiceId, tts_engine: 'chatterbox', language: 'en',
+                        exaggeration: charEntry?.cbExag ?? 0.4, cfg_weight: charEntry?.cbCfg ?? 0.6, temperature: charEntry?.cbTemp ?? 0.6 };
         } else {
-          cloneBody = { text, speaker_wav: speakerFile, language: 'en' };
+          cloneBody = { text, speaker_wav: speakerFile, tts_engine: 'chatterbox', language: 'en',
+                        exaggeration: charEntry?.cbExag ?? 0.4, cfg_weight: charEntry?.cbCfg ?? 0.6, temperature: charEntry?.cbTemp ?? 0.6 };
         }
         const ctrl = new AbortController();
         const localXtts = !effectiveCloneUrl;

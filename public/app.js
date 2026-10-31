@@ -15783,7 +15783,8 @@ let gcallAutoTimer   = null;
 let gcallAutoAbort   = null;
 let gcallSpeakingCharId = null;
 let gcallMicActive   = false;
-let gcallMicPaused   = false;  // true while TTS is playing — prevents echo feedback
+let gcallMicPaused   = false;
+let gcallConsecErrors = 0;  // true while TTS is playing — prevents echo feedback
 let gcallRecognition = null;
 let _gcallTTSQueue   = [];
 let _gcallTTSPlaying = false;
@@ -15803,6 +15804,7 @@ function startGroupCall(groupId, groupData) {
   gcallConversation = [];
   gcallActive      = true;
   gcallAutoMode    = true;
+  gcallConsecErrors = 0;
   gcallSpeakingCharId = null;
   gcallMicActive   = false;
 
@@ -15850,15 +15852,26 @@ async function runGcallTurn(userText) {
     });
     if (!r.ok) {
       const data = await r.json().catch(() => ({}));
-      gcallAutoMode = false;
-      const autoBtn = document.getElementById('gcallAutoBtn');
-      if (autoBtn) autoBtn.classList.remove('active');
       if (r.status === 429) {
+        gcallAutoMode = false;
+        const autoBtn = document.getElementById('gcallAutoBtn');
+        if (autoBtn) autoBtn.classList.remove('active');
         if (data.type === 'session') startCooldown(data.cooldownUntil, 'session', true);
         else startCooldown(data.resetsAt, 'weekly', true);
+      } else {
+        // Transient server error — retry via finally block unless it keeps failing
+        gcallConsecErrors++;
+        console.warn(`[gcall] voice-round error ${r.status} (${gcallConsecErrors} consecutive)`);
+        if (gcallConsecErrors >= 5) {
+          gcallAutoMode = false;
+          gcallConsecErrors = 0;
+          const autoBtn = document.getElementById('gcallAutoBtn');
+          if (autoBtn) autoBtn.classList.remove('active');
+        }
       }
       return;
     }
+    gcallConsecErrors = 0;
     const reader = r.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '', streamDone = false;
