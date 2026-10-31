@@ -4868,8 +4868,11 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   const kokoroVoice = req.body?.kokoroVoice && typeof req.body.kokoroVoice === 'string' ? req.body.kokoroVoice : 'af_bella';
   if (!text) return res.status(400).json({ error: 'no_text' });
 
+  // Characters with a registered voice file always use the clone path — ignore client-side provider choice
+  const effectiveProvider = (CHARACTER_VOICE_MAP[charId]) ? 'character' : provider;
+
   // Kokoro provider — lightweight local TTS with named voice styles, no speaker sample needed
-  if (provider === 'kokoro') {
+  if (effectiveProvider === 'kokoro') {
     const effectiveCloneUrl = process.env.TTS_CLONE_URL || runtimeTtsUrl;
     const clonePort = process.env.TTS_CLONE_PORT || '8765';
     const cloneBase = effectiveCloneUrl
@@ -4910,7 +4913,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   // Character voice provider — try local XTTS clone server first, fall back to Edge TTS.
   // Start tts_server/tts_server.py locally to enable voice cloning.
   // Override clone server URL with TTS_CLONE_URL env var (e.g. for remote GPU machine via tunnel).
-  if (provider === 'character') {
+  if (effectiveProvider === 'character') {
     const charEntry = CHARACTER_VOICE_MAP[charId];
     // User-assigned voice takes priority over the character's built-in voice file
     let speakerFile = null;
@@ -4952,9 +4955,9 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         let cloneBody;
         if (effectiveCloneUrl) {
           const voiceId = await _ensureRemoteVoice(cloneBase, speakerFile, charEntry);
-          cloneBody = { text, voice_id: voiceId, language: 'en' };
+          cloneBody = { text, voice_id: voiceId, tts_engine: 'f5tts', language: 'en' };
         } else {
-          cloneBody = { text, speaker_wav: speakerFile, language: 'en' };
+          cloneBody = { text, speaker_wav: speakerFile, tts_engine: 'f5tts', language: 'en' };
         }
         const ctrl = new AbortController();
         const localXtts = !effectiveCloneUrl;
@@ -4995,7 +4998,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   }
 
   // Gemini TTS path — try legacy generateContent API first, then new Interactions API
-  if (provider === 'gemini') {
+  if (effectiveProvider === 'gemini') {
     const gKey = process.env.GEMINI_API_KEY;
     if (gKey) {
       const userId = req.user.googleId;
