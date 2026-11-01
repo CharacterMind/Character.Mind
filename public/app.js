@@ -11128,6 +11128,7 @@ async function toggleTTS(btn) {
   const raw = (bubble.innerText || bubble.textContent).trim();
   const text = ttsCleanText(raw);
   if (!text) return;
+  if (ttsProvider === 'off') { showTTSError('Text-to-speech is disabled. Enable it in Settings.'); return; }
 
   const wasSame = activeTTSBtn === btn;
   stopActiveTTS();
@@ -11198,7 +11199,8 @@ async function toggleTTS(btn) {
   const [firstBlob] = await Promise.all([blobPromises[0], _memoPromise]);
 
   if (_memoStop) { if (activeTTSBtn === btn) stopActiveTTS(); showMemoLimitBanner(_memoStopData?.resetsAt); return; }
-  if (!firstBlob || activeTTSBtn !== btn) { if (activeTTSBtn === btn) stopActiveTTS(); return; }
+  if (activeTTSBtn !== btn) { stopActiveTTS(); return; }
+  if (!firstBlob) { stopActiveTTS(); showTTSError('Read-aloud unavailable right now. Try again.'); return; }
 
   // Play all sentences gaplessly via Web Audio API — zero gap between clips
   const player = _makeGaplessPlayer(
@@ -11507,7 +11509,7 @@ let callHangupChar = null;      // character who is saying goodbye and hangs up 
 let callInterCharRounds = 0;    // consecutive inter-char exchanges without user input
 let callSilenceChainMode = false; // next chained response should be a silence check-in
 let callUserSilenceTimer = null;
-const CALL_USER_SILENCE_MS = 8000; // 8 s before asking "are you there?" in a group call
+const CALL_USER_SILENCE_MS = 20000; // 20 s before asking "are you there?" — gives the user time to speak first
 
 function getCallSecsKey() {
   return 'cm_call_secs_' + new Date().toISOString().slice(0,10);
@@ -12244,7 +12246,7 @@ function listenForSpeech() {
   // after a few seconds, causing rapid restart loops that fight with Google
   // Assistant / Hey Google over the mic. Use single-shot mode on Android instead.
   callRecognition.continuous = !isAndroid;
-  callRecognition.interimResults = isAndroid; // interim results help on single-shot Android
+  callRecognition.interimResults = true; // interim results help catch speech on all platforms
   callRecognition.lang = 'en-US';
 
   callRecognition.onresult = (e) => {
@@ -12254,8 +12256,8 @@ function listenForSpeech() {
       // phrase even if recognition ends before isFinal fires
       if (result.isFinal) {
         transcript += (transcript ? ' ' : '') + result[0].transcript.trim();
-      } else if (isAndroid && result[0].transcript.trim()) {
-        transcript = result[0].transcript.trim(); // keep latest interim
+      } else if (result[0].transcript.trim()) {
+        transcript = result[0].transcript.trim(); // keep latest interim on all platforms
       }
     }
     if (transcript) {

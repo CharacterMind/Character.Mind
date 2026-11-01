@@ -2753,12 +2753,34 @@ html, body {
 .farm-view-card .farm-collect-btn { padding: 10px 22px; font-size: .88rem; }
 
 .farm-view-tip {
-  margin: 14px 14px 24px;
+  margin: 14px 14px 10px;
   font-size: .72rem;
   color: var(--text-muted, #718096);
   text-align: center;
   line-height: 1.5;
 }
+.farm-how-to {
+  margin: 0 14px 28px;
+  background: var(--surface2, #f7f7f7);
+  border: 1px solid var(--border1, #e2e8f0);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.farm-how-to-title {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text1, #2d3748);
+  margin-bottom: 8px;
+}
+.farm-how-to-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: .73rem;
+  color: var(--text2, #4a5568);
+  line-height: 1.55;
+}
+.farm-how-to-list li { margin-bottom: 5px; }
+.farm-how-to-list li:last-child { margin-bottom: 0; }
 
 /* settings link (replaces old settings farm card) */
 .settings-farm-link {
