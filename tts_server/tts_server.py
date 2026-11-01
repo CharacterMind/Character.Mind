@@ -157,15 +157,16 @@ def get_f5tts():
             # new bfloat16 one until the next GC cycle, keeping peak usage at ~2.2 GB.
             # After empty_cache() the footprint drops to ~1.1 GB.
             try:
+                # Only convert the transformer (large) to bfloat16; keep vocoder in float32.
+                # torchdiffeq runs the ODE with float32 time steps; vocoder must match its output.
                 _f5tts.ema_model = _f5tts.ema_model.to(dtype=torch.bfloat16)
-                _f5tts.vocoder   = _f5tts.vocoder.to(dtype=torch.bfloat16)
                 gc.collect()
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
                     used = round(torch.cuda.memory_allocated() / 1e9, 2)
-                    print(f"[voice-ai] F5-TTS loaded (bfloat16) — VRAM: {used} GB", flush=True)
+                    print(f"[voice-ai] F5-TTS loaded (transformer=bfloat16, vocoder=float32) — VRAM: {used} GB", flush=True)
                 else:
-                    print("[voice-ai] F5-TTS loaded (bfloat16, CPU)", flush=True)
+                    print("[voice-ai] F5-TTS loaded (transformer=bfloat16, vocoder=float32, CPU)", flush=True)
             except Exception as _bf16_err:
                 print(f"[voice-ai] F5-TTS loaded (float32 — bfloat16 failed: {_bf16_err})", flush=True)
     return _f5tts
@@ -420,6 +421,7 @@ def tts_endpoint():
     language     = (data.get("language")    or "en").strip()
     kokoro_voice = (data.get("kokoro_voice") or "").strip()
     tts_engine   = (data.get("tts_engine")  or _MODEL_KEY).lower()
+    print(f"[voice-ai] DEBUG tts_endpoint: engine={tts_engine} voice_id={voice_id} text={text[:30]!r}", flush=True)
     # Chatterbox tuning params (passed per-request, or fall back to better defaults)
     cb_exaggeration = float(data.get("exaggeration", 0.4))
     cb_cfg_weight   = float(data.get("cfg_weight",   0.6))
@@ -497,18 +499,26 @@ def tts_endpoint():
                     ref_file=speaker_wav,
                     ref_text=ref_text,
                     gen_text=text,
-                    seed=42,
-                    nfe_step=64,
+                    seed=-1,
+                    nfe_step=32,
                 )
         except Exception as e:
+            import traceback as _tb, gc
+            tb_str = _tb.format_exc()
             print(f"[voice-ai] F5-TTS error: {e}", flush=True)
-            return jsonify({"error": str(e)}), 500
+            # Free any partial tensors the failed inference left on the GPU
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            return jsonify({"error": str(e), "traceback": tb_str}), 500
         buf = io.BytesIO()
         sf_lib.write(buf, wav, sr, format="WAV")
         audio_bytes = buf.getvalue()
         _cache_set(ck, audio_bytes)
+        del wav, buf
         try:
-            import torch
+            import gc, torch
+            gc.collect()
             if torch.cuda.is_available(): torch.cuda.empty_cache()
         except Exception: pass
         elapsed = round(time.time() - t0, 2)
