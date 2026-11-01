@@ -5476,7 +5476,7 @@ app.post('/api/memo/use', requireAuth, (req, res) => {
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
 app.post('/api/analytics/ping', requireAuth, async (req, res) => {
-  if (OWNER_EMAILS.has(req.user.email)) return res.json({ ok: true, activeNow: _liveUsers.size });
+  if (OWNER_EMAILS.has(req.user.email) || (OWNER_IPS.size && OWNER_IPS.has(visitorIp(req)))) return res.json({ ok: true, activeNow: _liveUsers.size });
   const userId = req.user.googleId;
   const isNew = !_liveUsers.has(userId);
   _liveUsers.set(userId, {
@@ -5727,6 +5727,8 @@ app.delete('/api/conversations/:charId/history', requireAuth, async (req, res) =
 // When true: only Lily/Poppy visible in character list. Set SOFT_LAUNCH=true in env vars to re-enable.
 const SOFT_LAUNCH = process.env.SOFT_LAUNCH === 'true';
 const OWNER_EMAILS = new Set(['support.charactermind@gmail.com']); // admin tools
+// Comma-separated IPs in OWNER_IPS env var are excluded from analytics (for owner's home/office connections)
+const OWNER_IPS = new Set((process.env.OWNER_IPS || '').split(',').map(s => s.trim()).filter(Boolean));
 
 // Admin: trigger a test incoming call to any user
 app.post('/api/admin/push/test-call', requireAuth, async (req, res) => {

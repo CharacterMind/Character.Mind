@@ -3190,7 +3190,7 @@ function _appendCallBubble(char, incoming, durationSecs) {
     scrollToBottom();
   } else {
     // Defer: display the bubble next time this character's chat is opened
-    _pendingCallBubbles[char.id] = { incoming, durationSecs };
+    (_pendingCallBubbles[char.id] ??= []).push({ incoming, durationSecs });
   }
 }
 
@@ -6199,11 +6199,11 @@ async function openChat(charId) {
   restoreActiveGame(currentChar.id);
   checkIdleCall(charId);
   // Flush any call bubble deferred while this chat wasn't the active view
-  if (_pendingCallBubbles[charId]) {
-    const { incoming, durationSecs } = _pendingCallBubbles[charId];
+  if (_pendingCallBubbles[charId]?.length) {
+    const pending = _pendingCallBubbles[charId];
     delete _pendingCallBubbles[charId];
     const msgs = document.getElementById('messages');
-    if (msgs) { _renderCallBubble(msgs, incoming, durationSecs); scrollToBottom(); }
+    if (msgs) { pending.forEach(({ incoming, durationSecs }) => _renderCallBubble(msgs, incoming, durationSecs)); scrollToBottom(); }
   }
 }
 
