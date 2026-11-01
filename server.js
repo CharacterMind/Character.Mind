@@ -1294,29 +1294,29 @@ const TIER_CALL_LIMITS  = { free: 6,   advanced: 18,  x20: 120,  x50: 300,  x100
 const TIER_CALL_SECOND_LIMITS = { free: 5400, advanced: 16200, x20: 43200, x50: 64800, x100: 75600, x200: Infinity };
 const DAY_MS = 24 * 60 * 60 * 1000;
 function getCallDayStart() { return Math.floor(Date.now() / DAY_MS) * DAY_MS; }
-const TIER_MEMO_LIMITS  = { free: 50,  advanced: 150, x20: 1000, x50: 2500, x100: 5000, x200: 10000 };
-const TIER_IMAGE_LIMITS = { free: 3,   advanced: 9,   x20: 60,   x50: 150,  x100: 300,  x200: 600   };
-const TIER_REGEN_LIMITS = { free: 10,  advanced: 30,  x20: 200,  x50: 500,  x100: 1000, x200: 2000  };
+const TIER_MEMO_LIMITS  = { free: 50,  advanced: 150, x50: 2500, x100: 5000, x200: 10000 };
+const TIER_IMAGE_LIMITS = { free: 3,   advanced: 9,   x50: 150,  x100: 300,  x200: 600   };
+const TIER_REGEN_LIMITS = { free: 10,  advanced: 30,  x50: 500,  x100: 1000, x200: 2000  };
 
-const COIN_EARN_PER_WIN = { free: 3, advanced: 4, x20: 6, x50: 9, x100: 12, x200: 15 };
+const COIN_EARN_PER_WIN = { free: 3, advanced: 4, x50: 9, x100: 12, x200: 15 };
 const COIN_DAILY_CAP    = 100;
-const COIN_MONTHLY_COST = { advanced: 2000, x20: 8000, x50: 20000, x100: 50000, x200: 150000 };
+const COIN_MONTHLY_COST = { advanced: 2000, x50: 20000, x100: 50000, x200: 150000 };
 const AFK_FARM_MAX_MS = 8 * 3600 * 1000;  // cap offline accumulation at 8 hours
 const AFK_FARM_MIN_MS = 5 * 60 * 1000;    // minimum 5 min between collects
 const FARM_TIERS = [
   { name: 'Bare dirt',   rate: 0.000000012, cost: 0       }, // lv 0  — ~0.001 coins/day
-  { name: 'Seeds',       rate: 0.000006,    cost: 150     }, // lv 1  — ~0.5 coins/day
-  { name: 'Sprouts',     rate: 0.000025,    cost: 600     }, // lv 2  — ~2 coins/day
-  { name: 'Crops',       rate: 0.00008,     cost: 2500    }, // lv 3  — ~7 coins/day
-  { name: 'Harvest',     rate: 0.00022,     cost: 10000   }, // lv 4  — ~19 coins/day
-  { name: 'Megafarm',    rate: 0.0005,      cost: 40000   }, // lv 5  — ~43 coins/day
-  { name: 'Greenhouse',  rate: 0.0009,      cost: 80000   }, // lv 6  — ~78 coins/day
-  { name: 'Ranch',       rate: 0.0015,      cost: 180000  }, // lv 7  — ~130 coins/day
-  { name: 'Estate',      rate: 0.0023,      cost: 400000  }, // lv 8  — ~199 coins/day
-  { name: 'Empire',      rate: 0.0034,      cost: 900000  }, // lv 9  — ~294 coins/day
-  { name: 'Legendary',   rate: 0.005,       cost: 2000000 }, // lv 10 — ~432 coins/day
+  { name: 'Seeds',       rate: 0.000012,    cost: 150     }, // lv 1  — ~1 coin/day
+  { name: 'Sprouts',     rate: 0.00005,     cost: 600     }, // lv 2  — ~4 coins/day
+  { name: 'Crops',       rate: 0.00015,     cost: 2500    }, // lv 3  — ~13 coins/day
+  { name: 'Harvest',     rate: 0.0004,      cost: 10000   }, // lv 4  — ~35 coins/day
+  { name: 'Megafarm',    rate: 0.0009,      cost: 40000   }, // lv 5  — ~78 coins/day
+  { name: 'Greenhouse',  rate: 0.0018,      cost: 80000   }, // lv 6  — ~156 coins/day
+  { name: 'Ranch',       rate: 0.003,       cost: 180000  }, // lv 7  — ~259 coins/day
+  { name: 'Estate',      rate: 0.0047,      cost: 400000  }, // lv 8  — ~406 coins/day
+  { name: 'Empire',      rate: 0.007,       cost: 900000  }, // lv 9  — ~605 coins/day
+  { name: 'Legendary',   rate: 0.01,        cost: 2000000 }, // lv 10 — ~864 coins/day
 ];
-const TIER_RANK         = { free: 0, advanced: 1, x20: 2, x50: 3, x100: 4, x200: 5 };
+const TIER_RANK         = { free: 0, advanced: 1, x50: 3, x100: 4, x200: 5 };
 
 // ── Prestige rank system ────────────────────────────────────────────────────
 const RANKS = [
@@ -4795,7 +4795,7 @@ function _ttsCacheSet(key, buf) {
 // Hardcoded character voice map — these chars have a real voice sample file
 const CHARACTER_VOICE_MAP = {
   'custom_1790776698867': { name: 'Poppy',        voiceId: 'poppy',  file: path.join(__dirname, 'public/assets/voices/poppy.wav'),  edgeFallback: 'en-US-AvaNeural',  cbExag: 0.40, cbCfg: 0.6, cbTemp: 0.6 },
-  'huggy_wuggy':          { name: 'Huggy Wuggy',  voiceId: 'huggy',  file: path.join(__dirname, 'public/assets/voices/huggy.wav'),  edgeFallback: 'en-US-GuyNeural',  cbExag: 0.65, cbCfg: 0.6, cbTemp: 0.6 },
+  'huggy_wuggy':          { name: 'Huggy Wuggy',  voiceId: 'huggy',  file: path.join(__dirname, 'public/assets/voices/huggy.wav'),  edgeFallback: 'en-US-GuyNeural',  cbExag: 0.75, cbCfg: 0.75, cbTemp: 0.5 },
 };
 
 // All 30 prebuilt Gemini 2.5 Flash TTS voices
@@ -5231,15 +5231,11 @@ app.post('/api/tts', requireAuth, async (req, res) => {
           throw new Error(`clone server error ${cloneRes.status}`);
         }
       } catch (e) {
-        // Clone server not running or timed out
-        if (e.name !== 'AbortError') console.warn('[char-tts] clone server unavailable:', e.message);
-        // Characters with a registered clone voice should NOT silently fall back to Edge TTS
-        // (it sounds completely wrong). Return 503 so the client skips this sentence rather
-        // than playing the wrong voice. Client _prefetchSentence null-checks r.ok already.
-        return res.status(503).json({ error: 'voice server temporarily unavailable' });
+        // Clone server not running or timed out — fall through to Edge TTS so there's still a voice
+        if (e.name !== 'AbortError') console.warn('[char-tts] clone server unavailable, falling back to Edge TTS:', e.message);
       }
     }
-    // Fallback: Edge TTS with the character's assigned voice (only reaches here for non-clone chars)
+    // Fallback: Edge TTS with the character's assigned voice
     const charEdgeVoice = EDGE_VOICE_MAP[charId] || EDGE_DEFAULT_VOICE;
     try {
       const audio = await edgeSynthesize(text, charEdgeVoice);

@@ -78,7 +78,7 @@ let selectedModelTier = 'opas';
 let selectedEffort = 'medium';
 let prefsLoadedFor = null;
 // Default model per subscription plan — higher plans get a smarter default automatically
-const PLAN_DEFAULT_MODEL = { free: 'opas', advanced: 'opes', x20: 'opes', x50: 'opus', x100: 'opys', x200: 'opys' };
+const PLAN_DEFAULT_MODEL = { free: 'opas', advanced: 'opes', x50: 'opus', x100: 'opys', x200: 'opys' };
 function loadAccountPrefs() {
   if (!currentUser || prefsLoadedFor === currentUser.googleId) return;
   prefsLoadedFor = currentUser.googleId;
@@ -100,8 +100,8 @@ const OPAS_COST = { low: 264, medium: 420, high: 640, extra: 960, max: 1440, ult
 const OPES_COST = { low: 1050, medium: 1800, high: 2700, extra: 3900, max: 6000, ultracode: 12000 };
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3, opys5: 10, opys6: 20 };
 const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1, opus: 2, opys: 3, opys5: 4, opys6: 5 };
-const PLAN_RANK = { free: 0, advanced: 1, x20: 2, x50: 3, x100: 4, x200: 5 };
-const GROUP_MEMBER_LIMITS = { free: 3, advanced: 8, x20: 15, x50: 15, x100: 15, x200: 15 };
+const PLAN_RANK = { free: 0, advanced: 1, x50: 3, x100: 4, x200: 5 };
+const GROUP_MEMBER_LIMITS = { free: 3, advanced: 8, x50: 15, x100: 15, x200: 15 };
 function getGroupMemberLimit() {
   const tier = lastKnownUsage?.subscriptionTier || 'free';
   return GROUP_MEMBER_LIMITS[tier] || 3;
@@ -263,18 +263,6 @@ const PLAN_DATA = [
     ],
   },
   {
-    key: 'x20', name: 'X20', badge: 'Recommended', monthly: 39.99, annual: 239.99, coinsPerMonth: 8000,
-    callsPerDay: 720, memosPerDay: 1000, imagesPerDay: 60,
-    features: [
-      'Opus: proper emotional weight — subtext, inner conflict, the whole thing',
-      'Up to ~1,650 Opes messages per session — 20× free · 10 sessions\' worth per week',
-      'Up to 200 regenerations every 8 hrs — 20× free',
-      'Up to 12 hrs of calls per day · up to 60 image uploads per day',
-      'Up to 1,000 memos every 8 hrs',
-      'Everything in Advanced',
-    ],
-  },
-  {
     key: 'x50', name: 'X50', badge: 'Best Value', monthly: 79.99, annual: 479.99, coinsPerMonth: 20000,
     callsPerDay: 1080, memosPerDay: 2500, imagesPerDay: 150,
     features: [
@@ -283,7 +271,7 @@ const PLAN_DATA = [
       'Up to ~4,150 Opes messages per session — 50× free',
       'Up to 18 hrs of calls per day · up to 150 image uploads per day · up to 2,500 memos every 8 hrs',
       'Up to 500 regenerations every 8 hrs — 50× free',
-      'Everything in X20',
+      'Everything in Advanced',
     ],
   },
   {
@@ -317,14 +305,12 @@ const PLAN_DATA = [
 
 // 1 coin = $0.01 USD — used to show the dollar value of coin-based subscriptions
 const COIN_USD_VALUE = 0.01;
-const MONTHLY_COIN_GRANT = { free: 20, advanced: 30, x20: 600, x50: 1800, x100: 3600, x200: 9000 };
+const MONTHLY_COIN_GRANT = { free: 20, advanced: 30, x50: 1800, x100: 3600, x200: 9000 };
 
-const PLAN_LABELS = { free: 'Free', advanced: 'Advanced', x20: 'X20', x50: 'X50', x100: 'X100', x200: 'X200' };
+const PLAN_LABELS = { free: 'Free', advanced: 'Advanced', x50: 'X50', x100: 'X100', x200: 'X200' };
 const PLAN_SUBS = {
   free:     'Free plan',
   advanced: 'Advanced plan',
-  x20:      'X20 plan',
-  x50:      'X50 plan',
   x100:     'X100 plan',
   x200:     'X200 plan',
 };
