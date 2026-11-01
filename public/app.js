@@ -15288,7 +15288,11 @@ function renderGroupsList(groups) {
           <div class="group-card-name">${escHtml(g.name)}</div>
           <div class="group-card-sub">${g.members.length} member${g.members.length !== 1 ? 's' : ''}</div>
         </div>
-        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" style="flex-shrink:0;opacity:.3"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+        <div class="group-card-actions">
+          <button class="group-card-call-btn" onclick="event.stopPropagation();startGroupCall('${escHtml(g.id)}',null)" title="Start group call">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+          </button>
+        </div>
       </div>`;
   }).join('');
 }
@@ -15902,13 +15906,16 @@ let gcallAutoAbort   = null;
 let gcallSpeakingCharId = null;
 let gcallMicActive   = false;
 let gcallMicPaused   = false;
-let gcallConsecErrors = 0;  // true while TTS is playing — prevents echo feedback
+let gcallUserJoined  = false; // true only when user has enabled their mic
+let gcallConsecErrors = 0;
 let gcallRecognition = null;
 let _gcallTTSQueue   = [];
 let _gcallTTSPlaying = false;
 let _gcallTTSAudio   = null;
 let gcallWaitingForUser = false;
 let gcallWaitingTimer  = null;
+let gcallTimerInterval = null;
+let gcallTimerStart    = 0;
 
 function startGroupCall(groupId, groupData) {
   if (!groupId) return;
@@ -15927,29 +15934,44 @@ function startGroupCall(groupId, groupData) {
   gcallConsecErrors = 0;
   gcallSpeakingCharId = null;
   gcallMicActive   = false;
+  gcallUserJoined  = false;
 
   renderGcallParticipants(groupData);
   const overlay = document.getElementById('groupCallOverlay');
   if (overlay) overlay.style.display = 'flex';
 
-  const autoBtn = document.getElementById('gcallAutoBtn');
-  if (autoBtn) autoBtn.classList.add('active');
+  const notice = document.getElementById('gcallPausedNotice');
+  if (notice) notice.style.display = 'none';
+
+  // Start call timer
+  gcallTimerStart = Date.now();
+  if (gcallTimerInterval) clearInterval(gcallTimerInterval);
+  gcallTimerInterval = setInterval(() => {
+    const sec = Math.floor((Date.now() - gcallTimerStart) / 1000);
+    const m = Math.floor(sec / 60), s = sec % 60;
+    const el = document.getElementById('gcallTimer');
+    if (el) el.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+  }, 1000);
 
   scheduleGcallTurn(1200);
 }
 
 function endGroupCall() {
   gcallActive = false;
+  gcallUserJoined = false;
   if (gcallMicActive) _stopGcallMic();
   _stopGcallTTS();
   if (gcallAutoTimer) { clearTimeout(gcallAutoTimer); gcallAutoTimer = null; }
   if (gcallAutoAbort) { gcallAutoAbort.abort(); gcallAutoAbort = null; }
+  if (gcallTimerInterval) { clearInterval(gcallTimerInterval); gcallTimerInterval = null; }
   gcallWaitingForUser = false;
   if (gcallWaitingTimer) { clearTimeout(gcallWaitingTimer); gcallWaitingTimer = null; }
-  const wt = document.getElementById('gcallWaitingText');
-  if (wt) wt.hidden = true;
   const overlay = document.getElementById('groupCallOverlay');
   if (overlay) overlay.style.display = 'none';
+  const timerEl = document.getElementById('gcallTimer');
+  if (timerEl) timerEl.textContent = '0:00';
+  const notice = document.getElementById('gcallPausedNotice');
+  if (notice) notice.style.display = 'none';
   gcallGroupId = null; gcallGroupData = null; gcallConversation = [];
   gcallSpeakingCharId = null;
 }
@@ -15984,15 +16006,9 @@ async function runGcallTurn(userText) {
         if (data.type === 'session') startCooldown(data.cooldownUntil, 'session', true);
         else startCooldown(data.resetsAt, 'weekly', true);
       } else {
-        // Transient server error — retry via finally block unless it keeps failing
         gcallConsecErrors++;
         console.warn(`[gcall] voice-round error ${r.status} (${gcallConsecErrors} consecutive)`);
-        if (gcallConsecErrors >= 5) {
-          gcallAutoMode = false;
-          gcallConsecErrors = 0;
-          const autoBtn = document.getElementById('gcallAutoBtn');
-          if (autoBtn) autoBtn.classList.remove('active');
-        }
+        // Back off but keep running — never auto-kill the call on transient errors
       }
       return;
     }
@@ -16069,11 +16085,12 @@ async function runGcallTurn(userText) {
 }
 
 function _gcallSetSpeaking(charId, on) {
-  const el = charId ? document.getElementById(`gcallBubble_${charId}`) : null;
+  const el = charId ? (document.getElementById(`gcallTile_${charId}`) || document.getElementById(`gcallBubble_${charId}`)) : null;
   if (el) el.classList.toggle('gcall-speaking', on);
 }
 
 function _queueGcallTTS(text, char) {
+  if (!gcallUserJoined) return; // audio only plays once the user has joined the call
   _gcallTTSQueue.push({ text, char });
   if (!_gcallTTSPlaying) _advanceGcallTTS();
 }
@@ -16177,27 +16194,33 @@ function renderGcallParticipants(groupData) {
   if (!container) return;
   const titleEl = document.getElementById('gcallTitle');
   if (titleEl) titleEl.textContent = groupData.name || 'Group Call';
-  const members = (groupData.members || []).slice(0, 5);
+  const members = (groupData.members || []).slice(0, 6);
+  container.setAttribute('data-count', members.length);
   container.innerHTML = members.map(m => {
     const color = safeColor(m.color || '#7c3aed');
     const hasImg = m.image;
     const initial = (m.name || '?').charAt(0).toUpperCase();
-    return `<div class="gcall-bubble" id="gcallBubble_${escHtml(m.id)}">
-      <div class="gcall-bubble-avatar" style="background:${color}">
+    return `<div class="gcall-tile" id="gcallTile_${escHtml(m.id)}">
+      <div class="gcall-tile-avatar" style="background:${color}">
         ${hasImg ? `<img src="/api/characters/${escHtml(m.id)}/image" alt="" onerror="this.style.display='none'">` : escHtml(initial)}
-        <div class="gcall-speaking-ring"></div>
       </div>
-      <div class="gcall-bubble-name">${escHtml(m.name || 'Character')}</div>
+      <div class="gcall-tile-name">${escHtml(m.name || 'Character')}</div>
     </div>`;
   }).join('');
 }
 
 function toggleGcallAuto() {
   gcallAutoMode = !gcallAutoMode;
-  const btn = document.getElementById('gcallAutoBtn');
-  if (btn) btn.classList.toggle('active', gcallAutoMode);
   if (gcallAutoMode && !_gcallTTSPlaying) scheduleGcallTurn(500);
   else if (!gcallAutoMode && gcallAutoTimer) { clearTimeout(gcallAutoTimer); gcallAutoTimer = null; }
+}
+
+function resumeGcallAuto() {
+  gcallAutoMode = true;
+  gcallConsecErrors = 0;
+  const notice = document.getElementById('gcallPausedNotice');
+  if (notice) notice.style.display = 'none';
+  if (gcallActive && !_gcallTTSPlaying) scheduleGcallTurn(500);
 }
 
 async function toggleGroupCallMic() {
@@ -16218,6 +16241,7 @@ async function toggleGroupCallMic() {
   }
 
   gcallMicActive = true;
+  gcallUserJoined = true;
   // Pause auto while user is preparing to speak
   if (gcallAutoTimer) { clearTimeout(gcallAutoTimer); gcallAutoTimer = null; }
   _stopGcallTTS();
@@ -16227,22 +16251,18 @@ async function toggleGroupCallMic() {
   if (gcallGrid && !document.getElementById('gcallUserParticipant')) {
     const photoURL = (currentUser?.photoURL || '').replace(/s96-c/, 's128-c');
     const userDiv = document.createElement('div');
-    userDiv.className = 'gcall-bubble gcall-user-participant';
+    userDiv.className = 'gcall-tile gcall-user-participant';
     userDiv.id = 'gcallUserParticipant';
-    userDiv.innerHTML = `<div class="gcall-bubble-avatar" style="background:#6d28d9">
+    userDiv.innerHTML = `<div class="gcall-tile-avatar" style="background:#6d28d9">
       ${photoURL ? `<img src="${escHtml(photoURL)}" alt="" onerror="this.style.display='none'">` : '<svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'}
-      <div class="gcall-speaking-ring"></div>
     </div>
-    <div class="gcall-bubble-name">You</div>`;
+    <div class="gcall-tile-name">You</div>`;
     gcallGrid.appendChild(userDiv);
+    gcallGrid.setAttribute('data-count', gcallGrid.children.length);
   }
 
   const joinBtn = document.getElementById('gcallJoinBtn');
-  const joinLabel = document.getElementById('gcallJoinLabel');
-  if (joinBtn) joinBtn.classList.add('active');
-  if (joinLabel) joinLabel.textContent = 'Leave';
-  const userBubble = document.getElementById('gcallUserBubble');
-  if (userBubble) userBubble.classList.add('gcall-user-active');
+  if (joinBtn) joinBtn.classList.add('mic-active');
 
   gcallRecognition = new SR();
   gcallRecognition.continuous = true;
@@ -16275,17 +16295,14 @@ async function toggleGroupCallMic() {
 function _stopGcallMic() {
   gcallMicActive = false;
   gcallMicPaused = false;
+  gcallUserJoined = false;
   if (gcallRecognition) { try { gcallRecognition.abort(); } catch (_) {} gcallRecognition = null; }
   const joinBtn = document.getElementById('gcallJoinBtn');
-  const joinLabel = document.getElementById('gcallJoinLabel');
-  if (joinBtn) joinBtn.classList.remove('active');
-  if (joinLabel) joinLabel.textContent = 'Join';
-  const userBubble = document.getElementById('gcallUserBubble');
-  if (userBubble) userBubble.classList.remove('gcall-user-active');
-  const userTextEl = document.getElementById('gcallUserText');
-  if (userTextEl) userTextEl.textContent = '';
-  // Remove user participant bubble from grid
+  if (joinBtn) joinBtn.classList.remove('mic-active');
+  // Remove user tile from grid and update data-count
+  const gcallGrid2 = document.getElementById('gcallParticipants');
   document.getElementById('gcallUserParticipant')?.remove();
+  if (gcallGrid2) gcallGrid2.setAttribute('data-count', gcallGrid2.children.length);
   // Clear directed-speech waiting state
   if (gcallWaitingForUser) {
     gcallWaitingForUser = false;
