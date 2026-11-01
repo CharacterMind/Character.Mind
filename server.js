@@ -5208,8 +5208,9 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         }
         const ctrl = new AbortController();
         const localXtts = !effectiveCloneUrl;
-        // GPU synthesis: ~1-5s per sentence. Allow 30s before aborting and falling back to Edge TTS.
-        const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 30000;
+        // Chatterbox can take 10-90s depending on text length. Use 120s for remote to avoid
+        // silently cutting long sentences that are still synthesising.
+        const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 120000;
         const cloneTimeout = setTimeout(() => ctrl.abort(), localXtts ? 60000 : remoteMs);
         const cloneRes = await fetch(`${cloneBase}/tts`, {
           method: 'POST',
