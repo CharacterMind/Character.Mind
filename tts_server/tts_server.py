@@ -421,7 +421,6 @@ def tts_endpoint():
     language     = (data.get("language")    or "en").strip()
     kokoro_voice = (data.get("kokoro_voice") or "").strip()
     tts_engine   = (data.get("tts_engine")  or _MODEL_KEY).lower()
-    print(f"[voice-ai] DEBUG tts_endpoint: engine={tts_engine} voice_id={voice_id} text={text[:30]!r}", flush=True)
     # Chatterbox tuning params (passed per-request, or fall back to better defaults)
     cb_exaggeration = float(data.get("exaggeration", 0.4))
     cb_cfg_weight   = float(data.get("cfg_weight",   0.6))
@@ -503,14 +502,8 @@ def tts_endpoint():
                     nfe_step=32,
                 )
         except Exception as e:
-            import traceback as _tb, gc
-            tb_str = _tb.format_exc()
             print(f"[voice-ai] F5-TTS error: {e}", flush=True)
-            # Free any partial tensors the failed inference left on the GPU
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            return jsonify({"error": str(e), "traceback": tb_str}), 500
+            return jsonify({"error": str(e)}), 500
         buf = io.BytesIO()
         sf_lib.write(buf, wav, sr, format="WAV")
         audio_bytes = buf.getvalue()
