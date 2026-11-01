@@ -9,8 +9,8 @@ echo  Voice samples folder: %~dp0voices\
 echo  Drop any character .wav file in the voices\ folder,
 echo  then restart this server to use it.
 echo.
-echo  First run will download the XTTS-v2 model (~1.8 GB).
+echo  First run will download the F5-TTS model (~1.3 GB).
 echo.
-set TTS_MODEL=xtts_v2
+set TTS_MODEL=f5tts
 python tts_server.py
 pause
