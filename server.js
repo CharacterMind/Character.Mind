@@ -1299,22 +1299,25 @@ const TIER_IMAGE_LIMITS = { free: 3,   advanced: 9,   x50: 150,  x100: 300,  x20
 const TIER_REGEN_LIMITS = { free: 10,  advanced: 30,  x50: 500,  x100: 1000, x200: 2000  };
 
 const COIN_EARN_PER_WIN = { free: 3, advanced: 4, x50: 9, x100: 12, x200: 15 };
-const COIN_DAILY_CAP    = 100;
+const COIN_DAILY_CAP    = 40;  // hard ceiling — max coins earned from the farm per calendar day
 const COIN_MONTHLY_COST = { advanced: 2000, x50: 20000, x100: 50000, x200: 150000 };
 const AFK_FARM_MAX_MS = 8 * 3600 * 1000;  // cap offline accumulation at 8 hours
 const AFK_FARM_MIN_MS = 5 * 60 * 1000;    // minimum 5 min between collects
+// Rates: coins/sec. 1 session = 8 h × rate. Daily cap = 40 coins/day.
+// Lv10 earns ~14 coins per 8h session; 3 sessions/day hits the cap.
+// Covering Advanced (2000/mo) takes ~1.5 months of daily grinding at max level.
 const FARM_TIERS = [
-  { name: 'Bare dirt',   rate: 0.000000012, cost: 0       }, // lv 0  — ~0.001 coins/day
-  { name: 'Seeds',       rate: 0.000012,    cost: 150     }, // lv 1  — ~1 coin/day
-  { name: 'Sprouts',     rate: 0.00005,     cost: 600     }, // lv 2  — ~4 coins/day
-  { name: 'Crops',       rate: 0.00015,     cost: 2500    }, // lv 3  — ~13 coins/day
-  { name: 'Harvest',     rate: 0.0004,      cost: 10000   }, // lv 4  — ~35 coins/day
-  { name: 'Megafarm',    rate: 0.0009,      cost: 40000   }, // lv 5  — ~78 coins/day
-  { name: 'Greenhouse',  rate: 0.0018,      cost: 80000   }, // lv 6  — ~156 coins/day
-  { name: 'Ranch',       rate: 0.003,       cost: 180000  }, // lv 7  — ~259 coins/day
-  { name: 'Estate',      rate: 0.0047,      cost: 400000  }, // lv 8  — ~406 coins/day
-  { name: 'Empire',      rate: 0.007,       cost: 900000  }, // lv 9  — ~605 coins/day
-  { name: 'Legendary',   rate: 0.01,        cost: 2000000 }, // lv 10 — ~864 coins/day
+  { name: 'Bare dirt',   rate: 0.0000000015, cost: 0       }, // lv 0  — ~0.0001 coins/day
+  { name: 'Seeds',       rate: 0.000002,     cost: 150     }, // lv 1  — ~0.2 coins/day
+  { name: 'Sprouts',     rate: 0.000006,     cost: 600     }, // lv 2  — ~0.5 coins/day
+  { name: 'Crops',       rate: 0.000015,     cost: 2500    }, // lv 3  — ~1.3 coins/day
+  { name: 'Harvest',     rate: 0.00004,      cost: 10000   }, // lv 4  — ~3.5 coins/day
+  { name: 'Megafarm',    rate: 0.0001,       cost: 40000   }, // lv 5  — ~8.6 coins/day
+  { name: 'Greenhouse',  rate: 0.00018,      cost: 80000   }, // lv 6  — ~15.6 coins/day
+  { name: 'Ranch',       rate: 0.0003,       cost: 180000  }, // lv 7  — ~25.9 coins/day
+  { name: 'Estate',      rate: 0.00042,      cost: 400000  }, // lv 8  — ~36 coins/day
+  { name: 'Empire',      rate: 0.00048,      cost: 900000  }, // lv 9  — ~41 coins/day (hits cap 3×/day)
+  { name: 'Legendary',   rate: 0.0005,       cost: 2000000 }, // lv 10 — ~43 coins/day (hits cap 3×/day)
 ];
 const TIER_RANK         = { free: 0, advanced: 1, x50: 3, x100: 4, x200: 5 };
 
@@ -5197,20 +5200,11 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         const cloneBase = effectiveCloneUrl
           ? effectiveCloneUrl.replace(/\/tts$/, '')
           : `http://127.0.0.1:${clonePort}`;
-        let cloneBody;
-        if (effectiveCloneUrl) {
-          const voiceId = await _ensureRemoteVoice(cloneBase, speakerFile, charEntry);
-          cloneBody = { text, voice_id: voiceId, tts_engine: 'chatterbox', language: 'en',
-                        exaggeration: charEntry?.cbExag ?? 0.4, cfg_weight: charEntry?.cbCfg ?? 0.6, temperature: charEntry?.cbTemp ?? 0.6 };
-        } else {
-          cloneBody = { text, speaker_wav: speakerFile, tts_engine: 'chatterbox', language: 'en',
-                        exaggeration: charEntry?.cbExag ?? 0.4, cfg_weight: charEntry?.cbCfg ?? 0.6, temperature: charEntry?.cbTemp ?? 0.6 };
-        }
+        const voiceId = await _ensureRemoteVoice(cloneBase, speakerFile, charEntry);
+        const cloneBody = { text, voice_id: voiceId, tts_engine: 'f5tts' };
         const ctrl = new AbortController();
         const localXtts = !effectiveCloneUrl;
-        // Chatterbox can take 10-90s depending on text length. Use 120s for remote to avoid
-        // silently cutting long sentences that are still synthesising.
-        const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 120000;
+        const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 60000;
         const cloneTimeout = setTimeout(() => ctrl.abort(), localXtts ? 60000 : remoteMs);
         const cloneRes = await fetch(`${cloneBase}/tts`, {
           method: 'POST',
