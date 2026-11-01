@@ -383,11 +383,6 @@
 
     <div class="rail-spacer"></div>
 
-    <button class="rail-btn rail-announce-btn" onclick="openWhatsNew()" aria-label="What's New" title="What's New" style="position:relative">
-      <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M18 11v2h4v-2h-4zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.6-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.61zM20.4 5.6c-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4.4.53.8 1.07 1.2 1.6.96-.72 2.21-1.66 3.2-2.4zM4 9c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h1v4h2v-4h1l5 3V6L8 9H4zm11.5 3c0-1.33-.58-2.53-1.5-3.35v6.69c.92-.81 1.5-2.01 1.5-3.34z"/></svg>
-      <span class="nav-new-dot" id="railWhatsNewDot" hidden style="position:absolute;top:2px;right:2px;margin:0"></span>
-    </button>
-
     <div class="create-dropdown-wrap rail-create" id="createDropdownWrap">
       <button class="rail-btn rail-create-btn" id="createDropdownBtn" onclick="toggleCreateDropdown(event)" aria-label="Create" data-tip="Create">
         <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
@@ -516,10 +511,6 @@
       </button>
       <img class="logo-img" src="/logo-icon.svg" alt="c.m" style="width:20px;height:20px">
       <span class="mob-nav-title">character.mind</span>
-      <button class="mob-announce-btn" onclick="openWhatsNew()" aria-label="What's New" title="What's new" style="display:none">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M18 11v2h4v-2h-4zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.6-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.61zM20.4 5.6c-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4.4.53.8 1.07 1.2 1.6.96-.72 2.21-1.66 3.2-2.4zM4 9c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h1v4h2v-4h1l5 3V6L8 9H4zm11.5 3c0-1.33-.58-2.53-1.5-3.35v6.69c.92-.81 1.5-2.01 1.5-3.34z"/></svg>
-        <span class="nav-new-dot" id="mobWhatsNewDot" hidden style="position:absolute;top:2px;right:2px;margin:0"></span>
-      </button>
     </div>
 
     <!-- Halloween 2026 gift banner (shown only during October when unclaimed) -->
@@ -769,10 +760,18 @@
       </div>
       <!-- Recent calls panel -->
       <div id="phPanel_recent" hidden>
+        <div class="ph-list-header">
+          <span>Recent</span>
+          <button class="ph-clear-btn" onclick="clearCallList('recent')">Clear all</button>
+        </div>
         <div id="phoneRecentList" class="ph-call-list"></div>
       </div>
       <!-- Missed calls panel -->
       <div id="phPanel_missed" hidden>
+        <div class="ph-list-header">
+          <span>Missed</span>
+          <button class="ph-clear-btn" onclick="clearCallList('missed')">Clear all</button>
+        </div>
         <div id="phoneMissedList" class="ph-call-list"></div>
       </div>
       <!-- Voicemail panel -->
@@ -1759,21 +1758,6 @@
     </div>
     <a class="contact-mail-btn" href="mailto:support.charactermind@gmail.com?subject=Character%20Mind%20support">Open my email app</a>
     <p class="contact-note">Please include your account email and, for a bug, what you did, what happened, and your device and browser. Never send us your password.</p>
-  </div>
-</div>
-
-<!-- What's New Modal -->
-<div id="whatsNewModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeWhatsNew()">
-  <div class="whats-new-modal" role="dialog" aria-label="What's New">
-    <div class="whats-new-head">
-      <span class="whats-new-title">What's New</span>
-      <button class="whats-new-close" onclick="closeWhatsNew()" aria-label="Close">
-        <svg viewBox="0 0 24 24" fill="currentColor" style="width:16px;height:16px"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-      </button>
-    </div>
-    <div id="whatsNewBody" class="whats-new-body">
-      <div class="whats-new-loading">Loading…</div>
-    </div>
   </div>
 </div>
 

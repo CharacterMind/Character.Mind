@@ -3238,6 +3238,7 @@ function _callListHtml(entries, emptyMsg) {
           <svg viewBox="0 0 24 24" fill="currentColor" width="11" height="11"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
           Call
         </button>
+        <button class="ph-entry-del" onclick="deleteCallEntry(${e.ts})" title="Remove">×</button>
       </div>
     </div>`;
   }).join('');
@@ -3262,6 +3263,26 @@ function renderPhoneVoicemails() {
   if (!el) return;
   const log = _getCallLog().filter(e => e.type === 'voicemail');
   el.innerHTML = _callListHtml(log, 'No voicemails');
+}
+
+function deleteCallEntry(ts) {
+  _saveCallLog(_getCallLog().filter(e => e.ts !== ts));
+  renderRecentCalls();
+  renderMissedCalls();
+  renderPhoneVoicemails();
+}
+
+function clearCallList(type) {
+  let log = _getCallLog();
+  if (type === 'missed') {
+    log = log.filter(e => e.type !== 'missed' && e.type !== 'voicemail');
+  } else {
+    log = [];
+  }
+  _saveCallLog(log);
+  renderRecentCalls();
+  renderMissedCalls();
+  renderPhoneVoicemails();
 }
 
 function playCallLogVoicemail(charId, vmText) {
@@ -4234,10 +4255,6 @@ function homeTopbar() {
         <svg class="home-search-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
         <input class="home-search-input" id="homeSearchInput" type="text" placeholder="Search" oninput="liveSearch(this.value)">
       </div>
-      <button class="home-announce-btn" onclick="openWhatsNew()" title="What's new" style="position:relative">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M18 11v2h4v-2h-4zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.6-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.61zM20.4 5.6c-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4.4.53.8 1.07 1.2 1.6.96-.72 2.21-1.66 3.2-2.4zM4 9c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h1v4h2v-4h1l5 3V6L8 9H4zm11.5 3c0-1.33-.58-2.53-1.5-3.35v6.69c.92-.81 1.5-2.01 1.5-3.34z"/></svg>
-        <span class="nav-new-dot" id="whatsNewDot" hidden style="position:absolute;top:2px;right:2px;margin:0"></span>
-      </button>
     </div>
   </div>`;
 }
