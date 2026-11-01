@@ -149,16 +149,23 @@ def get_f5tts():
         return _f5tts
     with _f5tts_lock:
         if _f5tts is None:
-            import torch
+            import torch, gc
             from f5_tts.api import F5TTS
             _f5tts = F5TTS()
-            # Convert both the transformer and vocoder to bfloat16 to halve VRAM
-            # (~2.2 GB → ~1.1 GB). bfloat16 has the same exponent range as float32
-            # so it's numerically safer than float16.
+            # Convert to bfloat16 then immediately flush the float32 tensors from VRAM.
+            # Without empty_cache(), PyTorch holds the float32 allocation alongside the
+            # new bfloat16 one until the next GC cycle, keeping peak usage at ~2.2 GB.
+            # After empty_cache() the footprint drops to ~1.1 GB.
             try:
                 _f5tts.ema_model = _f5tts.ema_model.to(dtype=torch.bfloat16)
                 _f5tts.vocoder   = _f5tts.vocoder.to(dtype=torch.bfloat16)
-                print("[voice-ai] F5-TTS loaded (bfloat16 — model + vocoder)", flush=True)
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    used = round(torch.cuda.memory_allocated() / 1e9, 2)
+                    print(f"[voice-ai] F5-TTS loaded (bfloat16) — VRAM: {used} GB", flush=True)
+                else:
+                    print("[voice-ai] F5-TTS loaded (bfloat16, CPU)", flush=True)
             except Exception as _bf16_err:
                 print(f"[voice-ai] F5-TTS loaded (float32 — bfloat16 failed: {_bf16_err})", flush=True)
     return _f5tts
@@ -199,22 +206,12 @@ _chatterbox_lock = threading.Lock()
 _last_chatterbox_voice = None  # path of the last prepared speaker wav
 
 def get_chatterbox():
-    global _chatterbox
-    if _chatterbox is not None:
-        return _chatterbox
-    with _chatterbox_lock:
-        if _chatterbox is None:
-            import torch
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            print(f"[voice-ai] Loading Chatterbox TTS on {device.upper()}...", flush=True)
-            from chatterbox.tts import ChatterboxTTS
-            _chatterbox = ChatterboxTTS.from_pretrained(device=device)
-            if device == "cuda":
-                torch.cuda.empty_cache()
-                used = round(torch.cuda.memory_allocated() / 1e9, 2)
-                print(f"[voice-ai] VRAM after load: {used} GB", flush=True)
-            print(f"[voice-ai] Chatterbox TTS ready on {device.upper()}", flush=True)
-    return _chatterbox
+    # Chatterbox cache was removed to save disk/VRAM; raise immediately so the
+    # caller falls back to F5-TTS rather than trying to re-download 3+ GB.
+    raise RuntimeError(
+        "Chatterbox TTS is disabled — its model cache was removed. "
+        "Use F5-TTS (provider=f5tts) instead."
+    )
 
 # Seed VOICES_DIR with any .wav files already in BASE_DIR (backward-compat)
 for _old in BASE_DIR.glob("*.wav"):
