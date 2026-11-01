@@ -1500,9 +1500,22 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) chec
 window.addEventListener('DOMContentLoaded', async () => {
   // Fix iOS virtual keyboard: keep --vvh in sync with the visual viewport so the
   // app height shrinks correctly when the on-screen keyboard appears.
+  // Debounced so address-bar show/hide during scroll doesn't trigger
+  // a full layout recalc on every frame (major mobile flicker source).
   if (window.visualViewport) {
-    const syncVVH = () =>
-      document.documentElement.style.setProperty('--vvh', window.visualViewport.height + 'px');
+    let _vvhRaf = null;
+    let _lastVVH = window.visualViewport.height;
+    const syncVVH = () => {
+      if (_vvhRaf) return;
+      _vvhRaf = requestAnimationFrame(() => {
+        _vvhRaf = null;
+        const h = window.visualViewport.height;
+        if (h !== _lastVVH) {
+          _lastVVH = h;
+          document.documentElement.style.setProperty('--vvh', h + 'px');
+        }
+      });
+    };
     window.visualViewport.addEventListener('resize', syncVVH);
     syncVVH();
   }
