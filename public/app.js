@@ -3179,9 +3179,10 @@ function _logCall(char, type, extraData) {
   _saveCallLog(log);
 }
 
-function _appendCallBubble(char, incoming, durationSecs) {
-  const msgs = document.getElementById('messages');
-  if (!msgs || !char) return;
+// Pending call bubbles: displayed next time that character's chat is opened
+const _pendingCallBubbles = {};
+
+function _renderCallBubble(msgs, incoming, durationSecs) {
   const mm = Math.floor(durationSecs / 60);
   const ss = String(durationSecs % 60).padStart(2, '0');
   const durStr = durationSecs > 0 ? ` · ${mm}:${ss}` : '';
@@ -3191,7 +3192,20 @@ function _appendCallBubble(char, incoming, durationSecs) {
   div.className = 'msg call-log-entry';
   div.innerHTML = `<div class="call-log-pill"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13" style="flex-shrink:0"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg><span>${arrow} ${label}${durStr}</span></div>`;
   msgs.appendChild(div);
-  scrollToBottom();
+}
+
+function _appendCallBubble(char, incoming, durationSecs) {
+  if (!char) return;
+  // Check whether the character's chat is the active view right now
+  const chatVisible = !document.getElementById('chatView')?.classList.contains('hidden');
+  const msgs = (chatVisible && currentChar?.id === char.id) ? document.getElementById('messages') : null;
+  if (msgs) {
+    _renderCallBubble(msgs, incoming, durationSecs);
+    scrollToBottom();
+  } else {
+    // Defer: display the bubble next time this character's chat is opened
+    _pendingCallBubbles[char.id] = { incoming, durationSecs };
+  }
 }
 
 let _callLogStartTs = 0;
@@ -6198,6 +6212,13 @@ async function openChat(charId) {
   scrollToBottom();
   restoreActiveGame(currentChar.id);
   checkIdleCall(charId);
+  // Flush any call bubble deferred while this chat wasn't the active view
+  if (_pendingCallBubbles[charId]) {
+    const { incoming, durationSecs } = _pendingCallBubbles[charId];
+    delete _pendingCallBubbles[charId];
+    const msgs = document.getElementById('messages');
+    if (msgs) { _renderCallBubble(msgs, incoming, durationSecs); scrollToBottom(); }
+  }
 }
 
 function showLockedBar() {
@@ -10374,7 +10395,7 @@ function _initAdminStats() {
     #adminBadge{position:fixed;bottom:136px;right:16px;background:#0d0d1f;border:1px solid #7c3aed;border-radius:20px;padding:5px 13px;font-size:12px;color:#a78bfa;cursor:pointer;z-index:8999;display:flex;align-items:center;gap:6px;box-shadow:0 2px 12px rgba(124,58,237,.4);user-select:none;transition:opacity .2s}
     #adminBadge:hover{opacity:.9}
     #adminBadge .ad{width:7px;height:7px;border-radius:50%;background:#22c55e;animation:adminDot 1.5s ease-in-out infinite}
-    #adminPanel{position:fixed;bottom:176px;right:16px;width:260px;background:#0a0a18;border:1px solid #7c3aed;border-radius:12px;padding:14px;z-index:9000;color:#e2e8f0;font-size:13px;box-shadow:0 8px 32px rgba(0,0,0,.6);display:none}
+    #adminPanel{position:fixed;bottom:176px;right:16px;width:270px;background:#0a0a18;border:1px solid #7c3aed;border-radius:12px;padding:14px;z-index:9000;color:#e2e8f0;font-size:13px;box-shadow:0 8px 32px rgba(0,0,0,.6);display:none}
     #adminPanel.open{display:block}
     .as-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1a1a30}
     .as-row:last-child{border:none}
@@ -10383,8 +10404,24 @@ function _initAdminStats() {
     #adminUsers{max-height:110px;overflow-y:auto;margin-top:8px;font-size:11px;color:#64748b}
     .au-row{padding:3px 0;display:flex;justify-content:space-between}
     .au-name{color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
-    #adminResetBtn{margin-top:10px;width:100%;background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:7px;font-size:12px;cursor:pointer;font-family:inherit}
+    #adminResetBtn{margin-top:6px;width:100%;background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:7px;font-size:12px;cursor:pointer;font-family:inherit}
     #adminResetBtn:hover{background:rgba(239,68,68,.2)}
+    #adminUsersBtn{margin-top:6px;width:100%;background:rgba(124,58,237,.12);color:#a78bfa;border:1px solid rgba(124,58,237,.3);border-radius:8px;padding:7px;font-size:12px;cursor:pointer;font-family:inherit}
+    #adminUsersBtn:hover{background:rgba(124,58,237,.22)}
+    #adminUsersModal{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9100;display:none;align-items:center;justify-content:center}
+    #adminUsersModal.open{display:flex}
+    #adminUsersBox{background:#0a0a18;border:1px solid #7c3aed;border-radius:14px;width:min(95vw,680px);max-height:80vh;overflow:hidden;display:flex;flex-direction:column;padding:0}
+    #adminUsersHdr{padding:14px 18px;border-bottom:1px solid #1a1a30;font-weight:600;color:#a78bfa;display:flex;justify-content:space-between;align-items:center;font-size:14px}
+    #adminUsersTable{overflow-y:auto;flex:1}
+    #adminUsersTable table{width:100%;border-collapse:collapse;font-size:12px}
+    #adminUsersTable th{background:#0d0d22;color:#64748b;padding:7px 10px;text-align:left;position:sticky;top:0;font-weight:500;border-bottom:1px solid #1a1a30}
+    #adminUsersTable td{padding:7px 10px;border-bottom:1px solid #0d0d22;color:#94a3b8;vertical-align:middle}
+    #adminUsersTable tr:hover td{background:rgba(124,58,237,.05)}
+    .aum-online{color:#22c55e;font-weight:600}
+    .aum-tier{padding:2px 6px;border-radius:10px;font-size:10px;font-weight:600}
+    .aum-tier-free{background:rgba(100,116,139,.15);color:#64748b}
+    .aum-tier-plus,.aum-tier-standard{background:rgba(124,58,237,.2);color:#a78bfa}
+    .aum-tier-premium,.aum-tier-advanced{background:rgba(234,179,8,.15);color:#fbbf24}
   `;
   document.head.appendChild(style);
 
@@ -10401,8 +10438,22 @@ function _initAdminStats() {
     <div class="as-row"><span class="as-lbl">Total visits</span><span class="as-val" id="asVisits">—</span></div>
     <div class="as-row"><span class="as-lbl">Unique visitors</span><span class="as-val" id="asUniq">—</span></div>
     <div id="adminUsers"></div>
+    <button id="adminUsersBtn" onclick="_adminOpenUsers()">👥 Registered Users</button>
     <button id="adminResetBtn" onclick="_adminResetAnalytics()">🗑 Reset all stats</button>`;
   document.body.appendChild(panel);
+
+  // Users modal
+  const usersModal = document.createElement('div');
+  usersModal.id = 'adminUsersModal';
+  usersModal.innerHTML = `
+    <div id="adminUsersBox">
+      <div id="adminUsersHdr">
+        <span>👥 Registered Users</span>
+        <span style="cursor:pointer;color:#64748b;font-size:18px" onclick="document.getElementById('adminUsersModal').classList.remove('open')">✕</span>
+      </div>
+      <div id="adminUsersTable"><div style="padding:20px;color:#64748b;text-align:center">Loading…</div></div>
+    </div>`;
+  document.body.appendChild(usersModal);
 
   badge.addEventListener('click', () => panel.classList.toggle('open'));
 
@@ -10438,6 +10489,48 @@ async function _adminResetAnalytics() {
     ['asActive','asVisits','asUniq','adminCnt'].forEach(id => { if (el(id)) el(id).textContent = '0'; });
     if (el('adminUsers')) el('adminUsers').innerHTML = '<div style="color:#334155;padding:4px 0">Stats reset</div>';
   } catch(e) { alert('Reset failed: ' + e.message); }
+}
+
+async function _adminOpenUsers() {
+  const modal = document.getElementById('adminUsersModal');
+  const tableEl = document.getElementById('adminUsersTable');
+  if (!modal || !tableEl) return;
+  modal.classList.add('open');
+  tableEl.innerHTML = '<div style="padding:20px;color:#64748b;text-align:center">Loading…</div>';
+  try {
+    const r = await fetch('/api/admin/users');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const { users } = await r.json();
+    if (!users.length) { tableEl.innerHTML = '<div style="padding:20px;color:#64748b;text-align:center">No registered users yet.</div>'; return; }
+    const fmt = ms => {
+      if (!ms) return '—';
+      const diff = Date.now() - ms;
+      if (diff < 60000) return 'now';
+      if (diff < 3600000) return Math.floor(diff/60000) + 'm ago';
+      if (diff < 86400000) return Math.floor(diff/3600000) + 'h ago';
+      return Math.floor(diff/86400000) + 'd ago';
+    };
+    const tierCls = t => {
+      if (t === 'premium' || t === 'advanced') return 'aum-tier aum-tier-premium';
+      if (t === 'plus' || t === 'standard') return 'aum-tier aum-tier-plus';
+      return 'aum-tier aum-tier-free';
+    };
+    tableEl.innerHTML = `<table>
+      <thead><tr>
+        <th>User</th><th>Tier</th><th>Last seen</th><th>Msgs today</th><th>Calls</th><th>Coins</th>
+      </tr></thead>
+      <tbody>${users.map(u => `<tr>
+        <td><div style="font-weight:500;color:#e2e8f0;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.onlineNow ? '<span class="aum-online">● </span>' : ''}${escHtml(u.name)}</div><div style="color:#475569;font-size:10px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(u.email)}</div></td>
+        <td><span class="${tierCls(u.tier)}">${escHtml(u.tier)}</span></td>
+        <td>${fmt(u.lastSeen)}</td>
+        <td>${Math.round((u.msgsToday||0)/1000)}k tok</td>
+        <td>${u.callsToday||0}</td>
+        <td>${u.coins||0}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  } catch(e) {
+    tableEl.innerHTML = `<div style="padding:20px;color:#f87171;text-align:center">Failed: ${e.message}</div>`;
+  }
 }
 
 // ── TTS (Text-to-Speech) ─────────────────────────────────────────────────────
@@ -12132,7 +12225,7 @@ function listenForSpeech() {
   let transcript = '';
   let silenceTimer = null;
   let dispatched = false;
-  const SILENCE_MS = 1800; // wait 1.8s of quiet before sending
+  const SILENCE_MS = 1000; // wait 1s of quiet before sending
 
   const dispatch = () => {
     if (dispatched) return;
@@ -15129,6 +15222,7 @@ let groupIsStreaming = false;
 let groupAutoChat = false;
 let groupAutoChatTimer = null;
 let groupAutoChatAbort = null;
+let groupAutoSpeakOn = false;
 let groupAutoRoundLimit = 0;
 let groupAutoRoundCount = 0;
 let _groupDrip = 0;
@@ -15308,6 +15402,9 @@ function openGroupChat(groupId, groupData) {
   groupLastUserMessageAt = 0; groupChatOpenedAt = Date.now(); groupCheckInPending = false; groupCheckInCount = 0;
   const acBtn = document.getElementById('groupAutoChatBtn');
   if (acBtn) acBtn.classList.remove('active');
+  groupAutoSpeakOn = false;
+  const asBtn = document.getElementById('groupAutoSpeakBtn');
+  if (asBtn) asBtn.classList.remove('active');
 
   if (groupData) {
     currentGroupData = groupData;
@@ -15653,7 +15750,7 @@ async function sendGroupMessage() {
             const _speakText = (_currentGroupBubble.textContent || '').trim();
             const _speakTok = _speakMsgEl?.querySelector('.group-tok-counter');
             if (_speakTok) _speakTok.textContent = '';
-            if (_speakBtn && _speakText) _queueGroupAutoTTS(_speakBtn);
+            if (_speakBtn && _speakText && groupAutoSpeakOn) _queueGroupAutoTTS(_speakBtn);
           }
           _currentGroupBubble = null;
           _pendingGroupChar = null;
@@ -16149,6 +16246,13 @@ async function clearGroupHistory() {
   fetch(`/api/groups/${currentGroupId}/history`, { method: 'DELETE' }).catch(() => {});
 }
 
+function toggleGroupAutoSpeak() {
+  groupAutoSpeakOn = !groupAutoSpeakOn;
+  const btn = document.getElementById('groupAutoSpeakBtn');
+  if (btn) btn.classList.toggle('active', groupAutoSpeakOn);
+  if (!groupAutoSpeakOn) _stopGroupAutoTTS();
+}
+
 function toggleGroupAutoChat() {
   groupAutoChat = !groupAutoChat;
   const btn = document.getElementById('groupAutoChatBtn');
@@ -16266,7 +16370,7 @@ async function runGroupAutoChat() {
             const _speakText = (_currentGroupBubble.textContent || '').trim();
             const _speakTok = _speakMsgEl?.querySelector('.group-tok-counter');
             if (_speakTok) _speakTok.textContent = '';
-            if (_speakBtn && _speakText) _queueGroupAutoTTS(_speakBtn);
+            if (_speakBtn && _speakText && (groupAutoChat || groupAutoSpeakOn)) _queueGroupAutoTTS(_speakBtn);
           }
           _currentGroupBubble = null;
           _pendingGroupChar = null;

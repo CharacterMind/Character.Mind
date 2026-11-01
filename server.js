@@ -5529,6 +5529,40 @@ app.get('/api/admin/stats/stream', requireAuth, async (req, res) => {
   req.on('close', () => clearInterval(timer));
 });
 
+// Admin: list registered users (non-owners) with activity stats
+app.get('/api/admin/users', requireAuth, async (req, res) => {
+  if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });
+  if (!db) return res.json({ users: [] });
+  try {
+    const { rows } = await db.query(
+      `SELECT google_id, email, name, picture, created_at, last_seen, subscription_tier FROM users ORDER BY last_seen DESC LIMIT 200`
+    );
+    const result = rows
+      .filter(r => !OWNER_EMAILS.has(r.email))
+      .map(r => {
+        const lim = userLimits[r.google_id] || {};
+        const liveUser = _liveUsers.get(r.google_id);
+        return {
+          googleId:  r.google_id,
+          email:     r.email,
+          name:      r.name || 'Unknown',
+          picture:   r.picture || null,
+          createdAt: r.created_at,
+          lastSeen:  liveUser ? Date.now() : (r.last_seen ? new Date(r.last_seen).getTime() : null),
+          onlineNow: !!liveUser,
+          tier:      r.subscription_tier || lim.subscriptionTier || 'free',
+          msgsToday: lim.msgTokensToday || 0,
+          weeklyTok: lim.weeklyTokens   || 0,
+          callsToday:lim.callsToday     || 0,
+          coins:     lim.cmCoins        || 0,
+        };
+      });
+    res.json({ users: result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Admin: reset all analytics counters to zero
 app.post('/api/admin/analytics/reset', requireAuth, async (req, res) => {
   if (!OWNER_EMAILS.has(req.user.email)) return res.status(403).json({ error: 'Forbidden' });

@@ -6272,6 +6272,22 @@ body:not(.halloween) .hw-off-label { display: inline; }
 }
 .group-delete-btn:hover { color: #ef4444; }
 
+.group-autospeak-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--muted, #64748b);
+  cursor: pointer;
+  padding: 4px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.group-autospeak-btn:hover { color: var(--accent-l, #a78bfa); }
+.group-autospeak-btn.active { color: var(--accent-l, #a78bfa); border-color: var(--accent, #7c3aed); background: rgba(124,58,237,.1); }
+
 .group-autochat-btn {
   background: none;
   border: 1px solid transparent;
