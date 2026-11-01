@@ -4773,7 +4773,7 @@ const TTS_DAILY_CHARS = 50000;
 // Edge TTS neural voice map (free fallback — Microsoft neural voices)
 const EDGE_VOICE_MAP = {
   custom_1790897425575_lily: 'en-US-AriaNeural',  // Lily — energetic, expressive, bright
-  custom_1790776698867:      'en-US-JennyNeural',  // Poppy — warm, soft, gentle
+  custom_1790776698867:      'en-US-AvaNeural',    // Poppy — bright, clear, childlike
   cm_miss_delight:           'en-US-NancyNeural',  // Miss Delight — sinister sing-song
   bron:                      'en-US-BrianNeural',  // Bron — deep, clear, ancient dinosaur
   huggy_wuggy:               'en-US-GuyNeural',    // Huggy Wuggy — deep, slow, unsettling
@@ -4892,7 +4892,7 @@ async function geminiTTS38Synthesize(text, voiceName, apiKey, timeoutMs = 15000)
           'Api-Revision': '2026-05-20'
         },
         body: JSON.stringify({
-          model: 'gemini-3.1-flash-tts-preview',
+          model: GEMINI_TTS_MODEL,
           input: text,
           response_format: { type: 'audio' },
           generation_config: { speech_config: [{ voice }] }
@@ -4987,7 +4987,7 @@ function edgeSynthesize(text, voice) {
       clearTimeout(timer);
       err ? reject(err) : resolve(result);
     };
-    const timer = setTimeout(() => { try { ws.close(); } catch(_){} finish(new Error('edge-tts timeout')); }, 2500);
+    const timer = setTimeout(() => { try { ws.close(); } catch(_){} finish(new Error('edge-tts timeout')); }, 10000);
     const chunks = [];
     const AUDIO_HDR = Buffer.from('Path:audio\r\n');
     const escXml = s => s.replace(/[<>&'"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c]));
@@ -5289,7 +5289,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   edgeLim.ttsCharsToday = (edgeLim.ttsCharsToday || 0) + text.length;
   saveLimitsToDB(edgeUserId);
 
-  const ALLOWED_EDGE_VOICES = new Set(['en-US-AriaNeural','en-US-JennyNeural','en-US-NancyNeural','en-US-SaraNeural','en-US-MichelleNeural','en-US-MonicaNeural','en-US-AnaNeural','en-US-CoraNeural','en-US-ElizabethNeural','en-US-JaneNeural','en-US-GuyNeural','en-US-TonyNeural','en-US-BrianNeural','en-US-EricNeural','en-US-RogerNeural','en-US-ChristopherNeural','en-US-SteffanNeural','en-US-JasonNeural']);
+  const ALLOWED_EDGE_VOICES = new Set(['en-US-AriaNeural','en-US-AvaNeural','en-US-JennyNeural','en-US-NancyNeural','en-US-SaraNeural','en-US-MichelleNeural','en-US-MonicaNeural','en-US-AnaNeural','en-US-CoraNeural','en-US-ElizabethNeural','en-US-JaneNeural','en-US-GuyNeural','en-US-TonyNeural','en-US-BrianNeural','en-US-EricNeural','en-US-RogerNeural','en-US-ChristopherNeural','en-US-SteffanNeural','en-US-JasonNeural']);
   const edgeVoice = (clientEdgeVoice && ALLOWED_EDGE_VOICES.has(clientEdgeVoice)) ? clientEdgeVoice : (EDGE_VOICE_MAP[charId] || EDGE_DEFAULT_VOICE);
   try {
     const audio = await edgeSynthesize(text, edgeVoice);

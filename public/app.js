@@ -11298,9 +11298,17 @@ async function _hwDemonPlay(blob, tokenRef) {
   } catch(e) { /* fallback to silence */ }
 }
 
+// Plays a blob with the Huggy demon voice effect; calls setAudioRef with a stoppable object
+async function _playBlobWithDemonEffect(blob, setAudioRef) {
+  const token = {};
+  setAudioRef({ pause: () => { token.stopped = true; token.stop?.(); } });
+  await _hwDemonPlay(blob, token);
+  setAudioRef(null);
+}
+
 async function playCallBlob(blob) {
   if (!callModeActive) return;
-  if (document.body.classList.contains('hw-demon-voice')) {
+  if ((callContextChar || currentChar)?.id === 'huggy_wuggy') {
     const token = {};
     callAudio = { pause: () => { token.stopped = true; token.stop?.(); } };
     await _hwDemonPlay(blob, token);
@@ -11444,7 +11452,7 @@ async function callModeTTS_server(text) {
   // Play a blob without triggering listenForSpeech (used for all-but-last sentences)
   const playBlobOnly = (blob) => new Promise(resolve => {
     if (!callModeActive) { resolve(); return; }
-    if (document.body.classList.contains('hw-demon-voice')) {
+    if ((callContextChar || currentChar)?.id === 'huggy_wuggy') {
       const token = {};
       callAudio = { pause: () => { token.stopped = true; token.stop?.(); } };
       _hwDemonPlay(blob, token).then(() => { callAudio = null; resolve(); });
@@ -15556,15 +15564,19 @@ async function _advanceGroupAutoTTS() {
       const blob = await blobP;
       if (!blob || !_groupAutoTTSPlaying) break;
       if (!firstPlayed) { btn.classList.remove('loading'); btn.classList.add('playing'); firstPlayed = true; }
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      _groupAutoTTSAudio = audio;
-      await new Promise(resolve => {
-        audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
-        audio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
-        audio.play().catch(resolve);
-      });
-      _groupAutoTTSAudio = null;
+      if (charId === 'huggy_wuggy') {
+        await _playBlobWithDemonEffect(blob, a => { _groupAutoTTSAudio = a; });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        _groupAutoTTSAudio = audio;
+        await new Promise(resolve => {
+          audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
+          audio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+          audio.play().catch(resolve);
+        });
+        _groupAutoTTSAudio = null;
+      }
     }
   } catch (e) {
     console.error('[group-tts-auto]', e);
@@ -15601,14 +15613,18 @@ async function toggleGroupTTS(btn) {
       const blob = await blobPromises[i];
       if (!blob || activeTTSBtn !== btn) break;
       if (!played) { btn.classList.remove('loading'); btn.classList.add('playing'); played = true; }
-      await new Promise(resolve => {
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        activeTTSAudio = audio;
-        const done = () => { URL.revokeObjectURL(url); if (activeTTSAudio === audio) activeTTSAudio = null; resolve(); };
-        audio.onended = done; audio.onerror = done;
-        audio.play().catch(done);
-      });
+      if (charId === 'huggy_wuggy') {
+        await _playBlobWithDemonEffect(blob, a => { activeTTSAudio = a; });
+      } else {
+        await new Promise(resolve => {
+          const url = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+          activeTTSAudio = audio;
+          const done = () => { URL.revokeObjectURL(url); if (activeTTSAudio === audio) activeTTSAudio = null; resolve(); };
+          audio.onended = done; audio.onerror = done;
+          audio.play().catch(done);
+        });
+      }
     }
   } catch (e) {
     console.error('[group-tts]', e);
@@ -16063,23 +16079,57 @@ async function _advanceGcallTTS() {
     try { gcallRecognition.abort(); } catch (_) {}
   }
 
-  try {
-    const vp = _getGroupCharVoiceParams(char.id);
-    const clean = ttsCleanText(text);
-    const r = await fetch('/api/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: clean.slice(0, 499), charId: char.id, ...vp })
-    });
-    if (r.ok && gcallActive) {
-      const blob = await r.blob();
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      _gcallTTSAudio = audio;
-      await new Promise(resolve => { audio.onended = resolve; audio.onerror = resolve; audio.play().catch(resolve); });
-      URL.revokeObjectURL(url);
+  const clean = ttsCleanText(text);
+  let played = false;
+  if (clean && gcallActive) {
+    try {
+      const vp = _getGroupCharVoiceParams(char.id);
+      const ctrl = new AbortController();
+      const tmo = setTimeout(() => ctrl.abort(), 25000);
+      let r;
+      try {
+        r = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: clean.slice(0, 499), charId: char.id, ...vp }),
+          signal: ctrl.signal,
+        });
+      } finally { clearTimeout(tmo); }
+
+      if (r.ok && gcallActive) {
+        const blob = await r.blob();
+        if (char.id === 'huggy_wuggy') {
+          await _playBlobWithDemonEffect(blob, a => { _gcallTTSAudio = a; });
+        } else {
+          const url = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+          _gcallTTSAudio = audio;
+          await new Promise(resolve => {
+            audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
+            audio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+            audio.play().catch(() => { URL.revokeObjectURL(url); resolve(); });
+          });
+        }
+        played = true;
+      } else if (r && !r.ok) {
+        console.warn('[gcall-tts] server returned', r.status, 'for', char.name);
+      }
+    } catch (e) {
+      if (e.name !== 'AbortError') console.warn('[gcall-tts] fetch error:', e.message);
     }
-  } catch (_) {}
+
+    // Browser synthesis fallback — ensures the character always speaks even when server TTS fails
+    if (!played && gcallActive && window.speechSynthesis) {
+      await new Promise(resolve => {
+        const u = new SpeechSynthesisUtterance(clean.slice(0, 200));
+        if (char.id === 'huggy_wuggy') { u.rate = 0.7; u.pitch = 0.2; }
+        else if (char.id === 'custom_1790776698867') { u.pitch = 1.4; }
+        u.onend = resolve; u.onerror = resolve;
+        window.speechSynthesis.speak(u);
+        setTimeout(resolve, 10000);
+      });
+    }
+  }
 
   _gcallSetSpeaking(char.id, false);
   gcallSpeakingCharId = null;

@@ -500,8 +500,8 @@ def tts_endpoint():
                     ref_file=speaker_wav,
                     ref_text=ref_text,
                     gen_text=text,
-                    seed=-1,
-                    nfe_step=32,
+                    seed=42,
+                    nfe_step=64,
                 )
         except Exception as e:
             print(f"[voice-ai] F5-TTS error: {e}", flush=True)
