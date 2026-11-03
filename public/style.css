@@ -6295,8 +6295,28 @@ html, body {
     padding: 10px !important;
     gap: 6px !important;
   }
-  .hc-avatar { width: 100% !important; height: 120px !important; font-size: 32px !important; }
+  .hc-avatar { width: 100% !important; height: 120px !important; font-size: 32px !important; margin: 0 !important; }
   .app-body { order: 1 !important; }
+
+  /* ── Mobile dropdown: open ABOVE the bottom dock ── */
+  .rail-user-wrap .user-dropdown {
+    position: fixed !important;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px) + 8px) !important;
+    right: 8px !important;
+    top: auto !important;
+    left: auto !important;
+    width: calc(100vw - 16px) !important;
+    max-width: 280px !important;
+  }
+
+  /* ── Mobile view & chat padding ── */
+  .view { padding: 20px 16px 32px !important; }
+  .chat-body { padding: 16px 14px 12px !important; }
+  .chat-footer { padding: 10px 12px 12px !important; }
+
+  /* ── Mobile home spacing ── */
+  .home-topbar { margin-bottom: 16px !important; }
+  .home-section { margin-bottom: 20px !important; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
