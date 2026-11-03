@@ -98,8 +98,8 @@ function loadAccountPrefs() {
 
 const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos' };
 // Must match OPAS_COST / OPES_COST / COST_FACTOR_VS_OPES in server.js — what one reply costs from the allowance.
-const OPAS_COST = { low: 264, medium: 420, high: 640, extra: 960, max: 1440, ultracode: 2880 };
-const OPES_COST = { low: 1050, medium: 1800, high: 2700, extra: 3900, max: 6000, ultracode: 12000 };
+const OPAS_COST = { low: 210, medium: 420, high: 630, extra: 924, max: 1386, ultracode: 2100 };
+const OPES_COST = { low: 900, medium: 1800, high: 2700, extra: 3960, max: 5940, ultracode: 9000 };
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5 };
 const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1 };
 const PLAN_RANK = { free: 0, advanced: 1, x50: 1, x100: 1, x200: 1 };
@@ -116,8 +116,8 @@ function clientMessageCost(tier, effort) {
 // Roughly how many visible characters a full reply has at each effort (used to ramp the live counter up to the cost)
 const EXPECTED_REPLY_CHARS = { low: 250, medium: 500, high: 1200, extra: 2500, max: 4000, ultracode: 12000 };
 // Every model is asked for a set number of words at High, Extra and Max (must match WORDS_BY_EFFORT / MODEL_WORDS in server.js)
-const WORDS_BY_EFFORT = { high: 800, extra: 1500, max: 2200, ultracode: 2500 };
-const MODEL_WORDS = { opas: 0.7, opes: 1.1, opis: 1.3, opos: 1.5 };
+const WORDS_BY_EFFORT = { high: 1100, extra: 3000, max: 7500, ultracode: 9000 };
+const MODEL_WORDS = { opas: 0.7, opes: 1.5, opis: 1.3, opos: 1.5 };
 function expectedReplyChars(tier, effort) {
   const b = baseTierOf(tier);
   if (b && WORDS_BY_EFFORT[effort]) return Math.round(WORDS_BY_EFFORT[effort] * MODEL_WORDS[b] / 50) * 50 * 6;   // about 6 characters a word

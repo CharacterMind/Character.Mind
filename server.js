@@ -1253,9 +1253,9 @@ function historyBudgetFor(modelTier) {
 // Free plan: opas + opes. Advanced plan: all four tiers.
 const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1 };
 const PLAN_RANK = { free: 0, advanced: 1, x20: 1, x50: 1, x100: 1, x200: 1 };
-// Extra cost for the higher effort levels, on top of the model multiplier (they also write longer replies).
-// Ratio: max = 14.3× medium. Low costs half a medium reply.
-const EFFORT_TOKEN_MULT = { low: 0.5, medium: 1, high: 2.5, extra: 6, max: 14.3, ultracode: 20 };
+// Extra cost for the higher effort levels. Curve is gentle so higher efforts stay usable.
+// Ratio: max = 3.3× medium. Low costs half a medium reply.
+const EFFORT_TOKEN_MULT = { low: 0.5, medium: 1, high: 1.5, extra: 2.2, max: 3.3, ultracode: 5 };
 function effortMultFor(effort) { return Object.hasOwn(EFFORT_TOKEN_MULT, effort) ? EFFORT_TOKEN_MULT[effort] : 1; }
 function resolveEffort(userId, requested) {
   return Object.hasOwn(EFFORT_TOKEN_MULT, requested) ? requested : 'medium';
@@ -1264,11 +1264,12 @@ function resolveEffort(userId, requested) {
 // What ONE reply costs from the allowance, by model and effort. Fixed per message (not the AI's raw token
 // count, which swings a lot because of hidden thinking), so message counts are predictable.
 // Opas ≈ 0.23× Opes at medium. Higher models are multiples of Opes.
-// Effort ramps geometrically: Low 0.5×, Medium 1×, High 2.4×, Extra 5.9×, Max 14.3× a Medium message.
-const OPAS_COST = { low: 210, medium: 420, high: 1000, extra: 2500, max: 6000, ultracode: 8400 };
-const OPES_COST = { low: 900, medium: 1800, high: 4400, extra: 10600, max: 25800, ultracode: 36000 };
+// Effort ramps gently: Low 0.5×, Medium 1×, High 1.5×, Extra 2.2×, Max 3.3× a Medium Opes message.
+// Free session (54k) → ~30 medium Opes, ~20 high Opes, ~9 max Opes. All are usable.
+const OPAS_COST = { low: 210, medium: 420, high: 630, extra: 924, max: 1386, ultracode: 2100 };
+const OPES_COST = { low: 900, medium: 1800, high: 2700, extra: 3960, max: 5940, ultracode: 9000 };
 // Base models step up gently: Opes 1×, Opis 1.25×, Opos 1.5× (of Opes).
-// Max effort costs 14.3× a Medium reply.
+// Max effort costs 3.3× a Medium Opes reply.
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5 };
 function messageCost(modelTier, effort) {
   const e = (typeof effort === 'string' && Object.hasOwn(OPES_COST, effort)) ? effort : 'medium';
@@ -2172,7 +2173,7 @@ async function buildMemoryNote(modelTier, fullMsgs, key, charName, userId) {
 // How long a long reply should be. These fit inside what the free Groq plan can hold; if the Groq limits are ever raised, set
 // GROQ_LENGTH_SCALE (for example 3) together with GROQ_REQUEST_BUDGET and VERSION_CAP_SCALE (reply caps) and every length grows with them.
 const LENGTH_SCALE = Number(process.env.GROQ_LENGTH_SCALE) || 1;
-// Word targets per effort. At opes (MODEL_WORDS 1.5×): medium=525w/1135 tokens, max=11250w/16150 tokens (14.3× ratio).
+// Word targets per effort. At opes (MODEL_WORDS 1.5×): medium=525w/~1135 tokens, max=11250w/~16150 tokens.
 const WORDS_BY_EFFORT = { low: 80, medium: 350, high: 1100, extra: 3000, max: 7500, ultracode: 9000 };
 function lengthTargetWords(modelTier, effort) {
   const base = baseOf(modelTier);
