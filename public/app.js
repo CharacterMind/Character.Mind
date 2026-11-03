@@ -241,9 +241,9 @@ const PLAN_DATA = [
     features: [
       'Opas — snappy replies, zero filler, straight to the point',
       'Opes — richer storytelling, ~60% longer replies with natural depth; uses ~4× more session budget per reply',
-      'Up to ~80 Opes replies per session (or ~350 Opas) — reply length affects your actual count; resets every 2 hrs',
+      'Up to ~30 Opes replies per session (or ~130 Opas) — effort & model affect actual count; resets every 2 hrs',
       'All characters unlocked',
-      'Up to 90 min of calls per day · up to 10 regens & 50 memos every 8 hrs',
+      'Up to 90 min of calls per day · up to 50 memos every 8 hrs',
     ],
   },
   {
@@ -252,9 +252,9 @@ const PLAN_DATA = [
     features: [
       'Opis — sharper logic for mystery and intrigue; costs 25% more session budget per reply than Opes',
       'Opos — GM mode: drives the plot, voices every NPC, runs the whole room; costs 50% more than Opes',
-      'Up to ~250 Opes replies per session — 3× more than Free · factors like reply length vary your actual count',
+      'Up to ~300 Opes replies per session — 10× more than Free · effort & model affect actual count',
       '2,000 C.M. Coins every month',
-      'Up to 4.5 hrs of calls per day · up to 30 regens & 150 memos every 8 hrs',
+      'Up to 4.5 hrs of calls per day · up to 150 memos every 8 hrs',
       'Everything in Free, including Opas & Opes',
     ],
   },
@@ -8390,7 +8390,7 @@ function updateUsageModal(u) {
     const sessMsg = isAdv ? '~300 msgs / session' : '~30 msgs / session';
     const weeklyTokens = isAdv ? 1800000 : null;
     const weeklyMsg = isAdv ? '~1,000 msgs / week' : 'No weekly cap';
-    const callsDay = isAdv ? 18 : 6;
+    const callsDay = isAdv ? '4.5 hrs' : '90 min';
     const models = isAdv ? 'Opas, Opes, Opis, Opos' : 'Opas, Opes';
     rowsEl.innerHTML =
       `<div style="color:var(--text3);font-size:11px">Session limit</div><div style="font-weight:600;color:var(--text1)">${sessMsg}</div>` +
