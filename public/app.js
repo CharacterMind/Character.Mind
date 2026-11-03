@@ -243,7 +243,7 @@ const PLAN_DATA = [
       'Opes — richer storytelling, ~60% longer replies with natural depth; uses ~4× more session budget per reply',
       'Up to ~30 Opes replies per session (or ~130 Opas) — effort & model affect actual count; resets every 2 hrs',
       'All characters unlocked',
-      'Up to 90 min of calls per day · up to 50 memos every 8 hrs',
+      'Up to 6 calls per day · 90 min total · up to 50 memos every 8 hrs',
     ],
   },
   {
@@ -254,7 +254,7 @@ const PLAN_DATA = [
       'Opos — GM mode: drives the plot, voices every NPC, runs the whole room; costs 50% more than Opes',
       'Up to ~300 Opes replies per session — 10× more than Free · effort & model affect actual count',
       '2,000 C.M. Coins every month',
-      'Up to 4.5 hrs of calls per day · up to 150 memos every 8 hrs',
+      'Up to 18 calls per day · 4.5 hrs total · up to 150 memos every 8 hrs',
       'Everything in Free, including Opas & Opes',
     ],
   },
@@ -265,8 +265,7 @@ const PLAN_DATA = [
       'Opys: plans the scene before it writes it — tension beats, pacing, full arcs',
       'Replies run 1.9× longer with multi-chapter stamina',
       'Up to ~4,150 Opes messages per session — 50× free',
-      'Up to 18 hrs of calls per day · up to 150 image uploads per day · up to 2,500 memos every 8 hrs',
-      'Up to 500 regenerations every 8 hrs — 50× free',
+      'Up to 18 hrs of calls per day · up to 2,500 memos every 8 hrs',
       'Everything in Advanced',
     ],
   },
@@ -278,8 +277,7 @@ const PLAN_DATA = [
       '3.5× longer replies with multi-pass refinement — it rewrites itself until it\'s right',
       '⚡ Ultra Code: ships real production code for Unity, Roblox, and web — not pseudocode',
       'Up to ~8,300 Opes messages per session — 100× free',
-      'Up to 21 hrs of calls per day · up to 300 image uploads per day · up to 5,000 memos every 8 hrs',
-      'Up to 1,000 regenerations every 8 hrs — 100× free',
+      'Up to 21 hrs of calls per day · up to 5,000 memos every 8 hrs',
       'Everything in X50',
     ],
   },
@@ -292,8 +290,7 @@ const PLAN_DATA = [
       '⚡ Ultra Code at full scale — pipelines, multi-system architecture, the works',
       'World-building mode: lore, faction maps, and character arcs that survive every session',
       'Up to ~16,600 Opes messages per session — 200× free',
-      'Unlimited calls · up to 600 image uploads per day · up to 10,000 memos every 8 hrs',
-      'Up to 2,000 regenerations every 8 hrs — 200× free',
+      'Unlimited calls · up to 10,000 memos every 8 hrs',
       'Everything in X100',
     ],
   },
@@ -8390,7 +8387,7 @@ function updateUsageModal(u) {
     const sessMsg = isAdv ? '~300 msgs / session' : '~30 msgs / session';
     const weeklyTokens = isAdv ? 1800000 : null;
     const weeklyMsg = isAdv ? '~1,000 msgs / week' : 'No weekly cap';
-    const callsDay = isAdv ? '4.5 hrs' : '90 min';
+    const callsDay = isAdv ? 'Up to 18 · 4.5 hrs total' : 'Up to 6 · 90 min total';
     const models = isAdv ? 'Opas, Opes, Opis, Opos' : 'Opas, Opes';
     rowsEl.innerHTML =
       `<div style="color:var(--text3);font-size:11px">Session limit</div><div style="font-weight:600;color:var(--text1)">${sessMsg}</div>` +
