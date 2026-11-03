@@ -1495,33 +1495,33 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) chec
 window.addEventListener('DOMContentLoaded', async () => {
   // Fix iOS virtual keyboard: keep --vvh in sync with the visual viewport so the
   // app height shrinks correctly when the on-screen keyboard appears.
-  // Debounced so address-bar show/hide during scroll doesn't trigger
-  // a full layout recalc on every frame (major mobile flicker source).
+  // CRITICAL: --vvh is set immediately and NEVER removed. Without this the CSS
+  // falls back to 100dvh, which iOS Safari changes dynamically with the address
+  // bar (~50-75px per scroll), causing layout thrash, flicker, and stale touch
+  // hit-testing (the "can't click anything" bug). Address-bar changes are
+  // ~50-75px; keyboard open/close is ~300-400px — the 100px threshold filters
+  // one from the other.
   if (window.visualViewport) {
     let _vvhRaf = null;
     let _lastVVH = window.visualViewport.height;
+    // Set immediately so CSS never hits the 100dvh fallback on first paint.
+    document.documentElement.style.setProperty('--vvh', _lastVVH + 'px');
     const syncVVH = () => {
       if (_vvhRaf) return;
       _vvhRaf = requestAnimationFrame(() => {
         _vvhRaf = null;
         const h = window.visualViewport.height;
-        // Only react to significant changes (keyboard open/close ≈ 150-400px).
-        // Address-bar scroll on iOS is only ~50-75px — ignoring it prevents
-        // layout thrash, flickering, and broken touch events on every scroll.
+        // Only react to significant changes (keyboard open/close ≈ 300-400px).
+        // Address-bar scroll is only ~50-75px — ignoring it keeps the layout stable.
         if (Math.abs(h - _lastVVH) > 100) {
           _lastVVH = h;
-          if (h < window.innerHeight - 100) {
-            // Keyboard is open — pin the height so the chat footer stays visible.
-            document.documentElement.style.setProperty('--vvh', h + 'px');
-          } else {
-            // Keyboard closed — let 100dvh handle it naturally.
-            document.documentElement.style.removeProperty('--vvh');
-          }
+          // Always setProperty — never removeProperty — so 100dvh is never used.
+          document.documentElement.style.setProperty('--vvh', h + 'px');
         }
       });
     };
     window.visualViewport.addEventListener('resize', syncVVH);
-    syncVVH();
+    // No syncVVH() call here — _lastVVH and --vvh are already set above.
   }
   checkWhatsNewDot();
   // Re-pop limit modal on ANY input interaction when locked out
