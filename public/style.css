@@ -6283,8 +6283,17 @@ html, body {
     border-radius: 8px !important;
   }
   .home-row {
+    display: grid !important;
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 10px !important;
+    overflow-x: unset !important;
+    padding-bottom: 0 !important;
+  }
+  .hc {
+    flex-direction: column !important;
+    width: auto !important;
+    padding: 10px !important;
+    gap: 6px !important;
   }
   .hc-avatar { width: 100% !important; height: 120px !important; font-size: 32px !important; }
   .app-body { order: 1 !important; }
