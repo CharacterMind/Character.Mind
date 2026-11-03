@@ -1231,8 +1231,8 @@ const baseOf = (t) => {
   return Object.hasOwn(MODEL_TOKEN_MULT, b) ? b : null;
 };
 // The most tokens one reply may use, per model (the bigger writers get more room), and how long each model writes compared with Opes
-const MODEL_CAP   = { opas: 10000, opes: 18000, opis: 12000, opos: 16000 };
-const MODEL_WORDS = { opas: 0.7,   opes: 1.5,  opis: 1.3,  opos: 1.5  };
+const MODEL_CAP   = { opas: 10000, opes: 18000, opis: 22000, opos: 32000 };
+const MODEL_WORDS = { opas: 0.9,   opes: 1.6,  opis: 2.0,  opos: 2.8  };
 const MODEL_CAP_SCALE = Number(process.env.VERSION_CAP_SCALE) || 1;
 for (const k of Object.keys(MODEL_CAP)) MODEL_CAP[k] = Math.round(MODEL_CAP[k] * MODEL_CAP_SCALE);
 // Token budget for reply room calculation. Raised from the original Groq-era 8k to 32k for Gemini; Groq backup independently
@@ -1871,7 +1871,7 @@ function refundTokens(sid, tokens) {
 // ── Effort directive ──────────────────────────────────────────────────────────
 const EFFORT_DIRECTIVES = {
   low:    'RESPONSE LENGTH: Keep your reply extremely brief — 1 to 3 sentences maximum. One sharp moment, aimed directly at what the user just wrote. No more.',
-  medium: 'RESPONSE LENGTH: Keep your reply focused — 1 to 2 paragraphs, 4 to 6 sentences. Tight, punchy, and locked onto what the user just said or did.',
+  medium: 'RESPONSE LENGTH: Write a focused, immersive reply — 2 to 4 paragraphs. Stay sharp and character-driven, matched to the energy of the scene. Do not cut the moment short.',
   high:   'RESPONSE LENGTH: Write a full, immersive reply — 3 to 5 paragraphs. Rich, atmospheric, fully developed.',
   extra:  'RESPONSE LENGTH: Write a deeply immersive, expansive reply — 5 to 9 paragraphs minimum. Explore every sensory detail, emotion, and narrative beat. This is your most thorough, cinematic, richly crafted response.',
   max:    'RESPONSE LENGTH: Write the longest, most elaborate reply you can — 10 to 16 paragraphs. Leave nothing out: every sensation, thought, gesture, line of dialogue and shift in the scene. It should read like a full chapter.',
@@ -3459,7 +3459,7 @@ const GEMINI_HOST = 'generativelanguage.googleapis.com';
 // gemini-3.5-flash-lite = high RPD free tier; gemini-3.8-flash = lower RPD but stronger
 const GEMINI_FALLBACKS   = ['gemini-3.5-flash-lite', 'gemini-3.8-flash'];
 const GEMINI_MODEL_LIST  = ['gemini-3.5-flash-lite', 'gemini-3.8-flash'];
-const GEMINI_PRO_LIST    = ['gemini-3.5-flash-lite', 'gemini-3.8-flash'];
+const GEMINI_PRO_LIST    = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'];
 // Each tier alias gets its own array so object-identity comparison in callGeminiStream works correctly
 const GROQ_FAST_MODELS  = [...GEMINI_MODEL_LIST];
 const GROQ_MODELS       = [...GEMINI_MODEL_LIST];
