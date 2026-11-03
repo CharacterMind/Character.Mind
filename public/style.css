@@ -881,7 +881,7 @@ html, body {
 #chatView { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
 
 .chat-body {
-  flex: 1; overflow-y: auto;
+  flex: 1; min-height: 0; overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   padding: 32px 24px 16px;
@@ -3703,8 +3703,7 @@ html, body {
     border-right: none !important; border-top: 1px solid var(--border) !important;
     padding: 0 6px env(safe-area-inset-bottom, 0px) !important; gap: 0 !important;
     justify-content: space-around !important; overflow-x: auto;
-    /* GPU compositing layer — prevents flicker during scroll/keyboard */
-    transform: translateZ(0); will-change: transform;
+    transform: translateZ(0);
   }
   .app-body { order: 1 !important; }
   .icon-rail .rail-section { flex-direction: row !important; }
@@ -7027,6 +7026,8 @@ body:not(.halloween) .hw-off-label { display: inline; }
 @media (max-width: 768px) {
   .app { flex-direction: column !important; }
   .icon-rail {
+    width: 100% !important;
+    flex-direction: row !important;
     order: 2 !important;
     height: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
     padding: 0 6px env(safe-area-inset-bottom, 0px) !important;

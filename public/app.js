@@ -1505,9 +1505,18 @@ window.addEventListener('DOMContentLoaded', async () => {
       _vvhRaf = requestAnimationFrame(() => {
         _vvhRaf = null;
         const h = window.visualViewport.height;
-        if (h !== _lastVVH) {
+        // Only react to significant changes (keyboard open/close ≈ 150-400px).
+        // Address-bar scroll on iOS is only ~50-75px — ignoring it prevents
+        // layout thrash, flickering, and broken touch events on every scroll.
+        if (Math.abs(h - _lastVVH) > 100) {
           _lastVVH = h;
-          document.documentElement.style.setProperty('--vvh', h + 'px');
+          if (h < window.innerHeight - 100) {
+            // Keyboard is open — pin the height so the chat footer stays visible.
+            document.documentElement.style.setProperty('--vvh', h + 'px');
+          } else {
+            // Keyboard closed — let 100dvh handle it naturally.
+            document.documentElement.style.removeProperty('--vvh');
+          }
         }
       });
     };
