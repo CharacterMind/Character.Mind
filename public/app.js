@@ -1,4 +1,4 @@
-﻿// ── State ─────────────────────────────────────────────────────────────────────
+// ── State ─────────────────────────────────────────────────────────────────────
 let knownTemplateAliases = [];
 let templatesLoaded = false;
 let currentUser = null;
@@ -314,9 +314,6 @@ function planBuyable(key) {
   return true;
 }
 
-// Halloween sale — 40% off all paid plans, both monthly and annual. Ends Nov 1 2026.
-const HALLOWEEN_SALE = { discount: 0.40, ends: new Date('2026-11-05T00:00:00Z') };
-function halloweenSaleActive() { return new Date() < HALLOWEEN_SALE.ends; }
 
 let pricingPeriod = 'monthly';
 
@@ -443,31 +440,19 @@ function renderPricingCards() {
     rateEl.innerHTML = `🪙 1 C.M. Coin&nbsp;≈&nbsp;<strong>${localOneCoins === 'Free' ? '$0.01' : localOneCoins}</strong>&nbsp;— shown in your local currency`;
   }
 
-  // saleOn requires both the date window AND actual discounted plan IDs being configured in PayPal
-  const saleOn = halloweenSaleActive() && _halloweenSaleConfigured;
-
-  // Keep annual button label in sync with whether the Halloween sale is active
-  const annualToggle = document.getElementById('pricingBtnAnnual');
-  if (annualToggle) {
-    const lbl = annualToggle.querySelector('.pt-save-label');
-    if (lbl) lbl.textContent = saleOn ? '🎃 70% off' : '50% off';
-  }
-
   container.innerHTML = PLAN_DATA.filter(p => ACTIVE_PLANS.includes(p.key)).map(plan => {
     const isCurrent = plan.key === currentTier;
     const basePrice = pricingPeriod === 'annual' ? plan.annual : plan.monthly;
-    const price = (saleOn && basePrice > 0) ? Math.round(basePrice * (1 - HALLOWEEN_SALE.discount) * 100) / 100 : basePrice;
+    const price = basePrice;
     const priceStr = formatLocalPrice(price);
-    const origStr = (saleOn && basePrice > 0) ? formatLocalPrice(basePrice) : null;
+    const origStr = null;
     const periodStr = basePrice === 0 ? 'forever' : pricingPeriod === 'annual' ? '/ year' : '/ month';
     let perMonth = '<div class="pc-per-month"></div>';
     if (plan.annual > 0 && pricingPeriod === 'annual') {
-      const effectiveAnnual = saleOn ? Math.round(plan.annual * (1 - HALLOWEEN_SALE.discount) * 100) / 100 : plan.annual;
-      const savePct = Math.round((1 - effectiveAnnual / (plan.monthly * 12)) * 100);
-      const perMonthLocal = formatLocalPrice(effectiveAnnual / 12);
+      const savePct = Math.round((1 - plan.annual / (plan.monthly * 12)) * 100);
+      const perMonthLocal = formatLocalPrice(plan.annual / 12);
       perMonth = `<div class="pc-per-month">~${perMonthLocal}/mo &nbsp;<span class="pc-save-pct">Save ${savePct}%</span></div>`;
     }
-    const saleBadge = saleOn && basePrice > 0 ? `<div class="pc-halloween-badge">🎃 -40%</div>` : '';
     const badge = plan.badge ? `<div class="pc-badge">${escHtml(plan.badge)}</div>` : '';
     const features = plan.features.map(f => `<li>✓ ${escHtml(f)}</li>`).join('');
     const coinCost = plan.coinsPerMonth || 0;
@@ -515,7 +500,7 @@ function renderPricingCards() {
       ctaBtn = `<button class="pc-cta" onclick="handleUpgradeCta('${plan.key}')">Subscribe</button>`;
     }
     return `<div class="pricing-card${isCurrent ? ' pc-current' : ''}${plan.badge ? ' pc-featured' : ''}">
-      ${badge}${saleBadge}
+      ${badge}
       <div class="pc-name">${escHtml(plan.name)}</div>
       <div class="pc-price">${origStr ? `<span class="pc-orig-price">${origStr}</span> ` : ''}${priceStr}<span class="pc-period"> ${periodStr}</span></div>
       ${perMonth}
@@ -567,7 +552,6 @@ const PAYPAL_PLAN_IDS = {};
 
 // Yearly plans exist only once their PayPal plans are set up on the server (it tells us in /api/paypal/config)
 let yearlyAvailable = false;
-let _halloweenSaleConfigured = false;
 let paypalConfigLoaded = null;
 function loadPaypalConfig() {
   if (!paypalConfigLoaded) {
@@ -575,7 +559,6 @@ function loadPaypalConfig() {
       if (cfg && cfg.planIds) Object.assign(PAYPAL_PLAN_IDS, cfg.planIds);
       if (cfg && cfg.yearlyPlanIds) Object.assign(PAYPAL_PLAN_IDS_YEARLY, cfg.yearlyPlanIds);
       yearlyAvailable = !!(cfg && cfg.yearlyAvailable);
-      _halloweenSaleConfigured = !!(cfg && cfg.halloweenSale);
       document.body.classList.toggle('yearly-on', yearlyAvailable);
       return cfg;
     }).catch(() => { paypalConfigLoaded = null; return null; });
@@ -610,9 +593,7 @@ async function openPaypalCheckout(planKey, period) {
   const yearly = currentCheckoutPeriod === 'annual';
 
   document.getElementById('paypalCheckoutTitle').textContent = `${plan.name} Plan${yearly ? ' (yearly)' : ''}`;
-  const saleOn = halloweenSaleActive() && _halloweenSaleConfigured;
-  const basePrice = yearly ? plan.annual : plan.monthly;
-  const price = (saleOn && basePrice > 0) ? Math.round(basePrice * (1 - HALLOWEEN_SALE.discount) * 100) / 100 : basePrice;
+  const price = yearly ? plan.annual : plan.monthly;
   const periodLabel = yearly ? 'yr' : 'mo';
 
   const origPriceEl = document.getElementById('paypalCheckoutOrigPrice');
@@ -629,20 +610,10 @@ async function openPaypalCheckout(planKey, period) {
   const discount = hasCoins ? Math.min(coinValueUSD, price) : 0;
   const effective = +(price - discount).toFixed(2);
 
-  // Strikethrough label: during sale show the pre-sale price; otherwise show monthly*12 for annual
-  let origLabel = '';
-  if (saleOn && basePrice > 0) {
-    origLabel = `${formatLocalPrice(basePrice)} / ${periodLabel}  (Save ${Math.round(HALLOWEEN_SALE.discount * 100)}%)`;
-  } else if (yearly && plan.monthly > 0) {
-    const fullYear = plan.monthly * 12;
-    const savePct = Math.round((1 - plan.annual / fullYear) * 100);
-    origLabel = `${formatLocalPrice(fullYear)} / yr  (Save ${savePct}%)`;
-  } else {
-    origLabel = `${formatLocalPrice(price)} / ${periodLabel}`;
-  }
-
   if (hasCoins) {
-    // Struck-through original price; green line shows the sale price (before coins); coin row deducts below
+    const origLabel = yearly && plan.monthly > 0
+      ? `${formatLocalPrice(plan.monthly * 12)} / yr  (Save ${Math.round((1 - plan.annual / (plan.monthly * 12)) * 100)}%)`
+      : `${formatLocalPrice(price)} / ${periodLabel}`;
     if (origPriceEl) { origPriceEl.textContent = origLabel; origPriceEl.style.display = ''; }
     if (priceEl) { priceEl.textContent = `${formatLocalPrice(price)} / ${periodLabel}`; priceEl.classList.add('co-discounted'); }
     if (coinLabelEl) coinLabelEl.textContent = `🪙 ${userCoins.toLocaleString()} coins`;
@@ -650,14 +621,7 @@ async function openPaypalCheckout(planKey, period) {
     if (coinSaveEl) coinSaveEl.textContent = effective === 0 ? `✓ Fully covered! You're saving ${formatLocalPrice(discount)}` : `You're saving ${formatLocalPrice(discount)}`;
     if (coinRow) coinRow.style.display = '';
     if (tot) tot.textContent = formatLocalPrice(effective);
-  } else if (saleOn && basePrice > 0) {
-    // Sale, no coins: show pre-sale price struck through, sale price in green
-    if (origPriceEl) { origPriceEl.textContent = origLabel; origPriceEl.style.display = ''; }
-    if (priceEl) { priceEl.textContent = `${formatLocalPrice(price)} / ${periodLabel}`; priceEl.classList.add('co-discounted'); }
-    if (coinRow) coinRow.style.display = 'none';
-    if (tot) tot.textContent = formatLocalPrice(price);
   } else if (yearly && plan.monthly > 0) {
-    // Annual, no sale, no coins — show annual savings strikethrough
     const fullYear = plan.monthly * 12;
     const savePct = Math.round((1 - plan.annual / fullYear) * 100);
     if (origPriceEl) { origPriceEl.textContent = `${formatLocalPrice(fullYear)} / yr`; origPriceEl.style.display = ''; }
@@ -1351,10 +1315,8 @@ function renderSettingsTiers(currentTier) {
     <div class="st2-cards-wrap">
       ${PLAN_DATA.filter(p => ACTIVE_PLANS.includes(p.key)).map(p=>{
         const isCurrent = p.key === t;
-        const saleOn = halloweenSaleActive() && _halloweenSaleConfigured;
-        const basePrice = period === 'annual' ? p.annual : p.monthly;
-        const price = (saleOn && basePrice > 0) ? Math.round(basePrice * (1 - HALLOWEEN_SALE.discount) * 100) / 100 : basePrice;
-        const origPriceHtml = (saleOn && basePrice > 0) ? `<div class="st2-orig-price">$${basePrice}</div>` : '';
+        const price = period === 'annual' ? p.annual : p.monthly;
+        const origPriceHtml = '';
         return `
         <div class="st2-card${p.badge==='Recommended'?' st2-featured':''}${isCurrent?' st2-current':''}">
           ${p.badge&&!isCurrent?`<div class="st2-badge">${p.badge}</div>`:''}
@@ -1593,7 +1555,6 @@ window.addEventListener('DOMContentLoaded', async () => {
       renderUserBadge();
       await loadCharacters();
       renderHome();
-      checkHalloweenGift();
       renderDiscover();
       renderFeed();
     } catch (_) {}
@@ -1601,7 +1562,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('appLoading').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
     loadUsage();
-    checkHalloweenGift();
     maybeShowWelcome();
     initSidebarState();
     initRpMode();
@@ -2461,7 +2421,6 @@ const CHANGELOG_DATA = {
       'Empty state for Discover with prompt to create your first character',
     ],
     changed: ['Card hover glow polished across character grid'],
-    removed: ['Dead Halloween CSS removed from production codebase'],
   },
   '360': {
     date: 'August 2026',
@@ -2497,12 +2456,7 @@ const CHANGELOG_DATA = {
   },
   '330': {
     date: 'October 2026',
-    added: [
-      'Halloween 2026 seasonal theme — pumpkins, fog, spooky atmosphere',
-      'Halloween sale: 40% off all plans, extended through November 5',
-      'Halloween gift — claim a free full limit reset once during the event',
-    ],
-    changed: ['No billing-month gate — Halloween sale applies to any subscriber during the window'],
+    added: ['October 2026 seasonal updates'],
   },
   '320': {
     date: 'May 2026',
@@ -8550,10 +8504,6 @@ function updateUsageModal(u) {
     _callsResetCountdownTimer = setInterval(_tickCallsReset, 30000);
   }
 
-  // Halloween 2026 gift row — disabled
-  const hwGiftUsageRow = document.getElementById('hwGiftUsageRow');
-  if (hwGiftUsageRow) hwGiftUsageRow.style.display = 'none';
-
   // Game cooldown bar — fills green when ready, drains to orange/yellow while waiting
   const gamePctEl = document.getElementById('usageGamePct');
   const gameBar = document.getElementById('usageGameBar');
@@ -8914,15 +8864,9 @@ async function checkWhatsNewDot() {
   } catch (_) {}
 }
 
-function _showHwGiftRow() {
-  const row = document.getElementById('hwGiftUsageRow');
-  if (row) row.style.display = 'none'; // disabled
-}
-
 async function openUsageModal() {
   document.getElementById('userDropdown')?.classList.remove('open');
   document.getElementById('usageModal').style.display = 'flex';
-  _showHwGiftRow();
   const wrap = document.getElementById('resetLimitsWrap');
   if (wrap) wrap.hidden = !isOwner();
   // Auto-populate next version number for the announcement form
@@ -13849,14 +13793,6 @@ function checkSeasonalEvent() {
       check: (m, d) => m === 9 && d === 27,
     },
     {
-      name: 'halloween',
-      check: (m, d) => m === 10 && d >= 25,
-      emojis: ['🎃','👻','🕷️','🦇','🕸️','💀'],
-      count: 22,
-      banner: "👻 Happy Halloween from character.mind!",
-      accent: '#ff6a00',
-    },
-    {
       name: 'christmas',
       check: (m, d) => m === 12 && d >= 20 && d <= 26,
       emojis: ['❄️','🎄','🎅','⭐','🎁','🔔'],
@@ -13936,7 +13872,7 @@ function checkSeasonalEvent() {
     return;
   }
 
-  if (event.name !== 'halloween') setTimeout(() => transformLogoForEvent(event.name), 500);
+  setTimeout(() => transformLogoForEvent(event.name), 500);
   setTimeout(() => showEventBanner(event.banner, event.name), 1200);
 }
 
@@ -13998,13 +13934,6 @@ function transformLogoForEvent(eventName) {
         'character' +
         '<span class="season-dot season-dot--birthday">🎂</span>' +
         'm<span class="season-i season-i--birthday-candle" aria-label="i">🕯️</span>nd',
-    },
-    halloween: {
-      iconText: '🎃', iconCls: 'halloween-icon',
-      logoHtml: () =>
-        'character' +
-        '<span class="season-dot season-dot--halloween">🎃</span>' +
-        'm<span class="season-i season-i--ghost" aria-label="i">👻</span>nd',
     },
     christmas: {
       iconText: '⭐', iconCls: 'christmas-icon',
@@ -14472,375 +14401,6 @@ async function launchWordle(savedState) {
 
   renderWordle();
 }
-
-// ── Halloween 2026 gift ────────────────────────────────────────────────────────
-function checkHalloweenGift() {
-  // Banner removed — gift only shown in usage modal
-}
-
-async function claimHalloweenGift() {
-  const allBtns = [
-    document.getElementById('hwGiftClaimBtn'),
-    document.getElementById('hwGiftUsageBtn'),
-  ];
-  allBtns.forEach(b => { if (b) { b.disabled = true; b.textContent = '…'; } });
-  try {
-    const r = await fetch('/api/halloween/claim', { method: 'POST' });
-    const d = await r.json();
-    if (d.ok) {
-      if (lastKnownUsage) {
-        lastKnownUsage.cmCoins  = d.coins;
-        lastKnownUsage.cmTokens = d.tokens;
-      }
-      updateSettingsCoinDisplay(d.coins, lastKnownUsage?.coinsEarnedToday || 0, lastKnownUsage?.coinDailyLimit || 100, lastKnownUsage?.coinsMonthlyReset);
-      updateNavCoinDisplay(lastKnownUsage);
-      if (currentUser) currentUser.halloweenGift2026 = true;
-      const banner = document.getElementById('halloweenGiftBanner');
-      if (banner) {
-        banner.querySelector('.hw-gift-text').textContent = '🎃 Done! All your limits have been reset. Enjoy Halloween!';
-        banner.querySelector('.hw-gift-btn-row').style.display = 'none';
-        setTimeout(() => { if (banner) banner.style.display = 'none'; }, 4000);
-      }
-      const hwUsageRow = document.getElementById('hwGiftUsageRow');
-      if (hwUsageRow) {
-        const txt = hwUsageRow.querySelector('span');
-        if (txt) txt.textContent = '🎃 Done! All limits reset — Enjoy Halloween!';
-        const usageBtn = document.getElementById('hwGiftUsageBtn');
-        if (usageBtn) { usageBtn.textContent = '✓'; usageBtn.style.background = '#16a34a'; }
-        setTimeout(() => {
-          if (txt) txt.innerHTML = '🎃 <strong>Halloween Gift</strong> — reset all limits free';
-          if (usageBtn) { usageBtn.textContent = '🎁 Claim'; usageBtn.style.background = ''; usageBtn.disabled = false; }
-        }, 3000);
-      }
-      await loadUsage();
-      if (lastKnownUsage) updateUsageModal(lastKnownUsage);
-    } else {
-      allBtns.forEach(b => { if (b) { b.disabled = false; b.textContent = b.id === 'hwGiftUsageBtn' ? '🎁 Claim' : '🎁 Claim Gift'; } });
-      showWarning(d.error || 'Could not claim gift. Try again.');
-    }
-  } catch (_) {
-    allBtns.forEach(b => { if (b) { b.disabled = false; b.textContent = b.id === 'hwGiftUsageBtn' ? '🎁 Claim' : '🎁 Claim Gift'; } });
-    showWarning('Could not claim gift. Try again.');
-  }
-}
-
-// ── Halloween Theme (October 1-31) ────────────────────────────────────────────
-(function initHalloween() {
-  const _now = new Date(); const _m = _now.getMonth(); const _d = _now.getDate();
-  if (!(_m === 9 || (_m === 10 && _d <= 5))) return;
-
-  // ── State vars hoisted so re-enable works without page reload ───────────────
-  let confettiLoopId = null;
-  let paradeLoopId   = null;
-  let emberLoopId    = null;
-  let hwStage        = null;
-  let hwLogoObserver = null;
-  let hwCardObserver = null;
-
-  function enableHalloween() {
-  // ── Theme is ON ──────────────────────────────────────────────────────────────
-  document.body.classList.add('halloween');
-
-  // Update annual toggle label to reflect combined savings during Halloween sale (only if discounted plans are configured)
-  if (halloweenSaleActive() && _halloweenSaleConfigured) {
-    const annualBtn = document.getElementById('pricingBtnAnnual');
-    if (annualBtn) {
-      const lbl = annualBtn.querySelector('.pt-save-label');
-      if (lbl) lbl.textContent = '🎃 70% off';
-    }
-  }
-
-  // ── Spider webs — all four corners ──────────────────────────────────────────
-  const webSVG = `<svg class="halloween-web web-left" width="180" height="180" viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg"><g stroke="#c084fc" stroke-width="0.9" fill="none"><line x1="0" y1="0" x2="180" y2="0"/><line x1="0" y1="0" x2="155" y2="35"/><line x1="0" y1="0" x2="120" y2="75"/><line x1="0" y1="0" x2="78" y2="108"/><line x1="0" y1="0" x2="38" y2="140"/><line x1="0" y1="0" x2="0" y2="180"/><path d="M35,0 Q32,32 0,35"/><path d="M75,0 Q66,44 46,62 Q26,76 0,78"/><path d="M115,0 Q100,56 74,84 Q50,106 22,112 Q0,116 0,116"/><path d="M155,0 Q134,65 104,96 Q76,122 44,132 Q18,138 0,152"/><line x1="90" y1="0" x2="90" y2="42" stroke="#a855f7" stroke-width="0.7"/><ellipse cx="90" cy="46" rx="6" ry="8" fill="#7c3aed" stroke="#a855f7" stroke-width="0.9"/><ellipse cx="90" cy="42" rx="3.5" ry="3.5" fill="#6d28d9"/><line x1="90" y1="44" x2="81" y2="38" stroke="#a855f7" stroke-width="0.6"/><line x1="90" y1="44" x2="80" y2="46" stroke="#a855f7" stroke-width="0.6"/><line x1="90" y1="44" x2="99" y2="38" stroke="#a855f7" stroke-width="0.6"/><line x1="90" y1="44" x2="100" y2="46" stroke="#a855f7" stroke-width="0.6"/></g></svg>`;
-  document.body.insertAdjacentHTML('beforeend', webSVG);
-  document.body.insertAdjacentHTML('beforeend', webSVG.replace('web-left','web-right'));
-  document.body.insertAdjacentHTML('beforeend', webSVG.replace('halloween-web web-left','halloween-web web-bl'));
-  document.body.insertAdjacentHTML('beforeend', webSVG.replace('halloween-web web-left','halloween-web web-br'));
-
-  // ── Atmospheric horror: vignette, fog, blood drips, eyeballs, lightning ─────
-  function spawnHwAtmosphere() {
-    if (document.getElementById('hwVignette')) return;
-
-    const vig = document.createElement('div');
-    vig.className = 'hw-vignette'; vig.id = 'hwVignette';
-    document.body.appendChild(vig);
-
-    // Haunted moon — upper-right corner atmospheric glow
-    const moon = document.createElement('div');
-    moon.id = 'hwMoon';
-    moon.innerHTML = `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" width="280" height="280"><defs><radialGradient id="mng" cx="38%" cy="35%" r="58%"><stop offset="0%" stop-color="#fffbe6"/><stop offset="50%" stop-color="#fcd34d"/><stop offset="100%" stop-color="#c2570a"/></radialGradient><filter id="mnf" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="16" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><circle cx="100" cy="100" r="86" fill="url(#mng)" filter="url(#mnf)" opacity="0.6"/><circle cx="70" cy="75" r="12" fill="rgba(0,0,0,0.13)"/><circle cx="120" cy="58" r="17" fill="rgba(0,0,0,0.1)"/><circle cx="130" cy="120" r="10" fill="rgba(0,0,0,0.11)"/><circle cx="84" cy="132" r="7" fill="rgba(0,0,0,0.09)"/></svg>`;
-    document.body.appendChild(moon);
-
-    // 8 fog bands covering more of the screen height
-    const fogWrap = document.createElement('div');
-    fogWrap.className = 'hw-fog-wrap'; fogWrap.id = 'hwFogWrap';
-    [
-      { bottom: 0,   h: 160, dur: 22, delay: 0,    op: .28 },
-      { bottom: 90,  h: 130, dur: 30, delay: -9,   op: .21 },
-      { bottom: 200, h: 110, dur: 38, delay: -18,  op: .16 },
-      { bottom: 310, h: 90,  dur: 46, delay: -27,  op: .12 },
-      { bottom: 420, h: 75,  dur: 34, delay: -12,  op: .08 },
-      { bottom: 530, h: 60,  dur: 42, delay: -22,  op: .05 },
-      { bottom: 640, h: 48,  dur: 50, delay: -31,  op: .03 },
-      { bottom: 750, h: 36,  dur: 57, delay: -40,  op: .02 },
-    ].forEach(({ bottom, h, dur, delay, op }) => {
-      const b = document.createElement('div');
-      b.className = 'hw-fog-band';
-      b.style.cssText = `bottom:${bottom}px;height:${h}px;animation-duration:${dur}s;animation-delay:${delay}s;--fog-op:${op};`;
-      fogWrap.appendChild(b);
-    });
-    document.body.appendChild(fogWrap);
-
-    // 30 blood drips spread across the top
-    const dripWrap = document.createElement('div');
-    dripWrap.className = 'hw-drip-wrap'; dripWrap.id = 'hwDripWrap';
-    [
-      [2,  2, 80,  7,  0   ],[6,  3, 115, 11, -3  ],[11, 2, 60,  8,  -7  ],
-      [16, 4, 135, 14, -2  ],[21, 2, 70,  9,  -10 ],[26, 3, 100, 12, -5  ],
-      [31, 2, 55,  7,  -8  ],[36, 4, 105, 13, -1  ],[41, 2, 75,  9,  -4  ],
-      [46, 3, 90,  11, -9  ],[51, 2, 65,  8,  -6  ],[55, 3, 50,  6,  -12 ],
-      [59, 2, 88,  10, -3  ],[63, 4, 120, 15, -7  ],[67, 2, 65,  8,  -5  ],
-      [71, 3, 95,  12, -2  ],[75, 2, 55,  7,  -9  ],[79, 4, 110, 14, -4  ],
-      [83, 2, 72,  9,  -11 ],[87, 3, 85,  11, -6  ],[91, 2, 60,  8,  -8  ],
-      [94, 3, 100, 13, -1  ],[97, 2, 75,  9,  -5  ],[4,  2, 45,  6,  -14 ],
-      [14, 3, 130, 16, -3  ],[29, 2, 95,  11, -7  ],[48, 4, 115, 14, -9  ],
-      [66, 2, 80,  10, -4  ],[77, 3, 62,  8,  -12 ],[99, 2, 90,  11, -6  ],
-    ].forEach(([left, w, h, dur, delay]) => {
-      const d = document.createElement('div');
-      d.className = 'hw-drip';
-      d.style.cssText = `left:${left}%;width:${w}px;--drip-h:${h}px;animation-duration:${dur}s;animation-delay:${delay}s;`;
-      dripWrap.appendChild(d);
-    });
-    document.body.appendChild(dripWrap);
-
-    // Floating eyeballs that blink in/out at screen edges
-    const eyeWrap = document.createElement('div');
-    eyeWrap.id = 'hwEyeWrap';
-    eyeWrap.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:8003;';
-    [
-      { l:'2%',   t:'14%'   }, { l:'1%',   t:'52%'   }, { l:'3%',   t:'82%'  },
-      { r:'2%',   t:'19%'   }, { r:'1%',   t:'58%'   }, { r:'3%',   t:'78%'  },
-      { l:'18%',  t:'1%'    }, { l:'48%',  t:'1%'    }, { l:'72%',  t:'1%'   },
-      { r:'18%',  t:'1%'    }, { l:'8%',   b:'5%'    }, { r:'10%',  b:'4%'   },
-      { l:'38%',  b:'2%'    }, { r:'32%',  b:'3%'    }, { l:'62%',  b:'3%'   },
-    ].forEach(({ l, r, t, b }, i) => {
-      const eye = document.createElement('div');
-      eye.className = 'hw-eyeball';
-      const dur   = (3.2 + (i % 5) * 0.8).toFixed(1);
-      const delay = (i * 1.1).toFixed(1);
-      const size  = 20 + (i % 4) * 6;
-      eye.textContent = '👁️';
-      const pos = [l?`left:${l}`:`right:${r}`, t?`top:${t}`:`bottom:${b}`].join(';');
-      eye.style.cssText = `${pos};font-size:${size}px;--eye-dur:${dur}s;--eye-delay:${delay}s;`;
-      eyeWrap.appendChild(eye);
-    });
-    document.body.appendChild(eyeWrap);
-
-  }
-
-  function removeHwAtmosphere() {
-    ['hwVignette','hwFogWrap','hwDripWrap','hwEyeWrap','hwMoon'].forEach(id => document.getElementById(id)?.remove());
-  }
-
-  spawnHwAtmosphere();
-
-  // ── Flying parade — EXTREME density ─────────────────────────────────────────
-  // Each entry: [emoji, minSize, maxSize, minSpeed, maxSpeed, minTop%, maxTop%]
-  // Each entry: [emoji, minSize, maxSize, minSpeed, maxSpeed, minTop%, maxTop%, category]
-  const PARADE = [
-    ['👻', 36, 76, 9, 17, 18, 72, 'ghost'],   ['🧙‍♀️', 40, 80, 8, 15, 12, 65, 'witch'],
-    ['🧟', 34, 68, 12, 20, 55, 82, 'ghost'],   ['💀', 32, 62, 10, 18, 20, 75, 'skull'],
-    ['🎃', 36, 74, 10, 17, 25, 78, 'pumpkin'], ['🐈‍⬛', 30, 60, 9, 17, 60, 85, 'witch'],
-    ['🕷️', 28, 58, 7, 14, 18, 80, 'skull'],   ['🦇', 30, 62, 9, 16, 15, 70, 'bat'],
-    ['🧛', 36, 72, 8, 15, 10, 65, 'witch'],    ['☠️', 32, 64, 10, 18, 22, 74, 'skull'],
-    ['🔮', 30, 58, 11, 18, 30, 78, 'eye'],     ['🌙', 28, 56, 8, 15, 10, 50, 'witch'],
-    ['🩸', 26, 52, 11, 19, 30, 80, 'blood'],   ['🦴', 28, 54, 10, 18, 25, 75, 'skull'],
-    ['⚰️', 34, 66, 9, 16, 40, 80, 'skull'],   ['🧿', 26, 50, 8, 15, 15, 65, 'eye'],
-    ['🪬', 28, 52, 9, 16, 20, 70, 'eye'],      ['😈', 34, 68, 10, 17, 15, 72, 'witch'],
-    ['👁️', 24, 48, 8, 14, 25, 75, 'eye'],     ['🌑', 28, 56, 8, 14, 10, 55, 'witch'],
-    ['🕸️', 32, 60, 8, 14, 20, 70, 'skull'],   ['🔪', 28, 52, 11, 19, 30, 80, 'blood'],
-    ['🫀', 26, 50, 9, 16, 35, 78, 'blood'],    ['🦠', 24, 46, 7, 13, 25, 75, 'witch'],
-    ['💉', 26, 50, 10, 17, 40, 82, 'blood'],   ['🕯️', 30, 56, 8, 15, 20, 75, 'fire'],
-    ['⚗️', 28, 52, 9, 16, 30, 78, 'witch'],   ['🪦', 34, 64, 8, 15, 40, 82, 'skull'],
-    ['😱', 32, 66, 9, 16, 15, 70, 'ghost'],    ['🔥', 30, 58, 10, 18, 15, 72, 'fire'],
-    ['💫', 24, 46, 7, 13, 10, 60, 'fire'],     ['🎭', 32, 60, 8, 15, 20, 72, 'witch'],
-    ['☄️', 28, 54, 11, 20, 12, 65, 'fire'],   ['🌪️', 30, 56, 9, 17, 18, 75, 'ghost'],
-    ['🐀', 28, 54, 9, 16, 55, 82, 'witch'],    ['🌿', 26, 48, 7, 14, 25, 75, 'witch'],
-    ['🧪', 26, 50, 9, 16, 30, 80, 'witch'],    ['🗡️', 24, 46, 10, 18, 30, 80, 'blood'],
-    ['💜', 22, 42, 8, 14, 15, 65, 'witch'],    ['⚡', 28, 52, 11, 20, 12, 68, 'fire'],
-  ];
-
-  const CONFETTI = [
-    '👻','🎃','💀','🦇','🕸️','🍬','⚗️','🕯️','🌙','✨','🔮','☠️','🧡','🕷️',
-    '🩸','🦴','⚰️','😈','👁️','🪄','🌑','🧿','🌑','💉','🗡️','🔪',
-    '🔥','💫','🎭','☄️','🌪️','⚡','🖤','🟠','🔴','🧪','🌿','💜','😱',
-    '🐀','🪦','🫀','🌚','🌋','🩺','🧬','🫁','🐉','🌊',
-  ];
-
-
-  hwStage = document.createElement('div');
-  hwStage.id = 'hw-stage';
-  document.body.appendChild(hwStage);
-
-  function spawnParade() {
-    if (hwStage.querySelectorAll('.hw-flyer').length >= 80) return;
-    const [emoji, minS, maxS, minSpd, maxSpd, minT, maxT, cat] = PARADE[Math.floor(Math.random() * PARADE.length)];
-    const fromRight = Math.random() > 0.5;
-    const outer = document.createElement('div');
-    outer.className = 'hw-flyer';
-    const inner = document.createElement('div');
-    inner.className = 'hw-flyer-inner' + (cat ? ' hw-fc-' + cat : '');
-    inner.textContent = emoji;
-    outer.appendChild(inner);
-    const size   = minS + Math.random() * (maxS - minS);
-    const topPct = minT + Math.random() * (maxT - minT);
-    const dur    = minSpd + Math.random() * (maxSpd - minSpd);
-    outer.style.cssText = `font-size:${size}px;top:calc(${topPct}vh - 68px);animation:${fromRight?'hwFlyLeft':'hwFlyRight'} ${dur}s linear both;`;
-    hwStage.appendChild(outer);
-    setTimeout(() => outer.remove(), dur * 1000 + 600);
-  }
-
-  function startParade() {
-    (function loop() {
-      spawnParade();
-      if (Math.random() < 0.7) setTimeout(spawnParade, 120 + Math.random() * 280);
-      if (Math.random() < 0.4) setTimeout(spawnParade, 200 + Math.random() * 350);
-      paradeLoopId = setTimeout(loop, 140 + Math.random() * 380);
-    })();
-  }
-  for (let i = 0; i < 36; i++) setTimeout(spawnParade, i * 180);
-  startParade();
-
-  // ── Falling confetti — EXTREME density ──────────────────────────────────────
-  function spawnConfetti() {
-    if (hwStage.querySelectorAll('.hw-confetti').length >= 450) return;
-    const el = document.createElement('div');
-    el.className = 'hw-confetti';
-    el.textContent = CONFETTI[Math.floor(Math.random() * CONFETTI.length)];
-    const size = 14 + Math.random() * 32;
-    const left = 2  + Math.random() * 96;
-    const dur  = 3.5 + Math.random() * 5.5;
-    const sway = ((Math.random() - 0.5) * 130).toFixed(0);
-    const rot  = ((Math.random() - 0.5) * 540).toFixed(0) + 'deg';
-    el.style.cssText = `font-size:${size}px;left:${left}%;animation-duration:${dur}s;animation-delay:${(Math.random()*0.6).toFixed(2)}s;--hw-sway:${sway}px;--hw-rot:${rot};`;
-    hwStage.appendChild(el);
-    setTimeout(() => el.remove(), dur * 1000);
-  }
-
-  function startConfetti() {
-    confettiLoopId = setInterval(spawnConfetti, 12);
-  }
-  for (let i = 0; i < 90; i++) setTimeout(spawnConfetti, i * 25);
-  startConfetti();
-
-  // ── Rising embers from the bottom ────────────────────────────────────────────
-  function spawnEmber() {
-    if (hwStage.querySelectorAll('.hw-ember').length >= 100) return;
-    const el = document.createElement('div');
-    el.className = 'hw-ember';
-    const sz  = 2 + Math.random() * 5;
-    const dur = 4 + Math.random() * 7;
-    el.style.cssText = `left:${Math.random()*100}%;bottom:0;width:${sz}px;height:${sz}px;--ember-sway:${(Math.random()-0.5)*130}px;animation-duration:${dur}s;`;
-    hwStage.appendChild(el);
-    setTimeout(() => el.remove(), dur * 1000);
-  }
-  emberLoopId = setInterval(spawnEmber, 90);
-  for (let i = 0; i < 25; i++) setTimeout(spawnEmber, i * 160);
-
-  // ── Halloween logo: 👁 for "i" in "mind" ────────────────────────────────────
-  function applyHwLogo(el) {
-    if (el.dataset.hwDone) return;
-    el.dataset.hwDone = '1';
-    el.innerHTML =
-      '<span class="hw-logo-part">character.m</span>' +
-      '<span class="hw-logo-eye">👁</span>' +
-      '<span class="hw-logo-part">nd</span>';
-  }
-  function restoreHwLogo(el) {
-    el.textContent = 'character.mind';
-    delete el.dataset.hwDone;
-  }
-  hwLogoObserver = new MutationObserver(muts => {
-    muts.forEach(m => m.addedNodes.forEach(n => {
-      if (n.nodeType !== 1) return;
-      if (n.classList?.contains('logo-text')) applyHwLogo(n);
-      n.querySelectorAll?.('.logo-text').forEach(applyHwLogo);
-    }));
-  });
-  document.querySelectorAll('.logo-text').forEach(applyHwLogo);
-  hwLogoObserver.observe(document.body, { childList: true, subtree: true });
-
-  // ── Extreme card decorations ─────────────────────────────────────────────────
-  const CARD_BADGES = [
-    { e: '💀', cls: 'hw-card-decor-skull', s: 'top:6px;left:6px;',     sz: 14 },
-    { e: '🦇', cls: 'hw-card-decor-bat',   s: 'top:6px;left:26px;',    sz: 12 },
-    { e: '🕷️', cls: '',                    s: 'bottom:7px;left:7px;',   sz: 12 },
-  ];
-  function _decorateCard(card) {
-    if (card.dataset.hwDecorated) return;
-    card.dataset.hwDecorated = '1';
-    // blood strip at top
-    const blood = document.createElement('div');
-    blood.className = 'hw-card-blood';
-    card.appendChild(blood);
-    // emoji badges
-    const cardIdx = [...document.querySelectorAll('.hc,.char-card')].indexOf(card);
-    CARD_BADGES.forEach((b, i) => {
-      if ((cardIdx + i) % 5 === 2) return;
-      const el = document.createElement('span');
-      el.className = 'hw-card-decor' + (b.cls ? ' ' + b.cls : '');
-      el.textContent = b.e;
-      el.style.cssText = b.s + 'font-size:' + b.sz + 'px;opacity:0.78;';
-      card.appendChild(el);
-    });
-  }
-  function _decorateAllCards() {
-    document.querySelectorAll('.hc, .char-card').forEach(_decorateCard);
-  }
-  hwCardObserver = new MutationObserver(muts => {
-    muts.forEach(m => m.addedNodes.forEach(n => {
-      if (n.nodeType !== 1) return;
-      if (n.classList?.contains('hc') || n.classList?.contains('char-card')) _decorateCard(n);
-      n.querySelectorAll?.('.hc, .char-card').forEach(_decorateCard);
-    }));
-  });
-  hwCardObserver.observe(document.body, { childList: true, subtree: true });
-  _decorateAllCards();
-
-  // ── One-time welcome toast ──────────────────────────────────────────────────
-  if (!sessionStorage.getItem('hw_toast_shown')) {
-    sessionStorage.setItem('hw_toast_shown', '1');
-    const toast = document.createElement('div');
-    toast.className = 'halloween-toast';
-    toast.textContent = '🎃 Happy Halloween from character.mind';
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 6200);
-  }
-
-  // ── Toggle: disable all effects inline ──────────────────────────────────────
-  window._hwToggleTheme = function() {
-    localStorage.setItem('hw_disabled', '1');
-    document.body.classList.remove('halloween');
-    if (hwStage) { hwStage.remove(); hwStage = null; }
-    removeHwAtmosphere();
-    clearInterval(confettiLoopId); confettiLoopId = null;
-    clearInterval(emberLoopId);    emberLoopId    = null;
-    clearTimeout(paradeLoopId);    paradeLoopId   = null;
-    document.querySelectorAll('.halloween-web').forEach(e => e.remove());
-    document.querySelectorAll('.logo-text').forEach(restoreHwLogo);
-    if (hwLogoObserver) { hwLogoObserver.disconnect(); hwLogoObserver = null; }
-    if (hwCardObserver) { hwCardObserver.disconnect(); hwCardObserver = null; }
-    document.querySelectorAll('.hw-card-decor, .hw-card-blood').forEach(e => e.remove());
-    document.querySelectorAll('[data-hw-decorated]').forEach(e => { delete e.dataset.hwDecorated; });
-    // Swap to re-enable without page reload
-    window._hwToggleTheme = function() { localStorage.removeItem('hw_disabled'); enableHalloween(); };
-  };
-  } // end enableHalloween
-
-  // ── Initial activation ───────────────────────────────────────────────────────
-  window._hwToggleTheme = function() { localStorage.removeItem('hw_disabled'); enableHalloween(); };
-  if (localStorage.getItem('hw_disabled') !== '1') enableHalloween();
-})();
 
 
 (function initFarm() {
