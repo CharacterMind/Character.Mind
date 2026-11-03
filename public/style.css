@@ -3763,7 +3763,8 @@ html, body {
   }
 
   /* Main takes full width — sidebar is fixed/out of flow */
-  .main { width: 100%; min-width: 0; }
+  /* padding-top clears the status bar / notch on viewport-fit:cover phones */
+  .main { width: 100%; min-width: 0; padding-top: env(safe-area-inset-top, 0px); }
 
   /* Reduce padding in all views */
   .view { padding: 14px 12px 24px; }
