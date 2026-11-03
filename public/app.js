@@ -1560,10 +1560,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     } catch (_) {}
     // Show the app only after characters are rendered — avoids a blank-page flash
     document.getElementById('appLoading').style.display = 'none';
+    initSidebarState(); // Set sidebar state before app is visible so no flash/transition on load
     document.getElementById('app').style.display = 'flex';
     loadUsage();
     maybeShowWelcome();
-    initSidebarState();
     initRpMode();
     updateModelBarLabel();
     _initAdminStats();
@@ -1980,7 +1980,9 @@ function initSidebarState() {
   try {
     const saved = localStorage.getItem('cm_sidebar_collapsed');
     const isMobile = window.innerWidth <= 768;
-    if (saved === '1' || (isMobile && saved === null)) {
+    // On mobile, always start collapsed — sidebar is an overlay that should open on demand.
+    // saved === '0' on mobile is a stale desktop preference; ignore it.
+    if (isMobile || saved === '1') {
       document.getElementById('sidebar')?.classList.add('collapsed');
     }
   } catch (_) {}
