@@ -23,3 +23,5 @@ services:
         value: https://charactermind.onrender.com
       - key: TTS_CLONE_URL
         sync: false
+      - key: TEST_ACCOUNTS
+        value: davey252572727@gmail.com
