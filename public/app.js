@@ -2040,9 +2040,9 @@ const CHANGELOG_DATA = {
     date: 'November 2026',
     label: 'Longer Responses + Smarter Models',
     changed: [
-      'Advanced tiers (opis/opos) now produce significantly longer, more immersive responses — opos targets up to 2.8× more words per reply',
+      'All tiers above opas now produce significantly longer responses — opes gets up to 1.5× more words, opis 2×, opos 2.8× per reply',
       'opis/opos now prioritise the stronger Gemini model first for better response quality',
-      'Medium effort replies expanded to 2–4 paragraphs for more immersive scene pacing',
+      'Each tier now has explicit length targets — opes medium targets 450+ words, opis 650+, opos 950+ for richer, more immersive replies',
       'Token drain now scales steeply by tier: opos costs 4.5× more than opes per message, opis costs 2×',
     ],
   },
