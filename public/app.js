@@ -241,7 +241,7 @@ const PLAN_DATA = [
     features: [
       'Opas — snappy replies, zero filler, straight to the point',
       'Opes — richer storytelling, ~60% longer replies with natural depth; uses ~4× more session budget per reply',
-      'Up to ~30 Opes replies per session (or ~130 Opas) — effort & model affect actual count; resets every 2 hrs',
+      '~130 Opas or ~30 Opes per session at medium effort — max effort: ~39 Opas / ~9 Opes (3.3× cost) · resets every 2 hrs',
       'All characters unlocked',
       'Up to 6 calls per day · 90 min total · up to 50 memos every 8 hrs',
     ],
@@ -252,7 +252,7 @@ const PLAN_DATA = [
     features: [
       'Opis — sharper logic for mystery and intrigue; costs 25% more session budget per reply than Opes',
       'Opos — GM mode: drives the plot, voices every NPC, runs the whole room; costs 50% more than Opes',
-      'Up to ~300 Opes replies per session — 10× more than Free · effort & model affect actual count',
+      '~1,285 Opas or ~300 Opes per session at medium effort — max effort: ~389 Opas / ~90 Opes (3.3× cost) · 10× more than Free',
       '2,000 C.M. Coins every month',
       'Up to 18 calls per day · 4.5 hrs total · up to 150 memos every 8 hrs',
       'Everything in Free, including Opas & Opes',
