@@ -2189,8 +2189,8 @@ function lengthTargetWords(modelTier, effort) {
   return Math.round(WORDS_BY_EFFORT[effort] * MODEL_WORDS[base] * LENGTH_SCALE / 50) * 50;
 }
 function lengthTargetNote(modelTier, effort) {
-  // Only apply the word-count target for high+ — medium uses TIER UPGRADE notes instead to avoid conflicting instructions
-  if (!['high', 'extra', 'max', 'ultracode'].includes(effort)) return '';
+  // Only apply the word-count target for extra/max/ultracode — high and below use TIER UPGRADE or EFFORT_DIRECTIVE instead
+  if (!['extra', 'max', 'ultracode'].includes(effort)) return '';
   const words = lengthTargetWords(modelTier, effort);
   if (!words) return '';
   return 'LENGTH TARGET: this is a long-form reply. Write at least about ' + words + ' words. Do not stop or wrap the scene up before you reach that length: keep every paragraph full, and keep adding new detail, action, dialogue and emotion.';
