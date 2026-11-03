@@ -6285,17 +6285,17 @@ html, body {
   .home-row {
     display: grid !important;
     grid-template-columns: repeat(2, 1fr) !important;
-    gap: 10px !important;
+    gap: 14px !important;
     overflow-x: unset !important;
     padding-bottom: 0 !important;
   }
   .hc {
     flex-direction: column !important;
     width: auto !important;
-    padding: 10px !important;
-    gap: 6px !important;
+    padding: 28px 16px 20px !important;
+    gap: 0 !important;
   }
-  .hc-avatar { width: 100% !important; height: 120px !important; font-size: 32px !important; margin: 0 !important; }
+  .hc-avatar { width: 100% !important; height: 155px !important; font-size: 44px !important; margin: 0 0 16px 0 !important; }
   .app-body { order: 1 !important; }
 
   /* ── Mobile dropdown: open ABOVE the bottom dock ── */
