@@ -4797,7 +4797,7 @@ function _ttsCacheSet(key, buf) {
 
 // Hardcoded character voice map — these chars have a real voice sample file
 const CHARACTER_VOICE_MAP = {
-  'custom_1790776698867': { name: 'Poppy',        voiceId: 'poppy',  file: path.join(__dirname, 'public/assets/voices/poppy.wav'),  edgeFallback: 'en-US-AvaNeural',  cbExag: 0.40, cbCfg: 0.6, cbTemp: 0.6 },
+  'custom_1790776698867': { name: 'Poppy',        voiceId: 'poppy',  file: path.join(__dirname, 'tts_server/voices/poppy_ref_clean.wav'),  edgeFallback: 'en-US-AvaNeural',  cbExag: 0.65, cbCfg: 0.4, cbTemp: 0.7, cbPitch: 0 },
   'huggy_wuggy':          { name: 'Huggy Wuggy',  voiceId: 'huggy',  file: path.join(__dirname, 'public/assets/voices/huggy.wav'),  edgeFallback: 'en-US-GuyNeural',  cbExag: 0.75, cbCfg: 0.75, cbTemp: 0.5 },
 };
 
