@@ -1231,13 +1231,13 @@ const baseOf = (t) => {
   return Object.hasOwn(MODEL_TOKEN_MULT, b) ? b : null;
 };
 // The most tokens one reply may use, per model (the bigger writers get more room), and how long each model writes compared with Opes
-const MODEL_CAP   = { opas: 10000, opes: 18000, opis: 6000, opos: 4000 };
+const MODEL_CAP   = { opas: 10000, opes: 18000, opis: 12000, opos: 16000 };
 const MODEL_WORDS = { opas: 0.7,   opes: 1.5,  opis: 1.3,  opos: 1.5  };
 const MODEL_CAP_SCALE = Number(process.env.VERSION_CAP_SCALE) || 1;
 for (const k of Object.keys(MODEL_CAP)) MODEL_CAP[k] = Math.round(MODEL_CAP[k] * MODEL_CAP_SCALE);
-// Groq's free plan allows about 8,000 tokens per request, counting the prompt AND the reply room together.
-// So the bigger the reply room, the smaller the prompt has to be. The reply room is fitted to what the prompt leaves over.
-const GROQ_REQUEST_BUDGET = Number(process.env.GROQ_REQUEST_BUDGET) || 8000;
+// Token budget for reply room calculation. Raised from the original Groq-era 8k to 32k for Gemini; Groq backup independently
+// caps its own output at 4096 so this larger value doesn't affect the backup path.
+const GROQ_REQUEST_BUDGET = Number(process.env.GROQ_REQUEST_BUDGET) || 32000;
 const MIN_REPLY_ROOM = 1400;
 function estimateTokens(str) { return Math.ceil(String(str || '').length / 3.4); }
 function fitOutputRoom(cfg, system, messages) {
@@ -3641,7 +3641,7 @@ function startReplyStream(o) {
     try {
       if (!fullResponse.trim()) {
         if (!ctx.emptyRetried && !ctx.aborted) {
-          ctx.emptyRetried = true; ctx.extended = false; ctx.boosted = false; ctx.continuations = 0;
+          ctx.emptyRetried = true; ctx.extensions = 0; ctx.boosted = false; ctx.continuations = 0;
           fullResponse = ''; held = '';
           console.log(logLabel + ' empty reply, retrying once...');
           callGeminiStream(apiKey, system, messages, handleChunk, handleDone, (err) => fail(err), 0, effortCfgFit, modelList, ctx);
@@ -3858,9 +3858,9 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
     const finishWithWhatWeHave = () => onDone(usageTokens || Math.ceil(responseTextLen / 4));
     // A continuation that fails must never throw away a reply that was already delivered
     const keepOnError = (e) => { console.warn('[continue] failed, keeping what was written:', e && e.message); finishWithWhatWeHave(); };
-    // The reply stopped by itself but is much shorter than this model version should write: ask it to keep going, once.
+    // The reply stopped by itself but is much shorter than this model version should write: ask it to keep going (up to 3 times).
     const handleShort = () => {
-      if (ctx.aborted || ctx.extended || !ctx.minWords || !ctx.getWords || !collected.trim()) return finishWithWhatWeHave();
+      if (ctx.aborted || (ctx.extensions || 0) >= 3 || !ctx.minWords || !ctx.getWords || !collected.trim()) return finishWithWhatWeHave();
       const have = ctx.getWords();
       if (have >= ctx.minWords * 0.6) return finishWithWhatWeHave();
       const need = Math.max(150, Math.round(ctx.minWords - have));
@@ -3868,7 +3868,7 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
         { role: 'user', content: '[Keep going with the same scene. Write about ' + need + ' more words that continue directly from your last paragraph, with new detail, action and emotion. Do not repeat anything, do not summarise, and do not wrap up yet.]' }];
       const cfgNext = fitOutputRoom(effortCfg, systemPrompt, next);
       if (cfgNext.maxOutputTokens < Math.min(800, effortCfg.maxOutputTokens)) return finishWithWhatWeHave();   // no room left in this request
-      ctx.extended = true;
+      ctx.extensions = (ctx.extensions || 0) + 1;
       try { onChunk('\n\n'); } catch (_) {}
       return callGeminiStream(apiKey, systemPrompt, next, onChunk, onDone, keepOnError, modelIndex, cfgNext, modelList, ctx);
     };

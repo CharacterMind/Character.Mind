@@ -6373,7 +6373,7 @@ async function generateGreeting() {
           }
           streamText += data.text;
           feedTypewriter(data.text);
-          if (data.instant) flushTypewriter(); // paste in immediately, no animation
+          if (data.instant) { updateStreamTokens(msgEl, data.text.length); flushTypewriter(); } // paste in immediately; update token count before flush clears twMsgEl
           streamCharCount += data.text.length;
         }
       }
@@ -9423,11 +9423,12 @@ let twStreamDone = false;
 let twSpd = null;
 let twLastRender = 0;
 
-// Called when the full reply has arrived. The counter stays up and keeps counting until the last letter has typed out
-// (the end-of-reply code then hides it). Only if there is nothing left to type does it go away at once.
+// Called when the full reply has arrived. The counter stays up and keeps counting until the last letter has typed out;
+// drainTypewriter's callback then calls stopStreamStats which fades it out gracefully.
+// Only if no typewriter was ever started (empty/error reply) do we hide immediately.
 function markStreamDone() {
   twStreamDone = true;
-  if (!twSpd || !twQueue.length) hideStreamStatsNow();
+  if (!twSpd) hideStreamStatsNow();
 }
 function remainingTypeMs() {
   return twSpd ? Math.ceil(twQueue.length / twSpd.chars) * twSpd.ms : 0;
@@ -9547,8 +9548,13 @@ function stopStreamStats(msgEl, finalTokens) {
   streamStartTime = null;
   const stats = msgEl?.querySelector('.stream-stats');
   if (!stats) return;
-  // The final token count is never shown
-  stats.style.display = 'none';
+  if (finalTokens != null) {
+    const tokEl = stats.querySelector('.stream-tok');
+    if (tokEl) tokEl.textContent = fmtLiveTokens(finalTokens) + ' tokens';
+  }
+  stats.classList.remove('active');
+  stats.classList.add('done');
+  setTimeout(() => { if (stats.classList.contains('done')) stats.style.display = 'none'; }, 3500);
 }
 
 // Hide every token counter right away (called the moment a reply finishes arriving).
