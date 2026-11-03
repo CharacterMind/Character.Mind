@@ -100,7 +100,7 @@ const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos' };
 // Must match OPAS_COST / OPES_COST / COST_FACTOR_VS_OPES in server.js — what one reply costs from the allowance.
 const OPAS_COST = { low: 210, medium: 420, high: 630, extra: 924, max: 1386, ultracode: 2100 };
 const OPES_COST = { low: 900, medium: 1800, high: 2700, extra: 3960, max: 5940, ultracode: 9000 };
-const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5 };
+const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 3 };
 const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1 };
 const PLAN_RANK = { free: 0, advanced: 1, x50: 1, x100: 1, x200: 1 };
 const GROUP_MEMBER_LIMITS = { free: 3, advanced: 8, x50: 15, x100: 15, x200: 15 };
@@ -251,7 +251,7 @@ const PLAN_DATA = [
     callsPerDay: 270, memosPerDay: 150, imagesPerDay: 9,
     features: [
       'Opis — sharper logic for mystery and intrigue; costs 25% more session budget per reply than Opes',
-      'Opos — GM mode: drives the plot, voices every NPC, runs the whole room; costs 50% more than Opes',
+      'Opos — GM mode: drives the plot, voices every NPC, runs the whole room; costs 3× more than Opes',
       '~1,285 Opas or ~300 Opes per session at medium effort — max effort: ~389 Opas / ~90 Opes (3.3× cost) · 10× more than Free',
       '2,000 C.M. Coins every month',
       'Up to 18 calls per day · 4.5 hrs total · up to 150 memos every 8 hrs',
@@ -302,8 +302,8 @@ const MONTHLY_COIN_GRANT = { free: 20, advanced: 30, x50: 1800, x100: 3600, x200
 
 const PLAN_LABELS = { free: 'Free', advanced: 'Advanced', x50: 'X50', x100: 'X100', x200: 'X200' };
 const PLAN_SUBS = {
-  free:     'Free plan',
-  advanced: 'Advanced plan',
+  free:     '54,000 tokens / 2hr session · Opas & Opes',
+  advanced: '540,000 tokens / session · All 4 models',
   x100:     'X100 plan',
   x200:     'X200 plan',
 };
@@ -1324,8 +1324,10 @@ function updateSettingsPlanCard(tier) {
   const name  = document.getElementById('settingsPlanName');
   const sub   = document.getElementById('settingsPlanSub');
   if (badge) badge.textContent = PLAN_LABELS[t] || t;
-  if (name)  name.textContent  = PLAN_LABELS[t] || t;
+  if (name)  name.textContent  = (PLAN_LABELS[t] || t) + ' Plan';
   if (sub)   sub.textContent   = PLAN_SUBS[t] || '';
+  const upgradeBtn = document.querySelector('.settings-plan-upgrade-btn');
+  if (upgradeBtn) upgradeBtn.style.display = t === 'free' ? '' : 'none';
   renderSettingsTiers(t);
 }
 
@@ -2913,7 +2915,11 @@ function updateSettingsUsage(u) {
   const sBar = document.getElementById('settingsSessionBar');
   if (sBar) { sBar.style.width = sPct + '%'; sBar.className = 'settings-usage-bar-fill ' + fillClass(sPct); }
   const sPctEl = document.getElementById('settingsSessionPct');
-  if (sPctEl) sPctEl.textContent = sPct + '%';
+  if (sPctEl) {
+    const tokUsed = u.sessionTokens || 0;
+    const tokLimit = u.sessionLimit || 0;
+    sPctEl.textContent = tokLimit ? `${tokUsed.toLocaleString()} / ${tokLimit.toLocaleString()}` : '—';
+  }
   if (!isFreeSettings) {
     const wBar = document.getElementById('settingsWeeklyBar');
     if (wBar) { wBar.style.width = wPct + '%'; wBar.className = 'settings-usage-bar-fill ' + fillClass(wPct); }

@@ -1268,9 +1268,9 @@ function resolveEffort(userId, requested) {
 // Free session (54k) → ~30 medium Opes, ~20 high Opes, ~9 max Opes. All are usable.
 const OPAS_COST = { low: 210, medium: 420, high: 630, extra: 924, max: 1386, ultracode: 2100 };
 const OPES_COST = { low: 900, medium: 1800, high: 2700, extra: 3960, max: 5940, ultracode: 9000 };
-// Base models step up gently: Opes 1×, Opis 1.25×, Opos 1.5× (of Opes).
+// Base models step up: Opes 1×, Opis 1.25×, Opos 3× (of Opes). Opos is the premium immersive tier.
 // Max effort costs 3.3× a Medium Opes reply.
-const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5 };
+const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 3 };
 function messageCost(modelTier, effort) {
   const e = (typeof effort === 'string' && Object.hasOwn(OPES_COST, effort)) ? effort : 'medium';
   modelTier = baseOf(modelTier) || modelTier;
