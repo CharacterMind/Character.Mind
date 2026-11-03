@@ -90,6 +90,16 @@
       </button>
     </div>
     <p class="usage-headline" id="usageHeadline">Loading your usage...</p>
+
+    <!-- Plan limits card -->
+    <div id="planLimitsCard" style="margin:10px 0 0;padding:12px 14px;border-radius:10px;background:var(--bg2,rgba(255,255,255,0.04));border:1px solid var(--border2,rgba(255,255,255,0.1))">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span id="planLimitsTitle" style="font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text3)">Free Plan</span>
+        <button onclick="openPricingModal();closeUsageModal()" id="planLimitsUpgradeBtn" style="display:none;font-size:11px;font-weight:700;padding:3px 10px;border-radius:6px;border:none;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;cursor:pointer">Upgrade</button>
+      </div>
+      <div id="planLimitsRows" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;font-size:12px;color:var(--text2)"></div>
+    </div>
+
     <div class="usage-modal-rule"></div>
 
     <!-- Session (session usage expressed as call-equivalent %) -->
@@ -1502,38 +1512,6 @@
               <div class="md-item-body">
                 <div class="md-item-name">Opos <span class="md-item-plan-tag">Advanced</span></div>
                 <div class="md-item-sub">Plays GM — drives plot, voices every NPC</div>
-              </div>
-              <span class="md-upgrade-btn" onclick="event.stopPropagation();openPricingModal()">Upgrade</span>
-              <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-            <button class="md-item" id="optOpus" onclick="selectOrUpgrade('opus')" hidden>
-              <div class="md-item-body">
-                <div class="md-item-name">Opus <span class="md-item-plan-tag">X50+</span></div>
-                <div class="md-item-sub">Proper emotional weight — subtext, inner conflict, the whole thing</div>
-              </div>
-              <span class="md-upgrade-btn" onclick="event.stopPropagation();openPricingModal()">Upgrade</span>
-              <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-            <button class="md-item" id="optOpys" onclick="selectOrUpgrade('opys')" hidden>
-              <div class="md-item-body">
-                <div class="md-item-name">Opys <span class="md-item-plan-tag">X50+</span></div>
-                <div class="md-item-sub">Plans the scene before it writes it — tension beats, pacing, full arcs</div>
-              </div>
-              <span class="md-upgrade-btn" onclick="event.stopPropagation();openPricingModal()">Upgrade</span>
-              <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-            <button class="md-item" id="optOpys5" onclick="selectOrUpgrade('opys5')" hidden>
-              <div class="md-item-body">
-                <div class="md-item-name">Opys 5 <span class="md-item-plan-tag">X100+</span></div>
-                <div class="md-item-sub">The flagship — multi-pass refinement, rewrites itself until it's right</div>
-              </div>
-              <span class="md-upgrade-btn" onclick="event.stopPropagation();openPricingModal()">Upgrade</span>
-              <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-            <button class="md-item" id="optOpys6" onclick="selectOrUpgrade('opys6')" hidden>
-              <div class="md-item-body">
-                <div class="md-item-name">Opys 6 <span class="md-item-plan-tag">X200</span></div>
-                <div class="md-item-sub">Next-generation, exclusive — cinematic depth nothing else comes close to</div>
               </div>
               <span class="md-upgrade-btn" onclick="event.stopPropagation();openPricingModal()">Upgrade</span>
               <svg class="md-check" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>

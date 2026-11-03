@@ -64,21 +64,23 @@ let currentFilter = 'all';
 let lastUserMessage = '';
 // ── Model & Effort state ───────────────────────────────────────────────────────
 const EFFORT_LEVELS = ['low','medium','high','extra','max','ultracode'];
-const BASE_TIERS = ['opas','opes','opis','opos','opus','opys','opys5','opys6'];
+const BASE_TIERS = ['opas','opes','opis','opos'];
 const ALL_TIERS = BASE_TIERS;
-// Older saved choices such as "opys5" mean the base model
+// Legacy tier names (opus/opys/opys5/opys6) remap to opos; older saved choices with a suffix remap to the plain model.
 const baseTierOf = (t) => {
   if (typeof t !== 'string') return null;
-  if (BASE_TIERS.includes(t)) return t;                       // "opys5" / "opys6" are flagship models themselves
+  if (BASE_TIERS.includes(t)) return t;
+  if (t === 'opus' || t === 'opys' || t === 'opys5' || t === 'opys6') return 'opos';
   const b = t.replace(/[2-6]$/, '');
-  return (b !== 'opys5' && b !== 'opys6' && BASE_TIERS.includes(b)) ? b : null;
+  if (b === 'opus' || b === 'opys' || b === 'opys5' || b === 'opys6') return 'opos';
+  return BASE_TIERS.includes(b) ? b : null;
 };
 // The chosen model and effort are remembered per account (see loadAccountPrefs), never shared between accounts
 let selectedModelTier = 'opas';
 let selectedEffort = 'medium';
 let prefsLoadedFor = null;
 // Default model per subscription plan — higher plans get a smarter default automatically
-const PLAN_DEFAULT_MODEL = { free: 'opas', advanced: 'opes', x50: 'opus', x100: 'opys', x200: 'opys' };
+const PLAN_DEFAULT_MODEL = { free: 'opas', advanced: 'opes', x50: 'opos', x100: 'opos', x200: 'opos' };
 function loadAccountPrefs() {
   if (!currentUser || prefsLoadedFor === currentUser.googleId) return;
   prefsLoadedFor = currentUser.googleId;
@@ -94,13 +96,13 @@ function loadAccountPrefs() {
   updateModelBarLabel();
 }
 
-const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos', opus:'Opus', opys:'Opys', opys5:'Opys 5', opys6:'Opys 6' };
+const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos' };
 // Must match OPAS_COST / OPES_COST / COST_FACTOR_VS_OPES in server.js — what one reply costs from the allowance.
 const OPAS_COST = { low: 264, medium: 420, high: 640, extra: 960, max: 1440, ultracode: 2880 };
 const OPES_COST = { low: 1050, medium: 1800, high: 2700, extra: 3900, max: 6000, ultracode: 12000 };
-const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5, opus: 2, opys: 3, opys5: 10, opys6: 20 };
-const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1, opus: 2, opys: 3, opys5: 4, opys6: 5 };
-const PLAN_RANK = { free: 0, advanced: 1, x50: 3, x100: 4, x200: 5 };
+const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 1.5 };
+const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1 };
+const PLAN_RANK = { free: 0, advanced: 1, x50: 1, x100: 1, x200: 1 };
 const GROUP_MEMBER_LIMITS = { free: 3, advanced: 8, x50: 15, x100: 15, x200: 15 };
 function getGroupMemberLimit() {
   const tier = lastKnownUsage?.subscriptionTier || 'free';
@@ -115,7 +117,7 @@ function clientMessageCost(tier, effort) {
 const EXPECTED_REPLY_CHARS = { low: 250, medium: 500, high: 1200, extra: 2500, max: 4000, ultracode: 12000 };
 // Every model is asked for a set number of words at High, Extra and Max (must match WORDS_BY_EFFORT / MODEL_WORDS in server.js)
 const WORDS_BY_EFFORT = { high: 800, extra: 1500, max: 2200, ultracode: 2500 };
-const MODEL_WORDS = { opas: 0.7, opes: 1.1, opis: 1.3, opos: 1.5, opus: 1.8, opys: 2.1, opys5: 3.5, opys6: 5.0 };
+const MODEL_WORDS = { opas: 0.7, opes: 1.1, opis: 1.3, opos: 1.5 };
 function expectedReplyChars(tier, effort) {
   const b = baseTierOf(tier);
   if (b && WORDS_BY_EFFORT[effort]) return Math.round(WORDS_BY_EFFORT[effort] * MODEL_WORDS[b] / 50) * 50 * 6;   // about 6 characters a word
@@ -181,14 +183,8 @@ const MODEL_ICONS = {
   opas: '<path d="M7 2v11h3v9l7-12h-4l4-8z"/>',
   opes: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>',
   opis: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
-  opos: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
-  opus: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
-  opys: '<path d="M12 1L9.5 8.5H2L7.75 13.25L5.5 21L12 16.5L18.5 21L16.25 13.25L22 8.5H14.5Z"/>',
-  opys5: '<path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/>',
-  opys6: '<path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/>',
+  opos: '<path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/>',
 };
-
-for (const k of Object.keys(MODEL_ICONS)) if (!MODEL_ICONS[k]) MODEL_ICONS[k] = MODEL_ICONS.opys;
 
 function updateModelBarLabel() {
   const modelEl = document.getElementById('mbModelLabel');
@@ -2503,7 +2499,7 @@ const CHANGELOG_DATA = {
   '320': {
     date: 'May 2026',
     added: [
-      'Five subscription tiers: Free → opes → opis → opos → opus → opys',
+      'Four subscription tiers: Free (opas/opes) → Advanced (opis/opos)',
       'PayPal monthly and annual billing with automatic receipts',
       'Session credits toggle — keep chatting past your limit with prepaid credits',
       'Per-tier session and weekly token limits',
@@ -8378,7 +8374,30 @@ function updateUsageModal(u) {
   const headlineEl = document.getElementById('usageHeadline');
   if (headlineEl) headlineEl.textContent = generateUsageHeadline(u);
 
+  // Plan limits card
   const isFree = !u.subscriptionTier || u.subscriptionTier === 'free';
+  (function renderPlanLimits() {
+    const card = document.getElementById('planLimitsCard');
+    const titleEl = document.getElementById('planLimitsTitle');
+    const rowsEl = document.getElementById('planLimitsRows');
+    const upgradeBtn = document.getElementById('planLimitsUpgradeBtn');
+    if (!card || !rowsEl) return;
+    const plan = u.subscriptionTier || 'free';
+    const isAdv = plan !== 'free';
+    if (titleEl) titleEl.textContent = isAdv ? 'Advanced Plan' : 'Free Plan';
+    if (upgradeBtn) upgradeBtn.style.display = isFree ? '' : 'none';
+    const sessTokens = isAdv ? 540000 : 54000;
+    const sessMsg = isAdv ? '~300 msgs / session' : '~30 msgs / session';
+    const weeklyTokens = isAdv ? 1800000 : null;
+    const weeklyMsg = isAdv ? '~1,000 msgs / week' : 'No weekly cap';
+    const callsDay = isAdv ? 18 : 6;
+    const models = isAdv ? 'Opas, Opes, Opis, Opos' : 'Opas, Opes';
+    rowsEl.innerHTML =
+      `<div style="color:var(--text3);font-size:11px">Session limit</div><div style="font-weight:600;color:var(--text1)">${sessMsg}</div>` +
+      `<div style="color:var(--text3);font-size:11px">Weekly limit</div><div style="font-weight:600;color:var(--text1)">${weeklyMsg}</div>` +
+      `<div style="color:var(--text3);font-size:11px">Calls / day</div><div style="font-weight:600;color:var(--text1)">${callsDay}</div>` +
+      `<div style="color:var(--text3);font-size:11px">Models</div><div style="font-weight:600;color:var(--text1)">${models}</div>`;
+  })();
   const weeklySection = document.getElementById('usageWeeklySection');
   const weeklyRule1   = document.getElementById('usageWeeklyRule');
   if (weeklySection) weeklySection.style.display = isFree ? 'none' : '';
@@ -9429,10 +9448,7 @@ function startTypewriter(bubble, msgEl) {
   if (twInterval) clearInterval(twInterval);
   // During calls the text is spoken immediately — render it as fast as possible
   if (callModeActive) { twSpd = TW_SPEED.max; const perMsC = TW_SPEED.max.chars / TW_SPEED.max.ms; let creditC = 0, lastTickC = Date.now(); twInterval = setInterval(() => { const nowC = Date.now(); creditC += (nowC - lastTickC) * perMsC; lastTickC = nowC; creditC = Math.max(creditC, Math.ceil(twQueue.length / 4)); if (!twQueue.length) { creditC = 0; if (twOnDrain) { const cb = twOnDrain; twOnDrain = null; cb(); } return; } const nC = Math.min(twQueue.length, Math.floor(creditC)); if (nC < 1) return; creditC -= nC; const chunkC = twQueue.slice(0, nC); twQueue = twQueue.slice(nC); twRevealed += chunkC; if (twBubble && nowC - twLastRender >= 33) { setBubbleRaw(twBubble, twRevealed, twRevealed.length > 900); twLastRender = nowC; scrollToBottom(); } updateStreamTokens(twMsgEl, twRevealed.length); }, TW_SPEED.max.ms); return; }
-  // Opis (opus) model uses faster streaming — bump speed one level up
-  const effortKey = selectedModelTier === 'opus'
-    ? (selectedEffort === 'max' || selectedEffort === 'extra' ? 'max' : selectedEffort === 'high' ? 'extra' : selectedEffort === 'medium' ? 'high' : 'medium')
-    : selectedEffort;
+  const effortKey = selectedEffort;
   const spd = TW_SPEED[effortKey] || TW_SPEED.high;
   twSpd = spd;
   // Typing speed follows the clock, not how long each step takes to draw (drawing the coloured letters can be slow on a
@@ -12921,13 +12937,13 @@ let bookRun = null;       // { total, premise, next, phase, stop, words, chapter
 const BOOK_DEFAULT_CHAPTERS = 12;
 
 function bookWordsPerChapter() {
-  return Math.round(expectedReplyChars('opys5', selectedEffort) / 6);
+  return Math.round(expectedReplyChars('opos', selectedEffort) / 6);
 }
 function wordCount(t) { const m = String(t || '').trim().match(/\S+/g); return m ? m.length : 0; }
 function fmtNum(n) { return Math.round(n).toLocaleString('en-US'); }
 
 function updateBookButton() {
-  const on = selectedModelTier === 'opys5' && modelAllowedForPlan('opys5');
+  const on = selectedModelTier === 'opos' && modelAllowedForPlan('opos');
   const btn = document.getElementById('bookModeBtn'), sep = document.getElementById('bookSep');
   if (btn) btn.style.display = on ? '' : 'none';
   if (sep) sep.style.display = on ? '' : 'none';
@@ -12935,12 +12951,12 @@ function updateBookButton() {
 function updateBookEstimate() {
   const n = Math.max(3, Math.min(40, parseInt(document.getElementById('bookChapters').value, 10) || BOOK_DEFAULT_CHAPTERS));
   const per = bookWordsPerChapter();
-  const tokens = clientMessageCost('opys5', selectedEffort === 'low' || selectedEffort === 'medium' ? 'high' : selectedEffort) * (n + 1);
+  const tokens = clientMessageCost('opos', selectedEffort === 'low' || selectedEffort === 'medium' ? 'high' : selectedEffort) * (n + 1);
   const el = document.getElementById('bookEstimate');
   if (el) el.textContent = 'About ' + fmtNum(per * n) + ' words in ' + n + ' chapters (about ' + fmtNum(per) + ' words each at ' + (EFFORT_LABELS[selectedEffort] || selectedEffort) + ' effort). Uses about ' + fmtNum(tokens) + ' tokens of your allowance.';
 }
 function openBookModal() {
-  if (selectedModelTier !== 'opys5' || !modelAllowedForPlan('opys5')) { openPricingModal(); return; }
+  if (selectedModelTier !== 'opos' || !modelAllowedForPlan('opos')) { openPricingModal(); return; }
   if (bookRun && (bookRun.phase === 'writing' || bookRun.phase === 'planning')) return;
   if (!selectedEffort || selectedEffort === 'low' || selectedEffort === 'medium') setEffort('high');   // chapters need room: High or above
   document.getElementById('bookModal').style.display = 'flex';
