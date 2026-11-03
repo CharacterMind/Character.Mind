@@ -2036,6 +2036,28 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '436': {
+    date: 'November 2026',
+    label: 'Longer Responses + Smarter Models',
+    changed: [
+      'Advanced tiers (opis/opos) now produce significantly longer, more immersive responses — opos targets up to 2.8× more words per reply',
+      'opis/opos now prioritise the stronger Gemini model first for better response quality',
+      'Medium effort replies expanded to 2–4 paragraphs for more immersive scene pacing',
+      'Token drain now scales steeply by tier: opos costs 4.5× more than opes per message, opis costs 2×',
+    ],
+  },
+  '435': {
+    date: 'November 2026',
+    label: 'Mobile UI Overhaul + Logout Fix',
+    fixed: [
+      'Logout button was hidden off-screen on mobile — now accessible above the bottom dock on all phones',
+      'Mobile user dropdown now opens above the navigation bar instead of disappearing below it',
+    ],
+    changed: [
+      'Mobile character cards redesigned to match desktop layout — full portrait view, proper padding and spacing',
+      'Mobile home screen shows a 2-column character grid matching the desktop look',
+    ],
+  },
   '431': {
     date: 'October 2026',
     label: 'F5-TTS Voice Engine',
