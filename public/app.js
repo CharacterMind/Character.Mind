@@ -98,8 +98,8 @@ function loadAccountPrefs() {
 
 const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos' };
 // Must match OPAS_COST / OPES_COST / COST_FACTOR_VS_OPES in server.js — what one reply costs from the allowance.
-const OPAS_COST = { low: 210, medium: 420, high: 630, extra: 924, max: 1386, ultracode: 2100 };
-const OPES_COST = { low: 900, medium: 1800, high: 2700, extra: 3960, max: 5940, ultracode: 9000 };
+const OPAS_COST = { low: 300, medium: 400, high: 500, extra: 800, max: 2000, ultracode: 3000 };
+const OPES_COST = { low: 600, medium: 700, high: 1000, extra: 2000, max: 10000, ultracode: 15000 };
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 3 };
 const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1 };
 const PLAN_RANK = { free: 0, advanced: 1, x50: 1, x100: 1, x200: 1 };
@@ -149,7 +149,7 @@ const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', 
 // This shows the true usage escalation from OPAS → Opys 5 at Max effort.
 const MAX_EFFORT_MULTIPLIERS = {};
 {
-  const baseline = OPAS_COST.medium; // 420 tokens — cheapest normal reply
+  const baseline = OPAS_COST.medium; // 400 tokens — cheapest normal reply
   const fmt = (x) => (Math.round(x * 10) / 10) + '×';
   for (const b of BASE_TIERS) MAX_EFFORT_MULTIPLIERS[b] = fmt(clientMessageCost(b, 'max') / baseline);
 }
@@ -237,24 +237,24 @@ function showUpgradeModal() { openPricingModal(); }
 const PLAN_DATA = [
   {
     key: 'free', name: 'Free', monthly: 0, annual: 0, coinsPerMonth: 0,
-    callsPerDay: 90, memosPerDay: 50, imagesPerDay: 3,
+    callsPerDay: 90, memosPerDay: 50,
     features: [
       'Opas — snappy replies, zero filler, straight to the point',
-      'Opes — richer storytelling, ~60% longer replies with natural depth; uses ~4× more session budget per reply',
-      '~130 Opas or ~30 Opes per session at medium effort — max effort: ~39 Opas / ~9 Opes (3.3× cost) · resets every 2 hrs',
+      'Opes — richer storytelling, deeper replies with natural pacing',
+      '~150 Opas or ~85 Opes per session at medium effort — max effort: ~30 Opas / ~6 Opes · resets every 2 hrs',
       'All characters unlocked',
-      'Up to 6 calls per day · 90 min total · up to 50 memos every 8 hrs',
+      'Up to 6 voice calls per day · 90 min total · up to 50 memos every 8 hrs',
     ],
   },
   {
     key: 'advanced', name: 'Advanced', monthly: 9.99, annual: 59.99, coinsPerMonth: 2000,
-    callsPerDay: 270, memosPerDay: 150, imagesPerDay: 9,
+    callsPerDay: 180, memosPerDay: 150,
     features: [
       'Opis — sharper logic for mystery and intrigue; costs 25% more session budget per reply than Opes',
       'Opos — GM mode: drives the plot, voices every NPC, runs the whole room; costs 3× more than Opes',
-      '~1,285 Opas or ~300 Opes per session at medium effort — max effort: ~389 Opas / ~90 Opes (3.3× cost) · 10× more than Free',
+      '~300 Opas or ~171 Opes per session at medium effort — max effort: ~60 Opas / ~12 Opes · 2× more than Free',
       '2,000 C.M. Coins every month',
-      'Up to 18 calls per day · 4.5 hrs total · up to 150 memos every 8 hrs',
+      'Up to 12 voice calls per day · 3 hrs total · up to 150 memos every 8 hrs',
       'Everything in Free, including Opas & Opes',
     ],
   },
@@ -302,8 +302,8 @@ const MONTHLY_COIN_GRANT = { free: 20, advanced: 30, x50: 1800, x100: 3600, x200
 
 const PLAN_LABELS = { free: 'Free', advanced: 'Advanced', x50: 'X50', x100: 'X100', x200: 'X200' };
 const PLAN_SUBS = {
-  free:     '54,000 tokens / 2hr session · Opas & Opes',
-  advanced: '540,000 tokens / session · All 4 models',
+  free:     '60,000 tokens / 2hr session · Opas & Opes',
+  advanced: '120,000 tokens / session · All 4 models',
   x100:     'X100 plan',
   x200:     'X200 plan',
 };
@@ -8398,11 +8398,11 @@ function updateUsageModal(u) {
     const isAdv = plan !== 'free';
     if (titleEl) titleEl.textContent = isAdv ? 'Advanced Plan' : 'Free Plan';
     if (upgradeBtn) upgradeBtn.style.display = isFree ? '' : 'none';
-    const sessTokens = isAdv ? 540000 : 54000;
-    const sessMsg = isAdv ? '~300 msgs / session' : '~30 msgs / session';
-    const weeklyTokens = isAdv ? 1800000 : null;
-    const weeklyMsg = isAdv ? '~1,000 msgs / week' : 'No weekly cap';
-    const callsDay = isAdv ? 'Up to 18 · 4.5 hrs total' : 'Up to 6 · 90 min total';
+    const sessTokens = isAdv ? 120000 : 60000;
+    const sessMsg = isAdv ? '~171 Opes or ~300 Opas / session' : '~85 Opes or ~150 Opas / session';
+    const weeklyTokens = isAdv ? 1000000 : null;
+    const weeklyMsg = isAdv ? '~1,428 Opes msgs / week' : 'No weekly cap';
+    const callsDay = isAdv ? 'Up to 12 · 3 hrs total' : 'Up to 6 · 90 min total';
     const models = isAdv ? 'Opas, Opes, Opis, Opos' : 'Opas, Opes';
     rowsEl.innerHTML =
       `<div style="color:var(--text3);font-size:11px">Session limit</div><div style="font-weight:600;color:var(--text1)">${sessMsg}</div>` +

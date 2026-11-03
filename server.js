@@ -1185,17 +1185,17 @@ const LIMITS = {
 // Token limits.
 // AVG_MESSAGE_TOKENS = one Opes Medium reply — the "average message" reference unit.
 // CREDIT_DIVISOR = how many tokens one user-facing credit buys (1 credit = 6 tokens).
-//   → 30,000 credits = 180,000 tokens ≈ 100 opes-medium extra messages (from pack purchases).
+//   → 30,000 credits = 180,000 tokens ≈ 257 opes-medium extra messages (from pack purchases).
 // Session caps: single-sitting ceiling. Weekly caps: the real usage ceiling.
 // Drain scales automatically — higher model tiers (MODEL_TOKEN_MULT), group/call overhead all
 // multiply cost per message, so intensive use exhausts limits faster than avg-msg numbers suggest.
-const AVG_MESSAGE_TOKENS  = 1800;
-const FREE_SESSION_TOKENS = 30 * AVG_MESSAGE_TOKENS;   // 54,000  — ~30 avg msgs per session
+const AVG_MESSAGE_TOKENS  = 700;
+const FREE_SESSION_TOKENS = 60000;                     // 60,000 — ~150 opas-medium or ~85 opes-medium per session
 const CREDIT_DIVISOR      = 6;                         // 1 user-facing credit = 6 internal tokens
 const WEEKLY_SESSIONS     = 7;
 const TIER_TOKEN_LIMITS = {
-  free:     { session: FREE_SESSION_TOKENS,          weekly:  Infinity },                  // ~30 /sess, no weekly cap
-  advanced: { session: 300 * AVG_MESSAGE_TOKENS,     weekly: 1000 * AVG_MESSAGE_TOKENS },  // ~300/sess, ~1000/wk
+  free:     { session: FREE_SESSION_TOKENS,          weekly:  Infinity },        // ~150 opas or ~85 opes /sess, no weekly cap
+  advanced: { session: 120000,                       weekly: 1000000 },          // ~300 opas or ~171 opes /sess, 1M tokens /wk
   x20:      { session: FREE_SESSION_TOKENS * 20,     weekly: FREE_SESSION_TOKENS * 20  * WEEKLY_SESSIONS },
   x50:      { session: FREE_SESSION_TOKENS * 50,     weekly: FREE_SESSION_TOKENS * 50  * WEEKLY_SESSIONS },
   x100:     { session: FREE_SESSION_TOKENS * 100,    weekly: FREE_SESSION_TOKENS * 100 * WEEKLY_SESSIONS },
@@ -1264,10 +1264,9 @@ function resolveEffort(userId, requested) {
 // What ONE reply costs from the allowance, by model and effort. Fixed per message (not the AI's raw token
 // count, which swings a lot because of hidden thinking), so message counts are predictable.
 // Opas ≈ 0.23× Opes at medium. Higher models are multiples of Opes.
-// Effort ramps gently: Low 0.5×, Medium 1×, High 1.5×, Extra 2.2×, Max 3.3× a Medium Opes message.
-// Free session (54k) → ~30 medium Opes, ~20 high Opes, ~9 max Opes. All are usable.
-const OPAS_COST = { low: 210, medium: 420, high: 630, extra: 924, max: 1386, ultracode: 2100 };
-const OPES_COST = { low: 900, medium: 1800, high: 2700, extra: 3960, max: 5940, ultracode: 9000 };
+// Free session (60k) → ~85 medium Opes, ~60 high Opes, ~6 max Opes. All are usable.
+const OPAS_COST = { low: 300, medium: 400, high: 500, extra: 800, max: 2000, ultracode: 3000 };
+const OPES_COST = { low: 600, medium: 700, high: 1000, extra: 2000, max: 10000, ultracode: 15000 };
 // Base models step up: Opes 1×, Opis 1.25×, Opos 3× (of Opes). Opos is the premium immersive tier.
 // Max effort costs 3.3× a Medium Opes reply.
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 3 };
@@ -1294,11 +1293,10 @@ function sessionLimitFor(u) { return tokenLimitsFor(u).session; }
 function weeklyLimitFor(u) { return tokenLimitsFor(u).weekly; }
 const NSFW_BLOCK_TOKENS = 200;
 
-// Free = base. Advanced = 3× free. X20 = 20× free. X50/X100/X200 scale proportionally.
-const TIER_CALL_LIMITS  = { free: 6,   advanced: 18,  x20: 120,  x50: 300,  x100: 600,  x200: 1200  };
-// Call time per DAY (seconds; resets at 00:00 UTC). Same daily total the old 8-hour windows allowed (3 × 30 min on free),
-// but usable whenever you like: free=90min, advanced=4.5h, x20=12h, x50=18h, x100=21h, x200=unlimited
-const TIER_CALL_SECOND_LIMITS = { free: 5400, advanced: 16200, x20: 43200, x50: 64800, x100: 75600, x200: Infinity };
+// Free = base. Advanced = 2× free. X20 = 20× free. X50/X100/X200 scale proportionally.
+const TIER_CALL_LIMITS  = { free: 6,   advanced: 12,  x20: 120,  x50: 300,  x100: 600,  x200: 1200  };
+// Call time per DAY (seconds; resets at 00:00 UTC). free=90min, advanced=3h, x20=12h, x50=18h, x100=21h, x200=unlimited
+const TIER_CALL_SECOND_LIMITS = { free: 5400, advanced: 10800, x20: 43200, x50: 64800, x100: 75600, x200: Infinity };
 const DAY_MS = 24 * 60 * 60 * 1000;
 function getCallDayStart() { return Math.floor(Date.now() / DAY_MS) * DAY_MS; }
 const TIER_MEMO_LIMITS  = { free: 50,  advanced: 150, x50: 2500, x100: 5000, x200: 10000 };
@@ -4501,7 +4499,7 @@ app.post('/api/admin/fill-friendship/:charId', requireAuth, (req, res) => {
 
 // ── Session Credit Packs ──────────────────────────────────────────────────────
 // Tokens = CREDIT_DIVISOR × user-facing credits (sm=10k credits, md=25k, lg=50k).
-// At opes-medium (1800 tokens/msg): sm≈33 msgs, md≈83 msgs, lg≈167 msgs extra.
+// At opes-medium (700 tokens/msg): sm≈86 msgs, md≈214 msgs, lg≈429 msgs extra.
 const SESSION_PACKS = {
   sm: { tokens:  60000, coins:  450 },  // 10,000 credits
   md: { tokens: 150000, coins: 1050 },  // 25,000 credits
