@@ -1870,7 +1870,7 @@ function refundTokens(sid, tokens) {
 
 // ── Effort directive ──────────────────────────────────────────────────────────
 const EFFORT_DIRECTIVES = {
-  low:    'RESPONSE LENGTH: Extremely brief — 1 to 3 sentences. Hard limit: 70 words total. One sharp moment aimed directly at what the user just wrote. Stop there.',
+  low:    'RESPONSE LENGTH: Extremely brief — 1 to 3 sentences. Aim for 70 to 120 words. One sharp moment aimed directly at what the user just wrote. Stop there.',
   medium: 'RESPONSE LENGTH: Write a focused reply — aim for 180 to 320 words. Rich scene pacing, strong atmosphere, character-driven. Do not exceed 320 words.',
   high:   'RESPONSE LENGTH: Write a full reply — aim for 380 to 600 words. Rich, atmospheric, fully developed. Develop each beat with vivid detail and momentum.',
   extra:  'RESPONSE LENGTH: Write a deeply immersive, expansive reply — 5 to 9 paragraphs minimum. Explore every sensory detail, emotion, and narrative beat. This is your most thorough, cinematic, richly crafted response.',
@@ -3546,7 +3546,7 @@ function replyRoomFor(effort, tier) {
   const base = baseOf(tier) || 'opas';
   let room = EFFORT_ROOM[e] * (1 + 0.04 * depthRankFor(tier));      // a higher model writes a little more
   const words = lengthTargetWords(tier, e);                           // every model is asked for a set number of words at High, Extra and Max
-  if (words) room = words * 1.4 + 400;                                // about 1.4 tokens a word, plus room for a little hidden thinking
+  if (words) room = words * 1.4 + (e === 'low' ? 80 : e === 'medium' ? 200 : 400);  // token buffer scales with effort; low needs almost none
   return Math.round(Math.min(room, MODEL_CAP[base]));
 }
 
