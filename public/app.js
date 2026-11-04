@@ -9667,7 +9667,7 @@ function loadCharVoice() {
   try {
     // Global fallback — last voice the user picked on any character
     const gp = localStorage.getItem('cm_tts_prov_global');
-    if (['edge','gemini','character','kokoro','off'].includes(gp)) ttsProvider = gp;
+    if (['edge','gemini','character','kokoro','off','user'].includes(gp)) ttsProvider = gp;
     const ggv = localStorage.getItem('cm_gem_voice_global');
     if (GEMINI_TTS_VOICES.includes(ggv)) geminiVoiceName = ggv;
     const gev = localStorage.getItem('cm_edge_voice_global');
@@ -9679,7 +9679,7 @@ function loadCharVoice() {
   try {
     // Per-character overrides take priority over global
     const p = localStorage.getItem(getTTSProviderKey());
-    if (['edge','gemini','character','kokoro','off'].includes(p)) ttsProvider = p;
+    if (['edge','gemini','character','kokoro','off','user'].includes(p)) ttsProvider = p;
     const gv = localStorage.getItem(getGeminiVoiceKey());
     if (GEMINI_TTS_VOICES.includes(gv)) geminiVoiceName = gv;
     const ev = localStorage.getItem(getEdgeVoiceKey());
@@ -9704,7 +9704,7 @@ function applyVoice(utterance) {
 function openVoicePanel() {
   const overlay = document.getElementById('voicePanelOverlay');
   if (!overlay) return;
-  const tabMap = { off: 'off', gemini: 'gemini', edge: 'edge', kokoro: 'kokoro' };
+  const tabMap = { off: 'off', gemini: 'gemini', edge: 'edge', kokoro: 'kokoro', user: 'user', character: 'character' };
   const initialTab = tabMap[ttsProvider] || 'gemini';
   _switchVoiceTabUI(initialTab);
   renderCharVoiceSection();
@@ -9735,7 +9735,7 @@ function switchVoiceTab(tab) {
   else if (tab === 'gemini' || tab === 'edge') setTTSProvider(tab, null);
   else if (tab === 'kokoro') setTTSProvider('kokoro', null);
   else if (tab === 'off') setTTSProvider('off', null);
-  // 'user' tab — don't change ttsProvider; user picks a specific voice to activate
+  else if (tab === 'user') setTTSProvider('user', null);
 }
 
 function closeVoicePanel() {
@@ -9892,10 +9892,9 @@ async function setCharVoice(filename, isCurrentlyActive, btn) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filename: isCurrentlyActive ? null : filename, charId })
     });
-    // If assigning, auto-switch to 'character' provider
+    // If assigning, auto-switch to 'user' provider so the uploaded voice is used directly
     if (!isCurrentlyActive) {
-      setTTSProvider('character', null);
-      renderCharVoiceSection();
+      setTTSProvider('user', null);
     } else {
       setTTSProvider('gemini', null);
     }
@@ -9936,7 +9935,7 @@ function setTTSProvider(p, btn) {
 function _updateVoiceBarLabel() {
   const voiceBtn = document.getElementById('mbVoiceBtn');
   if (!voiceBtn) return;
-  const labels = { gemini: 'Gemini', edge: 'Neutral', character: 'Clone Voice', kokoro: 'Kokoro', off: 'No voice' };
+  const labels = { gemini: 'Gemini', edge: 'Neutral', character: 'Clone Voice', kokoro: 'Kokoro', off: 'No voice', user: 'Your Voice' };
   voiceBtn.textContent = labels[ttsProvider] || 'Voice';
 }
 
@@ -10688,8 +10687,8 @@ function _feedAutoSpeak(chunk) {
     _streamTTSQueue.push(piece);
     _prefetchSentence(piece);
   }
-  // For character voice: force-split at 400 chars to avoid server 500-char truncation
-  while (ttsProvider === 'character' && _streamTTSBuffer.length > 400) {
+  // For character/user voice: force-split at 400 chars to avoid server 500-char truncation
+  while ((ttsProvider === 'character' || ttsProvider === 'user') && _streamTTSBuffer.length > 400) {
     const idx = _streamTTSBuffer.lastIndexOf(' ', 390);
     if (idx < 50) break;
     const piece = _streamTTSBuffer.slice(0, idx).trim();

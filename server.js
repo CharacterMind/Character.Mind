@@ -5083,8 +5083,9 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   const kokoroVoice = req.body?.kokoroVoice && typeof req.body.kokoroVoice === 'string' ? req.body.kokoroVoice : 'af_bella';
   if (!text) return res.status(400).json({ error: 'no_text' });
 
-  // Characters with a registered voice file always use the clone path — ignore client-side provider choice
-  const effectiveProvider = (CHARACTER_VOICE_MAP[charId]) ? 'character' : provider;
+  // Characters with a registered voice file always use the clone path — ignore client-side provider choice.
+  // Exception: if the user explicitly chose 'user' provider, respect that so their recording is used.
+  const effectiveProvider = (provider !== 'user' && CHARACTER_VOICE_MAP[charId]) ? 'character' : provider;
 
   // Kokoro provider — lightweight local TTS with named voice styles, no speaker sample needed
   if (effectiveProvider === 'kokoro') {
@@ -5225,8 +5226,71 @@ app.post('/api/tts', requireAuth, async (req, res) => {
     }
   }
 
+  // User voice provider — use the user's uploaded/recorded audio as the speaker sample for XTTS cloning.
+  // Falls back to Gemini TTS (not Edge) so the voice still sounds good when cloning is unavailable.
+  if (effectiveProvider === 'user') {
+    let userSpeakerFile = null;
+    try {
+      const userId = req.user.googleId.replace(/[^a-z0-9]/gi, '_');
+      const assignedPath = path.join(USER_VOICES_DIR, userId, 'assigned.json');
+      const assigned = JSON.parse(await fs.promises.readFile(assignedPath, 'utf8'));
+      const fname = assigned[charId];
+      if (fname) {
+        const candidate = path.join(USER_VOICES_DIR, userId, fname);
+        await fs.promises.access(candidate);
+        userSpeakerFile = candidate;
+      }
+    } catch { /* no user voice assigned */ }
+    if (!userSpeakerFile) {
+      return res.status(503).json({ error: 'No user voice assigned for this character' });
+    }
+    // Try Replicate XTTS-v2
+    if (process.env.REPLICATE_API_TOKEN) {
+      try {
+        const repAudio = await replicateVoiceClone(text, userSpeakerFile);
+        if (repAudio) {
+          res.setHeader('Content-Type', 'audio/wav');
+          res.setHeader('Cache-Control', 'no-store');
+          res.setHeader('X-TTS-Provider', 'user-replicate');
+          return res.send(repAudio);
+        }
+      } catch (e) {
+        console.warn('[user-tts] replicate error:', e.message);
+      }
+    }
+    // Try local/remote XTTS clone server
+    try {
+      const effectiveCloneUrl = process.env.TTS_CLONE_URL || runtimeTtsUrl;
+      const clonePort = process.env.TTS_CLONE_PORT || '8765';
+      const cloneBase = effectiveCloneUrl
+        ? effectiveCloneUrl.replace(/\/tts$/, '')
+        : `http://127.0.0.1:${clonePort}`;
+      const voiceId = await _ensureRemoteVoice(cloneBase, userSpeakerFile, null);
+      const ctrl = new AbortController();
+      const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 60000;
+      const cloneTimeout = setTimeout(() => ctrl.abort(), remoteMs);
+      const cloneRes = await fetch(`${cloneBase}/tts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, voice_id: voiceId, tts_engine: 'f5tts' }),
+        signal: ctrl.signal,
+      }).finally(() => clearTimeout(cloneTimeout));
+      if (cloneRes.ok) {
+        const cloneAudio = Buffer.from(await cloneRes.arrayBuffer());
+        res.setHeader('Content-Type', 'audio/wav');
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('X-TTS-Provider', 'user-clone');
+        return res.send(cloneAudio);
+      }
+    } catch (e) {
+      if (e.name !== 'AbortError') console.warn('[user-tts] clone server unavailable, falling back to Gemini:', e.message);
+    }
+    // Fallback: Gemini TTS (better voice quality than Edge for user recordings)
+    // fall through to the Gemini block below
+  }
+
   // Gemini TTS path — try legacy generateContent API first, then new Interactions API
-  if (effectiveProvider === 'gemini') {
+  if (effectiveProvider === 'gemini' || effectiveProvider === 'user') {
     const gKey = process.env.GEMINI_API_KEY;
     if (gKey) {
       const userId = req.user.googleId;
