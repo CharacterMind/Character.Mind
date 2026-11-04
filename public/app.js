@@ -2058,6 +2058,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '466': {
+    date: 'November 2026',
+    label: 'Poppy Voice Upgraded',
+    fixed: [
+      "Poppy's voice now uses Chatterbox for dramatically better cloning quality — sounds much closer to her in-game voice",
+    ],
+  },
   '465': {
     date: 'November 2026',
     label: 'Opes Description',

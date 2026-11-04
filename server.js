@@ -4854,7 +4854,7 @@ function _ttsCacheSet(key, buf) {
 
 // Hardcoded character voice map — these chars have a real voice sample file
 const CHARACTER_VOICE_MAP = {
-  'custom_1790776698867': { name: 'Poppy',        voiceId: 'poppy',  file: path.join(__dirname, 'tts_server/voices/poppy_ref_clean.wav'),  edgeFallback: 'en-US-AvaNeural',  cbExag: 0.65, cbCfg: 0.4, cbTemp: 0.7, cbPitch: 0 },
+  'custom_1790776698867': { name: 'Poppy',        voiceId: 'poppy',  file: path.join(__dirname, 'tts_server/voices/poppy.wav'),  edgeFallback: 'en-US-AvaNeural',  cbExag: 0.65, cbCfg: 0.4, cbTemp: 0.7, cbPitch: 0 },
   'huggy_wuggy':          { name: 'Huggy Wuggy',  voiceId: 'huggy',  file: path.join(__dirname, 'public/assets/voices/huggy.wav'),  edgeFallback: 'en-US-GuyNeural',  cbExag: 0.75, cbCfg: 0.75, cbTemp: 0.5 },
 };
 
@@ -5259,7 +5259,10 @@ app.post('/api/tts', requireAuth, async (req, res) => {
           ? effectiveCloneUrl.replace(/\/tts$/, '')
           : `http://127.0.0.1:${clonePort}`;
         const voiceId = await _ensureRemoteVoice(cloneBase, speakerFile, charEntry);
-        const cloneBody = { text, voice_id: voiceId, tts_engine: 'f5tts' };
+        const useChatterbox = charEntry?.cbExag !== undefined;
+        const cloneBody = useChatterbox
+          ? { text, voice_id: voiceId, tts_engine: 'chatterbox', exaggeration: charEntry.cbExag, cfg_weight: charEntry.cbCfg, temperature: charEntry.cbTemp, pitch_semitones: charEntry.cbPitch ?? 0 }
+          : { text, voice_id: voiceId, tts_engine: 'f5tts' };
         const ctrl = new AbortController();
         const localXtts = !effectiveCloneUrl;
         const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 60000;
