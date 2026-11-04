@@ -5890,7 +5890,7 @@ function renderSidebarChats() {
     .filter(([gid]) => !hidden.has(gid))
     .map(([gid, info]) => ({ type: 'group', id: gid, ts: info.ts, data: info }));
 
-  const all = [...charItems, ...groupItems].sort((a, b) => b.ts - a.ts);
+  const all = [...charItems].sort((a, b) => b.ts - a.ts);
   if (all.length === 0) { list.innerHTML = ''; return; }
 
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
@@ -9704,7 +9704,7 @@ function applyVoice(utterance) {
 function openVoicePanel() {
   const overlay = document.getElementById('voicePanelOverlay');
   if (!overlay) return;
-  const tabMap = { off: 'off', gemini: 'gemini', edge: 'edge', kokoro: 'kokoro', character: 'character' };
+  const tabMap = { off: 'off', gemini: 'gemini', edge: 'edge', kokoro: 'kokoro' };
   const initialTab = tabMap[ttsProvider] || 'gemini';
   _switchVoiceTabUI(initialTab);
   renderCharVoiceSection();
@@ -9755,14 +9755,7 @@ function renderCharVoiceSection() {
     fetch('/api/xtts-status').then(r => r.ok ? r.json() : { online: false }).catch(() => ({ online: false }))
   ]).then(([voiceR, xttsStatus]) => {
       if (voiceR.ok) {
-        // Auto-default to char voice only when the local clone server is online.
-        // This way visitors without the server running get Gemini; Dave gets Poppy's voice.
         const perCharKey = getTTSProviderKey();
-        if (perCharKey && !localStorage.getItem(perCharKey) && ttsProvider !== 'character' && xttsStatus.online) {
-          ttsProvider = 'character';
-          try { localStorage.setItem(perCharKey, 'character'); } catch (_) {}
-          _switchVoiceTabUI('character');
-        }
         const isActive = ttsProvider === 'character';
         const cloneStatusHtml = xttsStatus.online
           ? `<div class="char-voice-clone-status online">🎙 Voice cloning online</div>`

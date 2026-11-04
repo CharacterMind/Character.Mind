@@ -3664,29 +3664,17 @@ html, body {
   /* Floating expand btn — hide on mobile (rail handles it) */
   .sidebar-expand-btn { display: none !important; }
 
-  /* Icon rail: rotate to bottom dock on mobile */
-  .app { flex-direction: column !important; }
-  .icon-rail {
-    width: 100% !important; height: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
-    flex-direction: row !important; order: 2 !important;
-    border-right: none !important; border-top: 1px solid var(--border) !important;
-    padding: 0 6px env(safe-area-inset-bottom, 0px) !important; gap: 0 !important;
-    justify-content: space-around !important; overflow-x: auto;
-    transform: translateZ(0);
-  }
-  .app-body { order: 1 !important; }
-  .icon-rail .rail-section { flex-direction: row !important; }
+  /* Icon rail: keep vertical on left side, same as desktop */
+  .icon-rail { width: 48px !important; padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)) !important; }
   .icon-rail .rail-logo { display: none !important; }
-  .icon-rail .rail-sep { display: none !important; }
-  .icon-rail .rail-spacer { display: none !important; }
   .icon-rail .rail-btn[data-tip]::after { display: none !important; }
   .rail-user-wrap .user-dropdown {
-    bottom: calc(100% + 8px) !important; left: auto !important;
-    right: 0 !important; top: auto !important;
+    top: 0 !important; left: calc(100% + 4px) !important;
+    right: auto !important; bottom: auto !important;
   }
   .rail-create-dropdown {
-    bottom: calc(100% + 8px) !important; left: auto !important;
-    right: 0 !important; top: auto !important;
+    top: 0 !important; left: calc(100% + 4px) !important;
+    right: auto !important; bottom: auto !important;
   }
 
   /* Mobile top navigation bar — hidden (rail replaces it) */
