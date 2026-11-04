@@ -207,12 +207,18 @@ _chatterbox_lock = threading.Lock()
 _last_chatterbox_voice = None  # path of the last prepared speaker wav
 
 def get_chatterbox():
-    # Chatterbox cache was removed to save disk/VRAM; raise immediately so the
-    # caller falls back to F5-TTS rather than trying to re-download 3+ GB.
-    raise RuntimeError(
-        "Chatterbox TTS is disabled — its model cache was removed. "
-        "Use F5-TTS (provider=f5tts) instead."
-    )
+    global _chatterbox
+    if _chatterbox is not None:
+        return _chatterbox
+    with _chatterbox_lock:
+        if _chatterbox is None:
+            from chatterbox.tts import ChatterboxTTS
+            import torch
+            device = os.environ.get("TTS_DEVICE", "cuda" if torch.cuda.is_available() else "cpu")
+            print(f"[voice-ai] Loading Chatterbox on {device} (first use — may download ~3 GB)...", flush=True)
+            _chatterbox = ChatterboxTTS.from_pretrained(device=device)
+            print("[voice-ai] Chatterbox loaded", flush=True)
+    return _chatterbox
 
 # Seed VOICES_DIR with any .wav files already in BASE_DIR (backward-compat)
 for _old in BASE_DIR.glob("*.wav"):
@@ -412,6 +418,22 @@ def delete_voice(voice_id):
     return jsonify({"ok": True, "backup": str(backup)})
 
 
+def _clean_f5tts_text(t: str) -> str:
+    """Strip characters F5-TTS renders poorly: bullets, em-dashes, stray symbols."""
+    import re
+    t = re.sub(r'\*[^*]*\*', '', t)        # *action text*
+    t = re.sub(r'\([^)]{0,80}\)', '', t)   # (parentheticals up to 80 chars)
+    t = t.replace('·', ',').replace('•', ',')   # bullets → pause
+    t = t.replace('—', ',').replace('–', ',')   # em/en dash → pause
+    t = t.replace('◆', '').replace('★', '')
+    t = t.replace('"', '"').replace('"', '"')   # curly quotes → straight
+    t = t.replace("'", "'").replace("'", "'")
+    t = re.sub(r'[^\x00-\x7FÀ-ɏ‘-‟,.\'\"\-!?]', ' ', t)  # strip exotic unicode
+    t = re.sub(r',+', ',', t)              # collapse repeated commas
+    t = re.sub(r'\s+', ' ', t).strip()
+    return t
+
+
 @app.route("/tts", methods=["POST"])
 def tts_endpoint():
     data = request.get_json(force=True, silent=True) or {}
@@ -422,9 +444,10 @@ def tts_endpoint():
     kokoro_voice = (data.get("kokoro_voice") or "").strip()
     tts_engine   = (data.get("tts_engine")  or _MODEL_KEY).lower()
     # Chatterbox tuning params (passed per-request, or fall back to better defaults)
-    cb_exaggeration = float(data.get("exaggeration", 0.4))
-    cb_cfg_weight   = float(data.get("cfg_weight",   0.6))
-    cb_temperature  = float(data.get("temperature",  0.6))
+    cb_exaggeration    = float(data.get("exaggeration",    0.4))
+    cb_cfg_weight      = float(data.get("cfg_weight",      0.6))
+    cb_temperature     = float(data.get("temperature",     0.6))
+    cb_pitch_semitones = float(data.get("pitch_semitones", 0.0))
     # YourTTS accepts "en" directly (not "en-us")
     if language == "en-us" and _MODEL_KEY == "your_tts":
         language = "en"
@@ -475,7 +498,7 @@ def tts_endpoint():
     if not speaker_wav or not os.path.isfile(speaker_wav):
         return jsonify({"error": f"speaker voice not found: '{voice_id or speaker_wav}'"}), 400
 
-    text = text[:MAX_TEXT_CHARS]
+    text = _clean_f5tts_text(text[:MAX_TEXT_CHARS])
 
     # F5-TTS path — zero-shot voice cloning (default engine)
     if tts_engine in ("f5tts", "f5-tts"):
@@ -499,7 +522,7 @@ def tts_endpoint():
                     ref_text=ref_text,
                     gen_text=text,
                     seed=-1,
-                    nfe_step=32,
+                    nfe_step=128,
                 )
         except Exception as e:
             print(f"[voice-ai] F5-TTS error: {e}", flush=True)
@@ -614,6 +637,9 @@ def tts_endpoint():
                         _last_chatterbox_voice = effective_wav
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
+            if cb_pitch_semitones != 0.0:
+                factor = 2 ** (cb_pitch_semitones / 12)
+                wav = torchaudio.functional.resample(wav, int(model.sr * factor), model.sr)
             buf = io.BytesIO()
             torchaudio.save(buf, wav, model.sr, format="wav")
             audio_bytes = buf.getvalue()

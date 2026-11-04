@@ -2061,6 +2061,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '448': {
+    date: 'November 2026',
+    label: 'Voice Quality Improvements',
+    fixed: [
+      'Poppy\'s cloned voice reference audio converted to 24kHz mono — eliminates the stereo/sample-rate mismatch that caused phasing and distortion artifacts',
+      'F5-TTS inference steps raised from 64 to 128 for noticeably sharper, more natural output',
+      'Added text preprocessing in the voice server to clean bullets, em-dashes, and stray symbols before synthesis',
+    ],
+  },
   '447': {
     date: 'November 2026',
     label: 'Token Counter Tracks Actual Stream Progress',
