@@ -165,6 +165,11 @@ function modelAllowedForPlan(tier) {
 
 // Unlock or lock each model in the picker to match the account's own plan.
 function updateModelPickerLocks() {
+  // Hide non-Opas models — only Opas is available right now
+  ['Opes', 'Opis', 'Opos'].forEach(name => {
+    const el = document.getElementById('opt' + name);
+    if (el) el.style.display = 'none';
+  });
   ALL_TIERS.forEach(t => {
     const el = document.getElementById('opt' + t.charAt(0).toUpperCase() + t.slice(1));
     if (!el) return;
@@ -173,7 +178,7 @@ function updateModelPickerLocks() {
     const up = el.querySelector('.md-upgrade-btn');
     if (up) up.style.display = allowed ? 'none' : '';
   });
-  // If the saved model isn't part of this account's plan (e.g. after switching accounts), fall back to Opes
+  // If the saved model isn't part of this account's plan (e.g. after switching accounts), fall back to Opas
   if (!modelAllowedForPlan(selectedModelTier) || selectedModelTier !== 'opas') {
     selectedModelTier = 'opas';
     try { localStorage.setItem(userKey('cm_model_tier'), 'opas'); } catch (_) {}
