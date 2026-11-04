@@ -1870,9 +1870,9 @@ function refundTokens(sid, tokens) {
 
 // ── Effort directive ──────────────────────────────────────────────────────────
 const EFFORT_DIRECTIVES = {
-  low:    'RESPONSE LENGTH: Keep your reply extremely brief — 1 to 3 sentences maximum. One sharp moment, aimed directly at what the user just wrote. No more.',
-  medium: 'RESPONSE LENGTH: Write a focused, immersive reply — rich scene pacing, strong atmosphere, character-driven. Stay sharp and avoid padding. Do not cut the moment short.',
-  high:   'RESPONSE LENGTH: Write a full, immersive reply — rich, atmospheric, fully developed. No scene left unexplored. Develop each beat with vivid detail and momentum.',
+  low:    'RESPONSE LENGTH: Extremely brief — 1 to 3 sentences. Hard limit: 70 words total. One sharp moment aimed directly at what the user just wrote. Stop there.',
+  medium: 'RESPONSE LENGTH: Write a focused reply — aim for 180 to 320 words. Rich scene pacing, strong atmosphere, character-driven. Do not exceed 320 words.',
+  high:   'RESPONSE LENGTH: Write a full reply — aim for 380 to 600 words. Rich, atmospheric, fully developed. Develop each beat with vivid detail and momentum.',
   extra:  'RESPONSE LENGTH: Write a deeply immersive, expansive reply — 5 to 9 paragraphs minimum. Explore every sensory detail, emotion, and narrative beat. This is your most thorough, cinematic, richly crafted response.',
   max:    'RESPONSE LENGTH: Write the longest, most elaborate reply you can — 10 to 16 paragraphs. Leave nothing out: every sensation, thought, gesture, line of dialogue and shift in the scene. It should read like a full chapter.',
   ultracode: 'ULTRA CODE MODE: You are now operating as an elite software engineer. Your task is to produce the highest-quality, complete, working, production-ready code for the platform the user specifies. Follow this exact process: (1) ANALYZE — silently read the full request and identify the platform, language, and all requirements. (2) PLAN — inside a brief comment block at the top, outline your architecture and key decisions. (3) IMPLEMENT — write the complete, working code with no placeholders, no "TODO" comments, and no omitted sections. Use platform-specific best practices: Unity (C#, MonoBehaviour lifecycle, ScriptableObjects, physics layers, proper null checks), Roblox Luau (LocalScript/Script/ModuleScript split, RemoteEvents/Functions for client-server, Roblox services like RunService/TweenService/Players), Unreal (Blueprint nodes or C++ with proper UPROPERTY/UFUNCTION macros), web (semantic HTML, efficient JS, accessible CSS), Python (typed, idiomatic, error-handled). (4) REVIEW — silently check for bugs, off-by-one errors, nil/null dereferences, race conditions, and platform gotchas, then fix them before output. (5) EXPLAIN — after the code block, write a clear explanation of how it works and how to integrate it, in the character\'s own voice. Never truncate code. If the full implementation is long, write it all.',
@@ -1892,11 +1892,11 @@ function modelDepthNote(modelTier, effort) {
   const highTargets = [[5, 8, 650], [8, 12, 1000], [12, 18, 1500]];
   if (effort === 'medium') {
     const [minP, maxP, minW] = medTargets[rank - 1];
-    return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} paragraphs — at least ${minW} words total. This overrides ALL other length guidance in this prompt, including the Writing Craft section — write more, richer content. Each paragraph should be full of atmosphere, dialogue, and emotion. Do not stop early.`;
+    return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} paragraphs — at least ${minW} words total. This overrides ALL other length guidance in this prompt (including the RESPONSE LENGTH word-count ceiling above and the Writing Craft section) — write more, richer content. Each paragraph should be full of atmosphere, dialogue, and emotion. Do not stop early.`;
   }
   if (effort === 'high') {
     const [minP, maxP, minW] = highTargets[rank - 1];
-    return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} full paragraphs — at least ${minW} words total. This overrides ALL other length guidance in this prompt, including the Writing Craft section — go deeper, longer, and more immersive. Develop every beat fully.`;
+    return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} full paragraphs — at least ${minW} words total. This overrides ALL other length guidance in this prompt (including the RESPONSE LENGTH word-count ceiling above and the Writing Craft section) — go deeper, longer, and more immersive. Develop every beat fully.`;
   }
   return 'TIER UPGRADE: As a higher-tier model, push further — more paragraphs, richer atmosphere, deeper sensory detail, and more fully developed emotional and narrative beats at every turn.';
 }
