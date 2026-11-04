@@ -2056,6 +2056,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '438': {
+    date: 'November 2026',
+    label: 'Voice Fixes + Instant Token Counter',
+    fixed: [
+      'Uploaded voice (e.g. Poppy) no longer falls back to robotic female browser voice when the clone server is unavailable — now uses natural-sounding Gemini TTS instead',
+      'Call mode: if voice cloning fails, the call now retries with Gemini TTS before ever touching the robotic browser fallback',
+      'Token counter now disappears the instant the character finishes generating — no more lingering 3.5-second fade',
+    ],
+  },
   '437': {
     date: 'November 2026',
     label: 'Faster Generation + Deeper Replies',
@@ -9602,7 +9611,7 @@ function stopStreamStats(msgEl, finalTokens) {
   }
   stats.classList.remove('active');
   stats.classList.add('done');
-  setTimeout(() => { if (stats.classList.contains('done')) stats.style.display = 'none'; }, 3500);
+  stats.style.display = 'none';
 }
 
 // Hide every token counter right away (called the moment a reply finishes arriving).
@@ -11550,9 +11559,26 @@ async function callModeTTS_server(text) {
       nextFetch = prefetch;
     }
   } catch (_) {
-    // Server TTS failed — fall back to browser voice so the call doesn't go silent
+    // Server TTS failed — try Gemini first before falling back to robotic browser speech
     if (callModeActive && gen === callGen) {
-      setCallState('responding'); // browser fallback also needs the 'responding' visual
+      if (callProvider !== 'gemini' && callProvider !== 'edge' && callProvider !== 'off' && callProvider !== 'browser') {
+        try {
+          const ctrl2 = new AbortController();
+          const tmo2 = setTimeout(() => ctrl2.abort(), 18000);
+          const r2 = await fetch('/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: clean.slice(0, 499), charId: (callContextChar || currentChar)?.id, provider: 'gemini', geminiVoice: geminiVoiceName }),
+            signal: ctrl2.signal,
+          }).finally(() => clearTimeout(tmo2));
+          if (r2.ok && callModeActive && gen === callGen) {
+            setCallState('responding');
+            await playCallBlob(await r2.blob());
+            return;
+          }
+        } catch (_2) {}
+      }
+      setCallState('responding');
       if (window.speechSynthesis) callModeTTS_browser(text, gen);
       else afterCallTTSDone();
     }
