@@ -99,7 +99,7 @@ function loadAccountPrefs() {
 
 const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos' };
 // Must match OPAS_COST / OPES_COST / COST_FACTOR_VS_OPES in server.js — what one reply costs from the allowance.
-const OPAS_COST = { low: 300, medium: 400, high: 1000, extra: 2500, max: 6000, ultracode: 3000 };
+const OPAS_COST = { low: 200, medium: 400, high: 1000, extra: 2000, max: 4000, ultracode: 3000 };
 const OPES_COST = { low: 600, medium: 700, high: 1000, extra: 2000, max: 10000, ultracode: 15000 };
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 2.0, opos: 4.5 }; // must match server.js
 const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1 };
@@ -119,7 +119,7 @@ function clientMessageCost(tier, effort) {
 // so the counter rises faster AND peaks much higher as both tier and effort go up.
 // Words-to-chars: ~6 chars/word. Sources: EFFORT_DIRECTIVES + modelDepthNote in server.js.
 const EXPECTED_REPLY_CHARS = {
-  opas: { low: 600,  medium: 2400,  high: 4800,  extra: 8400,  max: 13200, ultracode: 12000 },
+  opas: { low: 400,  medium: 1200,  high: 3000,  extra: 6000,  max: 12000, ultracode: 10000 },
   opes: { low: 700,  medium: 2700,  high: 5400,  extra: 9000,  max: 15600, ultracode: 15000 },
   opis: { low: 900,  medium: 3900,  high: 7800,  extra: 13200, max: 22800, ultracode: 22000 },
   opos: { low: 1200, medium: 5700,  high: 12000, extra: 19200, max: 33000, ultracode: 30000 },
@@ -9580,13 +9580,15 @@ function remainingTypeMs() {
 }
 
 // Typewriter speed — slow enough to see generation in real time with token counter ticking
+// Typewriter speed per effort — chars revealed per 28ms tick.
+// Gaps widen as effort increases: low→med small, med→high bigger, high→extra way bigger, extra→max biggest.
 const TW_SPEED = {
-  low:       { chars: 1,  ms: 28 },
-  medium:    { chars: 4,  ms: 28 },
-  high:      { chars: 8,  ms: 28 },
-  extra:     { chars: 14, ms: 28 },
-  max:       { chars: 22, ms: 28 },
-  ultracode: { chars: 32, ms: 28 },
+  low:       { chars: 2,  ms: 28 },
+  medium:    { chars: 5,  ms: 28 },
+  high:      { chars: 12, ms: 28 },
+  extra:     { chars: 24, ms: 28 },
+  max:       { chars: 45, ms: 28 },
+  ultracode: { chars: 60, ms: 28 },
 };
 
 function startTypewriter(bubble, msgEl) {

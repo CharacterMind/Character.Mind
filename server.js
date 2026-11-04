@@ -1265,7 +1265,7 @@ function resolveEffort(userId, requested) {
 // count, which swings a lot because of hidden thinking), so message counts are predictable.
 // Opas ≈ 0.23× Opes at medium. Higher models are multiples of Opes.
 // Free session (60k) → ~85 medium Opes, ~60 high Opes, ~6 max Opes. All are usable.
-const OPAS_COST = { low: 300, medium: 400, high: 1000, extra: 2500, max: 6000, ultracode: 3000 };
+const OPAS_COST = { low: 200, medium: 400, high: 1000, extra: 2000, max: 4000, ultracode: 3000 };
 const OPES_COST = { low: 600, medium: 700, high: 1000, extra: 2000, max: 10000, ultracode: 15000 };
 // Base models step up: Opes 1×, Opis 2×, Opos 4.5× (of Opes). Each tier drains significantly faster.
 // At medium: opas=400, opes=700, opis=1400, opos=3150. Opos burns ~8× faster than opas.
