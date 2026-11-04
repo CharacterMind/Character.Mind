@@ -9661,7 +9661,8 @@ function stopStreamStats(msgEl, finalTokens, apiUsage) {
 
   stats.classList.remove('active');
   stats.classList.add('done');
-  stats.style.display = 'none';
+  stats.style.display = ''; // let CSS .done { display:flex; animation: fadeout … } take over
+  stats.addEventListener('animationend', () => { stats.style.display = 'none'; }, { once: true });
 }
 
 // Hide every token counter right away (called the moment a reply finishes arriving).
