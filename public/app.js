@@ -2058,6 +2058,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '476': {
+    date: 'November 2026',
+    label: 'TTS Pipeline Overhaul',
+    fixed: [
+      'Voice no longer crashes or stalls 71 seconds mid-response — parallel synthesis flooding (78 concurrent requests to Chatterbox) replaced with a 2-slot concurrency gate',
+      'Switching voice off and back on now properly cancels all in-flight TTS fetch requests — no more zombie requests accumulating in the background',
+      'Switching to a new message now immediately aborts all pending voice synthesis requests instead of letting them pile up',
+    ],
+  },
   '475': {
     date: 'November 2026',
     label: 'Faster Text + Voice Start',
@@ -10699,11 +10708,17 @@ try { const v = localStorage.getItem('cm_autospeak'); if (v !== null) chatAutoSp
 let _streamTTSBuffer = '';
 let _streamTTSQueue = [];
 let _streamTTSPlaying = false;
-let _ttsPrefetchPool = new Map(); // cleaned text → Promise<Blob|null>
+let _ttsPrefetchPool = new Map(); // cleaned text → { promise: Promise<Blob|null>, ctrl: AbortController }
 let _streamTTSAudio = null; // currently playing Audio element for immediate mute
 let _ttsGeneration = 0;   // incremented each time new TTS starts; stale requests self-abort
 let _streamTTSWake = null; // resolver to wake the player loop when a new sentence arrives
 let _streamTTSDone = false; // true once _flushAutoSpeak fires; tells the wait to exit
+// Concurrency limiter — Chatterbox on CPU is single-threaded; more than 2 parallel
+// requests stack up at the server, explode the tunnel, and cause 71-second waits.
+let _ttsInFlight = 0;
+const _TTS_MAX_INFLIGHT = 2;
+const _ttsPendingQueue = []; // { clean, ctrl, resolve } waiting for a free slot
+let _ttsPoolGen = 0; // incremented by _clearPrefetchPool to invalidate in-flight callbacks
 
 // ── Gapless TTS player (Web Audio API) ───────────────────────────────────────
 // Decodes blobs → AudioBuffers and schedules them back-to-back with sample-level
@@ -10774,7 +10789,7 @@ function _stopCurrentTTS() {
   if (_streamTTSPlayer) { _streamTTSPlayer.stop(); _streamTTSPlayer = null; }
   if (_streamTTSAudio) { try { _streamTTSAudio.pause(); _streamTTSAudio.src = ''; } catch(_) {} _streamTTSAudio = null; }
   _streamTTSPlaying = false;
-  _ttsPrefetchPool.clear();
+  _clearPrefetchPool(); // abort all in-flight and queued fetches, not just clear the map
 }
 
 function toggleAutoSpeak() {
@@ -10801,14 +10816,55 @@ function _prefetchSentence(rawText) {
   const clean = ttsCleanText(rawText);
   if (!clean || clean.length <= 1 || _ttsPrefetchPool.has(clean)) return;
   const ctrl = new AbortController();
-  const tmo = setTimeout(() => ctrl.abort(), 20000);
-  const p = fetch('/api/tts', {
+  const promise = new Promise(resolve => {
+    if (_ttsInFlight < _TTS_MAX_INFLIGHT) {
+      _ttsInFlight++;
+      _doTTSFetch(clean, ctrl, resolve);
+    } else {
+      _ttsPendingQueue.push({ clean, ctrl, resolve });
+    }
+  });
+  _ttsPrefetchPool.set(clean, { promise, ctrl });
+}
+
+function _doTTSFetch(clean, ctrl, resolve) {
+  const myGen = _ttsPoolGen;
+  const tmo = setTimeout(() => ctrl.abort(), 45000);
+  fetch('/api/tts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text: clean.slice(0, 499), charId: currentChar?.id || '', provider: ttsProvider }),
     signal: ctrl.signal,
-  }).then(r => { clearTimeout(tmo); return r.ok ? r.blob() : null; }).catch(() => { clearTimeout(tmo); return null; });
-  _ttsPrefetchPool.set(clean, p);
+  })
+    .then(r => { clearTimeout(tmo); return r.ok ? r.blob() : null; })
+    .catch(() => { clearTimeout(tmo); return null; })
+    .then(blob => {
+      resolve(blob);
+      if (myGen !== _ttsPoolGen) return; // pool was cleared while we were in flight — counter already reset
+      _ttsInFlight--;
+      // Start the next queued synthesis now that a slot opened
+      while (_ttsPendingQueue.length > 0 && _ttsInFlight < _TTS_MAX_INFLIGHT) {
+        const next = _ttsPendingQueue.shift();
+        if (!next.ctrl.signal.aborted) {
+          _ttsInFlight++;
+          _doTTSFetch(next.clean, next.ctrl, next.resolve);
+          break;
+        }
+      }
+    });
+}
+
+function _clearPrefetchPool() {
+  _ttsPoolGen++; // invalidate all in-flight _doTTSFetch callbacks
+  for (const { ctrl } of _ttsPrefetchPool.values()) {
+    try { ctrl.abort(); } catch(_) {}
+  }
+  for (const { ctrl } of _ttsPendingQueue) {
+    try { ctrl.abort(); } catch(_) {}
+  }
+  _ttsPendingQueue.length = 0;
+  _ttsInFlight = 0;
+  _ttsPrefetchPool.clear();
 }
 
 function _feedAutoSpeak(chunk) {
@@ -10931,11 +10987,10 @@ async function _playStreamTTSQueue() {
         continue;
       }
 
-      // Kick off synthesis for all queued sentences in parallel
-      for (const s of _streamTTSQueue) {
-        const c = ttsCleanText(s);
-        if (c && c.length > 1 && !_ttsPrefetchPool.has(c)) _prefetchSentence(s);
-      }
+      // Prefetch only the next 2 sentences — Chatterbox is single-threaded and
+      // parallel-blasting all sentences floods the tunnel causing 71-second stalls.
+      if (_streamTTSQueue.length > 0) _prefetchSentence(_streamTTSQueue[0]);
+      if (_streamTTSQueue.length > 1) _prefetchSentence(_streamTTSQueue[1]);
 
       const raw = _streamTTSQueue.shift() || '';
       const t = ttsCleanText(raw);
@@ -10948,11 +11003,12 @@ async function _playStreamTTSQueue() {
       if (ttsProvider === 'off') continue;
 
       // Use prefetched promise or start a new fetch
-      let bp = _ttsPrefetchPool.get(t);
+      const _poolEntry = _ttsPrefetchPool.get(t);
       _ttsPrefetchPool.delete(t);
+      let bp = _poolEntry?.promise ?? null;
       if (!bp) {
         const ctrl2 = new AbortController();
-        const tmo2 = setTimeout(() => ctrl2.abort(), 20000);
+        const tmo2 = setTimeout(() => ctrl2.abort(), 45000);
         bp = fetch('/api/tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -11001,7 +11057,7 @@ async function _playStreamTTSQueue() {
 
   if (myGen === _ttsGeneration) {
     _streamTTSPlaying = false;
-    _ttsPrefetchPool.clear();
+    _clearPrefetchPool();
     if (btn) btn.classList.remove('speaking', 'loading');
   }
 }
