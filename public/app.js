@@ -302,8 +302,8 @@ const MONTHLY_COIN_GRANT = { free: 20, advanced: 30, x50: 1800, x100: 3600, x200
 
 const PLAN_LABELS = { free: 'Free', advanced: 'Advanced', x50: 'X50', x100: 'X100', x200: 'X200' };
 const PLAN_SUBS = {
-  free:     '60,000 tokens / 2hr session · Opas & Opes',
-  advanced: '120,000 tokens / session · All 4 models',
+  free:     'Opas & Opes only · sessions reset every 2 hrs',
+  advanced: 'All 4 models · 2× session budget · 2,000 coins/mo',
   x100:     'X100 plan',
   x200:     'X200 plan',
 };
@@ -499,13 +499,23 @@ function renderPricingCards() {
     } else {
       ctaBtn = `<button class="pc-cta" onclick="handleUpgradeCta('${plan.key}')">Subscribe</button>`;
     }
+    const tierLabel = plan.key === 'free'
+      ? `<div class="pc-tier-label">Free Tier</div>`
+      : plan.key === 'advanced'
+        ? `<div class="pc-tier-label pc-tier-label-paid">Paid Plan</div>`
+        : '';
+    const freeLockedHint = (plan.key === 'free' && currentTier === 'free')
+      ? `<p class="pc-locked-hint">🔒 Opis &amp; Opos require Advanced</p>`
+      : '';
     return `<div class="pricing-card${isCurrent ? ' pc-current' : ''}${plan.badge ? ' pc-featured' : ''}">
       ${badge}
       <div class="pc-name">${escHtml(plan.name)}</div>
+      ${tierLabel}
       <div class="pc-price">${origStr ? `<span class="pc-orig-price">${origStr}</span> ` : ''}${priceStr}<span class="pc-period"> ${periodStr}</span></div>
       ${perMonth}
       ${coinValueRow}
       <ul class="pc-features">${features}</ul>
+      ${freeLockedHint}
       ${ctaBtn}
       ${coinBtn}
     </div>`;
@@ -1292,7 +1302,22 @@ function updateSettingsPlanCard(tier) {
   if (sub)   sub.textContent   = PLAN_SUBS[t] || '';
   const upgradeBtn = document.querySelector('.settings-plan-upgrade-btn');
   if (upgradeBtn) upgradeBtn.style.display = t === 'free' ? '' : 'none';
+  const limitNote = document.getElementById('settingsPlanLimitNote');
+  if (limitNote) limitNote.style.display = t === 'free' ? '' : 'none';
+  updatePlanTierStrip(t);
   renderSettingsTiers(t);
+}
+function updatePlanTierStrip(tier) {
+  const t = tier || lastKnownUsage?.subscriptionTier || 'free';
+  const strip = document.getElementById('planTierStrip');
+  if (!strip) return;
+  if (t === 'free') {
+    strip.style.display = '';
+    const label = document.getElementById('planTierStripLabel');
+    if (label) label.textContent = 'Free Plan';
+  } else {
+    strip.style.display = 'none';
+  }
 }
 
 function renderSettingsTiers(currentTier) {

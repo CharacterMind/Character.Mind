@@ -1546,6 +1546,12 @@
             <button class="mb-effort-btn mb-notif-btn" id="notifBellBtn" onclick="togglePushNotifications()" title="Get notified when characters want to RP">🔔</button>
           </div>
         </div>
+        <div id="planTierStrip" class="plan-tier-strip" onclick="openPricingModal()" style="display:none" role="button" tabindex="0">
+          <span id="planTierStripLabel" class="pts-plan-name">Free Plan</span>
+          <span class="pts-sep">·</span>
+          <span class="pts-note">Opis &amp; Opos locked</span>
+          <span class="pts-upgrade">Upgrade →</span>
+        </div>
         <div class="disclaimer">
           <span class="disclaimer-text">This is A.I. and not a real person. Treat everything it says as fiction.</span>
           <span class="disclaimer-links">
@@ -2139,9 +2145,13 @@
           <div id="settingsPlanBadge" class="settings-plan-badge">Free</div>
           <div style="flex:1">
             <div id="settingsPlanName" class="settings-plan-name">Free Plan</div>
-            <div id="settingsPlanSub" class="settings-plan-sub">Free plan</div>
+            <div id="settingsPlanSub" class="settings-plan-sub">Opas &amp; Opes only · sessions reset every 2 hrs</div>
           </div>
-          <button class="settings-plan-upgrade-btn" onclick="openPricingModal()" style="display:none">View plans</button>
+          <button class="settings-plan-upgrade-btn" onclick="openPricingModal()" style="display:none">Upgrade</button>
+        </div>
+        <div id="settingsPlanLimitNote" class="settings-plan-limit-note" style="display:none">
+          Opis &amp; Opos are locked on the Free plan.
+          <button class="settings-plan-limit-link" onclick="openPricingModal()">See what Advanced unlocks →</button>
         </div>
         <div class="settings-coin-card">
           <div class="settings-coin-icon">🪙</div>

@@ -1141,6 +1141,20 @@ html, body {
 .btn-send:hover { opacity: .88; transform: scale(1.04); }
 .btn-send svg { width: 17px; height: 17px; }
 .btn-send:disabled { opacity: .28; cursor: not-allowed; transform: none; }
+/* ── Plan tier strip (shown below model bar for free users) ─────────────── */
+.plan-tier-strip {
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
+  gap: 5px 8px; font-size: 11px; color: var(--text3);
+  margin-top: 5px; cursor: pointer; transition: color .15s;
+}
+.plan-tier-strip:hover { color: var(--text2); }
+.pts-plan-name { font-weight: 600; color: var(--accent-l); }
+.pts-sep { opacity: .4; }
+.pts-note { }
+.pts-upgrade {
+  font-weight: 600; color: var(--accent-l);
+  background: var(--accent-dim); padding: 1px 8px; border-radius: 10px;
+}
 .disclaimer {
   display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
   gap: 6px 10px; font-size: 11px; color: var(--text3);
@@ -4050,6 +4064,16 @@ html, body {
   white-space: nowrap; transition: opacity .15s;
 }
 .settings-plan-upgrade-btn:hover { opacity: .8; }
+.settings-plan-limit-note {
+  font-size: 12px; color: var(--text3); padding: 4px 2px 0;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.settings-plan-limit-link {
+  background: none; border: none; cursor: pointer; padding: 0;
+  font-size: 12px; color: var(--accent-l); font-weight: 500;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.settings-plan-limit-link:hover { opacity: .8; }
 
 /* ── Pricing modal ────────────────────────────────────────────────────────── */
 .pricing-modal {
@@ -4101,6 +4125,17 @@ html, body {
   padding: 3px 12px; border-radius: 20px; white-space: nowrap;
 }
 .pc-name { font-size: 17px; font-weight: 700; color: var(--text1); }
+.pc-tier-label {
+  display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  padding: 2px 9px; border-radius: 8px; margin-top: -2px;
+  background: var(--bg4); color: var(--text3);
+}
+.pc-tier-label.pc-tier-label-paid {
+  background: var(--accent-dim); color: var(--accent-l);
+}
+.pc-locked-hint {
+  font-size: 12px; color: var(--text3); margin: 2px 0 0; padding: 0;
+}
 .pc-price { font-size: 26px; font-weight: 800; color: var(--text1); line-height: 1.1; }
 .pc-period { font-size: 13px; font-weight: 500; color: var(--text3); }
 .pc-per-month { font-size: 11px; color: var(--text3); min-height: 16px; display: flex; align-items: center; gap: 4px; }
