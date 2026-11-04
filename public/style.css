@@ -3890,6 +3890,8 @@ html, body {
   transition: opacity .1s;
 }
 .md-item.active .md-check { opacity: 1; }
+.md-effort-val { font-size: 12px; color: var(--text3); font-weight: 500; flex-shrink: 0; }
+.md-chev-r { color: var(--text3); flex-shrink: 0; }
 /* Tier badges */
 .md-tier-badge {
   font-size: 10px; font-weight: 600; letter-spacing: .3px;

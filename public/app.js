@@ -200,8 +200,8 @@ const MODEL_ICONS = {
 function updateModelBarLabel() {
   const modelEl = document.getElementById('mbModelLabel');
   if (modelEl) modelEl.textContent = MODEL_LABELS[selectedModelTier] || selectedModelTier;
-  const effortEl = document.getElementById('mbEffortLabel');
-  if (effortEl) effortEl.textContent = EFFORT_LABELS[selectedEffort] || selectedEffort;
+  const effortDropEl = document.getElementById('mdEffortVal');
+  if (effortDropEl) effortDropEl.textContent = EFFORT_LABELS[selectedEffort] || selectedEffort;
   if (typeof updateBookButton === 'function') updateBookButton();
   const icon = document.getElementById('modelBarIcon');
   if (icon) icon.innerHTML = MODEL_ICONS[selectedModelTier] || MODEL_ICONS.opas;
@@ -1417,8 +1417,7 @@ document.addEventListener('click', (e) => {
   if ((modelDropdownOpen || effortPanelOpen)
     && !e.target.closest('#modelDropdown')
     && !e.target.closest('#effortPanelPopup')
-    && !e.target.closest('#mbModelBtn')
-    && !e.target.closest('#mbEffortBtn')) {
+    && !e.target.closest('#mbModelBtn')) {
     closeAllPickers();
   }
 });
@@ -2060,6 +2059,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '463': {
+    date: 'November 2026',
+    label: 'Effort Inside Model Picker',
+    added: [
+      'Effort is now a row inside the model picker instead of a separate button — tap the model name, then tap Effort to change it',
+    ],
+  },
   '462': {
     date: 'November 2026',
     label: 'Thinking Indicator',
