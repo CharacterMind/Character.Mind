@@ -2058,6 +2058,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '468': {
+    date: 'November 2026',
+    label: 'Near-Instant Call Voice',
+    added: [
+      'Call voice now starts synthesizing while the AI is still generating — dramatically faster time-to-first-audio',
+    ],
+  },
   '467': {
     date: 'November 2026',
     label: 'Free Plan Badge',
@@ -6562,7 +6569,7 @@ async function generateGreeting() {
             bubble = msgEl.querySelector('.bubble');
             startStreamStats(msgEl);
             startTypewriter(bubble, msgEl);
-            _streamTTSBuffer = ''; _streamTTSQueue = []; _streamTTSDone = false; _stopCurrentTTS();
+            _streamTTSBuffer = ''; _streamTTSQueue = []; _streamTTSDone = false; _stopCurrentTTS(); _resetCallTTSPipeline();
             if (!data.instant) bubble.classList.add('streaming');
           }
           streamText += data.text;
@@ -6921,7 +6928,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
             bubble.classList.add('streaming');
             startStreamStats(msgEl);
             startTypewriter(bubble, msgEl);
-            _streamTTSBuffer = ''; _streamTTSQueue = []; _streamTTSDone = false; _stopCurrentTTS();
+            _streamTTSBuffer = ''; _streamTTSQueue = []; _streamTTSDone = false; _stopCurrentTTS(); _resetCallTTSPipeline();
           }
           streamText += data.text;
           feedTypewriter(data.text);
@@ -9673,6 +9680,7 @@ function startTypewriter(bubble, msgEl) {
 function feedTypewriter(chunk) {
   twQueue += chunk;
   _feedAutoSpeak(chunk);
+  if (callModeActive) _feedCallTTSPipeline(chunk);
 }
 
 // Let the queue drain at normal speed, then call cb. Use for stream-end cleanup.
@@ -11504,7 +11512,15 @@ function callModeTTS(bubble) {
   if (callConversation.length > 14) callConversation.shift();
   // Decide if a secondary char will react after this TTS (higher chance in group calls)
   callChainCount = (callCharacters.length > 1 && callInterCharRounds < 2 && Math.random() < 0.75) ? 1 : 0;
-  callModeTTS_server(text);
+  // Use pre-fetched pipeline if available; otherwise fall back to serial synthesis
+  _flushCallTTSPipeline();
+  const _ctPipeline = _callTTSPipeline.splice(0);
+  _callTTSPipelineOn = false;
+  if (_ctPipeline.length > 0) {
+    _playCallTTSPipeline(_ctPipeline);
+  } else {
+    callModeTTS_server(text);
+  }
 }
 
 let serverTTSOk = true;
@@ -11577,6 +11593,103 @@ async function playCallBlob(blob) {
   audio.onended = finish;
   audio.onerror = finish;
   try { await audio.play(); } catch (_) { finish(); }
+}
+
+// ── Streaming call TTS pipeline ───────────────────────────────────────────────
+// Pre-fetches TTS blobs sentence-by-sentence as the AI response streams in,
+// so playback starts the moment the stream ends (or sooner for multi-sentence responses).
+let _callTTSPipeline = [];
+let _callTTSPipelineBuf = '';
+let _callTTSPipelineOn = false;
+
+function _resetCallTTSPipeline() {
+  _callTTSPipeline = []; _callTTSPipelineBuf = ''; _callTTSPipelineOn = false;
+}
+
+function _fetchCallTTSBlob(rawText) {
+  const clean = cleanTTSText(rawText).slice(0, 499);
+  if (!clean || ttsProvider === 'off' || ttsProvider === 'browser') return Promise.resolve(null);
+  const prov = ttsProvider;
+  const ctrl = new AbortController();
+  const tmo = setTimeout(() => ctrl.abort(), 20000);
+  return fetch('/api/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: clean, charId: (callContextChar || currentChar)?.id, provider: prov, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName }),
+    signal: ctrl.signal,
+  }).then(r => r.ok ? r.blob() : null).catch(() => null).finally(() => clearTimeout(tmo));
+}
+
+function _feedCallTTSPipeline(chunk) {
+  if (!callModeActive || ttsProvider === 'off' || ttsProvider === 'browser') return;
+  _callTTSPipelineOn = true;
+  _callTTSPipelineBuf += chunk;
+  if (ttsProvider === 'character') {
+    // Merge into ~300-char chunks to match callModeTTS_server strategy for Chatterbox
+    const parts = _callTTSPipelineBuf.split(/(?<=[.!?])\s+/);
+    const tail = parts.pop() || '';
+    let cur = '';
+    for (const s of parts) {
+      if (cur && cur.length + 1 + s.length > 300) {
+        if (cur.trim().length > 2) _callTTSPipeline.push(_fetchCallTTSBlob(cur));
+        cur = s;
+      } else { cur = cur ? cur + ' ' + s : s; }
+    }
+    _callTTSPipelineBuf = cur ? (tail ? cur + ' ' + tail : cur) : tail;
+  } else {
+    // For fast providers: emit each complete sentence immediately
+    const parts = _callTTSPipelineBuf.split(/(?<=[.!?])\s+/);
+    _callTTSPipelineBuf = parts.pop() || '';
+    for (const s of parts) {
+      if (s.trim().length > 2) _callTTSPipeline.push(_fetchCallTTSBlob(s));
+    }
+  }
+}
+
+function _flushCallTTSPipeline() {
+  const tail = _callTTSPipelineBuf.trim();
+  _callTTSPipelineBuf = '';
+  if (tail.length > 2) _callTTSPipeline.push(_fetchCallTTSBlob(tail));
+}
+
+// Module-scope equivalent of callModeTTS_server's playBlobOnly (plays without triggering afterCallTTSDone)
+function _playCallBlobOnly(blob) {
+  return new Promise(resolve => {
+    if (!callModeActive) { resolve(); return; }
+    if ((callContextChar || currentChar)?.id === 'huggy_wuggy') {
+      const token = {};
+      callAudio = { pause: () => { token.stopped = true; token.stop?.(); } };
+      _hwDemonPlay(blob, token).then(() => { callAudio = null; resolve(); });
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const audio = callBoost(new Audio(url));
+    callAudio = audio;
+    const done = () => { URL.revokeObjectURL(url); if (callAudio === audio) callAudio = null; resolve(); };
+    audio.onended = done; audio.onerror = done;
+    audio.play().catch(done);
+  });
+}
+
+async function _playCallTTSPipeline(pipeline) {
+  const gen = callGen;
+  let started = false;
+  for (let i = 0; i < pipeline.length; i++) {
+    if (gen !== callGen) return;
+    let blob;
+    try { blob = await pipeline[i]; } catch (_) { blob = null; }
+    if (gen !== callGen) return;
+    if (!blob) continue;
+    if (!started) { started = true; setCallState('responding'); }
+    if (i < pipeline.length - 1) {
+      await _playCallBlobOnly(blob);
+    } else {
+      await playCallBlob(blob); // last blob — playCallBlob calls afterCallTTSDone
+      return;
+    }
+  }
+  // All blobs null — still need to advance the call
+  if (gen === callGen && callModeActive) afterCallTTSDone();
 }
 
 async function speakAndHangUp(text, resetsAt) {
@@ -12247,6 +12360,7 @@ function showCallMicError() {
 
 function endCallMode() {
   callGen++;
+  _resetCallTTSPipeline();
   callModeActive = false;
   callStarting = false;
   if (!window._gpuBoostActive) window._farmBoostMult = 1;
@@ -12427,6 +12541,7 @@ function toggleCallMute() {
 
 function interruptCall() {
   callGen++;
+  _resetCallTTSPipeline();
   callContextChar = null;
   callChainCount = 0;
   stopActiveTTS();
