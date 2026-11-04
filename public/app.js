@@ -2061,6 +2061,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '447': {
+    date: 'November 2026',
+    label: 'Token Counter Tracks Actual Stream Progress',
+    fixed: [
+      'Token counter now ramps in real time as data arrives from the server — no more slow crawl during generation followed by a big jump at the end',
+    ],
+  },
   '446': {
     date: 'November 2026',
     label: 'Medium Effort Now Generates Longer Replies',
@@ -6485,8 +6492,9 @@ async function generateGreeting() {
           }
           streamText += data.text;
           feedTypewriter(data.text);
-          if (data.instant) { updateStreamTokens(msgEl, data.text.length); flushTypewriter(); } // paste in immediately; update token count before flush clears twMsgEl
           streamCharCount += data.text.length;
+          _streamedCharsLive += data.text.length;
+          if (data.instant) { updateStreamTokens(msgEl, Math.max(data.text.length, _streamedCharsLive)); flushTypewriter(); }
         }
       }
     }
@@ -6843,6 +6851,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
           streamText += data.text;
           feedTypewriter(data.text);
           streamCharCount += data.text.length;
+          _streamedCharsLive += data.text.length;
         }
       }
       if (convEnded) {
@@ -9556,7 +9565,7 @@ function startTypewriter(bubble, msgEl) {
   twStreamDone = false;
   if (twInterval) clearInterval(twInterval);
   // During calls the text is spoken immediately — render it as fast as possible
-  if (callModeActive) { twSpd = TW_SPEED.max; const perMsC = TW_SPEED.max.chars / TW_SPEED.max.ms; let creditC = 0, lastTickC = Date.now(); twInterval = setInterval(() => { const nowC = Date.now(); creditC += (nowC - lastTickC) * perMsC; lastTickC = nowC; creditC = Math.max(creditC, Math.ceil(twQueue.length / 4)); if (!twQueue.length) { creditC = 0; if (twOnDrain) { const cb = twOnDrain; twOnDrain = null; cb(); } return; } const nC = Math.min(twQueue.length, Math.floor(creditC)); if (nC < 1) return; creditC -= nC; const chunkC = twQueue.slice(0, nC); twQueue = twQueue.slice(nC); twRevealed += chunkC; if (twBubble && nowC - twLastRender >= 33) { setBubbleRaw(twBubble, twRevealed, twRevealed.length > 900); twLastRender = nowC; scrollToBottom(); } updateStreamTokens(twMsgEl, twRevealed.length); }, TW_SPEED.max.ms); return; }
+  if (callModeActive) { twSpd = TW_SPEED.max; const perMsC = TW_SPEED.max.chars / TW_SPEED.max.ms; let creditC = 0, lastTickC = Date.now(); twInterval = setInterval(() => { const nowC = Date.now(); creditC += (nowC - lastTickC) * perMsC; lastTickC = nowC; creditC = Math.max(creditC, Math.ceil(twQueue.length / 4)); if (!twQueue.length) { creditC = 0; if (twOnDrain) { const cb = twOnDrain; twOnDrain = null; cb(); } return; } const nC = Math.min(twQueue.length, Math.floor(creditC)); if (nC < 1) return; creditC -= nC; const chunkC = twQueue.slice(0, nC); twQueue = twQueue.slice(nC); twRevealed += chunkC; if (twBubble && nowC - twLastRender >= 33) { setBubbleRaw(twBubble, twRevealed, twRevealed.length > 900); twLastRender = nowC; scrollToBottom(); } updateStreamTokens(twMsgEl, Math.max(twRevealed.length, _streamedCharsLive)); }, TW_SPEED.max.ms); return; }
   const effortKey = selectedEffort;
   const spd = TW_SPEED[effortKey] || TW_SPEED.high;
   twSpd = spd;
@@ -9587,7 +9596,7 @@ function startTypewriter(bubble, msgEl) {
       twLastRender = now;
       scrollToBottom();
     }
-    updateStreamTokens(twMsgEl, twRevealed.length);
+    updateStreamTokens(twMsgEl, Math.max(twRevealed.length, _streamedCharsLive));
   }, spd.ms);
 }
 
@@ -9627,6 +9636,7 @@ function startStreamStats(msgEl) {
   const stats = msgEl.querySelector('.stream-stats');
   if (!stats) return;
   streamStartTime = Date.now();
+  _streamedCharsLive = 0;
   stats.style.display = '';
   stats.classList.remove('done');
   stats.classList.add('active');
@@ -9661,6 +9671,7 @@ let _tokAnimFrame = null;
 let _tokDisplayed = 0;
 let _tokTarget = 0;
 let _tokActiveMsgEl = null;
+let _streamedCharsLive = 0; // server-received chars — counter tracks max(revealed, received)
 
 function _flushTokDisplay() {
   if (!_tokActiveMsgEl) return;
@@ -13123,6 +13134,7 @@ async function regenerate() {
           streamText += data.text;
           feedTypewriter(data.text);
           streamCharCount += data.text.length;
+          _streamedCharsLive += data.text.length;
         }
       }
     }
