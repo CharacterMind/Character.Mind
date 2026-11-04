@@ -90,7 +90,6 @@ function loadAccountPrefs() {
   try {
     const t = localStorage.getItem(userKey('cm_model_tier'));
     if (baseTierOf(t)) selectedModelTier = baseTierOf(t);
-    if (selectedModelTier !== 'opas') selectedModelTier = 'opas'; // other models hidden for now
     const e = localStorage.getItem(userKey('cm_effort'));
     if (EFFORT_LEVELS.includes(e)) selectedEffort = e;
   } catch (_) {}
@@ -2059,6 +2058,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '464': {
+    date: 'November 2026',
+    label: 'Opes Is Live',
+    added: [
+      'Opes is now available to everyone — select it from the model picker for smarter, longer replies (uses your limit faster)',
+    ],
+  },
   '463': {
     date: 'November 2026',
     label: 'Effort Inside Model Picker',
