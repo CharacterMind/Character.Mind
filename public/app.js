@@ -2061,14 +2061,24 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '450': {
+    date: 'November 2026',
+    label: 'Live Token Drain + Effort Speed',
+    added: [
+      'Token counter is back — counts up live as Opas generates, draining your allowance in real time',
+      'Higher effort now means faster typewriter animation — Ultracode is the fastest tier',
+      'Ultracode effort added to typewriter speed table',
+    ],
+    fixed: [
+      'Token counter fades out after reply finishes instead of snapping away',
+    ],
+  },
   '449': {
     date: 'November 2026',
     label: 'Token/Usage Display Removed',
-    removed: [
+    items: [
       'Removed the stream-stats bar (time · speed · tokens) that appeared after AI responses — usage tracking still runs for subscription enforcement, it\'s just no longer shown',
-    ],
-    fixed: [
-      'Poppy\'s character card tagline updated to something actually funny',
+      'Poppy\'s tagline updated',
     ],
   },
   '448': {
@@ -9527,6 +9537,12 @@ function createAiMessage() {
     <div class="bubble"></div>
     <div class="msg-footer">
       ${regenBtn()}${likeBtn()}${dislikeBtn()}
+    </div>
+    <div class="stream-stats">
+      <div class="stream-spinner"></div>
+      <span class="stream-tok">0</span>
+      <span class="stream-sep">·</span>
+      <span class="stream-time">tokens</span>
     </div>`;
   document.getElementById('messages').appendChild(div);
   addSwipeGesture(div);
@@ -9560,11 +9576,12 @@ function remainingTypeMs() {
 
 // Typewriter speed — slow enough to see generation in real time with token counter ticking
 const TW_SPEED = {
-  low:    { chars: 1,  ms: 28 },
-  medium: { chars: 4,  ms: 28 },
-  high:   { chars: 8,  ms: 28 },
-  extra:  { chars: 14, ms: 28 },
-  max:    { chars: 22, ms: 28 },
+  low:       { chars: 1,  ms: 28 },
+  medium:    { chars: 4,  ms: 28 },
+  high:      { chars: 8,  ms: 28 },
+  extra:     { chars: 14, ms: 28 },
+  max:       { chars: 22, ms: 28 },
+  ultracode: { chars: 32, ms: 28 },
 };
 
 function startTypewriter(bubble, msgEl) {
@@ -9646,16 +9663,49 @@ let _tokDisplayed = 0;
 let _tokTarget = 0;
 let _tokActiveMsgEl = null;
 
-function startStreamStats(msgEl) { _streamedCharsLive = 0; }
-function updateStreamTokens(msgEl, charCount) {}
+function startStreamStats(msgEl) {
+  _streamedCharsLive = 0;
+  _tokDisplayed = 0;
+  _tokTarget = 0;
+  _tokActiveMsgEl = msgEl;
+  if (_tokAnimFrame) { cancelAnimationFrame(_tokAnimFrame); _tokAnimFrame = null; }
+  const stats = msgEl?.querySelector('.stream-stats');
+  if (stats) { stats.classList.add('active'); stats.classList.remove('done'); const tok = stats.querySelector('.stream-tok'); if (tok) tok.textContent = '0'; }
+}
+function updateStreamTokens(msgEl, charCount) {
+  if (msgEl !== _tokActiveMsgEl) return;
+  _tokTarget = liveTokensShown(charCount);
+  if (_tokAnimFrame) return;
+  function step() {
+    _tokAnimFrame = null;
+    const diff = _tokTarget - _tokDisplayed;
+    if (diff <= 0) return;
+    _tokDisplayed += Math.max(1, Math.ceil(diff * 0.18));
+    if (_tokDisplayed > _tokTarget) _tokDisplayed = _tokTarget;
+    const stats = _tokActiveMsgEl?.querySelector('.stream-stats');
+    const tok = stats?.querySelector('.stream-tok');
+    if (tok) tok.textContent = fmtLiveTokens(_tokDisplayed);
+    if (_tokDisplayed < _tokTarget) _tokAnimFrame = requestAnimationFrame(step);
+  }
+  _tokAnimFrame = requestAnimationFrame(step);
+}
 function stopStreamStats(msgEl, finalTokens, apiUsage) {
   if (streamTimer) { clearInterval(streamTimer); streamTimer = null; }
   streamStartTime = null;
+  const cost = finalTokens ?? liveReplyCost().cost;
+  const stats = msgEl?.querySelector('.stream-stats');
+  if (stats) {
+    const tok = stats.querySelector('.stream-tok');
+    if (tok) tok.textContent = fmtLiveTokens(cost);
+    stats.classList.remove('active');
+    stats.classList.add('done');
+  }
+  _tokActiveMsgEl = null;
 }
 
 // Hide every token counter right away (called the moment a reply finishes arriving).
 function hideStreamStatsNow() {
-  document.querySelectorAll('.stream-stats').forEach(s => { s.style.display = 'none'; });
+  document.querySelectorAll('.stream-stats.active').forEach(s => { s.classList.remove('active'); });
 }
 
 // ── Regeneration history ──────────────────────────────────────────────────────
