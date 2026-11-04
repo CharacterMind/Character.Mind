@@ -1720,13 +1720,13 @@ function buildUsagePayload(u, userId) {
   const callsRemaining = callLimit === Infinity ? 9999 : Math.max(0, callLimit - callsToday);
   const memosRemaining = memoLimit === Infinity ? 9999 : Math.max(0, memoLimit - (u.memosToday || 0));
   return {
-    sessionTokens: u.sessionTokens,
-    sessionLimit: sessionLimitFor(u),
-    sessionStartedAt: u.sessionStartedAt,
-    sessionExpiresAt: u.sessionStartedAt ? u.sessionStartedAt + LIMITS.SESSION_COOLDOWN_MS : null,
-    cooldownUntil: u.cooldownUntil,
-    weeklyTokens: u.weeklyTokens,
-    weeklyLimit: weeklyLimitFor(u),
+    sessionTokens: u.neverLimit ? 0 : u.sessionTokens,
+    sessionLimit: u.neverLimit ? 999999999 : sessionLimitFor(u),
+    sessionStartedAt: u.neverLimit ? null : u.sessionStartedAt,
+    sessionExpiresAt: u.neverLimit ? null : (u.sessionStartedAt ? u.sessionStartedAt + LIMITS.SESSION_COOLDOWN_MS : null),
+    cooldownUntil: u.neverLimit ? null : u.cooldownUntil,
+    weeklyTokens: u.neverLimit ? 0 : u.weeklyTokens,
+    weeklyLimit: u.neverLimit ? 999999999 : weeklyLimitFor(u),
     weeklyStart: u.weeklyStart,
     weeklyResetsAt: u.weeklyStart ? u.weeklyStart + LIMITS.WEEKLY_MS : null,
     regenCount: u.regenCount || 0,
