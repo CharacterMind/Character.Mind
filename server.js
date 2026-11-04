@@ -1886,21 +1886,21 @@ function modelDepthNote(modelTier, effort) {
   if (!rank) {
     if (effort === 'low')    return 'BREVITY ANCHOR: This is a brief opas-tier reply — write 1 to 3 sentences only. Quality over quantity: one sharp moment and stop. Do not elaborate.';
     if (effort === 'medium') return 'DEPTH GUIDE: Write at least 200 words for this reply — 2 to 3 focused paragraphs. Keep the style sharp and punchy, every sentence earning its place. Do not stop before you reach 200 words.';
-    if (effort === 'high')   return 'DEPTH GUIDE: Write at least 320 words for this reply — 3 to 4 paragraphs. Richer scene and atmosphere, but keep the sharp, punchy style throughout. Do not stop before you reach 320 words.';
-    if (effort === 'extra')  return 'DEPTH GUIDE: Write at least 500 words for this reply — 4 to 6 full paragraphs. Rich atmosphere, vivid sensory detail, strong pacing. Do not stop before you reach 500 words.';
-    if (effort === 'max')    return 'DEPTH GUIDE: Write at least 750 words for this reply — 6 to 9 full paragraphs. Fully explore the scene: dialogue, atmosphere, emotion, and momentum. Do not stop before you reach 750 words.';
+    if (effort === 'high')   return 'DEPTH GUIDE: Write at least 400 words for this reply — 4 to 6 paragraphs. Richer scene and atmosphere, but keep the sharp, punchy style throughout. Do not stop before you reach 400 words.';
+    if (effort === 'extra')  return 'DEPTH GUIDE: Write at least 650 words for this reply — 6 to 9 full paragraphs. Rich atmosphere, vivid sensory detail, strong pacing. Do not stop before you reach 650 words.';
+    if (effort === 'max')    return 'DEPTH GUIDE: Write at least 1000 words for this reply — 9 to 13 full paragraphs. Fully explore the scene: dialogue, atmosphere, emotion, and momentum. Do not stop before you reach 1000 words.';
     return '';
   }
   if (effort === 'low') {
     return 'TIER DEPTH: Add ' + rank + ' extra sentence' + (rank > 1 ? 's' : '') + ' of vivid atmosphere beyond the brief reply above.';
   }
-  // All non-low efforts: explicit word + paragraph targets that scale per tier and effort
-  // [minPara, maxPara, minWords] for [opes, opis, opos] at each effort level
+  // All non-low efforts: explicit word + paragraph targets — each step up in effort or tier is meaningfully longer.
+  // [minPara, maxPara, minWords] for [opes, opis, opos] (rank 1, 2, 3)
   const targets = {
-    medium: [[4, 6, 450],  [6, 9,  650],  [8,  13, 950]],
-    high:   [[5, 8, 650],  [8, 12, 1000], [12, 18, 1500]],
-    extra:  [[8, 13, 1000],[12,18, 1600], [16, 24, 2400]],
-    max:    [[12,18, 1500],[18,26, 2500], [24, 35, 3500]],
+    medium: [[4,  6,  450],  [6,  9,  650],  [8,  13, 950]],
+    high:   [[7,  11, 900],  [10, 15, 1300], [14, 20, 2000]],
+    extra:  [[12, 17, 1500], [16, 24, 2200], [22, 32, 3200]],
+    max:    [[18, 26, 2600], [24, 36, 3800], [32, 46, 5500]],
   };
   const effortTargets = targets[effort];
   if (!effortTargets) return '';
@@ -1909,13 +1909,13 @@ function modelDepthNote(modelTier, effort) {
     return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt (including the RESPONSE LENGTH target above and the Writing Craft section) — write more, richer content. Each paragraph should be full of atmosphere, dialogue, and emotion.`;
   }
   if (effort === 'high') {
-    return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} full paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt (including the RESPONSE LENGTH target above and the Writing Craft section) — go deeper, longer, and more immersive. Develop every beat fully.`;
+    return `TIER UPGRADE: As a higher-tier model at High effort, write ${minP} to ${maxP} full paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt. Go deeper, longer, and more immersive. Develop every narrative beat, every piece of dialogue, every emotion fully.`;
   }
   if (effort === 'extra') {
-    return `TIER UPGRADE: As a higher-tier model at Extra depth, write ${minP} to ${maxP} paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt. Expand every narrative beat: senses, dialogue, internal thoughts, and scene momentum. Leave nothing thin.`;
+    return `TIER UPGRADE: As a higher-tier model at Extra depth, write ${minP} to ${maxP} paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt. Expand every beat: senses, dialogue, internal thoughts, scene momentum. Each paragraph must be full and developed. Nothing thin, nothing skipped.`;
   }
   if (effort === 'max') {
-    return `TIER UPGRADE: As a higher-tier model at Max depth, write ${minP} to ${maxP} full paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt. This is a full scene: every sensation, gesture, line of dialogue, emotional shift and narrative beat must be written out completely. Nothing abbreviated. Nothing skipped.`;
+    return `TIER UPGRADE: As a higher-tier model at Max depth, write ${minP} to ${maxP} full paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt. This is a full, chapter-length scene. Every sensation, gesture, line of dialogue, emotional shift, internal thought, and narrative beat must be written out completely — in full — nothing abbreviated, nothing summarised, nothing skipped.`;
   }
   return '';
 }
