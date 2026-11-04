@@ -2061,6 +2061,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '443': {
+    date: 'November 2026',
+    label: 'Token Counter Fluctuates Like Real Token Arrivals',
+    fixed: [
+      'Token counter now fluctuates at irregular speeds instead of climbing in a perfectly smooth line — matches how real token chunks arrive during generation',
+    ],
+  },
   '442': {
     date: 'November 2026',
     label: 'Token Counter No Longer Jumps at End',
@@ -9643,8 +9650,9 @@ function _tickTokAnim() {
   if (!stats?.classList.contains('active')) { _tokDisplayed = 0; return; }
   const diff = _tokTarget - _tokDisplayed;
   if (diff <= 0) { _flushTokDisplay(); return; }
-  // Chase at ~half the target value per second — always visibly counting, never instant-jumping
-  const step = Math.max(0.5, Math.min(diff, Math.max(1, _tokTarget * 0.5 / 60)));
+  // Variable burst speed (20%–80% of target/s) — simulates irregular real token chunk arrivals
+  const burstRate = 0.2 + Math.random() * 0.6;
+  const step = Math.max(0.5, Math.min(diff, Math.max(1, _tokTarget * burstRate / 60)));
   _tokDisplayed = Math.min(_tokTarget, _tokDisplayed + step);
   _flushTokDisplay();
   if (_tokDisplayed < _tokTarget) _tokAnimFrame = requestAnimationFrame(_tickTokAnim);
@@ -9654,7 +9662,12 @@ function updateStreamTokens(msgEl, charCount) {
   if (!stats || !stats.classList.contains('active')) return;
   const est = liveTokensShown(charCount);
   _tokActiveMsgEl = msgEl;
-  _tokTarget = est;
+  // ±15% jitter on the target — makes the counter fluctuate like real token chunk arrivals
+  // (always advances: never drops below what's already displayed)
+  const spread = Math.max(2, est * 0.15);
+  const jitter = (Math.random() * 2 - 1) * spread;
+  const { cost } = liveReplyCost();
+  _tokTarget = Math.max(_tokDisplayed + 0.1, Math.min(cost, est + jitter));
   if (!_tokAnimFrame) _tokAnimFrame = requestAnimationFrame(_tickTokAnim);
 }
 
