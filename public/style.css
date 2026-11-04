@@ -962,24 +962,16 @@ html, body {
   border-radius: 14px 0 14px 14px;
 }
 
-/* Stream stats counter */
+/* Stream stats counter — lives directly under the bubble, hidden when done */
 .stream-stats {
-  display: none; align-items: center; gap: 6px;
-  font-size: 12px; color: var(--text2); margin-top: 8px;
-  font-variant-numeric: tabular-nums; letter-spacing: .01em;
+  display: none; align-items: center;
+  font-size: 11px; color: var(--text3);
+  margin: 4px 0 0 2px;
+  font-variant-numeric: tabular-nums; letter-spacing: .02em;
 }
 .stream-stats.active { display: flex; }
-.stream-stats.done { display: flex; animation: stats-fadeout 0.6s ease 4s forwards; opacity: 0.7; }
-@keyframes stats-fadeout { from { opacity: 0.45; } to { opacity: 0; } }
-.stream-spinner {
-  width: 11px; height: 11px; border: 1.5px solid var(--border2);
-  border-top-color: var(--accent-l); border-radius: 50%;
-  animation: spin .65s linear infinite; flex-shrink: 0;
-}
-.stream-stats.done .stream-spinner { display: none; }
-.stream-sep { color: var(--text3); }
-.stream-time { color: var(--text3); }
-.stream-tok { color: var(--text2); font-weight: 500; }
+.stream-tok { color: var(--text2); font-weight: 600; margin-right: 2px; }
+.stream-sep { color: var(--text3); font-weight: 400; }
 .stream-spd { color: var(--text3); }
 .stream-in  { color: var(--text3); }
 .stream-cached { color: var(--text3); }
@@ -3779,7 +3771,7 @@ html, body {
   .bubble { font-size: 20px; line-height: 1.65; padding: 14px 16px; }
 
   /* Stream stats compact */
-  .stream-stats { font-size: 11px; gap: 5px; }
+  .stream-stats { font-size: 10px; }
 
   /* Input area */
   .chat-footer { padding: 8px 10px 12px; }
@@ -4480,7 +4472,7 @@ html, body {
 .past-chat-count { display: inline-flex; align-items: center; gap: 8px; }
 .past-chat-del { background: none; border: none; color: var(--text3); cursor: pointer; padding: 2px; border-radius: 4px; display: inline-flex; }
 .past-chat-del:hover { color: #ef4444; background: rgba(239,68,68,.12); }
-.stream-stats.done { animation: none; opacity: 0.6; }
+/* .stream-stats.done is unused — counter hides instantly on done */
 
 /* Read-aloud is live via Edge TTS — no "Soon" badge needed */
 
@@ -4491,8 +4483,7 @@ html, body {
 .resource-link:hover .resource-row { background: var(--bg3); }
 .resource-link .resource-ext { color: var(--accent-l, #a78bfa); font-size: 12px; margin-left: 4px; }
 
-/* Live token count shows while a reply types out (no spinner animation); app.js hides it just before the end */
-.stream-stats .stream-spinner { display: none !important; }
+/* Live token count shows while a reply types out; hidden instantly when done */
 
 /* iPhone Safari zooms the page when a focused input has text smaller than 16px */
 @media (max-width: 768px) {

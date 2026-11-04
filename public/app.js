@@ -9542,14 +9542,12 @@ function createAiMessage() {
       ${msgMenuHtml('ai')}
     </div>
     <div class="bubble"></div>
+    <div class="stream-stats">
+      <span class="stream-tok">0</span>
+      <span class="stream-sep"> tokens</span>
+    </div>
     <div class="msg-footer">
       ${regenBtn()}${likeBtn()}${dislikeBtn()}
-    </div>
-    <div class="stream-stats">
-      <div class="stream-spinner"></div>
-      <span class="stream-tok">0</span>
-      <span class="stream-sep">·</span>
-      <span class="stream-time">tokens</span>
     </div>`;
   document.getElementById('messages').appendChild(div);
   addSwipeGesture(div);
@@ -9681,33 +9679,20 @@ function startStreamStats(msgEl) {
 }
 function updateStreamTokens(msgEl, charCount) {
   if (msgEl !== _tokActiveMsgEl) return;
-  _tokTarget = liveTokensShown(charCount);
-  if (_tokAnimFrame) return;
-  function step() {
-    _tokAnimFrame = null;
-    const diff = _tokTarget - _tokDisplayed;
-    if (diff <= 0) return;
-    _tokDisplayed += Math.max(1, Math.ceil(diff * 0.18));
-    if (_tokDisplayed > _tokTarget) _tokDisplayed = _tokTarget;
-    const stats = _tokActiveMsgEl?.querySelector('.stream-stats');
-    const tok = stats?.querySelector('.stream-tok');
-    if (tok) tok.textContent = fmtLiveTokens(_tokDisplayed);
-    if (_tokDisplayed < _tokTarget) _tokAnimFrame = requestAnimationFrame(step);
-  }
-  _tokAnimFrame = requestAnimationFrame(step);
+  // Direct odometer tick — value jumps to current position, no easing lag.
+  // Speed naturally scales with effort: more chars/tick at higher effort → bigger jumps.
+  _tokDisplayed = liveTokensShown(charCount);
+  const stats = msgEl?.querySelector('.stream-stats');
+  const tok = stats?.querySelector('.stream-tok');
+  if (tok) tok.textContent = fmtLiveTokens(_tokDisplayed);
 }
 function stopStreamStats(msgEl, finalTokens, apiUsage) {
   if (streamTimer) { clearInterval(streamTimer); streamTimer = null; }
   streamStartTime = null;
-  const cost = finalTokens ?? liveReplyCost().cost;
   const stats = msgEl?.querySelector('.stream-stats');
-  if (stats) {
-    const tok = stats.querySelector('.stream-tok');
-    if (tok) tok.textContent = fmtLiveTokens(cost);
-    stats.classList.remove('active');
-    stats.classList.add('done');
-  }
+  if (stats) stats.classList.remove('active'); // instant hide — no fade
   _tokActiveMsgEl = null;
+  _tokDisplayed = 0;
 }
 
 // Hide every token counter right away (called the moment a reply finishes arriving).
