@@ -1871,7 +1871,7 @@ function refundTokens(sid, tokens) {
 // ── Effort directive ──────────────────────────────────────────────────────────
 const EFFORT_DIRECTIVES = {
   low:    'RESPONSE LENGTH: Extremely brief — 1 to 3 sentences. Aim for 70 to 120 words. One sharp moment aimed directly at what the user just wrote. Stop there.',
-  medium: 'RESPONSE LENGTH: Write a focused reply — aim for 180 to 320 words. Rich scene pacing, strong atmosphere, character-driven. Do not exceed 320 words.',
+  medium: 'RESPONSE LENGTH: Write a focused reply — aim for 200 to 320 words. Rich scene pacing, strong atmosphere, character-driven. Stay sharp and focused.',
   high:   'RESPONSE LENGTH: Write a full reply — aim for 380 to 600 words. Rich, atmospheric, fully developed. Develop each beat with vivid detail and momentum.',
   extra:  'RESPONSE LENGTH: Write a deeply immersive, expansive reply — 5 to 9 paragraphs minimum. Explore every sensory detail, emotion, and narrative beat. This is your most thorough, cinematic, richly crafted response.',
   max:    'RESPONSE LENGTH: Write the longest, most elaborate reply you can — 10 to 16 paragraphs. Leave nothing out: every sensation, thought, gesture, line of dialogue and shift in the scene. It should read like a full chapter.',
