@@ -142,12 +142,11 @@ function liveReplyCost() {
   const effort = callModeActive ? 'low' : (OPES_COST[selectedEffort] ? selectedEffort : 'medium');
   return { cost: clientMessageCost(tier, effort), effort, tier };
 }
-// Live token counter: ramps from 0 → cost as the reply fills expectedReplyChars, then holds at cost.
-// Higher tiers write longer text AND cost more per character — both factors make the counter
-// rise faster and peak much higher: Opos Max (~45k) vs Opas Medium (~400) is a 100× difference.
+// Live token counter: ramps from 0 upward as the reply fills — no cap so it keeps ticking
+// even if the reply runs longer than expectedReplyChars. Hides instantly when done.
 function liveTokensShown(chars) {
   const { cost, effort, tier } = liveReplyCost();
-  return Math.min(cost, Math.round(cost * chars / expectedReplyChars(tier, effort)));
+  return Math.round(cost * chars / expectedReplyChars(tier, effort));
 }
 const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', max:'Max', ultracode:'⚡ Ultra Code' };
 
