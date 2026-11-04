@@ -9665,35 +9665,58 @@ function fmtLiveTokens(n) {
 
 let _streamedCharsLive = 0;
 let _tokAnimFrame = null;
-let _tokDisplayed = 0;
-let _tokTarget = 0;
+let _tokShown = 0;       // fractional accumulator (floor displayed)
+let _tokFrac = 0;        // sub-token carry
+let _tokTarget = 0;      // target from actual char count
+let _tokRate = 0;        // tokens per ms, calibrated to effort
+let _tokLastTs = 0;
 let _tokActiveMsgEl = null;
+
+function _tokTick(ts) {
+  if (!_tokActiveMsgEl) return;
+  if (_tokLastTs > 0 && _tokTarget > _tokShown) {
+    const dt = ts - _tokLastTs;
+    _tokFrac += _tokRate * dt;
+    const add = Math.floor(_tokFrac);
+    if (add > 0) {
+      _tokFrac -= add;
+      _tokShown = Math.min(_tokTarget, _tokShown + add);
+      const tok = _tokActiveMsgEl?.querySelector('.stream-stats .stream-tok');
+      if (tok) tok.textContent = fmtLiveTokens(_tokShown);
+    }
+  }
+  _tokLastTs = ts;
+  _tokAnimFrame = requestAnimationFrame(_tokTick);
+}
 
 function startStreamStats(msgEl) {
   _streamedCharsLive = 0;
-  _tokDisplayed = 0;
+  _tokShown = 0;
+  _tokFrac = 0;
   _tokTarget = 0;
+  _tokLastTs = 0;
   _tokActiveMsgEl = msgEl;
   if (_tokAnimFrame) { cancelAnimationFrame(_tokAnimFrame); _tokAnimFrame = null; }
+  const { cost, effort, tier } = liveReplyCost();
+  const tw = TW_SPEED[effort] || TW_SPEED.medium;
+  const expChars = expectedReplyChars(tier, effort);
+  _tokRate = (tw.chars * cost) / (expChars * tw.ms); // tok/ms matching typewriter pace
   const stats = msgEl?.querySelector('.stream-stats');
   if (stats) { stats.classList.add('active'); stats.classList.remove('done'); const tok = stats.querySelector('.stream-tok'); if (tok) tok.textContent = '0'; }
+  _tokAnimFrame = requestAnimationFrame(_tokTick);
 }
 function updateStreamTokens(msgEl, charCount) {
   if (msgEl !== _tokActiveMsgEl) return;
-  // Direct odometer tick — value jumps to current position, no easing lag.
-  // Speed naturally scales with effort: more chars/tick at higher effort → bigger jumps.
-  _tokDisplayed = liveTokensShown(charCount);
-  const stats = msgEl?.querySelector('.stream-stats');
-  const tok = stats?.querySelector('.stream-tok');
-  if (tok) tok.textContent = fmtLiveTokens(_tokDisplayed);
+  _tokTarget = liveTokensShown(charCount); // rAF loop smoothly catches up
 }
 function stopStreamStats(msgEl, finalTokens, apiUsage) {
   if (streamTimer) { clearInterval(streamTimer); streamTimer = null; }
   streamStartTime = null;
-  const stats = msgEl?.querySelector('.stream-stats');
-  if (stats) stats.classList.remove('active'); // instant hide — no fade
+  if (_tokAnimFrame) { cancelAnimationFrame(_tokAnimFrame); _tokAnimFrame = null; }
   _tokActiveMsgEl = null;
-  _tokDisplayed = 0;
+  _tokShown = 0; _tokFrac = 0; _tokTarget = 0; _tokRate = 0; _tokLastTs = 0;
+  const stats = msgEl?.querySelector('.stream-stats');
+  if (stats) stats.classList.remove('active'); // instant hide
 }
 
 // Hide every token counter right away (called the moment a reply finishes arriving).
