@@ -1,6 +1,6 @@
 ﻿require('dotenv').config();
 process.on('uncaughtException', err => console.error('UNCAUGHT:', err.stack));
-// build: 2026-10-31
+// build: 2026-11-03
 process.on('unhandledRejection', (reason) => console.error('UNHANDLED REJECTION:', reason));
 const express = require('express');
 const session = require('express-session');
