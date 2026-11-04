@@ -2058,6 +2058,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '470': {
+    date: 'November 2026',
+    label: 'Voice Consistency Fix',
+    fixed: [
+      'Poppy\'s AI voice no longer silently falls back to a different voice when the voice server is briefly unavailable',
+    ],
+  },
   '469': {
     date: 'November 2026',
     label: 'Voice Switcher Improvements',
@@ -11813,7 +11820,13 @@ async function callModeTTS_server(text) {
         body: JSON.stringify({ text: s, charId: (callContextChar || currentChar)?.id, provider: callProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName }),
         signal: ctrl.signal,
       });
-      if (!r.ok) { if (r.status === 501) serverTTSOk = false; throw new Error('tts ' + r.status); }
+      if (!r.ok) {
+        if (r.status === 501) serverTTSOk = false;
+        // 503 means the voice server (clone/character) is offline. Skip TTS for this message
+        // rather than substituting a completely different voice the user didn't select.
+        if (r.status === 503 && (callProvider === 'character' || callProvider === 'user')) return null;
+        throw new Error('tts ' + r.status);
+      }
       return r.blob();
     } finally {
       clearTimeout(tmo);

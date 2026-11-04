@@ -5286,8 +5286,12 @@ app.post('/api/tts', requireAuth, async (req, res) => {
           throw new Error(`clone server error ${cloneRes.status}`);
         }
       } catch (e) {
-        // Clone server not running or timed out — fall through to Edge TTS so there's still a voice
-        if (e.name !== 'AbortError') console.warn('[char-tts] clone server unavailable, falling back to Gemini TTS:', e.message);
+        if (e.name !== 'AbortError') console.warn('[char-tts] clone server unavailable:', e.message);
+        // When client explicitly chose the character voice, return 503 so it knows no audio is available.
+        // This prevents silent fallback to a completely different voice (Gemini/Edge) that the user didn't select.
+        if (provider === 'character') {
+          return res.status(503).json({ error: 'voice_server_offline', retry: true });
+        }
       }
     }
     // Clone server offline — fall through to Gemini TTS (sounds natural, not robotic)
