@@ -1990,7 +1990,9 @@ const summaryBusy = new Set();
 // Persistent user-memory system — facts auto-extracted from conversations
 // Injection limit: how many facts to inject into the system prompt per model tier
 const USER_MEMORY_INJECT = { opas: 1, opes: 3, opis: 6, opos: 10 };
-const USER_MEMORY_CAP = 60; // fallback cap; per-tier caps are in MEMORY_EXTRACT_TIERS
+const USER_MEMORY_CAP = 60;
+const userMemFactsCache = new Map(); // userId -> { rows: [{fact}][], at: number }
+const USER_MEM_CACHE_TTL = 15_000;  // 15s — skips the DB round-trip that blocks stream start // fallback cap; per-tier caps are in MEMORY_EXTRACT_TIERS
 // Per-tier extraction settings: higher tiers run more often, look at more history, extract more facts, and use a smarter model
 const MEMORY_EXTRACT_TIERS = {
   opas:  { every: 12, window: 15, maxFacts: 2,  words: 10, model: 'gemini-2.0-flash-lite', cap: 40  },
@@ -2213,9 +2215,17 @@ async function buildMemoryNote(modelTier, fullMsgs, key, charName, userId) {
   // Cross-session persistent user facts \u2014 tiered by model (OPAS gets 1, up to OPYS6 gets 60)
   if (injectCount > 0 && userId && db) {
     try {
-      const r = await db.query('SELECT fact FROM user_memories WHERE user_id=$1 ORDER BY created_at DESC LIMIT $2', [userId, injectCount]);
-      if (r.rows.length > 0) {
-        const facts = r.rows.map(row => sanitizeNote(row.fact, 200)).filter(Boolean);
+      const cached = userMemFactsCache.get(userId);
+      let rows;
+      if (cached && (Date.now() - cached.at) < USER_MEM_CACHE_TTL) {
+        rows = cached.rows;
+      } else {
+        const r = await db.query('SELECT fact FROM user_memories WHERE user_id=$1 ORDER BY created_at DESC LIMIT $2', [userId, injectCount]);
+        rows = r.rows;
+        userMemFactsCache.set(userId, { rows, at: Date.now() });
+      }
+      if (rows.length > 0) {
+        const facts = rows.map(row => sanitizeNote(row.fact, 200)).filter(Boolean);
         if (facts.length) parts.push('WHAT THE USER HAS SHARED ABOUT THEMSELVES (remember this; these are real facts they told you): ' + facts.join(' | '));
       }
     } catch (_) { /* memory is optional \u2014 proceed without it */ }
@@ -7517,6 +7527,14 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     if (!callMode && typeof message === 'string' && message.trim() && !/^\[.+\]$/s.test(message.trim())) addFriendship(userId, charId);
   }
 
+  // Flush SSE headers immediately so the browser sees the connection open while we build the prompt.
+  // All error paths are above this point; nothing below can return a non-streaming response.
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
   // Chat APIs require the last turn to be a user turn — inject a hidden continuation trigger if needed
   let memNote = '';
   try { memNote = await buildMemoryNote(modelTier, aiHistory(conversations[key]), key, (dbChar && dbChar.name) || charId, userId); }
@@ -7545,12 +7563,6 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       ];
     }
   }
-
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders();
 
   const otherCharNames = Array.isArray(otherChars) && otherChars.length
     ? otherChars.map(c => c.name).filter(Boolean).join(', ')

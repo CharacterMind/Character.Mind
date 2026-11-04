@@ -2058,6 +2058,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '472': {
+    date: 'November 2026',
+    label: 'Faster Response Start',
+    fixed: [
+      'Response stream now opens immediately — user memory lookup no longer blocks the connection before the first token',
+      'User memory facts cached for 15 seconds so rapid replies skip the database round-trip entirely',
+    ],
+  },
   '471': {
     date: 'November 2026',
     label: 'Voice Timeout Fix',
