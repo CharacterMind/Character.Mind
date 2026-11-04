@@ -2247,17 +2247,18 @@ const REFINE_NOTE = 'REFINE: silently plan the reply first (what must happen, wh
 // Per-effort word targets injected into the user message itself (not just system prompt).
 // Gemini treats the latest user turn as the highest-priority instruction, so this overrides
 // any conversational "natural ending" the model senses from the dialogue history.
-const EFFORT_WORD_TARGET = { high: 800, extra: 1400, max: 2200 };
+const EFFORT_WORD_TARGET = { medium: 350, high: 800, extra: 1400, max: 2200 };
 function withLengthSuffix(messages, effort, modelTier, callMode) {
   if (callMode) return messages; // call mode wants short replies — never inject
   const words = EFFORT_WORD_TARGET[effort];
-  if (!words) return messages; // low / medium — no injection
+  if (!words) return messages; // low — no injection
   // Higher tiers write more: match modelDepthNote targets
   const rank = depthRankFor(modelTier);
   const tierTargets = {
-    high:  [800,  900,  1300, 2000],
-    extra: [1400, 1500, 2200, 3200],
-    max:   [2200, 2600, 3800, 5500],
+    medium: [350,  400,  600,  900],
+    high:   [800,  900,  1300, 2000],
+    extra:  [1400, 1500, 2200, 3200],
+    max:    [2200, 2600, 3800, 5500],
   };
   const minWords = (tierTargets[effort] || [])[rank] || words;
   const copy = messages.map(m => ({ ...m }));

@@ -2061,6 +2061,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '446': {
+    date: 'November 2026',
+    label: 'Medium Effort Now Generates Longer Replies',
+    fixed: [
+      'Medium effort now injects a 350-word minimum requirement so replies are noticeably longer than Low effort — higher model tiers scale up further (Opis → 600 words, Opos → 900 words)',
+    ],
+  },
   '445': {
     date: 'November 2026',
     label: 'Clone Voice Auto-Selected When Available',
