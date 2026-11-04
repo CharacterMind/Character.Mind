@@ -2058,6 +2058,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '475': {
+    date: 'November 2026',
+    label: 'Faster Text + Voice Start',
+    fixed: [
+      'Text now appears on screen the instant the AI starts generating — removed the 220-character hold that was artificially delaying the first chunk',
+      'Chatterbox voice model now pre-warms immediately after the voice server connects — first read-aloud is fast instead of 25-30 seconds cold',
+    ],
+  },
   '474': {
     date: 'November 2026',
     label: 'Instant TTS Interrupt + Warmup Fix',

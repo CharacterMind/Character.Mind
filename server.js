@@ -3728,7 +3728,7 @@ function startReplyStream(o) {
       fullResponse += text;
       if (released) { send({ text }); return; }
       held += text;
-      if (held.length >= 220) { released = true; send({ text: held }); held = ''; }
+      if (held.length >= 1) { released = true; send({ text: held }); held = ''; }
     } catch (e) { fail(e); }
   };
   const handleDone = () => {
@@ -5140,6 +5140,23 @@ app.post('/api/tts/announce', express.json(), async (req, res) => {
   }
   console.log('[tts-announce] local TTS URL registered:', url);
   res.json({ ok: true, url });
+  // Pre-warm Chatterbox so the first real TTS request doesn't pay cold-start latency (~25s).
+  // Fire-and-forget: errors here are non-fatal.
+  setTimeout(async () => {
+    const firstEntry = Object.values(CHARACTER_VOICE_MAP).find(e => e.cbExag !== undefined);
+    if (!firstEntry) return;
+    const cloneBase = url.replace(/\/+$/, '');
+    try {
+      await fetch(`${cloneBase}/tts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: 'Hi', voice_id: firstEntry.voiceId, tts_engine: 'chatterbox', exaggeration: firstEntry.cbExag, cfg_weight: firstEntry.cbCfg, temperature: firstEntry.cbTemp, pitch_semitones: firstEntry.cbPitch ?? 0 }),
+      });
+      console.log('[tts-announce] Chatterbox warmed up — first real request will be fast');
+    } catch (e) {
+      console.log('[tts-announce] warmup skipped (will warm on first request):', e.message);
+    }
+  }, 500);
 });
 
 // Quick check: is the XTTS clone server reachable?
