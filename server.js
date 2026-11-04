@@ -1892,11 +1892,11 @@ function modelDepthNote(modelTier, effort) {
   const highTargets = [[5, 8, 650], [8, 12, 1000], [12, 18, 1500]];
   if (effort === 'medium') {
     const [minP, maxP, minW] = medTargets[rank - 1];
-    return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} paragraphs — at least ${minW} words total. This overrides ALL other length guidance in this prompt (including the RESPONSE LENGTH word-count ceiling above and the Writing Craft section) — write more, richer content. Each paragraph should be full of atmosphere, dialogue, and emotion. Do not stop early.`;
+    return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} paragraphs — at least ${minW} words total. This overrides ALL other length guidance in this prompt (including the RESPONSE LENGTH target above and the Writing Craft section) — write more, richer content. Each paragraph should be full of atmosphere, dialogue, and emotion. Do not stop early.`;
   }
   if (effort === 'high') {
     const [minP, maxP, minW] = highTargets[rank - 1];
-    return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} full paragraphs — at least ${minW} words total. This overrides ALL other length guidance in this prompt (including the RESPONSE LENGTH word-count ceiling above and the Writing Craft section) — go deeper, longer, and more immersive. Develop every beat fully.`;
+    return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} full paragraphs — at least ${minW} words total. This overrides ALL other length guidance in this prompt (including the RESPONSE LENGTH target above and the Writing Craft section) — go deeper, longer, and more immersive. Develop every beat fully.`;
   }
   return 'TIER UPGRADE: As a higher-tier model, push further — more paragraphs, richer atmosphere, deeper sensory detail, and more fully developed emotional and narrative beats at every turn.';
 }
