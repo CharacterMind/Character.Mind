@@ -2058,6 +2058,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '469': {
+    date: 'November 2026',
+    label: 'Voice Switcher Improvements',
+    added: [
+      '"AI Voice" tab now always visible in Voice settings — click to switch back to Poppy\'s voice from any other provider',
+      'Uploaded voices in "Your Voices" now use Chatterbox voice cloning for more natural output',
+    ],
+  },
   '468': {
     date: 'November 2026',
     label: 'Near-Instant Call Voice',
@@ -10195,7 +10203,7 @@ function setTTSProvider(p, btn) {
 function _updateVoiceBarLabel() {
   const voiceBtn = document.getElementById('mbVoiceBtn');
   if (!voiceBtn) return;
-  const labels = { gemini: 'Gemini', edge: 'Neutral', character: 'Clone Voice', kokoro: 'Kokoro', off: 'No voice', user: 'Your Voice' };
+  const labels = { gemini: 'Gemini', edge: 'Neutral', character: 'AI Voice', kokoro: 'Kokoro', off: 'No voice', user: 'Your Voice' };
   voiceBtn.textContent = labels[ttsProvider] || 'Voice';
 }
 

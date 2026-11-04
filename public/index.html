@@ -2272,11 +2272,11 @@
 
     <!-- Voice option tabs -->
     <div class="voice-provider-tabs voice-main-tabs">
+      <button class="voice-provider-tab" data-tab="character" onclick="switchVoiceTab('character',this)">AI Voice</button>
       <button class="voice-provider-tab" data-tab="gemini" onclick="switchVoiceTab('gemini',this)">Gemini</button>
       <button class="voice-provider-tab" data-tab="edge" onclick="switchVoiceTab('edge',this)">Neutral</button>
       <button class="voice-provider-tab" data-tab="kokoro" onclick="switchVoiceTab('kokoro',this)">Kokoro</button>
       <button class="voice-provider-tab" data-tab="user" onclick="switchVoiceTab('user',this)">Your Voices</button>
-      <button class="voice-provider-tab" data-tab="character" onclick="switchVoiceTab('character',this)" style="display:none">Character Clone</button>
       <button class="voice-provider-tab" data-tab="off" onclick="switchVoiceTab('off',this)">No voice</button>
     </div>
 
@@ -2692,7 +2692,7 @@
 </div>
 
 
-<script src="app.js?v=468"></script>
+<script src="app.js?v=469"></script>
 
 <!-- Quiz Modal -->
 <div id="quizOverlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeQuizModal()">

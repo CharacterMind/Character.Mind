@@ -5350,7 +5350,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         const cloneRes = await fetch(`${cloneBase}/tts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, voice_id: voiceId, tts_engine: 'f5tts' }),
+          body: JSON.stringify({ text, voice_id: voiceId, tts_engine: 'chatterbox', exaggeration: 0.5, cfg_weight: 0.5, temperature: 0.8, pitch_semitones: 0 }),
           signal: ctrl.signal,
         }).finally(() => clearTimeout(cloneTimeout));
         if (cloneRes.ok) {
