@@ -2061,6 +2061,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '445': {
+    date: 'November 2026',
+    label: 'Clone Voice Auto-Selected When Available',
+    fixed: [
+      'Characters with a cloned voice now automatically use it for read-aloud when the voice server is online — no need to manually switch to "Character" voice in settings',
+      'Auto-selection only applies when you have not explicitly chosen a voice provider for that character — your manual preference always wins',
+    ],
+  },
   '444': {
     date: 'November 2026',
     label: 'High / Extra / Max Effort Now Actually Generates Longer Replies',
@@ -6161,6 +6169,7 @@ async function openChat(charId) {
   }
   const snapChar = currentChar;
   loadCharVoice();
+  autoSelectCharVoiceIfClone();
   updateAutoSpeakBtn();
 
   showView('chatView');
@@ -9905,6 +9914,28 @@ function loadCharVoice() {
     if (saved && window.speechSynthesis) { const vs = window.speechSynthesis.getVoices(); selectedVoice = vs.find(v => v.voiceURI === saved) || null; }
   } catch(_) {}
   _updateVoiceBarLabel();
+}
+
+// If this character has a clone voice and the clone server is online, auto-select it
+// for the session — but only when the user hasn't explicitly chosen a provider.
+async function autoSelectCharVoiceIfClone() {
+  const char = currentChar;
+  if (!char) return;
+  try {
+    const saved = localStorage.getItem(`cm_tts_prov_${char.id}`);
+    if (saved) return; // user has an explicit preference, respect it
+  } catch (_) {}
+  try {
+    const [voiceR, xttsStatus] = await Promise.all([
+      fetch(`/api/character-voice/${encodeURIComponent(char.id)}`, { method: 'HEAD' }),
+      fetch('/api/xtts-status').then(r => r.ok ? r.json() : { online: false }).catch(() => ({ online: false }))
+    ]);
+    if (currentChar?.id !== char.id) return; // character changed while we were fetching
+    if (voiceR.ok && xttsStatus.online) {
+      ttsProvider = 'character';
+      _updateVoiceBarLabel();
+    }
+  } catch (_) {}
 }
 
 function applyVoice(utterance) {
