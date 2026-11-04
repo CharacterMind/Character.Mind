@@ -1265,7 +1265,7 @@ function resolveEffort(userId, requested) {
 // count, which swings a lot because of hidden thinking), so message counts are predictable.
 // Opas ≈ 0.23× Opes at medium. Higher models are multiples of Opes.
 // Free session (60k) → ~85 medium Opes, ~60 high Opes, ~6 max Opes. All are usable.
-const OPAS_COST = { low: 300, medium: 400, high: 500, extra: 800, max: 2000, ultracode: 3000 };
+const OPAS_COST = { low: 300, medium: 400, high: 1000, extra: 2500, max: 6000, ultracode: 3000 };
 const OPES_COST = { low: 600, medium: 700, high: 1000, extra: 2000, max: 10000, ultracode: 15000 };
 // Base models step up: Opes 1×, Opis 2×, Opos 4.5× (of Opes). Each tier drains significantly faster.
 // At medium: opas=400, opes=700, opis=1400, opos=3150. Opos burns ~8× faster than opas.
@@ -1885,10 +1885,10 @@ function modelDepthNote(modelTier, effort) {
   const rank = depthRankFor(modelTier);
   if (!rank) {
     if (effort === 'low')    return 'BREVITY ANCHOR: This is a brief opas-tier reply — write 1 to 3 sentences only. Quality over quantity: one sharp moment and stop. Do not elaborate.';
-    if (effort === 'medium') return 'DEPTH GUIDE: Write at least 200 words for this reply — 2 to 3 focused paragraphs. Keep the style sharp and punchy, every sentence earning its place. Do not stop before you reach 200 words.';
-    if (effort === 'high')   return 'DEPTH GUIDE: Write at least 400 words for this reply — 4 to 6 paragraphs. Richer scene and atmosphere, but keep the sharp, punchy style throughout. Do not stop before you reach 400 words.';
-    if (effort === 'extra')  return 'DEPTH GUIDE: Write at least 650 words for this reply — 6 to 9 full paragraphs. Rich atmosphere, vivid sensory detail, strong pacing. Do not stop before you reach 650 words.';
-    if (effort === 'max')    return 'DEPTH GUIDE: Write at least 1000 words for this reply — 9 to 13 full paragraphs. Fully explore the scene: dialogue, atmosphere, emotion, and momentum. Do not stop before you reach 1000 words.';
+    if (effort === 'medium') return 'DEPTH GUIDE: Write at least 400 words for this reply — 4 to 6 focused paragraphs. Keep the style sharp and vivid, every sentence earning its place. Do NOT stop before you reach 400 words — if you finish early, keep developing the scene, atmosphere, or character moment until you reach the minimum.';
+    if (effort === 'high')   return 'DEPTH GUIDE: Write at least 800 words for this reply — 7 to 10 paragraphs. Build rich atmosphere, vivid sensory detail, and strong pacing throughout. Do NOT stop before you reach 800 words — if you feel done, keep writing: extend the scene, deepen the emotion, add more dialogue or reaction.';
+    if (effort === 'extra')  return 'DEPTH GUIDE: Write at least 1400 words for this reply — 12 to 18 full paragraphs. This is a deeply immersive response: explore the full scene, every beat of dialogue, every sensory detail, every emotional shift. Do NOT stop before you reach 1400 words — keep writing, keep expanding.';
+    if (effort === 'max')    return 'DEPTH GUIDE: Write at least 2200 words for this reply — 18 to 28 full paragraphs. This is a cinematic, fully immersive response — the longest and richest you can produce. Develop every story beat fully: set the scene with texture and atmosphere, let dialogue breathe, follow every emotional thread, describe actions in detail. Do NOT stop before you reach 2200 words. If you are approaching 2200 and feel done, keep writing and expanding.';
     return '';
   }
   if (effort === 'low') {

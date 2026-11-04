@@ -99,7 +99,7 @@ function loadAccountPrefs() {
 
 const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos' };
 // Must match OPAS_COST / OPES_COST / COST_FACTOR_VS_OPES in server.js — what one reply costs from the allowance.
-const OPAS_COST = { low: 300, medium: 400, high: 500, extra: 800, max: 2000, ultracode: 3000 };
+const OPAS_COST = { low: 300, medium: 400, high: 1000, extra: 2500, max: 6000, ultracode: 3000 };
 const OPES_COST = { low: 600, medium: 700, high: 1000, extra: 2000, max: 10000, ultracode: 15000 };
 const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 3 };
 const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1 };
@@ -115,13 +115,14 @@ function clientMessageCost(tier, effort) {
   return Math.round(OPES_COST[effort] * COST_FACTOR_VS_OPES[tier]);
 }
 // Roughly how many visible characters a full reply has at each effort (used to ramp the live counter up to the cost)
-const EXPECTED_REPLY_CHARS = { low: 250, medium: 500, high: 1200, extra: 2500, max: 4000, ultracode: 12000 };
+const EXPECTED_REPLY_CHARS = { low: 200, medium: 2400, high: 4800, extra: 8400, max: 13200, ultracode: 12000 };
 // Every model is asked for a set number of words at High, Extra and Max (must match WORDS_BY_EFFORT / MODEL_WORDS in server.js)
 const WORDS_BY_EFFORT = { high: 1100, extra: 3000, max: 7500, ultracode: 9000 };
 const MODEL_WORDS = { opas: 0.7, opes: 1.5, opis: 1.3, opos: 1.5 };
 function expectedReplyChars(tier, effort) {
   const b = baseTierOf(tier);
-  if (b && WORDS_BY_EFFORT[effort]) return Math.round(WORDS_BY_EFFORT[effort] * MODEL_WORDS[b] / 50) * 50 * 6;   // about 6 characters a word
+  if (b === 'opas') return EXPECTED_REPLY_CHARS[effort] || 1200;
+  if (b && WORDS_BY_EFFORT[effort]) return Math.round(WORDS_BY_EFFORT[effort] * MODEL_WORDS[b] / 50) * 50 * 6;
   return EXPECTED_REPLY_CHARS[effort] || 1200;
 }
 // Model tiers each plan may use — must match PLAN_MODEL_TIERS in server.js.
@@ -391,13 +392,7 @@ function formatLocalPrice(usdPrice) {
 }
 
 function openPricingModal() {
-  document.getElementById('userDropdown')?.classList.remove('open');
-  const m = document.getElementById('pricingModal');
-  if (!m) return;
-  m.style.display = 'flex';
-  renderPricingCards();
-  // Load geo + exchange rates; re-render when both land so local currency shows correctly
-  Promise.all([ensurePricingCountry(), loadExchangeRates(), loadPaypalConfig()]).then(() => renderPricingCards()).catch(() => {});
+  // Plans hidden — no-op until re-enabled
 }
 function closePricingModal() {
   const m = document.getElementById('pricingModal');
@@ -1302,9 +1297,9 @@ function updateSettingsPlanCard(tier) {
   if (name)  name.textContent  = (PLAN_LABELS[t] || t) + ' Plan';
   if (sub)   sub.textContent   = PLAN_SUBS[t] || '';
   const upgradeBtn = document.querySelector('.settings-plan-upgrade-btn');
-  if (upgradeBtn) upgradeBtn.style.display = t === 'free' ? '' : 'none';
+  if (upgradeBtn) upgradeBtn.style.display = 'none';
   const limitNote = document.getElementById('settingsPlanLimitNote');
-  if (limitNote) limitNote.style.display = t === 'free' ? '' : 'none';
+  if (limitNote) limitNote.style.display = 'none';
   const udPlanBadge = document.getElementById('udPlanBadge');
   if (udPlanBadge) udPlanBadge.textContent = PLAN_LABELS[t] || t;
   renderSettingsTiers(t);
@@ -9433,11 +9428,11 @@ function remainingTypeMs() {
 
 // Typewriter speed — slow enough to see generation in real time with token counter ticking
 const TW_SPEED = {
-  low:    { chars: 1, ms: 28 },
-  medium: { chars: 2, ms: 28 },
-  high:   { chars: 3, ms: 28 },
-  extra:  { chars: 5, ms: 28 },
-  max:    { chars: 8, ms: 28 },
+  low:    { chars: 1,  ms: 28 },
+  medium: { chars: 4,  ms: 28 },
+  high:   { chars: 8,  ms: 28 },
+  extra:  { chars: 14, ms: 28 },
+  max:    { chars: 22, ms: 28 },
 };
 
 function startTypewriter(bubble, msgEl) {
@@ -9455,8 +9450,8 @@ function startTypewriter(bubble, msgEl) {
   let credit = 0, lastTick = Date.now();
   twInterval = setInterval(() => {
     const now = Date.now();
-    // Speed multiplier: starts at 1×, ramps up to 4× by ~1500 chars — generation accelerates as it flows
-    const speedMult = 1 + Math.min(3, twRevealed.length / 500);
+    // Speed multiplier: starts at 1×, ramps up to 6× by ~1500 chars — generation accelerates as it flows
+    const speedMult = 1 + Math.min(5, twRevealed.length / 300);
     credit += (now - lastTick) * perMs * speedMult;
     lastTick = now;
     if (!twQueue.length) {
