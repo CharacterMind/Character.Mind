@@ -1470,6 +1470,9 @@ setInterval(checkForUpdate, 90000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
 
 window.addEventListener('DOMContentLoaded', async () => {
+  // Hide non-Opas model picker options (Opas-only launch)
+  ['Opes', 'Opis', 'Opos'].forEach(n => { const el = document.getElementById('opt' + n); if (el) el.style.display = 'none'; });
+
   // Fix iOS virtual keyboard: keep --vvh in sync with the visual viewport so the
   // app height shrinks correctly when the on-screen keyboard appears.
   // CRITICAL: --vvh is set immediately and NEVER removed. Without this the CSS
