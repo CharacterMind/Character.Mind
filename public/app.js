@@ -2058,6 +2058,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '465': {
+    date: 'November 2026',
+    label: 'Opes Description',
+    fixed: [
+      'Opes now shows a "2× longer" badge and explains its cost vs Opas clearly in the model picker',
+    ],
+  },
   '464': {
     date: 'November 2026',
     label: 'Opes Is Live',
