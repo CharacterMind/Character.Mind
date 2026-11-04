@@ -2058,6 +2058,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '471': {
+    date: 'November 2026',
+    label: 'Voice Timeout Fix',
+    fixed: [
+      'Auto-speak no longer hangs for 60+ seconds when voice server is offline — requests now time out in 20 seconds and skip audio cleanly',
+    ],
+  },
   '470': {
     date: 'November 2026',
     label: 'Voice Consistency Fix',
@@ -10915,11 +10922,16 @@ function _prefetchSentence(rawText) {
   if (ttsProvider === 'browser' || ttsProvider === 'off') return;
   const clean = ttsCleanText(rawText);
   if (!clean || clean.length <= 1 || _ttsPrefetchPool.has(clean)) return;
-  const makeReq = (prov) => fetch('/api/tts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: clean.slice(0, 499), charId: currentChar?.id || '', provider: prov, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
-  }).then(r => r.ok ? r.blob() : null).catch(() => null);
+  const makeReq = (prov) => {
+    const ctrl = new AbortController();
+    const tmo = setTimeout(() => ctrl.abort(), 20000);
+    return fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: clean.slice(0, 499), charId: currentChar?.id || '', provider: prov, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName }),
+      signal: ctrl.signal,
+    }).then(r => { clearTimeout(tmo); return r.ok ? r.blob() : null; }).catch(() => { clearTimeout(tmo); return null; });
+  };
   let p;
   if (ttsProvider === 'gemini') {
     // Race Gemini vs Edge — first non-null result wins (~300ms Edge beats ~1-2s Gemini)
@@ -11076,17 +11088,21 @@ async function _playStreamTTSQueue() {
       let bp = _ttsPrefetchPool.get(t);
       _ttsPrefetchPool.delete(t);
       if (!bp) {
+        const ctrl2 = new AbortController();
+        const tmo2 = setTimeout(() => ctrl2.abort(), 20000);
         bp = fetch('/api/tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: t.slice(0, 499), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
+          body: JSON.stringify({ text: t.slice(0, 499), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName }),
+          signal: ctrl2.signal,
         }).then(r => {
+          clearTimeout(tmo2);
           if (!r.ok) return null;
           const synth = r.headers.get('X-Synthesis-Time');
           const prov  = r.headers.get('X-TTS-Provider') || ttsProvider;
           if (synth) console.log(`[tts] ${prov} synthesis=${synth}s "${t.slice(0,35)}..."`);
           return r.blob();
-        }).catch(() => null);
+        }).catch(() => { clearTimeout(tmo2); return null; });
       }
 
       const _ttsWaitT0 = performance.now();
