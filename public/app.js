@@ -1304,20 +1304,9 @@ function updateSettingsPlanCard(tier) {
   if (upgradeBtn) upgradeBtn.style.display = t === 'free' ? '' : 'none';
   const limitNote = document.getElementById('settingsPlanLimitNote');
   if (limitNote) limitNote.style.display = t === 'free' ? '' : 'none';
-  updatePlanTierStrip(t);
+  const udPlanBadge = document.getElementById('udPlanBadge');
+  if (udPlanBadge) udPlanBadge.textContent = PLAN_LABELS[t] || t;
   renderSettingsTiers(t);
-}
-function updatePlanTierStrip(tier) {
-  const t = tier || lastKnownUsage?.subscriptionTier || 'free';
-  const strip = document.getElementById('planTierStrip');
-  if (!strip) return;
-  if (t === 'free') {
-    strip.style.display = '';
-    const label = document.getElementById('planTierStripLabel');
-    if (label) label.textContent = 'Free Plan';
-  } else {
-    strip.style.display = 'none';
-  }
 }
 
 function renderSettingsTiers(currentTier) {
@@ -1949,6 +1938,8 @@ function renderUserBadge() {
     udName.textContent  = getDisplayName();
     udName.style.fontWeight = owner ? '800' : '';
   }
+  const udPlanBadge = document.getElementById('udPlanBadge');
+  if (udPlanBadge) udPlanBadge.textContent = PLAN_LABELS[lastKnownUsage?.subscriptionTier || 'free'] || 'Free';
 }
 
 function toggleUserDropdown(e) {
@@ -9463,7 +9454,9 @@ function startTypewriter(bubble, msgEl) {
   let credit = 0, lastTick = Date.now();
   twInterval = setInterval(() => {
     const now = Date.now();
-    credit += (now - lastTick) * perMs;
+    // Speed multiplier: starts at 1×, ramps up to 4× by ~1500 chars — generation accelerates as it flows
+    const speedMult = 1 + Math.min(3, twRevealed.length / 500);
+    credit += (now - lastTick) * perMs * speedMult;
     lastTick = now;
     if (!twQueue.length) {
       credit = 0;
@@ -9540,17 +9533,44 @@ function startStreamStats(msgEl) {
   }, 1000);
 }
 
+// Animated token counter — smoothly chases the target, accelerating as the generation grows
+let _tokAnimFrame = null;
+let _tokDisplayed = 0;
+let _tokTarget = 0;
+let _tokActiveMsgEl = null;
+
+function _flushTokDisplay() {
+  if (!_tokActiveMsgEl) return;
+  const tokEl = _tokActiveMsgEl.querySelector('.stream-stats .stream-tok');
+  if (tokEl) tokEl.textContent = fmtLiveTokens(Math.round(_tokDisplayed)) + ' tokens';
+}
+function _tickTokAnim() {
+  _tokAnimFrame = null;
+  if (!_tokActiveMsgEl) return;
+  const stats = _tokActiveMsgEl.querySelector('.stream-stats');
+  if (!stats?.classList.contains('active')) { _tokDisplayed = 0; return; }
+  const diff = _tokTarget - _tokDisplayed;
+  if (diff <= 0) { _flushTokDisplay(); return; }
+  // Step grows with the target — longer generation ticks faster
+  const step = Math.max(1, diff * 0.12 + _tokTarget * 0.003);
+  _tokDisplayed = Math.min(_tokTarget, _tokDisplayed + step);
+  _flushTokDisplay();
+  if (_tokDisplayed < _tokTarget) _tokAnimFrame = requestAnimationFrame(_tickTokAnim);
+}
 function updateStreamTokens(msgEl, charCount) {
   const stats = msgEl?.querySelector('.stream-stats');
   if (!stats || !stats.classList.contains('active')) return;
   const est = liveTokensShown(charCount);
-  const tokEl = stats.querySelector('.stream-tok');
-  if (tokEl) tokEl.textContent = fmtLiveTokens(est) + ' tokens';
+  _tokActiveMsgEl = msgEl;
+  _tokTarget = est;
+  if (!_tokAnimFrame) _tokAnimFrame = requestAnimationFrame(_tickTokAnim);
 }
 
 function stopStreamStats(msgEl, finalTokens) {
   if (streamTimer) { clearInterval(streamTimer); streamTimer = null; }
   streamStartTime = null;
+  if (_tokAnimFrame) { cancelAnimationFrame(_tokAnimFrame); _tokAnimFrame = null; }
+  _tokDisplayed = 0; _tokTarget = 0; _tokActiveMsgEl = null;
   const stats = msgEl?.querySelector('.stream-stats');
   if (!stats) return;
   if (finalTokens != null) {

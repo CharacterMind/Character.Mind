@@ -1141,20 +1141,6 @@ html, body {
 .btn-send:hover { opacity: .88; transform: scale(1.04); }
 .btn-send svg { width: 17px; height: 17px; }
 .btn-send:disabled { opacity: .28; cursor: not-allowed; transform: none; }
-/* ── Plan tier strip (shown below model bar for free users) ─────────────── */
-.plan-tier-strip {
-  display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
-  gap: 5px 8px; font-size: 11px; color: var(--text3);
-  margin-top: 5px; cursor: pointer; transition: color .15s;
-}
-.plan-tier-strip:hover { color: var(--text2); }
-.pts-plan-name { font-weight: 600; color: var(--accent-l); }
-.pts-sep { opacity: .4; }
-.pts-note { }
-.pts-upgrade {
-  font-weight: 600; color: var(--accent-l);
-  background: var(--accent-dim); padding: 1px 8px; border-radius: 10px;
-}
 .disclaimer {
   display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
   gap: 6px 10px; font-size: 11px; color: var(--text3);
@@ -2407,7 +2393,12 @@ html, body {
 .ud-avatar .ub-avatar-img { width: 38px; height: 38px; }
 .ud-avatar .ub-initial { width: 38px; height: 38px; font-size: 15px; }
 .ud-info { min-width: 0; }
-.ud-info-name { font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ud-info-name-row { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.ud-info-name { font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ud-plan-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; flex-shrink: 0;
+  background: var(--accent-dim); color: var(--accent-l); white-space: nowrap;
+}
 .ud-info-email { font-size: 11px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ud-divider { height: 1px; background: var(--border); margin: 4px 0; }
 .ud-item {

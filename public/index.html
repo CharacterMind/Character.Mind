@@ -415,7 +415,10 @@
         <div class="ud-profile-header">
           <div class="ud-avatar" id="udAvatar"></div>
           <div class="ud-info">
-            <div class="ud-info-name" id="udName"></div>
+            <div class="ud-info-name-row">
+              <div class="ud-info-name" id="udName"></div>
+              <span id="udPlanBadge" class="ud-plan-badge">Free</span>
+            </div>
             <div class="ud-info-email" id="udEmail"></div>
           </div>
         </div>
@@ -1545,12 +1548,6 @@
             <span class="mb-sep" id="notifSep">·</span>
             <button class="mb-effort-btn mb-notif-btn" id="notifBellBtn" onclick="togglePushNotifications()" title="Get notified when characters want to RP">🔔</button>
           </div>
-        </div>
-        <div id="planTierStrip" class="plan-tier-strip" onclick="openPricingModal()" style="display:none" role="button" tabindex="0">
-          <span id="planTierStripLabel" class="pts-plan-name">Free Plan</span>
-          <span class="pts-sep">·</span>
-          <span class="pts-note">Opis &amp; Opos locked</span>
-          <span class="pts-upgrade">Upgrade →</span>
         </div>
         <div class="disclaimer">
           <span class="disclaimer-text">This is A.I. and not a real person. Treat everything it says as fiction.</span>
