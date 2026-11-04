@@ -2048,6 +2048,25 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '437': {
+    date: 'November 2026',
+    label: 'Faster Generation + Deeper Replies',
+    added: [
+      'Typewriter now accelerates as text grows — starts at 1× and ramps to 6× speed by ~1,500 chars revealed',
+      'Token counter smoothly counts up during generation instead of snapping to a value',
+      'TTS play button now splits the message into sentences and prefetches them in parallel — first sentence plays as soon as it\'s ready',
+    ],
+    changed: [
+      'Opas word targets massively raised: Medium 400 words, High 800, Extra 1,400, Max 2,200 — with strong DO NOT STOP instructions',
+      'Token costs scaled to effort: High now costs 1,000 tokens, Extra 2,500, Max 6,000',
+      'Voice fallback improved — when the voice clone server is offline, characters now use Gemini TTS instead of robotic Edge TTS',
+      'Auto-speak triggers sooner during streaming — sentences are dispatched faster for less audio lag',
+    ],
+    fixed: [
+      'Uploaded voice (Poppy) was defaulting to a robotic female voice — now falls back to natural Gemini TTS when cloning is unavailable',
+      'Token counter was jumping in large steps instead of counting smoothly',
+    ],
+  },
   '436': {
     date: 'November 2026',
     label: 'Longer Responses + Smarter Models',
