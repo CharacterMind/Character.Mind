@@ -2073,6 +2073,13 @@ const CHANGELOG_DATA = {
       'Token counter fades out after reply finishes instead of snapping away',
     ],
   },
+  '450': {
+    date: 'November 2026',
+    label: 'Usage & Plans Removed From Menu',
+    items: [
+      'Removed Usage and Plans from the account dropdown — will be rebuilt properly',
+    ],
+  },
   '449': {
     date: 'November 2026',
     label: 'Token/Usage Display Removed',
