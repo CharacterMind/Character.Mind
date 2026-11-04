@@ -1887,23 +1887,37 @@ function modelDepthNote(modelTier, effort) {
     if (effort === 'low')    return 'BREVITY ANCHOR: This is a brief opas-tier reply — write 1 to 3 sentences only. Quality over quantity: one sharp moment and stop. Do not elaborate.';
     if (effort === 'medium') return 'DEPTH GUIDE: Write at least 200 words for this reply — 2 to 3 focused paragraphs. Keep the style sharp and punchy, every sentence earning its place. Do not stop before you reach 200 words.';
     if (effort === 'high')   return 'DEPTH GUIDE: Write at least 320 words for this reply — 3 to 4 paragraphs. Richer scene and atmosphere, but keep the sharp, punchy style throughout. Do not stop before you reach 320 words.';
+    if (effort === 'extra')  return 'DEPTH GUIDE: Write at least 500 words for this reply — 4 to 6 full paragraphs. Rich atmosphere, vivid sensory detail, strong pacing. Do not stop before you reach 500 words.';
+    if (effort === 'max')    return 'DEPTH GUIDE: Write at least 750 words for this reply — 6 to 9 full paragraphs. Fully explore the scene: dialogue, atmosphere, emotion, and momentum. Do not stop before you reach 750 words.';
     return '';
   }
   if (effort === 'low') {
     return 'TIER DEPTH: Add ' + rank + ' extra sentence' + (rank > 1 ? 's' : '') + ' of vivid atmosphere beyond the brief reply above.';
   }
-  // Medium and High: explicit word + paragraph targets that scale significantly per tier
-  const medTargets = [[4, 6, 450], [6, 9, 650], [8, 13, 950]];  // [minPara, maxPara, minWords] for opes/opis/opos
-  const highTargets = [[5, 8, 650], [8, 12, 1000], [12, 18, 1500]];
+  // All non-low efforts: explicit word + paragraph targets that scale per tier and effort
+  // [minPara, maxPara, minWords] for [opes, opis, opos] at each effort level
+  const targets = {
+    medium: [[4, 6, 450],  [6, 9,  650],  [8,  13, 950]],
+    high:   [[5, 8, 650],  [8, 12, 1000], [12, 18, 1500]],
+    extra:  [[8, 13, 1000],[12,18, 1600], [16, 24, 2400]],
+    max:    [[12,18, 1500],[18,26, 2500], [24, 35, 3500]],
+  };
+  const effortTargets = targets[effort];
+  if (!effortTargets) return '';
+  const [minP, maxP, minW] = effortTargets[rank - 1];
   if (effort === 'medium') {
-    const [minP, maxP, minW] = medTargets[rank - 1];
     return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt (including the RESPONSE LENGTH target above and the Writing Craft section) — write more, richer content. Each paragraph should be full of atmosphere, dialogue, and emotion.`;
   }
   if (effort === 'high') {
-    const [minP, maxP, minW] = highTargets[rank - 1];
     return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} full paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt (including the RESPONSE LENGTH target above and the Writing Craft section) — go deeper, longer, and more immersive. Develop every beat fully.`;
   }
-  return 'TIER UPGRADE: As a higher-tier model, push further — more paragraphs, richer atmosphere, deeper sensory detail, and more fully developed emotional and narrative beats at every turn.';
+  if (effort === 'extra') {
+    return `TIER UPGRADE: As a higher-tier model at Extra depth, write ${minP} to ${maxP} paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt. Expand every narrative beat: senses, dialogue, internal thoughts, and scene momentum. Leave nothing thin.`;
+  }
+  if (effort === 'max') {
+    return `TIER UPGRADE: As a higher-tier model at Max depth, write ${minP} to ${maxP} full paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt. This is a full scene: every sensation, gesture, line of dialogue, emotional shift and narrative beat must be written out completely. Nothing abbreviated. Nothing skipped.`;
+  }
+  return '';
 }
 // Each model family has its own way of writing, so the models feel different and not just longer or pricier.
 // This sits UNDER the character's own voice: the character always comes first.
