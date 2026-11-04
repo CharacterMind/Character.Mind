@@ -2058,6 +2058,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '474': {
+    date: 'November 2026',
+    label: 'Instant TTS Interrupt + Warmup Fix',
+    fixed: [
+      'Sending a new message now immediately cuts off the current read-aloud — no more overlap between the old and new response',
+      '"Read-aloud unavailable" error on first use fixed — timeout raised to 45s to cover Chatterbox voice model warmup',
+      'Read-aloud button no longer references removed Gemini/Edge voice variables',
+    ],
+  },
   '473': {
     date: 'November 2026',
     label: 'Cleaner Voice System',
@@ -6870,6 +6879,10 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
     }
   }
 
+  // Cut any in-progress TTS the moment the user sends — new message takes priority
+  _stopCurrentTTS();
+  _streamTTSQueue = []; _streamTTSBuffer = '';
+
   showTyping(true);
   isStreaming = true;
   document.getElementById('sendBtn').disabled = true;
@@ -11284,7 +11297,8 @@ async function toggleTTS(btn) {
   // ~350-char chunks so fewer synthesis calls cover more audio → no inter-sentence gaps
   const rawSentences = text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 1);
   if (!rawSentences.length) rawSentences.push(text.slice(0, 499));
-  const sentences = (ttsProvider === 'character') ? (() => {
+  // Merge into ~350-char chunks for Chatterbox (character + user voice) — fewer calls, no inter-sentence gaps
+  const sentences = (() => {
     const chunks = []; let cur = '';
     for (const s of rawSentences) {
       if (cur && cur.length + 1 + s.length > 350) { chunks.push(cur); cur = s; }
@@ -11292,29 +11306,21 @@ async function toggleTTS(btn) {
     }
     if (cur) chunks.push(cur);
     return chunks;
-  })() : rawSentences;
+  })();
 
   const charId = currentChar?.id || '';
-  const makeBody = (s, prov) => JSON.stringify({ text: s.slice(0, 499), charId, provider: prov || ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName });
+  const makeBody = s => JSON.stringify({ text: s.slice(0, 499), charId, provider: ttsProvider });
 
-  // Kick off synthesis for ALL sentences immediately — parallel, not serial
-  const fetchBlob = (s, prov) => fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: makeBody(s, prov) })
-    .then(r => r.ok ? r.blob() : null).catch(() => null);
+  // Kick off synthesis for ALL sentences immediately — parallel, not serial.
+  // 45s timeout: Chatterbox warmup on first request can take 25-30s.
+  const fetchBlob = s => {
+    const ctrl = new AbortController();
+    const tmo = setTimeout(() => ctrl.abort(), 45000);
+    return fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: makeBody(s), signal: ctrl.signal })
+      .then(r => { clearTimeout(tmo); return r.ok ? r.blob() : null; }).catch(() => { clearTimeout(tmo); return null; });
+  };
 
-  // For each sentence: race Gemini vs Edge (first-ok-wins) to get fastest start.
-  // For 'character' provider (clone voice): go direct — no race, keep the real voice.
-  const blobPromises = sentences.map(s => {
-    if (ttsProvider === 'gemini') {
-      const gp = fetchBlob(s);
-      const ep = fetchBlob(s, 'edge');
-      return new Promise(resolve => {
-        let done = 0, settled = false;
-        const win = b => { if (!settled && b) { settled = true; resolve(b); } else if (++done === 2 && !settled) { settled = true; resolve(null); } };
-        gp.then(win); ep.then(win);
-      });
-    }
-    return fetchBlob(s);
-  });
+  const blobPromises = sentences.map(s => fetchBlob(s));
 
   // Race memo check against synthesis — both fire NOW. Only 429+memo_daily_limit stops playback.
   let _memoStop = false, _memoStopData = null;
