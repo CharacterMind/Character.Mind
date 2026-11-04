@@ -3661,6 +3661,10 @@ html, body {
     box-shadow: none;
   }
 
+  /* Sidebar and backdrop start after the rail so the rail stays visible */
+  .sidebar { left: 48px !important; }
+  #sidebar-backdrop { left: 48px !important; }
+
   /* Floating expand btn — hide on mobile (rail handles it) */
   .sidebar-expand-btn { display: none !important; }
 
