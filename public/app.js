@@ -9674,13 +9674,14 @@ let _tokActiveMsgEl = null;
 
 function _tokTick(ts) {
   if (!_tokActiveMsgEl) return;
-  if (_tokLastTs > 0 && _tokTarget > _tokShown) {
+  if (_tokLastTs > 0) {
     const dt = ts - _tokLastTs;
     _tokFrac += _tokRate * dt;
     const add = Math.floor(_tokFrac);
     if (add > 0) {
       _tokFrac -= add;
-      _tokShown = Math.min(_tokTarget, _tokShown + add);
+      // Free-running: always advance at effort rate; snap forward if stream is ahead.
+      _tokShown = Math.max(_tokShown + add, _tokTarget);
       const tok = _tokActiveMsgEl?.querySelector('.stream-stats .stream-tok');
       if (tok) tok.textContent = fmtLiveTokens(_tokShown);
     }
