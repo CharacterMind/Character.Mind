@@ -101,7 +101,7 @@ const MODEL_LABELS  = { opas:'Opas', opes:'Opes', opis:'Opis', opos:'Opos' };
 // Must match OPAS_COST / OPES_COST / COST_FACTOR_VS_OPES in server.js — what one reply costs from the allowance.
 const OPAS_COST = { low: 300, medium: 400, high: 1000, extra: 2500, max: 6000, ultracode: 3000 };
 const OPES_COST = { low: 600, medium: 700, high: 1000, extra: 2000, max: 10000, ultracode: 15000 };
-const COST_FACTOR_VS_OPES = { opes: 1, opis: 1.25, opos: 3 };
+const COST_FACTOR_VS_OPES = { opes: 1, opis: 2.0, opos: 4.5 }; // must match server.js
 const BASE_PLAN_RANK = { opas: 0, opes: 0, opis: 1, opos: 1 };
 const PLAN_RANK = { free: 0, advanced: 1, x50: 1, x100: 1, x200: 1 };
 const GROUP_MEMBER_LIMITS = { free: 3, advanced: 8, x50: 15, x100: 15, x200: 15 };
@@ -114,13 +114,20 @@ function clientMessageCost(tier, effort) {
   if (tier === 'opas' || !(tier in COST_FACTOR_VS_OPES)) return OPAS_COST[effort];
   return Math.round(OPES_COST[effort] * COST_FACTOR_VS_OPES[tier]);
 }
-// How many visible characters a reply typically reaches at each effort level.
-// Keep these close to actual generation lengths so the counter reaches the full cost visibly.
-// Opas uses these directly; higher tiers share the same expected length but have bigger costs,
-// so the counter rises faster and peaks much higher — making the tier difference obvious.
-const EXPECTED_REPLY_CHARS = { low: 600, medium: 2400, high: 4800, extra: 8400, max: 13200, ultracode: 12000 };
+// Expected reply length in chars per tier × effort — calibrated to the server's generation targets.
+// Higher tier writes more text (server instructs Gemini accordingly) AND costs more tokens per char,
+// so the counter rises faster AND peaks much higher as both tier and effort go up.
+// Words-to-chars: ~6 chars/word. Sources: EFFORT_DIRECTIVES + modelDepthNote in server.js.
+const EXPECTED_REPLY_CHARS = {
+  opas: { low: 600,  medium: 2400,  high: 4800,  extra: 8400,  max: 13200, ultracode: 12000 },
+  opes: { low: 700,  medium: 2700,  high: 5400,  extra: 9000,  max: 15600, ultracode: 15000 },
+  opis: { low: 900,  medium: 3900,  high: 7800,  extra: 13200, max: 22800, ultracode: 22000 },
+  opos: { low: 1200, medium: 5700,  high: 12000, extra: 19200, max: 33000, ultracode: 30000 },
+};
 function expectedReplyChars(tier, effort) {
-  return EXPECTED_REPLY_CHARS[effort] || 2400;
+  const t = baseTierOf(tier) || 'opes';
+  const row = EXPECTED_REPLY_CHARS[t] || EXPECTED_REPLY_CHARS.opes;
+  return row[effort] || row.medium;
 }
 // Model tiers each plan may use — must match PLAN_MODEL_TIERS in server.js.
 const PLAN_MODEL_TIERS = {};
@@ -136,8 +143,8 @@ function liveReplyCost() {
   return { cost: clientMessageCost(tier, effort), effort, tier };
 }
 // Live token counter: ramps from 0 → cost as the reply fills expectedReplyChars, then holds at cost.
-// All tiers share the same expected length, so higher-cost tiers rise faster and peak much higher —
-// Opos Max hits 45k tokens at the same point Opas Medium shows only 400.
+// Higher tiers write longer text AND cost more per character — both factors make the counter
+// rise faster and peak much higher: Opos Max (~45k) vs Opas Medium (~400) is a 100× difference.
 function liveTokensShown(chars) {
   const { cost, effort, tier } = liveReplyCost();
   return Math.min(cost, Math.round(cost * chars / expectedReplyChars(tier, effort)));
@@ -2054,6 +2061,17 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '441': {
+    date: 'November 2026',
+    label: 'Token System Aligned With Model Tiers',
+    fixed: [
+      'Opis and Opos now cost the correct amount — Opis 2× Opes and Opos 4.5× Opes (matching what the server actually charges)',
+      'Token counter now calibrates to each model\'s actual expected reply length — Opos generates 2–4× more text than Opas at the same effort, so the counter rises accordingly',
+    ],
+    changed: [
+      'Higher model tier + higher effort now produces noticeably longer replies, a faster-climbing counter, and dramatically more tokens — just like how premium model tiers work at Anthropic',
+    ],
+  },
   '440': {
     date: 'November 2026',
     label: 'Token Counter Scales With Model & Effort',
