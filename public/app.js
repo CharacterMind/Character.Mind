@@ -2061,6 +2061,16 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '449': {
+    date: 'November 2026',
+    label: 'Token/Usage Display Removed',
+    removed: [
+      'Removed the stream-stats bar (time · speed · tokens) that appeared after AI responses — usage tracking still runs for subscription enforcement, it\'s just no longer shown',
+    ],
+    fixed: [
+      'Poppy\'s character card tagline updated to something actually funny',
+    ],
+  },
   '448': {
     date: 'November 2026',
     label: 'Voice Quality Improvements',
@@ -9515,18 +9525,6 @@ function createAiMessage() {
       ${msgMenuHtml('ai')}
     </div>
     <div class="bubble"></div>
-    <div class="stream-stats">
-      <span class="stream-spinner"></span>
-      <span class="stream-time">0s</span>
-      <span class="stream-sep">·</span>
-      <span class="stream-spd">—</span>
-      <span class="stream-sep">·</span>
-      <span class="stream-tok">0 out</span>
-      <span class="stream-sep stream-in-sep" style="display:none">·</span>
-      <span class="stream-in" style="display:none">— in</span>
-      <span class="stream-sep stream-cached-sep" style="display:none">·</span>
-      <span class="stream-cached" style="display:none">— cached</span>
-    </div>
     <div class="msg-footer">
       ${regenBtn()}${likeBtn()}${dislikeBtn()}
     </div>`;
@@ -9636,156 +9634,23 @@ function flushTypewriter() {
 }
 
 function fmtLiveTokens(n) {
-  if (n >= 999950) return (n / 1000000).toFixed(1) + 'M';   // 1.0M, 1.1M, 1.2M ... (never "1000.0k")
+  n = Math.round(n || 0);
+  if (n >= 999950) return (n / 1000000).toFixed(1) + 'M';
   if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
   return String(n);
 }
 
-function startStreamStats(msgEl) {
-  const stats = msgEl.querySelector('.stream-stats');
-  if (!stats) return;
-  streamStartTime = Date.now();
-  _streamedCharsLive = 0;
-  stats.style.display = '';
-  stats.classList.remove('done');
-  stats.classList.add('active');
-  const spinner = stats.querySelector('.stream-spinner');
-  if (spinner) spinner.style.display = '';
-  const tokEl = stats.querySelector('.stream-tok');
-  if (tokEl) tokEl.textContent = '0 out';
-  const spdEl = stats.querySelector('.stream-spd');
-  if (spdEl) spdEl.textContent = '—';
-  const timeEl = stats.querySelector('.stream-time');
-  if (timeEl) timeEl.textContent = '0s';
-  // Hide final-only spans until done
-  for (const cls of ['.stream-in-sep','.stream-in','.stream-cached-sep','.stream-cached']) {
-    const el = stats.querySelector(cls); if (el) el.style.display = 'none';
-  }
-  if (streamTimer) clearInterval(streamTimer);
-  streamTimer = setInterval(() => {
-    if (!streamStartTime) return;
-    const elapsed = (Date.now() - streamStartTime) / 1000;
-    const timeEl2 = stats.querySelector('.stream-time');
-    if (timeEl2) timeEl2.textContent = elapsed.toFixed(1) + 's';
-    // Live tok/s: output tokens (estimated) ÷ elapsed
-    if (elapsed > 0.5 && _tokTarget > 0) {
-      const spdEl2 = stats.querySelector('.stream-spd');
-      if (spdEl2) spdEl2.textContent = Math.round(_tokTarget / elapsed) + ' tok/s';
-    }
-  }, 250);
-}
-
-// Animated token counter — smoothly chases the target, accelerating as the generation grows
+let _streamedCharsLive = 0;
 let _tokAnimFrame = null;
 let _tokDisplayed = 0;
 let _tokTarget = 0;
 let _tokActiveMsgEl = null;
-let _streamedCharsLive = 0; // server-received chars — counter tracks max(revealed, received)
 
-function _flushTokDisplay() {
-  if (!_tokActiveMsgEl) return;
-  const tokEl = _tokActiveMsgEl.querySelector('.stream-stats .stream-tok');
-  if (tokEl) tokEl.textContent = fmtLiveTokens(Math.round(_tokDisplayed)) + ' tok';
-}
-function _tickTokAnim() {
-  _tokAnimFrame = null;
-  if (!_tokActiveMsgEl) return;
-  const stats = _tokActiveMsgEl.querySelector('.stream-stats');
-  if (!stats?.classList.contains('active')) { _tokDisplayed = 0; return; }
-  const diff = _tokTarget - _tokDisplayed;
-  if (diff <= 0) { _flushTokDisplay(); return; }
-  // Variable burst speed (20%–80% of target/s) — simulates irregular real token chunk arrivals
-  const burstRate = 0.2 + Math.random() * 0.6;
-  const step = Math.max(0.5, Math.min(diff, Math.max(1, _tokTarget * burstRate / 60)));
-  _tokDisplayed = Math.min(_tokTarget, _tokDisplayed + step);
-  _flushTokDisplay();
-  if (_tokDisplayed < _tokTarget) _tokAnimFrame = requestAnimationFrame(_tickTokAnim);
-}
-function updateStreamTokens(msgEl, charCount) {
-  const stats = msgEl?.querySelector('.stream-stats');
-  if (!stats || !stats.classList.contains('active')) return;
-  const est = liveTokensShown(charCount);
-  _tokActiveMsgEl = msgEl;
-  // ±15% jitter on the target — makes the counter fluctuate like real token chunk arrivals
-  // (always advances: never drops below what's already displayed)
-  const spread = Math.max(2, est * 0.15);
-  const jitter = (Math.random() * 2 - 1) * spread;
-  const { cost } = liveReplyCost();
-  _tokTarget = Math.max(_tokDisplayed + 0.1, Math.min(cost, est + jitter));
-  if (!_tokAnimFrame) _tokAnimFrame = requestAnimationFrame(_tickTokAnim);
-}
-
+function startStreamStats(msgEl) { _streamedCharsLive = 0; }
+function updateStreamTokens(msgEl, charCount) {}
 function stopStreamStats(msgEl, finalTokens, apiUsage) {
-  const elapsed = streamStartTime ? (Date.now() - streamStartTime) / 1000 : null;
   if (streamTimer) { clearInterval(streamTimer); streamTimer = null; }
   streamStartTime = null;
-  if (_tokAnimFrame) { cancelAnimationFrame(_tokAnimFrame); _tokAnimFrame = null; }
-
-  const stats = msgEl?.querySelector('.stream-stats');
-  if (!stats) { _tokDisplayed = 0; _tokActiveMsgEl = null; _tokTarget = 0; return; }
-
-  // Main displayed count = CM token cost (what the user spent), not raw Gemini output tokens.
-  // Real API breakdown (in/out/cached) shows separately so there is no confusing drop from live → final.
-  const cmCost   = finalTokens ?? _tokTarget;
-  const inCount  = apiUsage?.input  ?? null;
-  const outReal  = apiUsage?.output ?? null;
-  const cached   = apiUsage?.cached ?? null;
-  const tokRate  = (elapsed && elapsed > 0.3 && cmCost > 0) ? Math.round(cmCost / elapsed) : null;
-
-  function _applyDoneState() {
-    _tokDisplayed = 0; _tokActiveMsgEl = null; _tokTarget = 0;
-
-    const timeEl = stats.querySelector('.stream-time');
-    if (timeEl && elapsed != null) timeEl.textContent = elapsed.toFixed(1) + 's';
-
-    const tokEl = stats.querySelector('.stream-tok');
-    if (tokEl) tokEl.textContent = fmtLiveTokens(cmCost) + ' tok';
-
-    const spdEl = stats.querySelector('.stream-spd');
-    if (spdEl) spdEl.textContent = tokRate ? tokRate + ' tok/s' : '—';
-
-    if (inCount != null) {
-      const sep = stats.querySelector('.stream-in-sep'); if (sep) sep.style.display = '';
-      const inEl = stats.querySelector('.stream-in'); if (inEl) { inEl.style.display = ''; inEl.textContent = fmtLiveTokens(inCount) + ' in'; }
-    }
-    if (outReal != null) {
-      const sep = stats.querySelector('.stream-cached-sep'); if (sep) sep.style.display = '';
-      const outEl = stats.querySelector('.stream-cached'); if (outEl) { outEl.style.display = ''; outEl.textContent = fmtLiveTokens(outReal) + ' out'; }
-    } else if (cached != null && cached > 0) {
-      const sep = stats.querySelector('.stream-cached-sep'); if (sep) sep.style.display = '';
-      const cachedEl = stats.querySelector('.stream-cached'); if (cachedEl) { cachedEl.style.display = ''; cachedEl.textContent = fmtLiveTokens(cached) + ' cached'; }
-    }
-
-    stats.classList.remove('active');
-    stats.classList.add('done');
-    stats.style.display = ''; // let CSS .done { display:flex; animation: fadeout … } take over
-    stats.addEventListener('animationend', () => { stats.style.display = 'none'; }, { once: true });
-  }
-
-  // Smooth ramp from wherever the counter stopped to the true final cost (~333ms, 20 frames).
-  // Avoids the jarring instant-jump when the counter was still below the total at generation end.
-  const rampStart = _tokDisplayed;
-  const rampGap   = cmCost - rampStart;
-  if (rampGap > 1 && rampStart > 0) {
-    _tokActiveMsgEl = msgEl;
-    _tokTarget = cmCost;
-    const RAMP_FRAMES = 20;
-    let frame = 0;
-    const rampFn = () => {
-      _tokAnimFrame = null;
-      frame++;
-      _tokDisplayed = rampStart + rampGap * (frame / RAMP_FRAMES);
-      _flushTokDisplay();
-      if (frame < RAMP_FRAMES) {
-        _tokAnimFrame = requestAnimationFrame(rampFn);
-      } else {
-        _applyDoneState();
-      }
-    };
-    _tokAnimFrame = requestAnimationFrame(rampFn);
-  } else {
-    _applyDoneState();
-  }
 }
 
 // Hide every token counter right away (called the moment a reply finishes arriving).
