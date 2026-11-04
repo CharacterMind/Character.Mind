@@ -2058,6 +2058,18 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '473': {
+    date: 'November 2026',
+    label: 'Cleaner Voice System',
+    changed: [
+      'Voice panel simplified to three options: AI Voice (character\'s cloned voice), Your Voice (voice the character yourself), and No voice',
+      'Removed Gemini, Neutral, and Kokoro — they were silently competing with custom voices mid-sentence, causing voice switching',
+      'Your Voice tab now described as voicing the character yourself — hear your own voice as the character speaks',
+    ],
+    fixed: [
+      'Voice no longer switches between multiple providers mid-response — only one voice plays per message',
+    ],
+  },
   '472': {
     date: 'November 2026',
     label: 'Faster Response Start',
@@ -9867,95 +9879,21 @@ function dislikeBtn() {
 
 // ── Voice selection ───────────────────────────────────────────────────────────
 let selectedVoice = null;
-let ttsProvider = 'gemini'; // 'edge' | 'gemini' | 'kokoro' | 'character' | 'off'
-let geminiVoiceName = 'Aoede';
-let edgeVoiceName = null;    // null = auto-matched per character
-let kokoroVoiceName = 'af_bella';
-
-const KOKORO_VOICES = [
-  { id: 'af_bella',    name: 'Bella',    accent: 'American ♀' },
-  { id: 'af_heart',   name: 'Heart',    accent: 'American ♀' },
-  { id: 'af_nicole',  name: 'Nicole',   accent: 'American ♀' },
-  { id: 'af_sky',     name: 'Sky',      accent: 'American ♀' },
-  { id: 'af_sarah',   name: 'Sarah',    accent: 'American ♀' },
-  { id: 'am_adam',    name: 'Adam',     accent: 'American ♂' },
-  { id: 'am_michael', name: 'Michael',  accent: 'American ♂' },
-  { id: 'bf_emma',    name: 'Emma',     accent: 'British ♀'  },
-  { id: 'bf_isabella',name: 'Isabella', accent: 'British ♀'  },
-  { id: 'bm_george',  name: 'George',   accent: 'British ♂'  },
-  { id: 'bm_lewis',   name: 'Lewis',    accent: 'British ♂'  },
-];
-
-const GEMINI_TTS_VOICES = [
-  'Zephyr','Puck','Charon','Kore','Fenrir','Leda','Orus','Aoede','Callirrhoe','Autonoe',
-  'Enceladus','Iapetus','Umbriel','Algieba','Despina','Erinome','Algenib','Rasalgethi',
-  'Laomedeia','Achernar','Alnilam','Schedar','Gacrux','Pulcherrima','Achird',
-  'Zubenelgenubi','Vindemiatrix','Sadachbia','Sadaltager','Sulafat'
-];
-const GEMINI_VOICE_DESC = {
-  Zephyr:'Bright', Puck:'Upbeat', Charon:'Informative', Kore:'Firm', Fenrir:'Excitable',
-  Leda:'Youthful', Orus:'Firm', Aoede:'Breezy', Callirrhoe:'Easy-going', Autonoe:'Bright',
-  Enceladus:'Breathy', Iapetus:'Clear', Umbriel:'Easy-going', Algieba:'Smooth', Despina:'Smooth',
-  Erinome:'Clear', Algenib:'Gravelly', Rasalgethi:'Informative', Laomedeia:'Upbeat',
-  Achernar:'Soft', Alnilam:'Firm', Schedar:'Even', Gacrux:'Mature', Pulcherrima:'Forward',
-  Achird:'Friendly', Zubenelgenubi:'Casual', Vindemiatrix:'Gentle', Sadachbia:'Lively',
-  Sadaltager:'Knowledgeable', Sulafat:'Warm'
-};
-
-const EDGE_TTS_VOICES = [
-  { id:'en-US-AriaNeural',        name:'Aria',        gender:'F', desc:'Expressive · warm' },
-  { id:'en-US-JennyNeural',       name:'Jenny',       gender:'F', desc:'Warm · gentle' },
-  { id:'en-US-NancyNeural',       name:'Nancy',       gender:'F', desc:'Natural · clear' },
-  { id:'en-US-SaraNeural',        name:'Sara',        gender:'F', desc:'Cheerful' },
-  { id:'en-US-MichelleNeural',    name:'Michelle',    gender:'F', desc:'Friendly' },
-  { id:'en-US-MonicaNeural',      name:'Monica',      gender:'F', desc:'Warm · relaxed' },
-  { id:'en-US-AnaNeural',         name:'Ana',         gender:'F', desc:'Youthful · child' },
-  { id:'en-US-CoraNeural',        name:'Cora',        gender:'F', desc:'Bright' },
-  { id:'en-US-ElizabethNeural',   name:'Elizabeth',   gender:'F', desc:'Mature · assured' },
-  { id:'en-US-JaneNeural',        name:'Jane',        gender:'F', desc:'Calm · professional' },
-  { id:'en-US-GuyNeural',         name:'Guy',         gender:'M', desc:'Confident' },
-  { id:'en-US-TonyNeural',        name:'Tony',        gender:'M', desc:'Friendly' },
-  { id:'en-US-BrianNeural',       name:'Brian',       gender:'M', desc:'Deep · clear' },
-  { id:'en-US-EricNeural',        name:'Eric',        gender:'M', desc:'Reliable' },
-  { id:'en-US-RogerNeural',       name:'Roger',       gender:'M', desc:'Strong' },
-  { id:'en-US-ChristopherNeural', name:'Christopher', gender:'M', desc:'Professional' },
-  { id:'en-US-SteffanNeural',     name:'Steffan',     gender:'M', desc:'Clear' },
-  { id:'en-US-JasonNeural',       name:'Jason',       gender:'M', desc:'Calm' },
-];
+let ttsProvider = 'character'; // 'character' | 'user' | 'off'
 
 function getCharVoiceKey()   { return currentChar ? `cm_voice_${currentChar.id}` : null; }
 function getTTSProviderKey() { return currentChar ? `cm_tts_prov_${currentChar.id}` : null; }
-function getGeminiVoiceKey() { return currentChar ? `cm_gem_voice_${currentChar.id}` : null; }
-function getEdgeVoiceKey()   { return currentChar ? `cm_edge_voice_${currentChar.id}` : null; }
-
-function getKokoroVoiceKey() { return currentChar ? `cm_kokoro_voice_${currentChar.id}` : null; }
 
 function loadCharVoice() {
-  selectedVoice = null; ttsProvider = 'gemini'; geminiVoiceName = 'Aoede'; edgeVoiceName = null; kokoroVoiceName = 'af_bella';
+  selectedVoice = null; ttsProvider = 'character';
   try {
-    // Global fallback — last voice the user picked on any character
     const gp = localStorage.getItem('cm_tts_prov_global');
-    if (['edge','gemini','character','kokoro','off','user'].includes(gp)) ttsProvider = gp;
-    const ggv = localStorage.getItem('cm_gem_voice_global');
-    if (GEMINI_TTS_VOICES.includes(ggv)) geminiVoiceName = ggv;
-    const gev = localStorage.getItem('cm_edge_voice_global');
-    if (gev && EDGE_TTS_VOICES.some(v => v.id === gev)) edgeVoiceName = gev;
-    const gkv = localStorage.getItem('cm_kokoro_voice_global');
-    if (gkv && KOKORO_VOICES.some(v => v.id === gkv)) kokoroVoiceName = gkv;
+    if (['character','user','off'].includes(gp)) ttsProvider = gp;
   } catch(_) {}
   if (!currentChar) { _updateVoiceBarLabel(); return; }
   try {
-    // Per-character overrides take priority over global
     const p = localStorage.getItem(getTTSProviderKey());
-    if (['edge','gemini','character','kokoro','off','user'].includes(p)) ttsProvider = p;
-    const gv = localStorage.getItem(getGeminiVoiceKey());
-    if (GEMINI_TTS_VOICES.includes(gv)) geminiVoiceName = gv;
-    const ev = localStorage.getItem(getEdgeVoiceKey());
-    if (ev && EDGE_TTS_VOICES.some(v => v.id === ev)) edgeVoiceName = ev;
-    const kv = localStorage.getItem(getKokoroVoiceKey());
-    if (kv && KOKORO_VOICES.some(v => v.id === kv)) kokoroVoiceName = kv;
-    const saved = localStorage.getItem(getCharVoiceKey());
-    if (saved && window.speechSynthesis) { const vs = window.speechSynthesis.getVoices(); selectedVoice = vs.find(v => v.voiceURI === saved) || null; }
+    if (['character','user','off'].includes(p)) ttsProvider = p;
   } catch(_) {}
   _updateVoiceBarLabel();
 }
@@ -9994,8 +9932,7 @@ function applyVoice(utterance) {
 function openVoicePanel() {
   const overlay = document.getElementById('voicePanelOverlay');
   if (!overlay) return;
-  const tabMap = { off: 'off', gemini: 'gemini', edge: 'edge', kokoro: 'kokoro', user: 'user', character: 'character' };
-  const initialTab = tabMap[ttsProvider] || 'gemini';
+  const initialTab = ['character','user','off'].includes(ttsProvider) ? ttsProvider : 'character';
   _switchVoiceTabUI(initialTab);
   renderCharVoiceSection();
   renderUserVoiceList();
@@ -10005,27 +9942,17 @@ function openVoicePanel() {
 function _switchVoiceTabUI(tab) {
   document.querySelectorAll('.voice-provider-tab[data-tab]').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === tab));
-  const charPane   = document.getElementById('voiceSection_char');
-  const userPane   = document.getElementById('voiceSection_user');
-  const aiPane     = document.getElementById('voiceSection_ai');
-  const offPane    = document.getElementById('voiceSection_off');
-  const kokoroPane = document.getElementById('voiceSection_kokoro');
-  if (charPane)   charPane.style.display   = tab === 'character' ? '' : 'none';
-  if (userPane)   userPane.style.display   = tab === 'user' ? '' : 'none';
-  if (aiPane)     aiPane.style.display     = (tab === 'gemini' || tab === 'edge') ? '' : 'none';
-  if (offPane)    offPane.style.display    = tab === 'off' ? '' : 'none';
-  if (kokoroPane) kokoroPane.style.display = tab === 'kokoro' ? '' : 'none';
-  if (tab === 'gemini' || tab === 'edge') renderVoiceList();
-  if (tab === 'kokoro') renderKokoroVoiceList();
+  const charPane = document.getElementById('voiceSection_char');
+  const userPane = document.getElementById('voiceSection_user');
+  const offPane  = document.getElementById('voiceSection_off');
+  if (charPane) charPane.style.display = tab === 'character' ? '' : 'none';
+  if (userPane) userPane.style.display = tab === 'user' ? '' : 'none';
+  if (offPane)  offPane.style.display  = tab === 'off' ? '' : 'none';
 }
 
 function switchVoiceTab(tab) {
   _switchVoiceTabUI(tab);
-  if (tab === 'character') setTTSProvider('character', null);
-  else if (tab === 'gemini' || tab === 'edge') setTTSProvider(tab, null);
-  else if (tab === 'kokoro') setTTSProvider('kokoro', null);
-  else if (tab === 'off') setTTSProvider('off', null);
-  else if (tab === 'user') setTTSProvider('user', null);
+  setTTSProvider(tab, null);
 }
 
 function closeVoicePanel() {
@@ -10062,9 +9989,9 @@ function renderCharVoiceSection() {
           </div>
         </button>`;
       } else {
-        // No voice file — if on char tab, redirect to gemini
+        // No voice file — redirect to off
         const activeTab = document.querySelector('.voice-provider-tab[data-tab].active');
-        if (activeTab?.dataset.tab === 'character') _switchVoiceTabUI('gemini');
+        if (activeTab?.dataset.tab === 'character') _switchVoiceTabUI('off');
         card.innerHTML = '<div class="voice-empty">No character voice available.</div>';
       }
     })
@@ -10182,11 +10109,10 @@ async function setCharVoice(filename, isCurrentlyActive, btn) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filename: isCurrentlyActive ? null : filename, charId })
     });
-    // If assigning, auto-switch to 'user' provider so the uploaded voice is used directly
     if (!isCurrentlyActive) {
       setTTSProvider('user', null);
     } else {
-      setTTSProvider('gemini', null);
+      setTTSProvider('character', null);
     }
     renderUserVoiceList();
   } catch (_) { if (btn) btn.disabled = false; }
@@ -10215,68 +10141,27 @@ function setTTSProvider(p, btn) {
   ttsProvider = p;
   try {
     if (getTTSProviderKey()) localStorage.setItem(getTTSProviderKey(), p);
-    if (p !== 'off') localStorage.setItem('cm_tts_prov_global', p); // don't spread 'off' to other characters
+    if (p !== 'off') localStorage.setItem('cm_tts_prov_global', p);
   } catch(_) {}
   _updateVoiceBarLabel();
   renderCharVoiceSection();
-  renderVoiceList();
 }
 
 function _updateVoiceBarLabel() {
   const voiceBtn = document.getElementById('mbVoiceBtn');
   if (!voiceBtn) return;
-  const labels = { gemini: 'Gemini', edge: 'Neutral', character: 'AI Voice', kokoro: 'Kokoro', off: 'No voice', user: 'Your Voice' };
+  const labels = { character: 'AI Voice', user: 'Your Voice', off: 'No voice' };
   voiceBtn.textContent = labels[ttsProvider] || 'Voice';
 }
 
-function renderVoiceList() {
-  const list = document.getElementById('voiceList');
-  if (!list) return;
-
-  if (ttsProvider === 'gemini') {
-    list.innerHTML = GEMINI_TTS_VOICES.map(v =>
-      `<button class="voice-item${geminiVoiceName === v ? ' active' : ''}" onclick="selectGeminiVoice('${v}',this)">
-        <div class="voice-item-main"><div class="voice-item-name">${v}</div><div class="voice-item-lang">${GEMINI_VOICE_DESC[v] || ''}</div></div>
-        <button class="voice-preview-btn" onclick="previewGeminiVoice('${v}',event)" title="Preview">▶</button>
-      </button>`).join('');
-    return;
-  }
-
-  if (ttsProvider === 'edge') {
-    list.innerHTML = `<button class="voice-item${!edgeVoiceName?' active':''}" onclick="selectEdgeVoice(null,this)">
-        <div class="voice-item-main"><div class="voice-item-name">Auto</div><div class="voice-item-lang">Matched to character</div></div>
-      </button>` +
-      EDGE_TTS_VOICES.map(v =>
-        `<button class="voice-item${edgeVoiceName===v.id?' active':''}" onclick="selectEdgeVoice('${v.id}',this)">
-          <div class="voice-item-main"><div class="voice-item-name">${v.name} <span style="font-size:10px;color:var(--text3)">${v.gender==='F'?'♀':'♂'}</span></div><div class="voice-item-lang">${v.desc}</div></div>
-          <button class="voice-preview-btn" onclick="previewEdgeVoice('${v.id}',event)" title="Preview">▶</button>
-        </button>`).join('');
-    return;
-  }
-
-  list.innerHTML = '';
-}
-
 function renderKokoroVoiceList() {
-  const list = document.getElementById('kokoroVoiceList');
-  if (!list) return;
-  list.innerHTML = KOKORO_VOICES.map(v =>
-    `<button class="voice-item${kokoroVoiceName === v.id ? ' active' : ''}" onclick="selectKokoroVoice('${v.id}',this)">
-      <div class="voice-item-main"><div class="voice-item-name">${v.name}</div><div class="voice-item-lang">${v.accent}</div></div>
-      <button class="voice-preview-btn" onclick="previewKokoroVoice('${v.id}',event)" title="Preview">▶</button>
-    </button>`).join('');
+  // removed — Kokoro provider no longer exists
 }
 
-function selectKokoroVoice(v, btn) {
-  kokoroVoiceName = v;
-  try {
-    const k = getKokoroVoiceKey();
-    if (k) localStorage.setItem(k, v);
-    localStorage.setItem('cm_kokoro_voice_global', v);
-  } catch(_) {}
-  document.querySelectorAll('#kokoroVoiceList .voice-item').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+function renderVoiceList() {
+  // removed — Gemini/Edge providers no longer exist
 }
+
 
 // ── Voice preview helper — one preview at a time, with loading state ──────────
 let _previewAudio = null;
@@ -10307,48 +10192,12 @@ async function _playPreview(body, btn) {
   } catch(_) { if (_previewBtn === el) { el.textContent = '▶'; _previewBtn = null; } }
 }
 
-async function previewKokoroVoice(v, e) {
-  const btn = e?.currentTarget || e?.target;
-  await _playPreview({ text: `Hi! I'm ${currentChar?.name || 'your character'}.`, provider: 'kokoro', kokoroVoice: v, charId: currentChar?.id || '' }, btn);
-}
-
 function selectVoice(voiceURI, btn) {
   const key = getCharVoiceKey();
   try { voiceURI ? localStorage.setItem(key, voiceURI) : localStorage.removeItem(key); } catch(_) {}
   document.querySelectorAll('#voiceList .voice-item').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   selectedVoice = voiceURI && window.speechSynthesis ? (window.speechSynthesis.getVoices().find(v => v.voiceURI === voiceURI) || null) : null;
-}
-
-function selectGeminiVoice(v, btn) {
-  geminiVoiceName = v;
-  try {
-    if (getGeminiVoiceKey()) localStorage.setItem(getGeminiVoiceKey(), v);
-    localStorage.setItem('cm_gem_voice_global', v);
-  } catch(_) {}
-  document.querySelectorAll('#voiceList .voice-item').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-}
-
-function selectEdgeVoice(v, btn) {
-  edgeVoiceName = v;
-  try {
-    const k = getEdgeVoiceKey();
-    if (k) { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); }
-    v ? localStorage.setItem('cm_edge_voice_global', v) : localStorage.removeItem('cm_edge_voice_global');
-  } catch(_) {}
-  document.querySelectorAll('#voiceList .voice-item').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-}
-
-async function previewEdgeVoice(v, e) {
-  const btn = e?.currentTarget || e?.target;
-  await _playPreview({ text: `Hi! I'm ${currentChar?.name || 'your character'}.`, provider: 'edge', edgeVoice: v, charId: currentChar?.id || '' }, btn);
-}
-
-async function previewGeminiVoice(v, e) {
-  const btn = e?.currentTarget || e?.target;
-  await _playPreview({ text: `Hi! I'm ${currentChar?.name || 'your character'}.`, provider: 'gemini', geminiVoice: v, charId: currentChar?.id || '' }, btn);
 }
 
 function previewVoiceURI(voiceURI, e) {
@@ -10927,31 +10776,17 @@ function updateAutoSpeakBtn() {
 }
 
 function _prefetchSentence(rawText) {
-  if (ttsProvider === 'browser' || ttsProvider === 'off') return;
+  if (ttsProvider === 'off') return;
   const clean = ttsCleanText(rawText);
   if (!clean || clean.length <= 1 || _ttsPrefetchPool.has(clean)) return;
-  const makeReq = (prov) => {
-    const ctrl = new AbortController();
-    const tmo = setTimeout(() => ctrl.abort(), 20000);
-    return fetch('/api/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: clean.slice(0, 499), charId: currentChar?.id || '', provider: prov, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName }),
-      signal: ctrl.signal,
-    }).then(r => { clearTimeout(tmo); return r.ok ? r.blob() : null; }).catch(() => { clearTimeout(tmo); return null; });
-  };
-  let p;
-  if (ttsProvider === 'gemini') {
-    // Race Gemini vs Edge — first non-null result wins (~300ms Edge beats ~1-2s Gemini)
-    p = new Promise(resolve => {
-      let done = 0, settled = false;
-      const win = b => { if (!settled && b) { settled = true; resolve(b); } else if (++done === 2 && !settled) { settled = true; resolve(null); } };
-      makeReq('gemini').then(win);
-      makeReq('edge').then(win);
-    });
-  } else {
-    p = makeReq(ttsProvider);
-  }
+  const ctrl = new AbortController();
+  const tmo = setTimeout(() => ctrl.abort(), 20000);
+  const p = fetch('/api/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: clean.slice(0, 499), charId: currentChar?.id || '', provider: ttsProvider }),
+    signal: ctrl.signal,
+  }).then(r => { clearTimeout(tmo); return r.ok ? r.blob() : null; }).catch(() => { clearTimeout(tmo); return null; });
   _ttsPrefetchPool.set(clean, p);
 }
 
@@ -10969,10 +10804,9 @@ function _feedAutoSpeak(chunk) {
     }
   }
 
-  // Secondary: when the incomplete tail is long, split at the first ", " after ≥12 chars.
-  // Skip for character voice (Chatterbox ~5s/call) — short fragments cause more gaps than
-  // waiting for a complete sentence.
-  while (ttsProvider !== 'character' && _streamTTSBuffer.length > 15) {
+  // Secondary comma-split: disabled — both character and user voices use Chatterbox,
+  // and short fragments cause audio gaps. Wait for complete sentences only.
+  while (false && _streamTTSBuffer.length > 15) {
     const idx = _streamTTSBuffer.indexOf(', ', 12);
     if (idx === -1) break;
     const piece = _streamTTSBuffer.slice(0, idx + 1).trim();
@@ -11101,7 +10935,7 @@ async function _playStreamTTSQueue() {
         bp = fetch('/api/tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: t.slice(0, 499), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName }),
+          body: JSON.stringify({ text: t.slice(0, 499), charId: currentChar?.id || '', provider: ttsProvider }),
           signal: ctrl2.signal,
         }).then(r => {
           clearTimeout(tmo2);
