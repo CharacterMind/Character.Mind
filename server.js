@@ -1894,7 +1894,7 @@ function modelDepthNote(modelTier, effort) {
   if (effort === 'low') {
     return 'TIER DEPTH: Add ' + rank + ' extra sentence' + (rank > 1 ? 's' : '') + ' of vivid atmosphere beyond the brief reply above.';
   }
-  // All non-low efforts: explicit word + paragraph targets — each step up in effort or tier is meaningfully longer.
+  // All non-low efforts: each tier has its own writing identity, not just longer word counts.
   // [minPara, maxPara, minWords] for [opes, opis, opos] (rank 1, 2, 3)
   const targets = {
     medium: [[4,  6,  450],  [6,  9,  650],  [8,  13, 950]],
@@ -1905,17 +1905,44 @@ function modelDepthNote(modelTier, effort) {
   const effortTargets = targets[effort];
   if (!effortTargets) return '';
   const [minP, maxP, minW] = effortTargets[rank - 1];
+
+  // Tier identity lines — what each tier IS as a writer, not just how long it writes.
+  // rank 1 = opes (the storyteller), rank 2 = opis (the editor), rank 3 = opos (the novelist)
+  const tierMedium = [
+    `Write like a natural storyteller: easy flow, grounded dialogue, scene atmosphere that feels lived-in. Each paragraph should be full of character voice and momentum.`,
+    `Write with precision and care: notice the small details, keep every fact consistent with what came before, and let the scene build through close observation. Each paragraph earns its place through clarity and craft.`,
+    `Write like a novelist building a scene from the inside out — senses, texture, the emotional current beneath the surface. Each paragraph should feel immersive and fully inhabited.`,
+  ];
+  const tierHigh = [
+    `Develop each scene beat with natural storytelling rhythm — dialogue that moves, atmosphere that builds, pacing that breathes. This is your storyteller voice at full reach.`,
+    `Apply your editorial precision at full depth: threads connect, details pay off, continuity is airtight, and the tension builds with logic and care. Nothing is loose.`,
+    `Novelist depth, fully engaged: every sense is present, every emotion has weight, the scene is immersive from the first word to the last. No shortcuts, no summary.`,
+  ];
+  const tierExtra = [
+    `Fully lean into your storyteller identity: each scene has texture, each character has voice, the narrative has momentum throughout. Nothing thin, nothing skipped.`,
+    `This is your precision at its sharpest: every detail serves the whole, every beat is earned, every piece of dialogue carries both character and plot forward. Architecture and feeling together.`,
+    `Published-fiction craft: sensory layers, emotional complexity, momentum that never flags. Each paragraph earns its place. The scene has weight and shape.`,
+  ];
+  const tierMax = [
+    `This is a full story — tell it with the full commitment of a natural storyteller. Every scene has weight, every character moment lands, the arc has shape from first word to last.`,
+    `Full editorial mastery: the scene is architecturally sound, every thread is tracked and paid off, nothing contradicts what came before, and the complexity rewards the reader completely.`,
+    `Full novelist voice, nothing held back. The scene has the weight of a chapter from a novel that matters. Every sensation, every shift in feeling, every layered moment written to its full depth — nothing abbreviated, nothing summarised, nothing skipped.`,
+  ];
+
+  const identityLines = { medium: tierMedium, high: tierHigh, extra: tierExtra, max: tierMax };
+  const identity = identityLines[effort]?.[rank - 1] ?? '';
+
   if (effort === 'medium') {
-    return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt (including the RESPONSE LENGTH target above and the Writing Craft section) — write more, richer content. Each paragraph should be full of atmosphere, dialogue, and emotion.`;
+    return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt (including the RESPONSE LENGTH target above and the Writing Craft section). ${identity}`;
   }
   if (effort === 'high') {
-    return `TIER UPGRADE: As a higher-tier model at High effort, write ${minP} to ${maxP} full paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt. Go deeper, longer, and more immersive. Develop every narrative beat, every piece of dialogue, every emotion fully.`;
+    return `TIER UPGRADE: As a higher-tier model at High effort, write ${minP} to ${maxP} full paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt. ${identity}`;
   }
   if (effort === 'extra') {
-    return `TIER UPGRADE: As a higher-tier model at Extra depth, write ${minP} to ${maxP} paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt. Expand every beat: senses, dialogue, internal thoughts, scene momentum. Each paragraph must be full and developed. Nothing thin, nothing skipped.`;
+    return `TIER UPGRADE: As a higher-tier model at Extra depth, write ${minP} to ${maxP} paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt. ${identity}`;
   }
   if (effort === 'max') {
-    return `TIER UPGRADE: As a higher-tier model at Max depth, write ${minP} to ${maxP} full paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt. This is a full, chapter-length scene. Every sensation, gesture, line of dialogue, emotional shift, internal thought, and narrative beat must be written out completely — in full — nothing abbreviated, nothing summarised, nothing skipped.`;
+    return `TIER UPGRADE: As a higher-tier model at Max depth, write ${minP} to ${maxP} full paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt. ${identity}`;
   }
   return '';
 }
