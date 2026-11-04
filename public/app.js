@@ -2061,6 +2061,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '442': {
+    date: 'November 2026',
+    label: 'Token Counter No Longer Jumps at End',
+    fixed: [
+      'Token counter now smoothly counts up to the final cost when generation ends — no more sudden jump from a low number straight to the full token total',
+    ],
+  },
   '441': {
     date: 'November 2026',
     label: 'Token System Aligned With Model Tiers',
@@ -9656,9 +9663,9 @@ function stopStreamStats(msgEl, finalTokens, apiUsage) {
   if (streamTimer) { clearInterval(streamTimer); streamTimer = null; }
   streamStartTime = null;
   if (_tokAnimFrame) { cancelAnimationFrame(_tokAnimFrame); _tokAnimFrame = null; }
-  _tokDisplayed = 0; _tokActiveMsgEl = null;
+
   const stats = msgEl?.querySelector('.stream-stats');
-  if (!stats) { _tokTarget = 0; return; }
+  if (!stats) { _tokDisplayed = 0; _tokActiveMsgEl = null; _tokTarget = 0; return; }
 
   // Main displayed count = CM token cost (what the user spent), not raw Gemini output tokens.
   // Real API breakdown (in/out/cached) shows separately so there is no confusing drop from live → final.
@@ -9667,33 +9674,61 @@ function stopStreamStats(msgEl, finalTokens, apiUsage) {
   const outReal  = apiUsage?.output ?? null;
   const cached   = apiUsage?.cached ?? null;
   const tokRate  = (elapsed && elapsed > 0.3 && cmCost > 0) ? Math.round(cmCost / elapsed) : null;
-  _tokTarget = 0;
 
-  const timeEl = stats.querySelector('.stream-time');
-  if (timeEl && elapsed != null) timeEl.textContent = elapsed.toFixed(1) + 's';
+  function _applyDoneState() {
+    _tokDisplayed = 0; _tokActiveMsgEl = null; _tokTarget = 0;
 
-  const tokEl = stats.querySelector('.stream-tok');
-  if (tokEl) tokEl.textContent = fmtLiveTokens(cmCost) + ' tok';
+    const timeEl = stats.querySelector('.stream-time');
+    if (timeEl && elapsed != null) timeEl.textContent = elapsed.toFixed(1) + 's';
 
-  const spdEl = stats.querySelector('.stream-spd');
-  if (spdEl) spdEl.textContent = tokRate ? tokRate + ' tok/s' : '—';
+    const tokEl = stats.querySelector('.stream-tok');
+    if (tokEl) tokEl.textContent = fmtLiveTokens(cmCost) + ' tok';
 
-  if (inCount != null) {
-    const sep = stats.querySelector('.stream-in-sep'); if (sep) sep.style.display = '';
-    const inEl = stats.querySelector('.stream-in'); if (inEl) { inEl.style.display = ''; inEl.textContent = fmtLiveTokens(inCount) + ' in'; }
+    const spdEl = stats.querySelector('.stream-spd');
+    if (spdEl) spdEl.textContent = tokRate ? tokRate + ' tok/s' : '—';
+
+    if (inCount != null) {
+      const sep = stats.querySelector('.stream-in-sep'); if (sep) sep.style.display = '';
+      const inEl = stats.querySelector('.stream-in'); if (inEl) { inEl.style.display = ''; inEl.textContent = fmtLiveTokens(inCount) + ' in'; }
+    }
+    if (outReal != null) {
+      const sep = stats.querySelector('.stream-cached-sep'); if (sep) sep.style.display = '';
+      const outEl = stats.querySelector('.stream-cached'); if (outEl) { outEl.style.display = ''; outEl.textContent = fmtLiveTokens(outReal) + ' out'; }
+    } else if (cached != null && cached > 0) {
+      const sep = stats.querySelector('.stream-cached-sep'); if (sep) sep.style.display = '';
+      const cachedEl = stats.querySelector('.stream-cached'); if (cachedEl) { cachedEl.style.display = ''; cachedEl.textContent = fmtLiveTokens(cached) + ' cached'; }
+    }
+
+    stats.classList.remove('active');
+    stats.classList.add('done');
+    stats.style.display = ''; // let CSS .done { display:flex; animation: fadeout … } take over
+    stats.addEventListener('animationend', () => { stats.style.display = 'none'; }, { once: true });
   }
-  if (outReal != null) {
-    const sep = stats.querySelector('.stream-cached-sep'); if (sep) sep.style.display = '';
-    const outEl = stats.querySelector('.stream-cached'); if (outEl) { outEl.style.display = ''; outEl.textContent = fmtLiveTokens(outReal) + ' out'; }
-  } else if (cached != null && cached > 0) {
-    const sep = stats.querySelector('.stream-cached-sep'); if (sep) sep.style.display = '';
-    const cachedEl = stats.querySelector('.stream-cached'); if (cachedEl) { cachedEl.style.display = ''; cachedEl.textContent = fmtLiveTokens(cached) + ' cached'; }
-  }
 
-  stats.classList.remove('active');
-  stats.classList.add('done');
-  stats.style.display = ''; // let CSS .done { display:flex; animation: fadeout … } take over
-  stats.addEventListener('animationend', () => { stats.style.display = 'none'; }, { once: true });
+  // Smooth ramp from wherever the counter stopped to the true final cost (~333ms, 20 frames).
+  // Avoids the jarring instant-jump when the counter was still below the total at generation end.
+  const rampStart = _tokDisplayed;
+  const rampGap   = cmCost - rampStart;
+  if (rampGap > 1 && rampStart > 0) {
+    _tokActiveMsgEl = msgEl;
+    _tokTarget = cmCost;
+    const RAMP_FRAMES = 20;
+    let frame = 0;
+    const rampFn = () => {
+      _tokAnimFrame = null;
+      frame++;
+      _tokDisplayed = rampStart + rampGap * (frame / RAMP_FRAMES);
+      _flushTokDisplay();
+      if (frame < RAMP_FRAMES) {
+        _tokAnimFrame = requestAnimationFrame(rampFn);
+      } else {
+        _applyDoneState();
+      }
+    };
+    _tokAnimFrame = requestAnimationFrame(rampFn);
+  } else {
+    _applyDoneState();
+  }
 }
 
 // Hide every token counter right away (called the moment a reply finishes arriving).
