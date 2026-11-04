@@ -971,6 +971,8 @@ html, body {
 }
 .stream-stats.active { display: flex; }
 .stream-tok { color: var(--text2); font-weight: 600; margin-right: 2px; }
+@keyframes think-pulse { 0%,100%{opacity:.25} 50%{opacity:.9} }
+.stream-stats.thinking .stream-tok { animation: think-pulse 1.2s ease-in-out infinite; }
 .stream-sep { color: var(--text3); font-weight: 400; }
 .stream-spd { color: var(--text3); }
 .stream-in  { color: var(--text3); }

@@ -2060,6 +2060,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '462': {
+    date: 'November 2026',
+    label: 'Thinking Indicator',
+    fixed: [
+      'Token counter now shows a pulsing "···" while Opas is thinking, so you can tell it\'s working before the first word appears',
+    ],
+  },
   '450': {
     date: 'November 2026',
     label: 'Live Token Drain + Effort Speed',
@@ -9705,12 +9712,16 @@ function startStreamStats(msgEl) {
   const expChars = expectedReplyChars(tier, effort);
   _tokRate = (tw.chars * cost) / (expChars * tw.ms);
   const stats = msgEl?.querySelector('.stream-stats');
-  if (stats) { stats.classList.add('active'); stats.classList.remove('done'); const tok = stats.querySelector('.stream-tok'); if (tok) tok.textContent = '0'; }
+  if (stats) { stats.classList.add('active', 'thinking'); stats.classList.remove('done'); const tok = stats.querySelector('.stream-tok'); if (tok) tok.textContent = '···'; }
   _tokAnimFrame = requestAnimationFrame(_tokTick);
 }
 function updateStreamTokens(msgEl, charCount) {
   if (msgEl !== _tokActiveMsgEl) return;
-  _tokStarted = true; // first real char — unlock free-run
+  if (!_tokStarted) {
+    _tokStarted = true;
+    const stats = msgEl?.querySelector('.stream-stats');
+    if (stats) { stats.classList.remove('thinking'); const tok = stats.querySelector('.stream-tok'); if (tok) tok.textContent = '0'; }
+  }
   _tokTarget = liveTokensShown(charCount);
 }
 function stopStreamStats(msgEl, finalTokens, apiUsage) {
@@ -9720,12 +9731,12 @@ function stopStreamStats(msgEl, finalTokens, apiUsage) {
   _tokActiveMsgEl = null;
   _tokShown = 0; _tokFrac = 0; _tokTarget = 0; _tokRate = 0; _tokLastTs = 0; _tokStarted = false;
   const stats = msgEl?.querySelector('.stream-stats');
-  if (stats) stats.classList.remove('active');
+  if (stats) stats.classList.remove('active', 'thinking');
 }
 
 // Hide every token counter right away (called the moment a reply finishes arriving).
 function hideStreamStatsNow() {
-  document.querySelectorAll('.stream-stats.active').forEach(s => { s.classList.remove('active'); });
+  document.querySelectorAll('.stream-stats.active').forEach(s => { s.classList.remove('active', 'thinking'); });
 }
 
 // ── Regeneration history ──────────────────────────────────────────────────────
