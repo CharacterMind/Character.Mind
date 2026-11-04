@@ -2243,6 +2243,33 @@ function lengthTargetNote(modelTier, effort) {
 }
 // Extra and Max effort make the model plan before it writes and check its work afterwards (the models that can think do this in hidden reasoning).
 const REFINE_NOTE = 'REFINE: silently plan the reply first (what must happen, what the character knows, what must not be repeated, what the user specifically wrote that you must react to), write it, then check it for mistakes, contradictions, repeated phrases, and generic openers before you answer.';
+
+// Per-effort word targets injected into the user message itself (not just system prompt).
+// Gemini treats the latest user turn as the highest-priority instruction, so this overrides
+// any conversational "natural ending" the model senses from the dialogue history.
+const EFFORT_WORD_TARGET = { high: 800, extra: 1400, max: 2200 };
+function withLengthSuffix(messages, effort, modelTier, callMode) {
+  if (callMode) return messages; // call mode wants short replies — never inject
+  const words = EFFORT_WORD_TARGET[effort];
+  if (!words) return messages; // low / medium — no injection
+  // Higher tiers write more: match modelDepthNote targets
+  const rank = depthRankFor(modelTier);
+  const tierTargets = {
+    high:  [800,  900,  1300, 2000],
+    extra: [1400, 1500, 2200, 3200],
+    max:   [2200, 2600, 3800, 5500],
+  };
+  const minWords = (tierTargets[effort] || [])[rank] || words;
+  const copy = messages.map(m => ({ ...m }));
+  for (let i = copy.length - 1; i >= 0; i--) {
+    if (copy[i].role === 'user') {
+      copy[i] = { ...copy[i], content: String(copy[i].content || '') + `\n\n[LENGTH REQUIREMENT — MANDATORY: Write at least ${minWords} words in your reply. This is a ${effort.toUpperCase()} effort request. Do NOT wrap up, conclude, or end the scene early. If you feel done before ${minWords} words, keep writing: add more detail, dialogue, sensation, or action. Do not stop until you have written at least ${minWords} words of new content.]` };
+      break;
+    }
+  }
+  return copy;
+}
+
 function applyEffortDirective(prompt, effort, modelTier) {
   const directive = (typeof effort === 'string' && Object.hasOwn(EFFORT_DIRECTIVES, effort)) ? EFFORT_DIRECTIVES[effort] : EFFORT_DIRECTIVES['medium'];
   const depth = modelDepthNote(modelTier, effort);
@@ -6814,7 +6841,7 @@ app.post('/api/regenerate/:charId', requireAuth, async (req, res) => {
   startReplyStream({
     res, apiKey,
     system: applyEffortDirective(IMAGE_CAPABILITY_PREFIX + wrapPrompt(systemPrompt + regenMem, chatMode === 'chat') + regenCrisisContext + regenChatModeDirective + regenCharEnforcement + gameKnowledgeDirective(modelTier), effort, modelTier),
-    messages: fitHistory(aiHistory(hist).slice(-12), historyBudgetFor(modelTier)), effortCfg: regenEffortCfg, modelList: regenModelList,
+    messages: withLengthSuffix(fitHistory(aiHistory(hist).slice(-12), historyBudgetFor(modelTier)), effort, modelTier, false), effortCfg: regenEffortCfg, modelList: regenModelList,
     userId, modelTier, effort, releaseSlot, charId,
     onComplete: (text) => {
       hist.push({ role: 'assistant', content: text }); persistConv(key);
@@ -7582,7 +7609,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   startReplyStream({
     res, apiKey,
     system: applyEffortDirective(IMAGE_CAPABILITY_PREFIX + characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + (callMode || bookReq ? '' : phoneDirective(userId, charId, conversations[key])) + chatModeDirective + chatBlockDirective + characterEnforcement + swearDirective + gameKnowledgeDirective(modelTier), effort, modelTier),
-    messages: messagesForGroq, effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId, callMode,
+    messages: withLengthSuffix(messagesForGroq, effort, modelTier, callMode), effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId, callMode,
     onComplete: (text, meta) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
       // TTS overhead in call mode: 10% of the base message cost, proportional to model tier.

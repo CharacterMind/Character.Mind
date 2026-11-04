@@ -2061,6 +2061,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '444': {
+    date: 'November 2026',
+    label: 'High / Extra / Max Effort Now Actually Generates Longer Replies',
+    fixed: [
+      'Higher effort settings now reliably produce longer replies — the length requirement is sent with every message, so the AI can no longer ignore it and give a short goodbye instead',
+      'Max effort on Opas now targets 2200+ words instead of stopping early; Extra targets 1400+, High targets 800+',
+    ],
+  },
   '443': {
     date: 'November 2026',
     label: 'Token Counter Fluctuates Like Real Token Arrivals',
