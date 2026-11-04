@@ -1884,7 +1884,9 @@ function depthRankFor(t) { const b = baseOf(t); return b ? BASE_DEPTH_RANK[b] : 
 function modelDepthNote(modelTier, effort) {
   const rank = depthRankFor(modelTier);
   if (!rank) {
-    if (effort === 'low') return 'BREVITY ANCHOR: This is a brief opas-tier reply — write 1 to 3 sentences only. Quality over quantity: one sharp moment and stop. Do not elaborate.';
+    if (effort === 'low')    return 'BREVITY ANCHOR: This is a brief opas-tier reply — write 1 to 3 sentences only. Quality over quantity: one sharp moment and stop. Do not elaborate.';
+    if (effort === 'medium') return 'DEPTH GUIDE: Write at least 200 words for this reply — 2 to 3 focused paragraphs. Keep the style sharp and punchy, every sentence earning its place. Do not stop before you reach 200 words.';
+    if (effort === 'high')   return 'DEPTH GUIDE: Write at least 320 words for this reply — 3 to 4 paragraphs. Richer scene and atmosphere, but keep the sharp, punchy style throughout. Do not stop before you reach 320 words.';
     return '';
   }
   if (effort === 'low') {
@@ -1895,11 +1897,11 @@ function modelDepthNote(modelTier, effort) {
   const highTargets = [[5, 8, 650], [8, 12, 1000], [12, 18, 1500]];
   if (effort === 'medium') {
     const [minP, maxP, minW] = medTargets[rank - 1];
-    return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} paragraphs — at least ${minW} words total. This overrides ALL other length guidance in this prompt (including the RESPONSE LENGTH target above and the Writing Craft section) — write more, richer content. Each paragraph should be full of atmosphere, dialogue, and emotion. Do not stop early.`;
+    return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt (including the RESPONSE LENGTH target above and the Writing Craft section) — write more, richer content. Each paragraph should be full of atmosphere, dialogue, and emotion.`;
   }
   if (effort === 'high') {
     const [minP, maxP, minW] = highTargets[rank - 1];
-    return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} full paragraphs — at least ${minW} words total. This overrides ALL other length guidance in this prompt (including the RESPONSE LENGTH target above and the Writing Craft section) — go deeper, longer, and more immersive. Develop every beat fully.`;
+    return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} full paragraphs — at least ${minW} words total. Do not stop before you reach ${minW} words. This overrides ALL other length guidance in this prompt (including the RESPONSE LENGTH target above and the Writing Craft section) — go deeper, longer, and more immersive. Develop every beat fully.`;
   }
   return 'TIER UPGRADE: As a higher-tier model, push further — more paragraphs, richer atmosphere, deeper sensory detail, and more fully developed emotional and narrative beats at every turn.';
 }
