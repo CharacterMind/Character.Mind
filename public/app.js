@@ -2056,6 +2056,17 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '439': {
+    date: 'November 2026',
+    label: 'Full Token Breakdown + Voice File Fix',
+    added: [
+      'Token counter now shows full breakdown: output tokens, input tokens, cached tokens, and live tok/s speed',
+      'tok/s updates every 250ms during generation so you can see exactly how fast the model is running',
+    ],
+    fixed: [
+      'Poppy (and any character with a committed voice file) now clones correctly even after the server restarts — the character\'s built-in audio is used as the voice reference when no fresh upload is found',
+    ],
+  },
   '438': {
     date: 'November 2026',
     label: 'Voice Fixes + Instant Token Counter',
@@ -6383,7 +6394,7 @@ async function generateGreeting() {
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, streamCharCount = 0;
+    let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, streamCharCount = 0, streamApiUsage = null;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -6397,7 +6408,7 @@ async function generateGreeting() {
         if (!line.startsWith('data: ')) continue;
         let data; try { data = JSON.parse(line.slice(6)); } catch (_) { continue; }
         if (data.error) throw new Error(data.error);
-        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; if (data.swearBudgetHit) showSwearLimitModal(); }
+        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; streamApiUsage = data.apiUsage || null; if (data.swearBudgetHit) showSwearLimitModal(); }
         if (data.text) {
           if (!gotFirst) {
             gotFirst = true;
@@ -6420,7 +6431,7 @@ async function generateGreeting() {
     drainTypewriter(() => {
       _flushAutoSpeak();
       if (msgEl) { if (streamSig) msgEl.dataset.sig = streamSig; else delete msgEl.dataset.sig; }
-      if (msgEl) stopStreamStats(msgEl, streamRealTokens);
+      if (msgEl) stopStreamStats(msgEl, streamRealTokens, streamApiUsage);
       isStreaming = false;
       if (!window._gpuBoostActive && !callModeActive) window._farmBoostMult = 1;
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
@@ -6718,7 +6729,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
     let msgEl = null, bubble = null, gotFirst = false;
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, streamCharCount = 0, streamBlocked = false, streamPhoneUnlocked = null, streamJustBlocked = false, streamBlockedUntil = 0, streamCallMe = false;
+    let buffer = '', streamText = '', streamRealTokens = null, streamSig = null, pendingUsage = null, streamCharCount = 0, streamBlocked = false, streamPhoneUnlocked = null, streamJustBlocked = false, streamBlockedUntil = 0, streamCallMe = false, streamApiUsage = null;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -6753,7 +6764,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
           }
           break;
         }
-        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; if (data.swearBudgetHit) showSwearLimitModal(); if (data.hangup && callModeActive) callHangupChar = currentChar; if (data.textBlocked && !callModeActive) { streamJustBlocked = true; streamBlockedUntil = data.blockedUntil || 0; } if (data.phoneUnlocked) streamPhoneUnlocked = data.phoneUnlocked; if (data.callMe && !callModeActive) streamCallMe = true; }
+        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; streamApiUsage = data.apiUsage || null; if (data.swearBudgetHit) showSwearLimitModal(); if (data.hangup && callModeActive) callHangupChar = currentChar; if (data.textBlocked && !callModeActive) { streamJustBlocked = true; streamBlockedUntil = data.blockedUntil || 0; } if (data.phoneUnlocked) streamPhoneUnlocked = data.phoneUnlocked; if (data.callMe && !callModeActive) streamCallMe = true; }
         if (data.charBlocked) { showTyping(false); streamBlocked = true; }
         if (data.text) {
           if (!gotFirst) {
@@ -6776,7 +6787,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
         drainTypewriter(() => {
           _flushAutoSpeak();
           if (msgEl) { if (streamSig) msgEl.dataset.sig = streamSig; else delete msgEl.dataset.sig; }
-          if (msgEl) stopStreamStats(msgEl, streamRealTokens);
+          if (msgEl) stopStreamStats(msgEl, streamRealTokens, streamApiUsage);
           isStreaming = false;
           if (bubble) { bubble.classList.remove('streaming'); colorizeLetters(bubble, currentChar?.color); }
           if (pendingUsage) updateUsageBars(pendingUsage);
@@ -6789,7 +6800,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
     drainTypewriter(() => {
       _flushAutoSpeak();
       if (msgEl) { if (streamSig) msgEl.dataset.sig = streamSig; else delete msgEl.dataset.sig; }
-      if (msgEl) stopStreamStats(msgEl, streamRealTokens);
+      if (msgEl) stopStreamStats(msgEl, streamRealTokens, streamApiUsage);
       isStreaming = false;
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
       if (!lockoutActive) document.getElementById('sendBtn').disabled = false;
@@ -9427,7 +9438,13 @@ function createAiMessage() {
       <span class="stream-spinner"></span>
       <span class="stream-time">0s</span>
       <span class="stream-sep">·</span>
-      <span class="stream-tok">0 tokens</span>
+      <span class="stream-spd">—</span>
+      <span class="stream-sep">·</span>
+      <span class="stream-tok">0 out</span>
+      <span class="stream-sep stream-in-sep" style="display:none">·</span>
+      <span class="stream-in" style="display:none">— in</span>
+      <span class="stream-sep stream-cached-sep" style="display:none">·</span>
+      <span class="stream-cached" style="display:none">— cached</span>
     </div>
     <div class="msg-footer">
       ${regenBtn()}${likeBtn()}${dislikeBtn()}
@@ -9553,16 +9570,27 @@ function startStreamStats(msgEl) {
   const spinner = stats.querySelector('.stream-spinner');
   if (spinner) spinner.style.display = '';
   const tokEl = stats.querySelector('.stream-tok');
-  if (tokEl) tokEl.textContent = '0 tok';
+  if (tokEl) tokEl.textContent = '0 out';
+  const spdEl = stats.querySelector('.stream-spd');
+  if (spdEl) spdEl.textContent = '—';
   const timeEl = stats.querySelector('.stream-time');
   if (timeEl) timeEl.textContent = '0s';
+  // Hide final-only spans until done
+  for (const cls of ['.stream-in-sep','.stream-in','.stream-cached-sep','.stream-cached']) {
+    const el = stats.querySelector(cls); if (el) el.style.display = 'none';
+  }
   if (streamTimer) clearInterval(streamTimer);
-  // Interval only ticks the elapsed time; tokens update per-chunk
   streamTimer = setInterval(() => {
-    const elapsed = Math.round((Date.now() - streamStartTime) / 1000);
-    const timeEl = stats.querySelector('.stream-time');
-    if (timeEl) timeEl.textContent = elapsed + 's';
-  }, 1000);
+    if (!streamStartTime) return;
+    const elapsed = (Date.now() - streamStartTime) / 1000;
+    const timeEl2 = stats.querySelector('.stream-time');
+    if (timeEl2) timeEl2.textContent = elapsed.toFixed(1) + 's';
+    // Live tok/s: output tokens (estimated) ÷ elapsed
+    if (elapsed > 0.5 && _tokTarget > 0) {
+      const spdEl2 = stats.querySelector('.stream-spd');
+      if (spdEl2) spdEl2.textContent = Math.round(_tokTarget / elapsed) + ' tok/s';
+    }
+  }, 250);
 }
 
 // Animated token counter — smoothly chases the target, accelerating as the generation grows
@@ -9574,7 +9602,7 @@ let _tokActiveMsgEl = null;
 function _flushTokDisplay() {
   if (!_tokActiveMsgEl) return;
   const tokEl = _tokActiveMsgEl.querySelector('.stream-stats .stream-tok');
-  if (tokEl) tokEl.textContent = fmtLiveTokens(Math.round(_tokDisplayed)) + ' tokens';
+  if (tokEl) tokEl.textContent = fmtLiveTokens(Math.round(_tokDisplayed)) + ' out';
 }
 function _tickTokAnim() {
   _tokAnimFrame = null;
@@ -9598,17 +9626,39 @@ function updateStreamTokens(msgEl, charCount) {
   if (!_tokAnimFrame) _tokAnimFrame = requestAnimationFrame(_tickTokAnim);
 }
 
-function stopStreamStats(msgEl, finalTokens) {
+function stopStreamStats(msgEl, finalTokens, apiUsage) {
+  const elapsed = streamStartTime ? (Date.now() - streamStartTime) / 1000 : null;
   if (streamTimer) { clearInterval(streamTimer); streamTimer = null; }
   streamStartTime = null;
   if (_tokAnimFrame) { cancelAnimationFrame(_tokAnimFrame); _tokAnimFrame = null; }
-  _tokDisplayed = 0; _tokTarget = 0; _tokActiveMsgEl = null;
+  _tokDisplayed = 0; _tokActiveMsgEl = null;
   const stats = msgEl?.querySelector('.stream-stats');
-  if (!stats) return;
-  if (finalTokens != null) {
-    const tokEl = stats.querySelector('.stream-tok');
-    if (tokEl) tokEl.textContent = fmtLiveTokens(finalTokens) + ' tokens';
+  if (!stats) { _tokTarget = 0; return; }
+
+  const outCount = apiUsage?.output ?? finalTokens ?? _tokTarget;
+  const inCount  = apiUsage?.input  ?? null;
+  const cached   = apiUsage?.cached ?? null;
+  const tokRate  = (elapsed && elapsed > 0.3 && outCount > 0) ? Math.round(outCount / elapsed) : null;
+  _tokTarget = 0;
+
+  const timeEl = stats.querySelector('.stream-time');
+  if (timeEl && elapsed != null) timeEl.textContent = elapsed.toFixed(1) + 's';
+
+  const tokEl = stats.querySelector('.stream-tok');
+  if (tokEl) tokEl.textContent = fmtLiveTokens(outCount) + ' out';
+
+  const spdEl = stats.querySelector('.stream-spd');
+  if (spdEl) spdEl.textContent = tokRate ? tokRate + ' tok/s' : '—';
+
+  if (inCount != null) {
+    const sep = stats.querySelector('.stream-in-sep'); if (sep) sep.style.display = '';
+    const inEl = stats.querySelector('.stream-in'); if (inEl) { inEl.style.display = ''; inEl.textContent = fmtLiveTokens(inCount) + ' in'; }
   }
+  if (cached != null && cached > 0) {
+    const sep = stats.querySelector('.stream-cached-sep'); if (sep) sep.style.display = '';
+    const cachedEl = stats.querySelector('.stream-cached'); if (cachedEl) { cachedEl.style.display = ''; cachedEl.textContent = fmtLiveTokens(cached) + ' cached'; }
+  }
+
   stats.classList.remove('active');
   stats.classList.add('done');
   stats.style.display = 'none';
@@ -12928,7 +12978,7 @@ async function regenerate() {
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = '', streamRealTokens = null, streamSig = null, pendingUsage = null, streamCharCount = 0;
+    let buffer = '', streamRealTokens = null, streamSig = null, pendingUsage = null, streamCharCount = 0, streamApiUsage = null;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -12942,7 +12992,7 @@ async function regenerate() {
         if (!line.startsWith('data: ')) continue;
         let data; try { data = JSON.parse(line.slice(6)); } catch (_) { continue; }
         if (data.error) throw new Error(data.error);
-        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; }
+        if (data.done && data.usage) { markStreamDone(); streamRealTokens = data.responseTokens || null; streamSig = data.sig || null; pendingUsage = data.usage; streamApiUsage = data.apiUsage || null; }
         if (data.text) {
           streamText += data.text;
           feedTypewriter(data.text);
@@ -12954,7 +13004,7 @@ async function regenerate() {
 
     drainTypewriter(() => {
       if (msgEl) { if (streamSig) msgEl.dataset.sig = streamSig; else delete msgEl.dataset.sig; }
-      stopStreamStats(msgEl, streamRealTokens);
+      stopStreamStats(msgEl, streamRealTokens, streamApiUsage);
       isStreaming = false;
       const lockoutActive = document.getElementById('lockoutBar')?.style.display !== 'none';
       if (!lockoutActive) document.getElementById('sendBtn').disabled = false;

@@ -3733,7 +3733,7 @@ function startReplyStream(o) {
       if (extra.textBlocked) { doneExtra.textBlocked = true; doneExtra.blockedUntil = extra.blockedUntil; }
       if (extra.phoneUnlocked) doneExtra.phoneUnlocked = extra.phoneUnlocked;
       if (extra.callMe) doneExtra.callMe = true;
-      send({ done: true, usage, responseTokens: cost, warnings: reservation.warnings, sig: signReply(userId, charId, fullResponse), ...doneExtra });
+      send({ done: true, usage, responseTokens: cost, warnings: reservation.warnings, sig: signReply(userId, charId, fullResponse), ...(ctx.apiUsage ? { apiUsage: ctx.apiUsage } : {}), ...doneExtra });
       close();
     } catch (e) {
       // post-complete error: done event may not have been sent, but onComplete may have already persisted the message
@@ -3961,7 +3961,14 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
         if (!raw) continue;
         try {
           const parsed = JSON.parse(raw);
-          if (parsed.usageMetadata?.candidatesTokenCount) usageTokens = parsed.usageMetadata.candidatesTokenCount;
+          if (parsed.usageMetadata) {
+            if (parsed.usageMetadata.candidatesTokenCount) usageTokens = parsed.usageMetadata.candidatesTokenCount;
+            if (ctx) ctx.apiUsage = {
+              output: parsed.usageMetadata.candidatesTokenCount || 0,
+              input:  parsed.usageMetadata.promptTokenCount || 0,
+              cached: parsed.usageMetadata.cachedContentTokenCount || 0,
+            };
+          }
           const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
           if (text) { responseTextLen += text.length; collected += text; onChunk(text); }
           const reason = parsed.candidates?.[0]?.finishReason;
@@ -5272,6 +5279,16 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         userSpeakerFile = candidate;
       }
     } catch { /* no user voice assigned or file missing */ }
+
+    // When no user upload exists, fall back to the character's committed voice file (e.g. poppy_ref_clean.wav)
+    // so cloning still works without requiring a fresh upload on every Render restart.
+    if (!userSpeakerFile) {
+      const fallbackEntry = CHARACTER_VOICE_MAP[charId];
+      if (fallbackEntry?.file) {
+        try { await fs.promises.access(fallbackEntry.file); userSpeakerFile = fallbackEntry.file; }
+        catch { console.warn('[user-tts] character fallback file not found:', fallbackEntry.file); }
+      }
+    }
 
     if (userSpeakerFile) {
       // Try Replicate XTTS-v2

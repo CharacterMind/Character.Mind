@@ -980,6 +980,9 @@ html, body {
 .stream-sep { color: var(--text3); }
 .stream-time { color: var(--text3); }
 .stream-tok { color: var(--text2); font-weight: 500; }
+.stream-spd { color: var(--text3); }
+.stream-in  { color: var(--text3); }
+.stream-cached { color: var(--text3); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* Reaction bar */
