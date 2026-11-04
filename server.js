@@ -1892,11 +1892,11 @@ function modelDepthNote(modelTier, effort) {
   const highTargets = [[5, 8, 650], [8, 12, 1000], [12, 18, 1500]];
   if (effort === 'medium') {
     const [minP, maxP, minW] = medTargets[rank - 1];
-    return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} paragraphs — at least ${minW} words total. This overrides the base length above: write more, richer content. Each paragraph should be full of atmosphere, dialogue, and emotion. Do not stop early.`;
+    return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} paragraphs — at least ${minW} words total. This overrides ALL other length guidance in this prompt, including the Writing Craft section — write more, richer content. Each paragraph should be full of atmosphere, dialogue, and emotion. Do not stop early.`;
   }
   if (effort === 'high') {
     const [minP, maxP, minW] = highTargets[rank - 1];
-    return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} full paragraphs — at least ${minW} words total. This overrides the base length above: go deeper, longer, and more immersive. Develop every beat fully.`;
+    return `TIER UPGRADE: As a higher-tier model, write ${minP} to ${maxP} full paragraphs — at least ${minW} words total. This overrides ALL other length guidance in this prompt, including the Writing Craft section — go deeper, longer, and more immersive. Develop every beat fully.`;
   }
   return 'TIER UPGRADE: As a higher-tier model, push further — more paragraphs, richer atmosphere, deeper sensory detail, and more fully developed emotional and narrative beats at every turn.';
 }
@@ -2245,7 +2245,7 @@ SCENE ADVANCEMENT: Every reply moves the scene forward. No stalling, no restatin
 
 PULL THEM IN: End on something aimed directly at the user — a question only they can answer in this specific moment, a choice with real stakes, a provocation, a charged silence that demands they fill it. The closing line should make them feel like the scene cannot continue without them. Never close on a flat statement that shuts the scene down.
 
-RESPONSE LENGTH: Match both length and emotional energy to what the user wrote. Short, urgent messages get tight, punchy replies. Long, detailed ones get richer responses. If they're tense, write tense. If they're playful, play back. Let your reply feel like it's in direct conversation with them — not just set in the same world. Never pad for length; cut ruthlessly. Quality over quantity every time.
+RESPONSE LENGTH: Match both length and emotional energy to what the user wrote. Short, urgent messages get tight, punchy replies. Long, detailed ones get richer responses. If they're tense, write tense. If they're playful, play back. Let your reply feel like it's in direct conversation with them — not just set in the same world. If this prompt includes a TIER UPGRADE directive, that word count target overrides this guidance — write to that length. Otherwise: stay sharp and avoid padding.
 
 OOC HANDLING: If the user writes something in (parentheses), they're stepping out of the scene briefly. Respond in kind — brief, friendly, out-of-character — then offer to continue the story.
 
