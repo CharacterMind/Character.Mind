@@ -80,7 +80,7 @@ let selectedModelTier = 'opas';
 let selectedEffort = 'medium';
 let prefsLoadedFor = null;
 // Default model per subscription plan — higher plans get a smarter default automatically
-const PLAN_DEFAULT_MODEL = { free: 'opas', advanced: 'opes', x50: 'opos', x100: 'opos', x200: 'opos' };
+const PLAN_DEFAULT_MODEL = { free: 'opas', advanced: 'opas', x50: 'opos', x100: 'opos', x200: 'opos' };
 function loadAccountPrefs() {
   if (!currentUser || prefsLoadedFor === currentUser.googleId) return;
   prefsLoadedFor = currentUser.googleId;
@@ -90,6 +90,7 @@ function loadAccountPrefs() {
   try {
     const t = localStorage.getItem(userKey('cm_model_tier'));
     if (baseTierOf(t)) selectedModelTier = baseTierOf(t);
+    if (selectedModelTier !== 'opas') selectedModelTier = 'opas'; // other models hidden for now
     const e = localStorage.getItem(userKey('cm_effort'));
     if (EFFORT_LEVELS.includes(e)) selectedEffort = e;
   } catch (_) {}
@@ -172,9 +173,9 @@ function updateModelPickerLocks() {
     if (up) up.style.display = allowed ? 'none' : '';
   });
   // If the saved model isn't part of this account's plan (e.g. after switching accounts), fall back to Opes
-  if (!modelAllowedForPlan(selectedModelTier)) {
-    selectedModelTier = 'opes';
-    try { localStorage.setItem(userKey('cm_model_tier'), 'opes'); } catch (_) {}
+  if (!modelAllowedForPlan(selectedModelTier) || selectedModelTier !== 'opas') {
+    selectedModelTier = 'opas';
+    try { localStorage.setItem(userKey('cm_model_tier'), 'opas'); } catch (_) {}
     updateModelBarLabel();
   }
 }
@@ -9551,8 +9552,8 @@ function _tickTokAnim() {
   if (!stats?.classList.contains('active')) { _tokDisplayed = 0; return; }
   const diff = _tokTarget - _tokDisplayed;
   if (diff <= 0) { _flushTokDisplay(); return; }
-  // Step grows with the target — longer generation ticks faster
-  const step = Math.max(1, diff * 0.12 + _tokTarget * 0.003);
+  // Chase at ~half the target value per second — always visibly counting, never instant-jumping
+  const step = Math.max(0.5, Math.min(diff, Math.max(1, _tokTarget * 0.5 / 60)));
   _tokDisplayed = Math.min(_tokTarget, _tokDisplayed + step);
   _flushTokDisplay();
   if (_tokDisplayed < _tokTarget) _tokAnimFrame = requestAnimationFrame(_tickTokAnim);
@@ -10722,7 +10723,7 @@ function _feedAutoSpeak(chunk) {
   // Secondary: when the incomplete tail is long, split at the first ", " after ≥12 chars.
   // Skip for character voice (Chatterbox ~5s/call) — short fragments cause more gaps than
   // waiting for a complete sentence.
-  while (ttsProvider !== 'character' && _streamTTSBuffer.length > 40) {
+  while (ttsProvider !== 'character' && _streamTTSBuffer.length > 15) {
     const idx = _streamTTSBuffer.indexOf(', ', 12);
     if (idx === -1) break;
     const piece = _streamTTSBuffer.slice(0, idx + 1).trim();
@@ -10761,45 +10762,36 @@ function _flushAutoSpeak() {
 }
 
 async function _playFullMessageTTS(rawText) {
-  // Interrupt any in-progress TTS immediately, then claim this generation slot
+  // Interrupt any in-progress TTS immediately
   _stopCurrentTTS();
-  const myGen = _ttsGeneration; // captured AFTER increment inside _stopCurrentTTS
-
   if (ttsProvider === 'browser' || ttsProvider === 'off') return;
   const clean = ttsCleanText(rawText);
   if (!clean || clean.length <= 1) return;
 
-  _streamTTSPlaying = true;
-  const btn = document.getElementById('autoSpeakBtn');
-  if (btn) { btn.classList.remove('speaking'); btn.classList.add('loading'); }
-
-  try {
-    const r = await fetch('/api/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: clean.slice(0, 499), charId: currentChar?.id || '', provider: ttsProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
-    });
-    if (myGen !== _ttsGeneration) return; // superseded by a newer message
-    if (btn) btn.classList.remove('loading');
-    if (!r.ok) { _streamTTSPlaying = false; if (btn) btn.classList.remove('speaking', 'loading'); return; }
-    const blob = await r.blob();
-    if (myGen !== _ttsGeneration) return; // superseded
-    if (!blob) { _streamTTSPlaying = false; if (btn) btn.classList.remove('speaking', 'loading'); return; }
-    if (btn) btn.classList.add('speaking');
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    _streamTTSAudio = audio;
-    await new Promise(resolve => {
-      const done = () => { URL.revokeObjectURL(url); if (_streamTTSAudio === audio) _streamTTSAudio = null; resolve(); };
-      audio.onended = done; audio.onerror = done;
-      audio.play().catch(done);
-    });
-  } catch (e) { if (myGen === _ttsGeneration) console.warn('[tts] full message error:', e); }
-
-  if (myGen === _ttsGeneration) {
-    _streamTTSPlaying = false;
-    if (btn) btn.classList.remove('speaking', 'loading');
+  // Split the message into sentences upfront, prefetch all in parallel, then
+  // start the gapless AudioContext queue. First sentence plays as soon as its
+  // fetch resolves — much faster than synthesising the whole message first.
+  _streamTTSQueue = []; _streamTTSDone = false;
+  const sentParts = clean.split(/(?<=[.!?])\s+/);
+  const lastFrag = sentParts.pop() || '';
+  const sentences = sentParts.map(s => s.trim()).filter(s => s.length > 1);
+  let tail = lastFrag;
+  while (tail.length > 40) {
+    const idx = tail.indexOf(', ', 12);
+    if (idx === -1) break;
+    const piece = tail.slice(0, idx + 1).trim();
+    tail = tail.slice(idx + 2).trimStart();
+    if (piece.length > 1) sentences.push(piece);
   }
+  if (tail.trim().length > 1) sentences.push(tail.trim());
+  if (sentences.length === 0) sentences.push(clean.slice(0, 499));
+
+  for (const s of sentences) {
+    _streamTTSQueue.push(s);
+    _prefetchSentence(s);
+  }
+  _streamTTSDone = true;
+  if (!_streamTTSPlaying) _playStreamTTSQueue();
 }
 
 async function _playStreamTTSQueue() {

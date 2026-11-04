@@ -5249,22 +5249,10 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         }
       } catch (e) {
         // Clone server not running or timed out — fall through to Edge TTS so there's still a voice
-        if (e.name !== 'AbortError') console.warn('[char-tts] clone server unavailable, falling back to Edge TTS:', e.message);
+        if (e.name !== 'AbortError') console.warn('[char-tts] clone server unavailable, falling back to Gemini TTS:', e.message);
       }
     }
-    // Fallback: Edge TTS with the character's assigned voice
-    const charEdgeVoice = EDGE_VOICE_MAP[charId] || EDGE_DEFAULT_VOICE;
-    try {
-      const audio = await edgeSynthesize(text, charEdgeVoice);
-      if (!audio || !audio.length) throw new Error('empty');
-      res.setHeader('Content-Type', 'audio/mpeg');
-      res.setHeader('Cache-Control', 'no-store');
-      res.setHeader('X-TTS-Provider', 'character-edge');
-      return res.send(audio);
-    } catch (e) {
-      console.warn('[char-tts] edge failed, falling back to general TTS:', e.message);
-      // fall through to Edge / Gemini fallback below
-    }
+    // Clone server offline — fall through to Gemini TTS (sounds natural, not robotic)
   }
 
   // User voice provider — use the user's uploaded/recorded audio as the speaker sample for XTTS cloning.
@@ -5331,7 +5319,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   }
 
   // Gemini TTS path — try legacy generateContent API first, then new Interactions API
-  if (effectiveProvider === 'gemini' || effectiveProvider === 'user') {
+  if (effectiveProvider === 'gemini' || effectiveProvider === 'user' || effectiveProvider === 'character') {
     const gKey = process.env.GEMINI_API_KEY;
     if (gKey) {
       const userId = req.user.googleId;
