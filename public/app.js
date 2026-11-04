@@ -310,7 +310,7 @@ const PLAN_DATA = [
 const COIN_USD_VALUE = 0.01;
 const MONTHLY_COIN_GRANT = { free: 20, advanced: 30, x50: 1800, x100: 3600, x200: 9000 };
 
-const PLAN_LABELS = { free: 'Free', advanced: 'Advanced', x50: 'X50', x100: 'X100', x200: 'X200' };
+const PLAN_LABELS = { free: 'Free plan', advanced: 'Advanced', x50: 'X50', x100: 'X100', x200: 'X200' };
 const PLAN_SUBS = {
   free:     'Opas & Opes only · sessions reset every 2 hrs',
   advanced: 'All 4 models · 2× session budget · 2,000 coins/mo',
@@ -1302,7 +1302,7 @@ function updateSettingsPlanCard(tier) {
   const name  = document.getElementById('settingsPlanName');
   const sub   = document.getElementById('settingsPlanSub');
   if (badge) badge.textContent = PLAN_LABELS[t] || t;
-  if (name)  name.textContent  = (PLAN_LABELS[t] || t) + ' Plan';
+  if (name)  name.textContent  = t === 'free' ? 'Free plan' : ((PLAN_LABELS[t] || t) + ' Plan');
   if (sub)   sub.textContent   = PLAN_SUBS[t] || '';
   const upgradeBtn = document.querySelector('.settings-plan-upgrade-btn');
   if (upgradeBtn) upgradeBtn.style.display = 'none';
@@ -2058,6 +2058,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '467': {
+    date: 'November 2026',
+    label: 'Free Plan Badge',
+    added: [
+      '"Free plan" badge now appears next to your name in the account dropdown and profile header',
+    ],
+  },
   '466': {
     date: 'November 2026',
     label: 'Poppy Voice Upgraded',
