@@ -114,16 +114,13 @@ function clientMessageCost(tier, effort) {
   if (tier === 'opas' || !(tier in COST_FACTOR_VS_OPES)) return OPAS_COST[effort];
   return Math.round(OPES_COST[effort] * COST_FACTOR_VS_OPES[tier]);
 }
-// Roughly how many visible characters a full reply has at each effort (used to ramp the live counter up to the cost)
-const EXPECTED_REPLY_CHARS = { low: 200, medium: 2400, high: 4800, extra: 8400, max: 13200, ultracode: 12000 };
-// Every model is asked for a set number of words at High, Extra and Max (must match WORDS_BY_EFFORT / MODEL_WORDS in server.js)
-const WORDS_BY_EFFORT = { high: 1100, extra: 3000, max: 7500, ultracode: 9000 };
-const MODEL_WORDS = { opas: 0.7, opes: 1.5, opis: 1.3, opos: 1.5 };
+// How many visible characters a reply typically reaches at each effort level.
+// Keep these close to actual generation lengths so the counter reaches the full cost visibly.
+// Opas uses these directly; higher tiers share the same expected length but have bigger costs,
+// so the counter rises faster and peaks much higher — making the tier difference obvious.
+const EXPECTED_REPLY_CHARS = { low: 600, medium: 2400, high: 4800, extra: 8400, max: 13200, ultracode: 12000 };
 function expectedReplyChars(tier, effort) {
-  const b = baseTierOf(tier);
-  if (b === 'opas') return EXPECTED_REPLY_CHARS[effort] || 1200;
-  if (b && WORDS_BY_EFFORT[effort]) return Math.round(WORDS_BY_EFFORT[effort] * MODEL_WORDS[b] / 50) * 50 * 6;
-  return EXPECTED_REPLY_CHARS[effort] || 1200;
+  return EXPECTED_REPLY_CHARS[effort] || 2400;
 }
 // Model tiers each plan may use — must match PLAN_MODEL_TIERS in server.js.
 const PLAN_MODEL_TIERS = {};
@@ -138,11 +135,12 @@ function liveReplyCost() {
   const effort = callModeActive ? 'low' : (OPES_COST[selectedEffort] ? selectedEffort : 'medium');
   return { cost: clientMessageCost(tier, effort), effort, tier };
 }
-// The live counter under a reply: it ramps up to the price of the reply and then KEEPS counting at the same pace for as long
-// as the reply keeps writing (long replies run far past the "expected" length). The usage bars still stop at the real price.
+// Live token counter: ramps from 0 → cost as the reply fills expectedReplyChars, then holds at cost.
+// All tiers share the same expected length, so higher-cost tiers rise faster and peak much higher —
+// Opos Max hits 45k tokens at the same point Opas Medium shows only 400.
 function liveTokensShown(chars) {
   const { cost, effort, tier } = liveReplyCost();
-  return Math.round(cost * chars / expectedReplyChars(tier, effort));
+  return Math.min(cost, Math.round(cost * chars / expectedReplyChars(tier, effort)));
 }
 const EFFORT_LABELS = { low:'Low', medium:'Medium', high:'High', extra:'Extra', max:'Max', ultracode:'⚡ Ultra Code' };
 
@@ -2056,6 +2054,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '440': {
+    date: 'November 2026',
+    label: 'Token Counter Scales With Model & Effort',
+    fixed: [
+      'Token counter now visibly flies faster on higher models and higher effort — Opos Max ticks ~100× faster than Opas Low',
+      'Counter ramps up to the full token cost as the reply generates, then holds — no more barely-moving counter on high-effort replies',
+      'Final breakdown shows: tokens spent · tok/s · real API input · real API output',
+    ],
+  },
   '439': {
     date: 'November 2026',
     label: 'Full Token Breakdown + Voice File Fix',
@@ -9602,7 +9609,7 @@ let _tokActiveMsgEl = null;
 function _flushTokDisplay() {
   if (!_tokActiveMsgEl) return;
   const tokEl = _tokActiveMsgEl.querySelector('.stream-stats .stream-tok');
-  if (tokEl) tokEl.textContent = fmtLiveTokens(Math.round(_tokDisplayed)) + ' out';
+  if (tokEl) tokEl.textContent = fmtLiveTokens(Math.round(_tokDisplayed)) + ' tok';
 }
 function _tickTokAnim() {
   _tokAnimFrame = null;
@@ -9635,17 +9642,20 @@ function stopStreamStats(msgEl, finalTokens, apiUsage) {
   const stats = msgEl?.querySelector('.stream-stats');
   if (!stats) { _tokTarget = 0; return; }
 
-  const outCount = apiUsage?.output ?? finalTokens ?? _tokTarget;
+  // Main displayed count = CM token cost (what the user spent), not raw Gemini output tokens.
+  // Real API breakdown (in/out/cached) shows separately so there is no confusing drop from live → final.
+  const cmCost   = finalTokens ?? _tokTarget;
   const inCount  = apiUsage?.input  ?? null;
+  const outReal  = apiUsage?.output ?? null;
   const cached   = apiUsage?.cached ?? null;
-  const tokRate  = (elapsed && elapsed > 0.3 && outCount > 0) ? Math.round(outCount / elapsed) : null;
+  const tokRate  = (elapsed && elapsed > 0.3 && cmCost > 0) ? Math.round(cmCost / elapsed) : null;
   _tokTarget = 0;
 
   const timeEl = stats.querySelector('.stream-time');
   if (timeEl && elapsed != null) timeEl.textContent = elapsed.toFixed(1) + 's';
 
   const tokEl = stats.querySelector('.stream-tok');
-  if (tokEl) tokEl.textContent = fmtLiveTokens(outCount) + ' out';
+  if (tokEl) tokEl.textContent = fmtLiveTokens(cmCost) + ' tok';
 
   const spdEl = stats.querySelector('.stream-spd');
   if (spdEl) spdEl.textContent = tokRate ? tokRate + ' tok/s' : '—';
@@ -9654,7 +9664,10 @@ function stopStreamStats(msgEl, finalTokens, apiUsage) {
     const sep = stats.querySelector('.stream-in-sep'); if (sep) sep.style.display = '';
     const inEl = stats.querySelector('.stream-in'); if (inEl) { inEl.style.display = ''; inEl.textContent = fmtLiveTokens(inCount) + ' in'; }
   }
-  if (cached != null && cached > 0) {
+  if (outReal != null) {
+    const sep = stats.querySelector('.stream-cached-sep'); if (sep) sep.style.display = '';
+    const outEl = stats.querySelector('.stream-cached'); if (outEl) { outEl.style.display = ''; outEl.textContent = fmtLiveTokens(outReal) + ' out'; }
+  } else if (cached != null && cached > 0) {
     const sep = stats.querySelector('.stream-cached-sep'); if (sep) sep.style.display = '';
     const cachedEl = stats.querySelector('.stream-cached'); if (cachedEl) { cachedEl.style.display = ''; cachedEl.textContent = fmtLiveTokens(cached) + ' cached'; }
   }
