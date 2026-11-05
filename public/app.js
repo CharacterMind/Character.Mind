@@ -2058,6 +2058,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '522': {
+    date: 'November 2026',
+    label: 'Smooth Auto-Speak on Regenerate',
+    fixed: [
+      'Auto-speak no longer silently stops mid-response when voice server goes offline — now always shows an error toast',
+      'Regenerate now resets auto-speak state before starting — prevents previous response\'s audio from bleeding into the new one',
+      'Last sentence of a regenerated response is now spoken (was silently dropped if it lacked end punctuation)',
+    ],
+  },
   '521': {
     date: 'November 2026',
     label: 'Fix Auto-Speak Cutoff',
@@ -12183,8 +12192,8 @@ async function _playStreamTTSQueue() {
       console.log(`[tts-wait] player waited ${Math.round(performance.now() - _ttsWaitT0)}ms for "${t.slice(0,35)}..."`);
       if (cancel()) break;
       if (blob?._offline) {
-        if (!_firstClipPlayed) showTTSError('Voice server not connected — Poppy’s voice requires the local TTS server.');
-        if (btn) btn.classList.remove('loading', 'speaking');
+        showTTSError(‘Voice server not responding — start Chatterbox (start-voice.py) or check your tunnel URL.’);
+        if (btn) btn.classList.remove(‘loading’, ‘speaking’);
         break;
       }
       if (!blob) continue;
@@ -14307,6 +14316,7 @@ async function regenerate() {
   msgEl.querySelectorAll('.like-btn.active, .dislike-btn.active').forEach(b => b.classList.remove('active'));   // a new reply starts without the old thumbs
   const oldStats = msgEl.querySelector('.stream-stats');
   if (oldStats) { oldStats.classList.remove('done'); oldStats.classList.remove('active'); oldStats.style.display = ''; }
+  _streamTTSBuffer = ''; _streamTTSQueue = []; _streamTTSDone = false; _stopCurrentTTS();
   startTypewriter(bubble, msgEl);
   startStreamStats(msgEl);
   showTyping(false);
@@ -14372,6 +14382,7 @@ async function regenerate() {
     watch.clear();
 
     drainTypewriter(() => {
+      _flushAutoSpeak();
       if (msgEl) { if (streamSig) msgEl.dataset.sig = streamSig; else delete msgEl.dataset.sig; }
       stopStreamStats(msgEl, streamRealTokens, streamApiUsage);
       isStreaming = false;
