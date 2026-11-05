@@ -5583,7 +5583,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
           : { text, voice_id: voiceId, tts_engine: 'f5tts' };
         const ctrl = new AbortController();
         const localXtts = !effectiveCloneUrl;
-        const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 25000;
+        const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 55000;
         const cloneTimeout = setTimeout(() => ctrl.abort(), localXtts ? 90000 : remoteMs);
         const cloneRes = await fetch(`${cloneBase}/tts`, {
           method: 'POST',
@@ -5675,7 +5675,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
           : `http://127.0.0.1:${clonePort}`;
         const voiceId = await _ensureRemoteVoice(cloneBase, userSpeakerFile, null);
         const ctrl = new AbortController();
-        const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 25000;
+        const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 55000;
         const cloneTimeout = setTimeout(() => ctrl.abort(), remoteMs);
         const cloneRes = await fetch(`${cloneBase}/tts`, {
           method: 'POST',

@@ -2075,6 +2075,17 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '531': {
+    date: 'November 2026',
+    label: 'Fix Voice Gaps and Pauses',
+    fixed: [
+      'Removed tiny early-start clip (8-15 chars) that played quickly then caused a 6+ second silence gap while the next full sentence was still synthesizing',
+      'Raised comma-split minimum from 40 to 100 chars — small comma-split clips have too little audio duration to cover Chatterbox synthesis time',
+      'Raised force-split from 120 to 240 chars — longer clips give the player more audio buffer between syntheses, eliminating mid-response pauses',
+      'Raised TTS_MAX_INFLIGHT from 2 to 3 so the next-next sentence synthesizes in parallel, not waiting for a slot to open',
+      'Raised server-side Chatterbox timeout from 25s to 55s so longer clips are not prematurely aborted',
+    ],
+  },
   '530': {
     date: 'November 2026',
     label: 'Fix Call Stuck in Thinking',
@@ -11942,7 +11953,7 @@ let _streamTTSDone = false; // true once _flushAutoSpeak fires; tells the wait t
 // Concurrency limiter — Chatterbox on CPU is single-threaded; more than 2 parallel
 // requests stack up at the server, explode the tunnel, and cause 71-second waits.
 let _ttsInFlight = 0;
-const _TTS_MAX_INFLIGHT = 2;
+const _TTS_MAX_INFLIGHT = 3;
 const _ttsPendingQueue = []; // { clean, ctrl, resolve } waiting for a free slot
 let _ttsPoolGen = 0; // incremented by _clearPrefetchPool to invalidate in-flight callbacks
 
@@ -12115,32 +12126,22 @@ function _feedAutoSpeak(chunk) {
     }
   }
 
-  // Secondary comma-split: enabled for long fragments so audio starts sooner (≥40 char piece)
-  while ((ttsProvider === 'character' || ttsProvider === 'user') && _streamTTSBuffer.length > 60) {
+  // Secondary comma-split: only split on comma when piece is long enough to cover synthesis time
+  while ((ttsProvider === 'character' || ttsProvider === 'user') && _streamTTSBuffer.length > 150) {
     const idx = _streamTTSBuffer.indexOf(', ', 10);
     if (idx === -1) break;
     const piece = _streamTTSBuffer.slice(0, idx + 1).trim();
     const tail  = _streamTTSBuffer.slice(idx + 2).trimStart();
-    if (piece.length < 40) break;
+    if (piece.length < 100) break;
     _streamTTSBuffer = tail;
     _streamTTSQueue.push(piece);
     _prefetchSentence(piece);
   }
-  // Early-start: kick off synthesis on the first 15+ chars even without punctuation.
-  // Shorter clip = faster Chatterbox synthesis = first audio arrives sooner.
-  if ((ttsProvider === 'character' || ttsProvider === 'user') && _streamTTSQueue.length === 0 && _streamTTSBuffer.length >= 15) {
-    const idx = _streamTTSBuffer.lastIndexOf(' ', 32);
-    if (idx >= 8) {
-      const piece = _streamTTSBuffer.slice(0, idx).trim();
-      _streamTTSBuffer = _streamTTSBuffer.slice(idx + 1);
-      _streamTTSQueue.push(piece);
-      _prefetchSentence(piece);
-    }
-  }
-  // For character/user voice: force-split at 120 chars to start audio sooner
-  while ((ttsProvider === 'character' || ttsProvider === 'user') && _streamTTSBuffer.length > 120) {
-    const idx = _streamTTSBuffer.lastIndexOf(' ', 110);
-    if (idx < 30) break;
+  // For character/user voice: force-split at 240 chars — large chunks give the gapless
+  // player enough audio duration to cover Chatterbox synthesis of the following clip.
+  while ((ttsProvider === 'character' || ttsProvider === 'user') && _streamTTSBuffer.length > 240) {
+    const idx = _streamTTSBuffer.lastIndexOf(' ', 230);
+    if (idx < 60) break;
     const piece = _streamTTSBuffer.slice(0, idx).trim();
     _streamTTSBuffer = _streamTTSBuffer.slice(idx + 1).trimStart();
     _streamTTSQueue.push(piece);
