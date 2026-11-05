@@ -2058,6 +2058,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '506': {
+    date: 'November 2026',
+    label: 'Call Limit Warning Banner',
+    added: [
+      'Banner appears at 90% of your call limit — dismissible with ✕, automatically hides when the full limit is hit',
+    ],
+  },
   '505': {
     date: 'November 2026',
     label: 'Busy Fix & Voicemail Auto-play',
@@ -8754,6 +8761,36 @@ function renderUsageBanners(usage) {
   const callSecLimitBanner = usage.callSecondLimit || 7200;
   const callsMaxed = (callsLimit_banner > 0 && callsToday_banner >= callsLimit_banner) ||
                      (callSecLimitBanner > 0 && callSecsTodayBanner >= callSecLimitBanner);
+
+  // 90% call warning — dismissible, disappears when maxed
+  const callsPctWarn = Math.max(
+    callsLimit_banner > 0 ? (callsToday_banner / callsLimit_banner) * 100 : 0,
+    callSecLimitBanner > 0 ? (callSecsTodayBanner / callSecLimitBanner) * 100 : 0
+  );
+  const _callWarnWindowKey = Math.floor(Date.now() / (15 * 60 * 60 * 1000));
+  const _callWarnDismissKey = `cm_callwarn90_dismissed_${_callWarnWindowKey}_${currentUser?.googleId || 'anon'}`;
+  const _callWarnDismissed = (() => { try { return localStorage.getItem(_callWarnDismissKey) === '1'; } catch (_) { return false; } })();
+  const existingCallWarnBanner = container.querySelector('.warning-banner[data-usage-kind="calls-warn"]');
+  const showCallWarn = callsPctWarn >= 90 && !callsMaxed && !_callWarnDismissed;
+  if (showCallWarn && !existingCallWarnBanner) {
+    const cw = document.createElement('div');
+    cw.className = 'warning-banner';
+    cw.dataset.usageKind = 'calls-warn';
+    cw.dataset.usageLevel = '90';
+    const cwText = document.createElement('span');
+    cwText.textContent = '📵 You’re almost at your call limit — resets in 15 hours.';
+    cw.appendChild(cwText);
+    const cwClose = document.createElement('button');
+    cwClose.className = 'warning-banner-close';
+    cwClose.setAttribute('aria-label', 'Dismiss');
+    cwClose.textContent = '✕';
+    cwClose.onclick = () => { cw.remove(); try { localStorage.setItem(_callWarnDismissKey, '1'); } catch (_) {} };
+    cw.appendChild(cwClose);
+    container.insertBefore(cw, container.firstChild);
+  } else if (!showCallWarn && existingCallWarnBanner) {
+    existingCallWarnBanner.remove();
+  }
+
   const existingCallBanner = container.querySelector('.warning-banner[data-usage-kind="calls"]');
   if (callsMaxed && !existingCallBanner) {
     const cb = document.createElement('div');
