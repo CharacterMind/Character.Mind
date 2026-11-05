@@ -2058,6 +2058,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '494': {
+    date: 'November 2026',
+    label: 'Call Screen Redesign',
+    changed: [
+      'Character image is now a faded background behind the call UI instead of covering the screen',
+      'Call TTS timeout raised from 18s to 90s — Chatterbox voice now has time to respond during calls',
+      '"Tap to interrupt" label is now visible during Poppy\'s responses',
+    ],
+  },
   '493': {
     date: 'November 2026',
     label: 'Voice Stability Fix',
@@ -11883,7 +11892,7 @@ function _fetchCallTTSBlob(rawText) {
   if (!clean || ttsProvider === 'off' || ttsProvider === 'browser') return Promise.resolve(null);
   const prov = ttsProvider;
   const ctrl = new AbortController();
-  const tmo = setTimeout(() => ctrl.abort(), 20000);
+  const tmo = setTimeout(() => ctrl.abort(), 90000);
   return fetch('/api/tts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -12069,7 +12078,7 @@ async function callModeTTS_server(text) {
   const fetchBlob = async (s) => {
     if (ttsProvider === 'off') return null;
     const ctrl = new AbortController();
-    const tmo = setTimeout(() => ctrl.abort(), 18000); // 18s hard cap — prevents call from freezing if TTS server hangs
+    const tmo = setTimeout(() => ctrl.abort(), 90000); // 90s — Chatterbox can take 45s+ to synthesize
     try {
       const r = await fetch('/api/tts', {
         method: 'POST',

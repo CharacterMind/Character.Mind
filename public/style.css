@@ -1348,30 +1348,31 @@ html, body {
 .call-mic-error strong { font-size: 15px; font-weight: 700; color: #fff; }
 .call-mic-error p { font-size: 13px; color: rgba(255,255,255,.68); line-height: 1.45; margin: 0; }
 
-/* Avatar — in natural flow, centered */
+/* Avatar — removed from flex flow; rendered as background layer instead */
 .call-avatar-wrap {
-  flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center;
+  flex: 0; min-height: 0; overflow: visible; pointer-events: none;
 }
-/* Character displayed freely — no box, full image visible, green-screen style */
+/* Character image — absolute, full-screen background, faded behind all UI */
 .call-char-img {
-  width: 80vw;
-  max-width: 360px;
-  height: clamp(180px, 42vh, 420px);
-  background-size: contain;
-  background-position: center;
-  background-repeat: no-repeat;
-  display: flex; align-items: center; justify-content: center;
-}
-/* No-photo placeholder (hidden when background-image is set via JS) */
-.call-no-photo {
-  display: flex; align-items: center; justify-content: center;
+  position: absolute;
+  inset: 0;
   width: 100%; height: 100%;
+  max-width: none;
+  background-size: contain;
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  opacity: 0.22;
+  z-index: 1;
+  pointer-events: none;
+  display: flex; align-items: flex-end; justify-content: center;
 }
+/* No-photo placeholder — hide it when in background mode */
+.call-no-photo { display: none; }
 /* Soft pulse while it's ringing */
 .call-overlay[data-state="calling"] .call-char-img { animation: callRingPulse 1.6s ease-in-out infinite; }
 @keyframes callRingPulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.82; transform: scale(1.04); }
+  0%, 100% { opacity: 0.22; transform: scale(1); }
+  50%       { opacity: 0.30; transform: scale(1.02); }
 }
 @media (prefers-reduced-motion: reduce) {
   .call-overlay[data-state="calling"] .call-char-img { animation: none; }
