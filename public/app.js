@@ -2058,6 +2058,16 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '492': {
+    date: 'November 2026',
+    label: 'Voice & Crisis Fix',
+    fixed: [
+      'Voicemail play button now uses Poppy\'s Chatterbox voice instead of cheap browser TTS',
+      'Read-aloud now shows "Voice server offline — start Chatterbox to enable voice" instead of generic error when voice server is not running',
+      'Phone number no longer appears inside crisis responses — directive is now conditional (given only when asked)',
+      'Server-side TTS clone timeout raised from 60s to 90s to reduce voice generation failures',
+    ],
+  },
   '491': {
     date: 'November 2026',
     label: 'Animation + Phone Number Fix',
@@ -3711,10 +3721,30 @@ function clearCallList(type) {
   renderPhoneVoicemails();
 }
 
-function playCallLogVoicemail(charId, vmText) {
+async function playCallLogVoicemail(charId, vmText) {
   const char = (characters||[]).find(c=>c.id===charId);
   if (!char || !vmText) return;
-  if (!window.speechSynthesis) { showWarning('TTS not available.', 2500); return; }
+  // Try Chatterbox voice first
+  try {
+    const ctrl = new AbortController();
+    const tmo = setTimeout(() => ctrl.abort(), 90000);
+    const r = await fetch('/api/tts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: vmText.slice(0, 499), charId, provider: ttsProvider }),
+      signal: ctrl.signal,
+    }).finally(() => clearTimeout(tmo));
+    if (r.ok) {
+      const ab = await (await r.blob()).arrayBuffer();
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = ctx.createBufferSource();
+      src.buffer = await ctx.decodeAudioData(ab);
+      src.connect(ctx.destination);
+      src.start(0);
+      return;
+    }
+  } catch(_) {}
+  // Fallback: browser TTS
+  if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
   const utt = new SpeechSynthesisUtterance(vmText);
   const vp = _getCharVoiceProfile(char);
@@ -4500,6 +4530,7 @@ function showPhoneRingingThenVoicemail(char, prevChar) {
 
 let vmChar = null;
 let vmSpeaking = false;
+let vmAudioNode = null;
 
 function charVoicemailText(char) {
   const name = char.name || 'me';
@@ -4541,20 +4572,49 @@ function showVoicemailOverlay(char) {
   overlay.style.display = 'flex';
 }
 
-function playVoicemailAudio() {
-  if (!vmChar || !window.speechSynthesis) return;
+async function playVoicemailAudio() {
+  if (!vmChar) return;
   const playBtn = document.getElementById('vmPlayBtn');
+  const playSvg = `<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M8 5v14l11-7z"/></svg> Play`;
+  const stopSvg = `<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> Stop`;
   if (vmSpeaking) {
-    window.speechSynthesis.cancel();
+    if (vmAudioNode) { try { vmAudioNode.stop(); } catch(_) {} vmAudioNode = null; }
+    window.speechSynthesis?.cancel();
     vmSpeaking = false;
-    if (playBtn) playBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M8 5v14l11-7z"/></svg> Play`;
+    if (playBtn) playBtn.innerHTML = playSvg;
     return;
   }
   const text = charVoicemailText(vmChar);
+  if (playBtn) playBtn.innerHTML = `<span style="font-size:12px;opacity:.8">Loading…</span>`;
+  // Try Chatterbox voice first via /api/tts
+  try {
+    const ctrl = new AbortController();
+    const tmo = setTimeout(() => ctrl.abort(), 90000);
+    const r = await fetch('/api/tts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text.slice(0, 499), charId: vmChar.id || '', provider: ttsProvider }),
+      signal: ctrl.signal,
+    }).finally(() => clearTimeout(tmo));
+    if (r.ok) {
+      const ab = await (await r.blob()).arrayBuffer();
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = ctx.createBufferSource();
+      src.buffer = await ctx.decodeAudioData(ab);
+      src.connect(ctx.destination);
+      vmSpeaking = true; vmAudioNode = src;
+      if (playBtn) playBtn.innerHTML = stopSvg;
+      src.onended = () => { vmSpeaking = false; vmAudioNode = null; if (playBtn) playBtn.innerHTML = playSvg; };
+      src.start(0);
+      return;
+    }
+  } catch(_) {}
+  // Fallback: browser speech synthesis
+  if (playBtn) playBtn.innerHTML = playSvg;
+  if (!window.speechSynthesis) return;
   const u = new SpeechSynthesisUtterance(text);
   _applyCharVoice(u, vmChar);
-  u.onstart = () => { vmSpeaking = true; if (playBtn) playBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> Stop`; };
-  u.onend = u.onerror = () => { vmSpeaking = false; if (playBtn) playBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M8 5v14l11-7z"/></svg> Play`; };
+  u.onstart = () => { vmSpeaking = true; if (playBtn) playBtn.innerHTML = stopSvg; };
+  u.onend = u.onerror = () => { vmSpeaking = false; if (playBtn) playBtn.innerHTML = playSvg; };
   window.speechSynthesis.speak(u);
 }
 
@@ -4565,6 +4625,7 @@ function voicemailReplyChat() {
 }
 
 function dismissVoicemail() {
+  if (vmAudioNode) { try { vmAudioNode.stop(); } catch(_) {} vmAudioNode = null; }
   window.speechSynthesis?.cancel();
   vmSpeaking = false;
   const overlay = document.getElementById('voicemailOverlay');
@@ -11630,7 +11691,7 @@ async function toggleTTS(btn) {
     const ctrl = new AbortController();
     const tmo = setTimeout(() => ctrl.abort(), 90000);
     return fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: makeBody(s), signal: ctrl.signal })
-      .then(r => { clearTimeout(tmo); return r.ok ? r.blob() : null; }).catch(() => { clearTimeout(tmo); return null; });
+      .then(r => { clearTimeout(tmo); return r.ok ? r.blob() : (r.status === 503 ? { _offline: true } : null); }).catch(() => { clearTimeout(tmo); return null; });
   };
 
   const blobPromises = sentences.map(s => fetchBlob(s));
@@ -11650,6 +11711,7 @@ async function toggleTTS(btn) {
   // Check memo result now (it may have already resolved while synthesis was running)
   if (_memoStop) { if (activeTTSBtn === btn) stopActiveTTS(); showMemoLimitBanner(_memoStopData?.resetsAt); return; }
   if (activeTTSBtn !== btn) { stopActiveTTS(); return; }
+  if (firstBlob?._offline) { stopActiveTTS(); showTTSError('Voice server offline — start Chatterbox (start-voice.py) to enable voice.'); return; }
   if (!firstBlob) { stopActiveTTS(); showTTSError('Read-aloud unavailable right now. Try again.'); return; }
   // If memo hasn't settled yet, check it once more after playback starts
   _memoPromise.then(() => { if (_memoStop && activeTTSBtn === btn) { stopActiveTTS(); showMemoLimitBanner(_memoStopData?.resetsAt); } });

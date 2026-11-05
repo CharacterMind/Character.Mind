@@ -3359,7 +3359,7 @@ function phoneDirective(userId, charId, history) {
     return `\n\n[PHONE — In Character.Mind you have your own phone. The user already has your number, ${phone}. If they ask again, you can repeat it exactly. CALL RULE: If the user asks you to call them (e.g. "call me", "give me a call", "can you call me?"), respond naturally in character agreeing to call, then end your reply with the exact tag [CALL_ME]. Never use that tag at any other time.]`;
   }
   if (friendshipScore(userId, charId, history) >= getFriendshipThreshold(userId, charId)) {
-    return `\n\n[PHONE — In Character.Mind you have your own phone. This user has FULLY earned your trust — your friendship threshold is complete. You MUST give them your phone number in this reply: either because they ask, or by bringing it up yourself naturally. Your number is ${phone}. Write it exactly as ${phone} and end your reply with the tag [GIVE_NUMBER]. Do not refuse, deflect, or suggest they haven't earned it — they have. Never use [GIVE_NUMBER] at any other time.]`;
+    return `\n\n[PHONE — In Character.Mind you have your own phone. This user has FULLY earned your trust — your friendship threshold is complete. Your number is ${phone}. If they ask for your number, give it to them without hesitation — write it exactly as ${phone} and end that reply with the tag [GIVE_NUMBER]. Do NOT refuse, stall, or suggest they are not ready — the moment to share it has arrived when they ask. Never use [GIVE_NUMBER] in any other context.]`;
   }
   return `\n\n[PHONE — In Character.Mind you do have your own phone, but you don't know this user well enough to give out your number yet. If they ask for it, say no warmly and in character (for example, maybe once you know them better). Don't claim you have no phone, and never make up a number.]`;
 }
@@ -5307,8 +5307,8 @@ app.post('/api/tts', requireAuth, async (req, res) => {
           : { text, voice_id: voiceId, tts_engine: 'f5tts' };
         const ctrl = new AbortController();
         const localXtts = !effectiveCloneUrl;
-        const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 60000;
-        const cloneTimeout = setTimeout(() => ctrl.abort(), localXtts ? 60000 : remoteMs);
+        const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 90000;
+        const cloneTimeout = setTimeout(() => ctrl.abort(), localXtts ? 90000 : remoteMs);
         const cloneRes = await fetch(`${cloneBase}/tts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -5391,7 +5391,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
           : `http://127.0.0.1:${clonePort}`;
         const voiceId = await _ensureRemoteVoice(cloneBase, userSpeakerFile, null);
         const ctrl = new AbortController();
-        const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 60000;
+        const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 90000;
         const cloneTimeout = setTimeout(() => ctrl.abort(), remoteMs);
         const cloneRes = await fetch(`${cloneBase}/tts`, {
           method: 'POST',
