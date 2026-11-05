@@ -2058,6 +2058,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '482': {
+    date: 'November 2026',
+    label: 'Live Session % + No Weekly Cap',
+    fixed: [
+      'Session warn bar now ticks up live — shows the real percentage (90%, 91%, 92%…) instead of a static message, so you can see exactly how close you are',
+      'Free tier has no weekly limit — the session resets on its own schedule, no weekly cap applies',
+    ],
+  },
   '481': {
     date: 'November 2026',
     label: 'Chat Mode Separation + Free Tier Display',
@@ -7883,7 +7891,7 @@ function renderUsageBanners(usage) {
   const lockoutVisible = document.getElementById('lockoutBar')?.style.display !== 'none';
   if (swBar) {
     if (sPct >= 90 && !lockoutVisible) {
-      if (swMsg) swMsg.textContent = sPct >= 95 ? "Almost at your session limit \u2014 wrap up soon" : "You\u2019ve used 90% of your session limit";
+      if (swMsg) swMsg.textContent = `You\u2019ve used ${sPct}% of your session limit`;
       swBar.style.display = 'flex';
     } else {
       swBar.style.display = 'none';
