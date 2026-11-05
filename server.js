@@ -5611,13 +5611,11 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         }
       }
     }
-    // Clone server offline — fall through to Gemini TTS (sounds natural, not robotic)
+    // Clone server offline — 503 returned above; nothing falls through here
   }
 
   // User voice provider — use the user's uploaded/recorded audio as the speaker sample for XTTS cloning.
-  // Falls back to Gemini TTS (not Edge) so the voice still sounds good when cloning is unavailable.
-  // If the voice file is missing (e.g. lost after Render restart — ephemeral filesystem), falls
-  // through to Gemini rather than returning 503, so the caller never hears the browser robotic fallback.
+  // Returns 503 if the voice file is missing or the clone server is unavailable — no Gemini fallback.
   if (effectiveProvider === 'user') {
     let userSpeakerFile = null;
     try {
@@ -5653,7 +5651,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         let _uReachable = false;
         try { await fetch(_uBase, { method: 'HEAD', signal: _uPingCtrl.signal }); _uReachable = true; }
         catch { /* offline */ } finally { clearTimeout(_uPingTimeout); }
-        if (!_uReachable) userSpeakerFile = null; // fall through to Gemini
+        if (!_uReachable) userSpeakerFile = null; // fall through to 503 below
       }
       // Try Replicate XTTS-v2
       if (userSpeakerFile && process.env.REPLICATE_API_TOKEN) {
@@ -5697,14 +5695,14 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         if (e.name !== 'AbortError') console.warn('[user-tts] clone server unavailable, falling back to Gemini:', e.message);
       }
     } else {
-      console.warn('[user-tts] voice file missing (likely lost on server restart) — falling back to Gemini');
+      console.warn('[user-tts] voice file missing (likely lost on server restart)');
     }
-    // Fallback: Gemini TTS (better voice quality than Edge for user recordings)
-    // fall through to the Gemini block below
+    // No voice file or clone unavailable — return 503; no Gemini fallback
+    return res.status(503).json({ error: 'voice_server_offline', retry: true });
   }
 
-  // Gemini TTS path — try legacy generateContent API first, then new Interactions API
-  if (effectiveProvider === 'gemini' || effectiveProvider === 'user' || effectiveProvider === 'character') {
+  // Gemini TTS path — only for explicit gemini provider requests
+  if (effectiveProvider === 'gemini') {
     const gKey = process.env.GEMINI_API_KEY;
     if (gKey) {
       const userId = req.user.googleId;

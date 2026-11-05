@@ -12172,7 +12172,7 @@ async function _playStreamTTSQueue() {
           signal: ctrl2.signal,
         }).then(r => {
           clearTimeout(tmo2);
-          if (!r.ok) return null;
+          if (!r.ok) return r.status === 503 ? { _offline: true } : null;
           const synth = r.headers.get('X-Synthesis-Time');
           const prov  = r.headers.get('X-TTS-Provider') || ttsProvider;
           if (synth) console.log(`[tts] ${prov} synthesis=${synth}s "${t.slice(0,35)}..."`);
@@ -13015,7 +13015,7 @@ let callGenSeconds = 0;     // total generation+TTS wait time this call
 let lastKnownCallResetsAt = 0;
 let callVobTimer = null;
 let callThinkingTimeoutId = null; // safety: returns to listening if thinking state stalls
-let _callCharVoiceOffline = false; // set on first 503; subsequent sentences skip straight to Gemini
+let _callCharVoiceOffline = false; // set on first 503; subsequent sentences return null (silent)
 
 // ── Multi-char call state ─────────────────────────────────────────────────────
 let callCharacters = [];        // all chars currently on the call
@@ -16611,17 +16611,9 @@ let _pendingGroupChar = null;
 let _pendingGroupBubbleStarted = false;
 let _groupStreamCharCount = 0;
 
-// 16-voice palette for auto-assigning distinct Gemini voices to group characters
-const _GROUP_GEMINI_VOICES = [
-  'Zephyr','Puck','Charon','Kore','Fenrir','Leda','Orus','Aoede',
-  'Callirrhoe','Autonoe','Enceladus','Iapetus','Umbriel','Algieba','Despina','Erinome'
-];
-function _getGroupCharVoiceParams(charId) {
-  // Server overrides to clone voice if charId is in CHARACTER_VOICE_MAP — just pass charId + any provider
-  // For all others: deterministic Gemini voice based on charId so same char always sounds the same
-  let h = 0;
-  for (let i = 0; i < charId.length; i++) h = (h * 31 + charId.charCodeAt(i)) >>> 0;
-  return { provider: 'gemini', geminiVoice: _GROUP_GEMINI_VOICES[h % _GROUP_GEMINI_VOICES.length] };
+function _getGroupCharVoiceParams(_charId) {
+  // Always use custom clone voice — if the char has no voice file, server returns 503 and audio is skipped
+  return { provider: 'character' };
 }
 
 // Prefetch cache for group TTS — keyed by "charId|provider|voice|text80"
@@ -16630,7 +16622,7 @@ const _groupTTSCache = new Map();
 const _GROUP_TTS_CACHE_MAX = 40;
 
 function _groupTTSCacheKey(sentence, charId, voiceParams) {
-  return `${charId}|${voiceParams.provider||''}|${voiceParams.geminiVoice||''}|${sentence.slice(0, 80)}`;
+  return `${charId}|${voiceParams.provider||''}|${sentence.slice(0, 80)}`;
 }
 
 function _prefetchGroupSentence(sentence, charId, voiceParams) {
