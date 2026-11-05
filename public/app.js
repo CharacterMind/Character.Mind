@@ -2058,6 +2058,16 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '489': {
+    date: 'November 2026',
+    label: 'Token Counter + Voice Timing Fixes',
+    fixed: [
+      'Token counter now ticks up correctly on every effort level — Medium and Low effort counters were snapping to target only when the accumulator overflowed, causing them to stall',
+      'Read-aloud button now starts playing as soon as the first audio clip is ready — no longer waits for the memo round-trip before audio begins',
+      'Voice auto-speak timeout raised from 45 s to 90 s so longer Chatterbox synthesis never gets cut off mid-sentence',
+      'Token counter no longer leaks an animation frame if you switch chats during a reply',
+    ],
+  },
   '488': {
     date: 'November 2026',
     label: 'Extra & Max Effort Speed Fix',
@@ -9990,13 +10000,14 @@ let _tokActiveMsgEl = null;
 function _tokTick(ts) {
   if (!_tokActiveMsgEl) return;
   if (_tokStarted && _tokLastTs > 0) {
+    const prev = _tokShown;
     const dt = ts - _tokLastTs;
     _tokFrac += _tokRate * dt;
     const add = Math.floor(_tokFrac);
-    if (add > 0) {
-      _tokFrac -= add;
-      // Free-run at effort rate once text has started; snap forward if stream is ahead.
-      _tokShown = Math.max(_tokShown + add, _tokTarget);
+    if (add > 0) { _tokFrac -= add; _tokShown += add; }
+    // Always snap forward to target — rate may be too slow to reach it via accumulator alone
+    _tokShown = Math.max(_tokShown, _tokTarget);
+    if (_tokShown !== prev) {
       const tok = _tokActiveMsgEl?.querySelector('.stream-stats .stream-tok');
       if (tok) tok.textContent = fmtLiveTokens(_tokShown);
     }
@@ -10044,6 +10055,8 @@ function stopStreamStats(msgEl, finalTokens, apiUsage) {
 // Hide every token counter right away (called the moment a reply finishes arriving).
 function hideStreamStatsNow() {
   document.querySelectorAll('.stream-stats.active').forEach(s => { s.classList.remove('active', 'thinking'); });
+  if (_tokAnimFrame) { cancelAnimationFrame(_tokAnimFrame); _tokAnimFrame = null; }
+  _tokActiveMsgEl = null;
 }
 
 // ── Regeneration history ──────────────────────────────────────────────────────
@@ -11023,7 +11036,7 @@ function _prefetchSentence(rawText) {
 
 function _doTTSFetch(clean, ctrl, resolve) {
   const myGen = _ttsPoolGen;
-  const tmo = setTimeout(() => ctrl.abort(), 45000);
+  const tmo = setTimeout(() => ctrl.abort(), 90000);
   fetch('/api/tts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -11221,7 +11234,7 @@ async function _playStreamTTSQueue() {
       let bp = _poolEntry?.promise ?? null;
       if (!bp) {
         const ctrl2 = new AbortController();
-        const tmo2 = setTimeout(() => ctrl2.abort(), 45000);
+        const tmo2 = setTimeout(() => ctrl2.abort(), 90000);
         bp = fetch('/api/tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -11596,10 +11609,10 @@ async function toggleTTS(btn) {
   const makeBody = s => JSON.stringify({ text: s.slice(0, 499), charId, provider: ttsProvider });
 
   // Kick off synthesis for ALL sentences immediately — parallel, not serial.
-  // 45s timeout: Chatterbox warmup on first request can take 25-30s.
+  // 90s timeout: Chatterbox synthesis can take 45-60s per sentence.
   const fetchBlob = s => {
     const ctrl = new AbortController();
-    const tmo = setTimeout(() => ctrl.abort(), 45000);
+    const tmo = setTimeout(() => ctrl.abort(), 90000);
     return fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: makeBody(s), signal: ctrl.signal })
       .then(r => { clearTimeout(tmo); return r.ok ? r.blob() : null; }).catch(() => { clearTimeout(tmo); return null; });
   };
@@ -11616,12 +11629,14 @@ async function toggleTTS(btn) {
       }
     }).catch(() => {});
 
-  // Wait for first blob AND memo together — ceiling is max(memo, blob), not memo+blob
-  const [firstBlob] = await Promise.all([blobPromises[0], _memoPromise]);
-
+  // Wait for first audio blob immediately — don't block on memo round-trip
+  const firstBlob = await blobPromises[0];
+  // Check memo result now (it may have already resolved while synthesis was running)
   if (_memoStop) { if (activeTTSBtn === btn) stopActiveTTS(); showMemoLimitBanner(_memoStopData?.resetsAt); return; }
   if (activeTTSBtn !== btn) { stopActiveTTS(); return; }
   if (!firstBlob) { stopActiveTTS(); showTTSError('Read-aloud unavailable right now. Try again.'); return; }
+  // If memo hasn't settled yet, check it once more after playback starts
+  _memoPromise.then(() => { if (_memoStop && activeTTSBtn === btn) { stopActiveTTS(); showMemoLimitBanner(_memoStopData?.resetsAt); } });
 
   // Play all sentences gaplessly via Web Audio API — zero gap between clips
   const player = _makeGaplessPlayer(
