@@ -2075,6 +2075,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '536': {
+    date: 'November 2026',
+    label: 'Voicemail Fix + Phone Contacts',
+    fixed: [
+      'Voicemail audio now waits up to 60 seconds for the voice server instead of timing out at 15s — first request after restart no longer fails silently',
+      'Owner account no longer sees phone numbers that haven\'t been earned — contacts list is accurate for everyone',
+    ],
+  },
   '535': {
     date: 'November 2026',
     label: 'Instant Voicemail Audio',
@@ -5071,7 +5079,7 @@ async function playVoicemailAudio() {
   if (!ab) {
     if (playBtn) playBtn.innerHTML = `<span style="font-size:12px;opacity:.8">Loading…</span>`;
     const ctrl = new AbortController();
-    const tmo = setTimeout(() => ctrl.abort(), 15000);
+    const tmo = setTimeout(() => ctrl.abort(), 60000);
     try {
       const r = await fetch('/api/tts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },

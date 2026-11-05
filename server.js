@@ -3378,7 +3378,6 @@ function getPhoneUnlocked(userId) {
 }
 
 function isPhoneUnlocked(userId, charId) {
-  if (ownerGoogleIds.has(userId)) return true;
   return getPhoneUnlocked(userId).includes(charId);
 }
 
