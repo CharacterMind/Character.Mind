@@ -1588,6 +1588,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('authLanding').style.display = 'none';
       renderUserBadge();
       await loadCharacters();
+      _restoreVmCallback();
       renderHome();
       renderDiscover();
       renderFeed();
@@ -2075,6 +2076,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '537': {
+    date: 'November 2026',
+    label: 'Voicemail Callback Fixed',
+    fixed: [
+      'Callback delay shortened from 1.5–3 minutes to 30–90 seconds — she actually calls back before you give up',
+      'Callback now survives a page reload — stored in localStorage so a refresh mid-wait no longer cancels it',
+    ],
+  },
   '536': {
     date: 'November 2026',
     label: 'Voicemail Fix + Phone Contacts',
@@ -5043,20 +5052,44 @@ function showVoicemailOverlay(char) {
 
 function _scheduleVmCallback(char) {
   clearTimeout(_vmCallbackTimer);
+  const delay = 30000 + Math.random() * 60000; // 30–90 s
+  const firesAt = Date.now() + delay;
+  try { localStorage.setItem('cm_vmCallback', JSON.stringify({ id: char.id, name: char.name, color: char.color, image: char.image || null, firesAt })); } catch(_) {}
   const hintEl = document.getElementById('vmCallbackHint');
   if (hintEl) {
     const pronoun = char.name ? char.name.split(' ')[0] : 'They';
     hintEl.textContent = `📲 ${pronoun} will call you back soon…`;
     hintEl.style.display = '';
   }
-  const delay = 90000 + Math.random() * 90000; // 1.5–3 min
   _vmCallbackTimer = setTimeout(() => {
     _vmCallbackTimer = null;
-    // Force her available for 30 min so the incoming call and next direct call both work
+    try { localStorage.removeItem('cm_vmCallback'); } catch(_) {}
     _charFreeOverride[char.id] = Date.now() + 30 * 60 * 1000;
     _applyAvailabilityToDOM();
     showIncomingCall(char);
   }, delay);
+}
+
+function _restoreVmCallback() {
+  try {
+    const raw = localStorage.getItem('cm_vmCallback');
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (!data?.id || !data?.firesAt) { localStorage.removeItem('cm_vmCallback'); return; }
+    const remaining = data.firesAt - Date.now();
+    if (remaining <= 0) { localStorage.removeItem('cm_vmCallback'); return; }
+    const char = (characters || []).find(c => c.id === data.id) || { id: data.id, name: data.name, color: data.color, image: data.image };
+    clearTimeout(_vmCallbackTimer);
+    _vmCallbackTimer = setTimeout(() => {
+      _vmCallbackTimer = null;
+      try { localStorage.removeItem('cm_vmCallback'); } catch(_) {}
+      _charFreeOverride[char.id] = Date.now() + 30 * 60 * 1000;
+      _applyAvailabilityToDOM();
+      showIncomingCall(char);
+    }, remaining);
+  } catch(_) {
+    try { localStorage.removeItem('cm_vmCallback'); } catch(_) {}
+  }
 }
 
 async function playVoicemailAudio() {
