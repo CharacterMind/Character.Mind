@@ -2058,6 +2058,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '505': {
+    date: 'November 2026',
+    label: 'Busy Fix & Voicemail Auto-play',
+    fixed: [
+      'Characters were busy too often — reduced from ~10% to ~5% of windows',
+      'After a character calls you back from voicemail, they stay available for 30 minutes (dots update instantly)',
+      'Voicemail now auto-plays its audio immediately when the call goes to voicemail — AudioContext unlocked at call tap so there\'s no autoplay block',
+    ],
+  },
   '504': {
     date: 'November 2026',
     label: 'Live Availability Status',
@@ -4516,14 +4525,20 @@ function phoneCallDigits() {
 
 // ── Character availability (deterministic per 20-min window, ~10% busy) ──────
 
+const _charFreeOverride = {}; // charId → timestamp until forced-free
+
 function charAvailability(charId) {
   const windowMs = 20 * 60 * 1000;
+  // If we forced this character free (e.g. after a voicemail callback), respect that
+  if (_charFreeOverride[charId] && Date.now() < _charFreeOverride[charId]) {
+    return { busy: false, nextFreeMs: _charFreeOverride[charId] - Date.now() };
+  }
   const windowIdx = Math.floor(Date.now() / windowMs);
   const seed = charId + ':' + windowIdx;
   let h = 5381;
   for (let i = 0; i < seed.length; i++) h = ((h << 5) + h + seed.charCodeAt(i)) | 0;
   h = Math.abs(h);
-  const busy = (h % 10) === 0; // 10% of windows
+  const busy = (h % 20) === 0; // ~5% of windows are busy
   const msUntilNext = windowMs - (Date.now() % windowMs);
   return { busy, nextFreeMs: msUntilNext };
 }
@@ -4613,7 +4628,9 @@ async function callCharFromPhone(charId, e) {
   const prevChar = currentChar;
   currentChar = char;
   applyChatTheme(char);
-  // Deterministic availability check — consistent within a 20-min window (~10% busy)
+  // Unlock AudioContext now while we still have the user gesture — voicemail auto-play needs it
+  try { getAudioCtx().resume().catch(() => {}); } catch(_) {}
+  // Deterministic availability check — consistent within a 20-min window (~5% busy)
   if (charAvailability(charId).busy) {
     showPhoneRingingThenVoicemail(char, prevChar);
   } else {
@@ -4763,6 +4780,9 @@ function _scheduleVmCallback(char) {
   const delay = 90000 + Math.random() * 90000; // 1.5–3 min
   _vmCallbackTimer = setTimeout(() => {
     _vmCallbackTimer = null;
+    // Force her available for 30 min so the incoming call and next direct call both work
+    _charFreeOverride[char.id] = Date.now() + 30 * 60 * 1000;
+    _applyAvailabilityToDOM();
     showIncomingCall(char);
   }, delay);
 }
@@ -4804,7 +4824,7 @@ async function playVoicemailAudio() {
   if (blob) {
     try {
       const ab = await blob.arrayBuffer();
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const ctx = getAudioCtx(); // reuse shared context — already unlocked at call-button tap
       if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
       const src = ctx.createBufferSource();
       src.buffer = await ctx.decodeAudioData(ab);
