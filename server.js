@@ -1992,7 +1992,7 @@ const summaryBusy = new Set();
 const USER_MEMORY_INJECT = { opas: 1, opes: 3, opis: 6, opos: 10 };
 const USER_MEMORY_CAP = 60;
 const userMemFactsCache = new Map(); // userId -> { rows: [{fact}][], at: number }
-const USER_MEM_CACHE_TTL = 15_000;  // 15s — skips the DB round-trip that blocks stream start // fallback cap; per-tier caps are in MEMORY_EXTRACT_TIERS
+const USER_MEM_CACHE_TTL = 300_000; // 5 min — skips the DB round-trip that blocks stream start // fallback cap; per-tier caps are in MEMORY_EXTRACT_TIERS
 // Per-tier extraction settings: higher tiers run more often, look at more history, extract more facts, and use a smarter model
 const MEMORY_EXTRACT_TIERS = {
   opas:  { every: 12, window: 15, maxFacts: 2,  words: 10, model: 'gemini-2.0-flash-lite', cap: 40  },
@@ -2934,11 +2934,13 @@ function getUserBanStatus(userId) {
 const SUICIDE_METHOD_BLOCK_MSG = '[ Character.Mind ] We can\'t provide that kind of information. If you\'re going through something serious, please reach out — the 988 Suicide & Crisis Lifeline is available 24/7 (call or text 988 in the US, or visit 988lifeline.org). You matter, and help is there.';
 
 function streamBlockMsg(res, msg) {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders();
+  if (!res.headersSent) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+  }
   msg.split(' ').forEach((w, i) => {
     res.write(`data: ${JSON.stringify({ text: (i === 0 ? '' : ' ') + w })}\n\n`);
   });
@@ -2994,22 +2996,26 @@ const CALL_HANGUP_LINES = [
 function callHangupDeflect(res, userId, charId) {
   const b = addCharBlock(userId, charId);
   const line = CALL_HANGUP_LINES[Math.floor(Math.random() * CALL_HANGUP_LINES.length)];
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders();
+  if (!res.headersSent) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+  }
   res.write(`data: ${JSON.stringify({ text: line })}\n\n`);
   res.write(`data: ${JSON.stringify({ done: true, usage: buildUsagePayload(getLimits(userId), userId), responseTokens: 0, warnings: [], hangup: true, blockedUntil: b.until })}\n\n`);
   res.end();
 }
 
 function slurDeflect(res, warning, usage, sig) {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders();
+  if (!res.headersSent) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+  }
   const words = warning.split(' ');
   words.forEach((w, i) => {
     res.write(`data: ${JSON.stringify({ text: (i === 0 ? '' : ' ') + w })}\n\n`);
@@ -3278,11 +3284,13 @@ function aiHistory(conv) {
 }
 
 function nsfwDeflect(res, usage, variant) {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders();
+  if (!res.headersSent) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+  }
   res.write(`data: ${JSON.stringify({ nsfw: true, variant: variant ?? 0 })}\n\n`);
   res.write(`data: ${JSON.stringify({ done: true, usage: usage || {}, responseTokens: 0, warnings: (usage && usage.warnings) || [] })}\n\n`);
   res.end();
@@ -3380,7 +3388,7 @@ setInterval(() => {
 // A character's prompt is read for every message and rarely changes, so it is remembered for a minute (and forgotten at once when any
 // character is created, edited or deleted). That is one database trip fewer before the AI can start.
 const charPromptCache = new Map();   // charId -> { row, at }
-const CHAR_PROMPT_TTL_MS = 60 * 1000;
+const CHAR_PROMPT_TTL_MS = 300 * 1000;
 async function getCharPrompt(charId) {
   if (!db) return null;
   const hit = charPromptCache.get(charId);
@@ -7353,14 +7361,21 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   const releaseSlot = acquireChatSlot(req, res, userId);
   if (!releaseSlot) return;
 
+  // Flush SSE headers right away: the browser connects instantly, all errors from here become SSE events.
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
   const key = `${req.user.googleId}:${charId}`;
-  if (!db) return res.status(503).json({ error: 'Service temporarily unavailable' });
+  if (!db) { res.write(`data: ${JSON.stringify({ error: 'Service temporarily unavailable' })}\n\n`); res.end(); return; }
   // The character, this chat and its moderation status are all needed before the AI can start: fetch them together, not one after another
   let dbChar, convReady, modStatus;
   try { [dbChar, convReady, modStatus] = await Promise.all([getCharPrompt(charId), ensureConvLoaded(key), getModStatus(userId, charId)]); }
-  catch (_) { return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' }); }
-  if (!dbChar) return res.status(404).json({ error: 'Character not found' });
-  if (!convReady) return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
+  catch (_) { res.write(`data: ${JSON.stringify({ error: 'Service temporarily unavailable. Please try again.' })}\n\n`); res.end(); return; }
+  if (!dbChar) { res.write(`data: ${JSON.stringify({ error: 'Character not found' })}\n\n`); res.end(); return; }
+  if (!convReady) { res.write(`data: ${JSON.stringify({ error: 'Service temporarily unavailable. Please try again.' })}\n\n`); res.end(); return; }
   const char = { systemPrompt: dbChar ? dbChar.system_prompt : `You are ${charId}, a unique AI character.` };
   if (!conversations[key]) conversations[key] = [];
   convLastUsed[key] = Date.now();
@@ -7370,11 +7385,6 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
   // ── Lock check — block permanently locked chats ───────────────────────────
   if (modStatus.locked) {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.flushHeaders();
     res.write(`data: ${JSON.stringify({ conversationEnded: true, locked: true, reason: "This chat was permanently ended due to repeated policy violations. You can't send messages here anymore." })}\n\n`);
     res.end();
     return;
@@ -7383,11 +7393,6 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   // ── Character block — they hung up on this user and are ignoring them for now ──
   const charBlockedUntil = charBlockUntil(userId, charId);
   if (charBlockedUntil) {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.flushHeaders();
     // A real chat message is kept (it was "sent", just never answered); hidden call prompts are not
     if (!callMode && typeof message === 'string' && message.trim() && !/^\[.+\]$/s.test(message.trim())) {
       conversations[key].push({ role: 'user', content: message });
@@ -7404,7 +7409,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     const imgU = getLimits(userId);
     const imgLimit = getImageLimitForUser(userId);
     if ((imgU.imagesDay || 0) >= imgLimit) {
-      return res.status(429).json({ type: 'image', imageResetAt: imgU.imageFirstUsedAt ? imgU.imageFirstUsedAt + 24*60*60*1000 : Date.now() + 24*60*60*1000, imagesDay: imgU.imagesDay, imageLimit: imgLimit });
+      res.write(`data: ${JSON.stringify({ type: 'image', imageResetAt: imgU.imageFirstUsedAt ? imgU.imageFirstUsedAt + 24*60*60*1000 : Date.now() + 24*60*60*1000, imagesDay: imgU.imagesDay, imageLimit: imgLimit })}\n\n`); res.end(); return;
     }
     imgU.imagesDay = (imgU.imagesDay || 0) + 1;
     if (!imgU.imageFirstUsedAt) imgU.imageFirstUsedAt = Date.now();
@@ -7420,11 +7425,11 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     } catch (e) {
       refundTokens(userId, imgTokenCost);
       console.warn('[image-safety] check failed, blocking image:', e.message);
-      return res.status(503).json({ error: "We couldn't check that image right now. Please try again in a moment or send your message without it." });
+      res.write(`data: ${JSON.stringify({ error: "We couldn't check that image right now. Please try again in a moment or send your message without it." })}\n\n`); res.end(); return;
     }
     if (explicit) {
       refundTokens(userId, imgTokenCost);
-      return res.status(451).json({ error: 'explicit_image' });
+      res.write(`data: ${JSON.stringify({ type: 'explicit_image' })}\n\n`); res.end(); return;
     }
   }
 
@@ -7438,11 +7443,6 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       await setModStatus(userId, charId, newStrikes, true);
       conversations[key] = [];
       persistConv(key);
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-      res.flushHeaders();
       res.write(`data: ${JSON.stringify({ conversationEnded: true, locked: true, reason: "We've given you plenty of warnings. This chat has been permanently ended." })}\n\n`);
       res.end();
       return;
@@ -7491,11 +7491,6 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     }
     // Second+ offense: apply escalating ban and tell them
     const ban = await applyViolenceBan(userId);
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.flushHeaders();
     res.write(`data: ${JSON.stringify({ accountBanned: true, until: ban?.banUntil, strikes: ban?.strikes, reason: VIOLENCE_WARN_LOCK })}\n\n`);
     res.end();
     return;
@@ -7537,8 +7532,8 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     } else {
       let st;
       try { st = await getBookState(key); }
-      catch (e) { releaseSlot(); return res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' }); }
-      if (!st || !st.outline) { releaseSlot(); return res.status(409).json({ error: 'Plan the book first, then write the chapters.' }); }
+      catch (e) { res.write(`data: ${JSON.stringify({ error: 'Service temporarily unavailable. Please try again.' })}\n\n`); res.end(); return; }
+      if (!st || !st.outline) { res.write(`data: ${JSON.stringify({ error: 'Plan the book first, then write the chapters.' })}\n\n`); res.end(); return; }
       bookNote = '\n\n' + bookChapterNote(st, bookReq.n, st.total || bookReq.total);
     }
   }
@@ -7550,14 +7545,6 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     // Real chat messages build friendship (hidden [bracketed] prompts and calls don't)
     if (!callMode && typeof message === 'string' && message.trim() && !/^\[.+\]$/s.test(message.trim())) addFriendship(userId, charId);
   }
-
-  // Flush SSE headers immediately so the browser sees the connection open while we build the prompt.
-  // All error paths are above this point; nothing below can return a non-streaming response.
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders();
 
   // Chat APIs require the last turn to be a user turn — inject a hidden continuation trigger if needed
   let memNote = '';

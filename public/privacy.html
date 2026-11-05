@@ -191,7 +191,7 @@
 <div class="hero">
   <div class="hero-badge">Legal Document</div>
   <h1 class="hero-title">Privacy Policy</h1>
-  <p class="hero-meta">Effective <span>October 3, 2026</span> &nbsp;·&nbsp; Last updated <span>October 31, 2026</span></p>
+  <p class="hero-meta">Effective <span>October 3, 2026</span> &nbsp;·&nbsp; Last updated <span>November 5, 2026</span></p>
 </div>
 
 <div class="layout">
@@ -237,7 +237,7 @@
       <ul>
         <li><strong>Active conversation history:</strong> Messages exchanged with AI characters are stored server-side to maintain continuity across sessions. You can clear this at any time from within the app.</li>
         <li><strong>Archived past conversations:</strong> When you start a new chat with a character, the previous conversation is automatically saved to your archive so you can browse it later through the History panel. Archived conversations are stored in our database and are included in account deletion requests.</li>
-        <li><strong>Long-term memory notes:</strong> When you chat with Opys or Opys 5, we keep a short, automatically written summary of the earlier part of that chat so the character can remember it. It is stored with your account, used only for that chat, and deleted when you start a new chat or clear it.</li>
+        <li><strong>Long-term memory notes:</strong> When you chat using Opos (our top-tier model), we keep a short, automatically written summary of the earlier part of that chat so the character can remember it. It is stored with your account, used only for that chat, and deleted when you start a new chat or clear it.</li>
         <li><strong>Data kept in your browser:</strong> To load quickly, your device keeps a copy of your recent chats, past chats, profile picture, display name and preferences in your browser's local storage. Signing out does not erase it. To remove it, clear this site's data in your browser settings.</li>
         <li><strong>Recent chats:</strong> A list of characters you have recently chatted with, stored to populate your sidebar.</li>
         <li><strong>Usage data:</strong> Token counts, session start times, and weekly usage totals, used to enforce plan limits and display your usage dashboard. This includes how many minutes of voice calls you have used today.</li>
@@ -320,7 +320,7 @@
         <li><strong>Groq</strong> — our backup AI provider. When the primary provider is busy, your conversation messages are sent to Groq's API to generate the character's response instead.</li>
         <li><strong>Google Gemini TTS</strong> — our primary cloud text-to-speech provider. The text of a character's reply is sent to Google's Gemini TTS API to generate spoken audio for voice calls. No account information beyond the reply text is transmitted.</li>
         <li><strong>Microsoft Edge TTS / Google Translate TTS</strong> — fallback text-to-speech providers used when Gemini TTS is unavailable. The character's reply text is sent to these services to generate spoken audio. No account information is transmitted.</li>
-        <li><strong>F5-TTS (local, self-hosted)</strong> — for characters with voice-cloned audio (currently Poppy and Huggy Wuggy), text-to-speech synthesis runs on our own GPU server using the open-source F5-TTS model. Reply text is processed entirely within our infrastructure; no data is sent to a third party for these voices.</li>
+        <li><strong>Chatterbox TTS (local, self-hosted)</strong> — for characters with voice-cloned audio (currently Poppy and Huggy Wuggy), text-to-speech synthesis runs on our own GPU server using the open-source Chatterbox TTS engine by ResembleAI. Reply text is processed entirely within our infrastructure; no data is sent to a third party for these voices.</li>
         <li><strong>Neon (PostgreSQL)</strong> — our database host, where user data, conversations, and character definitions are stored.</li>
         <li><strong>Render</strong> — our hosting provider, where the application server runs.</li>
         <li><strong>PayPal</strong> — payment processing for paid subscriptions and C.M. Coin purchases.</li>

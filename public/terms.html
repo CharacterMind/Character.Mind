@@ -195,7 +195,7 @@
 <div class="hero">
   <div class="hero-badge">Legal Document</div>
   <h1 class="hero-title">Terms of Service</h1>
-  <p class="hero-meta">Effective <span>October 3, 2026</span> &nbsp;·&nbsp; Last updated <span>October 31, 2026</span></p>
+  <p class="hero-meta">Effective <span>October 3, 2026</span> &nbsp;·&nbsp; Last updated <span>November 5, 2026</span></p>
 </div>
 
 <div class="layout">
@@ -206,6 +206,7 @@
       <li><a href="#s2" class="toc-link">2. Eligibility</a></li>
       <li><a href="#s3" class="toc-link">3. Your Account</a></li>
       <li><a href="#s4" class="toc-link">4. Subscription Plans</a></li>
+      <li><a href="#s4a" class="toc-link">4a. Session Limits</a></li>
       <li><a href="#s5" class="toc-link">5. Payments &amp; Billing</a></li>
       <li><a href="#s5a" class="toc-link">5a. C.M. Coins</a></li>
       <li><a href="#s5b" class="toc-link">5b. Wellness Check-ins</a></li>
@@ -305,7 +306,7 @@
       <h2>C.M. Coins (Virtual Currency)</h2>
       <p>Character.Mind includes a virtual currency called C.M. Coins. Coins can be earned through in-app activities — including mini-games, quizzes, daily missions, and the idle Coin Farm (a passive accumulation mechanic that earns coins slowly while the app is open, at a rate that depends on your Farm level) — or purchased directly. Coins may also be granted to users as part of platform promotions or giveaways at our discretion.</p>
       <ul>
-        <li><strong>No monetary value:</strong> C.M. Coins are a virtual item and have no real-world monetary value. They cannot be exchanged for cash, transferred to another account, or redeemed outside of Character.Mind.</li>
+        <li><strong>In-app value only:</strong> C.M. Coins are a virtual item with an in-app credit value of $0.01 USD per coin, redeemable toward Character.Mind subscription costs. They cannot be exchanged for cash, transferred to another account, sold, or redeemed outside of Character.Mind.</li>
         <li><strong>Non-refundable:</strong> Purchased coins are non-refundable except where required by law.</li>
         <li><strong>Expiry:</strong> Coins do not currently expire, but we reserve the right to introduce expiry policies with advance notice to users.</li>
         <li><strong>Account termination:</strong> Any coins remaining in your account at the time of termination or account deletion are forfeited and cannot be recovered.</li>
@@ -390,31 +391,19 @@
         <table>
           <thead><tr><th>Plan</th><th>Session Tokens</th><th>Up to (Opas low effort)</th><th>Weekly Tokens</th></tr></thead>
           <tbody>
-            <tr><td>Free</td><td>60,000</td><td>~200 messages</td><td>No weekly cap</td></tr>
-            <tr><td>Advanced</td><td>120,000</td><td>~400 messages</td><td>1,000,000</td></tr>
+            <tr><td>Free</td><td>60,000</td><td>~300 messages</td><td>No weekly cap</td></tr>
+            <tr><td>Advanced</td><td>120,000</td><td>~600 messages</td><td>1,000,000</td></tr>
           </tbody>
         </table>
       </div>
 
       <div class="callout"><strong>Message counts are an upper bound, not a guarantee.</strong> Each reply costs tokens based on the model and effort level you choose — Low effort is cheapest (the numbers above), Medium effort uses ~60% more per reply, and higher efforts cost proportionally more. Voice calls also charge tokens for call duration and response length on top of the base per-exchange cost. You will always get at least as many messages as the token math allows at your chosen settings.</div>
 
-      <p><strong>Model token costs:</strong> Different AI models cost different amounts per message. Choosing a more capable model produces richer output but uses your session budget faster.</p>
+      <p><strong>Model token costs:</strong> Different AI models cost different amounts per message. See <a href="#s4a">Section 4a</a> for a full breakdown by model, effort level, and plan.</p>
 
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Model</th><th>Low effort</th><th>Medium effort</th><th>Max effort</th><th>Available on</th></tr></thead>
-          <tbody>
-            <tr><td>Opas</td><td>300</td><td>400</td><td>2,000</td><td>Free and above</td></tr>
-            <tr><td>Opes</td><td>600</td><td>700</td><td>10,000</td><td>Free and above</td></tr>
-            <tr><td>Opis</td><td>750</td><td>875</td><td>12,500</td><td>Advanced and above</td></tr>
-            <tr><td>Opos</td><td>1,800</td><td>2,100</td><td>30,000</td><td>Advanced and above</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <p><strong>Group chat:</strong> In group conversations, each character that responds costs <strong>200 tokens</strong> (Opas low-effort rate) — the same as a single Opas message at low effort. Higher responder counts multiply this per character per round.</p>
 
-      <p><strong>Group chat:</strong> In group conversations, each character that responds costs <strong>300 tokens</strong> (Opas low-effort rate) — the same as a single Opas message at low effort. Higher responder counts multiply this per character per round.</p>
-
-      <p><strong>Auto-Chat:</strong> When Auto-Chat is running, characters continue the conversation without user input. Each Auto-Chat message costs <strong>600 tokens</strong> (2× the group chat base rate), because the AI is generating content proactively with no user prompt to constrain it. You can pause or stop Auto-Chat at any time.</p>
+      <p><strong>Auto-Chat:</strong> When Auto-Chat is running, characters continue the conversation without user input. Each Auto-Chat message costs <strong>400 tokens</strong> (2× the group chat base rate), because the AI is generating content proactively with no user prompt to constrain it. You can pause or stop Auto-Chat at any time.</p>
 
       <p><strong>Voice call billing:</strong> Calls are billed per exchange (each time you speak and the character replies). Each exchange costs: the base model+effort rate (Opas low by default) <strong>plus</strong> tokens proportional to the length of the character's reply <strong>plus</strong> a small charge for call duration (~2 tokens per second of active call, capped at 30 seconds per exchange). A short exchange costs ~222 tokens; a longer one with more dialogue costs more. Voice call time resets once a day at 00:00 UTC.</p>
 
@@ -438,7 +427,7 @@
       <h2>AI Models Explained</h2>
       <p>Character.Mind uses a ladder of AI model tiers, each with different writing styles, reply lengths, and token costs. You choose your model from the model bar in the app; some models require a paid plan.</p>
       <ul>
-        <li><strong>Opas</strong> — The quick responder. Short, punchy replies with fast pacing and snappy dialogue. Great for rapid back-and-forth conversations. Costs 300–2,000 tokens per message depending on effort level (low to max). Available on all plans.</li>
+        <li><strong>Opas</strong> — The quick responder. Short, punchy replies with fast pacing and snappy dialogue. Great for rapid back-and-forth conversations. Costs 200–4,000 tokens per message depending on effort level (low to max). Available on all plans.</li>
         <li><strong>Opes</strong> — The storyteller. A step up from Opas: richer, more natural dialogue with replies around 60% longer. Better suited to everyday chatting and more descriptive scenes. Costs 600–10,000 tokens per message depending on effort level. Available on all plans.</li>
         <li><strong>Opis</strong> — Sharper reasoning and deeper logic. Built for mystery, intrigue, and complex storylines that need to stay consistent over long conversations. Available on Advanced and above.</li>
         <li><strong>Opos</strong> — Full Game Master mode. Drives plots, voices multiple NPCs simultaneously, and runs entire scenes. Designed for collaborative tabletop-style roleplay. Available on Advanced and above.</li>

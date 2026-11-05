@@ -2058,6 +2058,16 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '485': {
+    date: 'November 2026',
+    label: 'TOS & Privacy Cleanup + Instant Response',
+    fixed: [
+      'Chat responses now start streaming instantly — SSE connection opens before DB lookups, cutting perceived delay to near-zero',
+      'Terms of Service: corrected Opas token costs (200–4,000), session message counts (~300 free / ~600 advanced), group chat base rate (200 tokens), removed duplicate model costs table',
+      'Terms of Service: C.M. Coins now described as $0.01 USD in-app credit redeemable toward subscriptions',
+      'Privacy Policy: updated TTS engine name from F5-TTS to Chatterbox TTS (ResembleAI), corrected long-term memory model reference to Opos',
+    ],
+  },
   '484': {
     date: 'November 2026',
     label: 'Usage Limits in TOS',
@@ -7123,6 +7133,8 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
         let data; try { data = JSON.parse(line.slice(6)); } catch (_) { continue; }
+        if (data.type === 'image') { setImageLimitReached(data.imageResetAt); showTyping(false); isStreaming = false; document.getElementById('sendBtn').disabled = false; streamTimeout.clear(); return; }
+        if (data.type === 'explicit_image') { const _msgs = document.getElementById('messages'); const _lastU = [..._msgs.querySelectorAll('.msg.user')].at(-1); if (_lastU) _lastU.remove(); showTosModal(); showTyping(false); isStreaming = false; document.getElementById('sendBtn').disabled = false; streamTimeout.clear(); return; }
         if (data.error) throw new Error(data.error);
         if (data.accountBanned) { showTyping(false); handleAccountBanned(data); break; }
         if (data.nsfw) { showTyping(false); appendNsfwCard(data.variant); }
