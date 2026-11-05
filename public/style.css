@@ -3371,7 +3371,7 @@ html, body {
 .st2-btn:hover:not(:disabled) { opacity: .85; }
 .st2-btn.st2-btn-current { background: rgba(139,92,246,.15); color: var(--accent-l); cursor: default; }
 .st2-btn:disabled { opacity: 1; }
-.settings-usage-pct { font-size: 12px; color: var(--text3); margin-left: auto; }
+.settings-usage-pct { font-size: 12px; color: var(--text3); margin-left: auto; white-space: nowrap; }
 .settings-usage-bar-track { height: 5px; border-radius: 99px; background: var(--border); overflow: hidden; }
 .settings-usage-bar-fill { height: 100%; border-radius: 99px; width: 0%; background: var(--accent); transition: width .4s ease; }
 .settings-usage-bar-fill.warn { background: #eab308; }

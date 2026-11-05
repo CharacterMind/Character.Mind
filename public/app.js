@@ -2058,6 +2058,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '483': {
+    date: 'November 2026',
+    label: 'Settings Session Bar',
+    fixed: [
+      'Settings panel now shows "2-hour limit" label and "Resets at H:MM AM  X%" for free users — matching the style of the screenshot reference',
+      'Session bar fill color and percentage update live whenever usage refreshes',
+      'Weekly section hidden for free users since there is no weekly cap',
+    ],
+  },
   '482': {
     date: 'November 2026',
     label: 'Live Session % + No Weekly Cap',
@@ -3233,11 +3242,26 @@ function updateSettingsUsage(u) {
   const fillClass = p => p >= 90 ? 'danger' : p >= 75 ? 'warn' : '';   // the same steps as the usage window (50 / 75 / 90)
   const sBar = document.getElementById('settingsSessionBar');
   if (sBar) { sBar.style.width = sPct + '%'; sBar.className = 'settings-usage-bar-fill ' + fillClass(sPct); }
+  const sLabel = document.getElementById('settingsSessionLabel');
+  if (sLabel) sLabel.textContent = isFreeSettings ? '2-hour limit' : 'Session';
   const sPctEl = document.getElementById('settingsSessionPct');
   if (sPctEl) {
-    const tokUsed = u.sessionTokens || 0;
-    const tokLimit = u.sessionLimit || 0;
-    sPctEl.textContent = tokLimit ? `${tokUsed.toLocaleString()} / ${tokLimit.toLocaleString()}` : '—';
+    if (isFreeSettings) {
+      const tokUsed = u.sessionTokens || 0;
+      const expiresAt = u.sessionExpiresAt;
+      if (tokUsed > 0 && expiresAt) {
+        const d = new Date(expiresAt);
+        const h = d.getHours(); const m = String(d.getMinutes()).padStart(2, '0');
+        const ampm = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 || 12;
+        sPctEl.textContent = `Resets at ${h12}:${m} ${ampm}  ${sPct}%`;
+      } else {
+        sPctEl.textContent = '—';
+      }
+    } else {
+      const tokUsed = u.sessionTokens || 0;
+      const tokLimit = u.sessionLimit || 0;
+      sPctEl.textContent = tokLimit ? `${tokUsed.toLocaleString()} / ${tokLimit.toLocaleString()}` : '—';
+    }
   }
   if (!isFreeSettings) {
     const wBar = document.getElementById('settingsWeeklyBar');
