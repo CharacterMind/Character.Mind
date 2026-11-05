@@ -2058,6 +2058,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '517': {
+    date: 'November 2026',
+    label: 'Custom Voice Only — No Fallbacks',
+    fixed: [
+      'Auto-speak now shows an error toast when the voice server is offline instead of silently skipping audio',
+      'Voicemail TTS no longer falls back to Gemini — custom voice or nothing',
+      'Removed all remaining non-custom-voice fallbacks from call and chat TTS pipelines',
+    ],
+  },
   '516': {
     date: 'November 2026',
     label: 'Live Countdown + Banner Dismiss',
@@ -3960,9 +3969,8 @@ async function playCallLogVoicemail(charId, vmText) {
     } catch(_) {} finally { clearTimeout(tmo); }
     return null;
   };
-  let blob = await _try(ttsProvider, ttsProvider === 'character' || ttsProvider === 'user' ? 8000 : 15000);
-  if (!blob && ttsProvider !== 'gemini') blob = await _try('gemini', 15000);
-  if (blob) {
+  const blob = await _try(ttsProvider, 15000);
+  if (blob && !blob._offline) {
     try {
       const ab = await blob.arrayBuffer();
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -4909,9 +4917,7 @@ async function playVoicemailAudio() {
     return null;
   };
 
-  // Try character voice (short timeout), then Gemini, then browser speech
-  let blob = await _tryProvider(ttsProvider, ttsProvider === 'character' || ttsProvider === 'user' ? 8000 : 15000);
-  if (!blob && ttsProvider !== 'gemini') blob = await _tryProvider('gemini', 15000);
+  const blob = await _tryProvider(ttsProvider, 15000);
 
   if (blob) {
     try {
@@ -11967,7 +11973,7 @@ function _doTTSFetch(clean, ctrl, resolve) {
     body: JSON.stringify({ text: clean.slice(0, 499), charId: currentChar?.id || '', provider: ttsProvider }),
     signal: ctrl.signal,
   })
-    .then(r => { clearTimeout(tmo); return r.ok ? r.blob() : null; })
+    .then(r => { clearTimeout(tmo); return r.ok ? r.blob() : (r.status === 503 ? { _offline: true } : null); })
     .catch(() => { clearTimeout(tmo); return null; })
     .then(blob => {
       resolve(blob);
@@ -12177,7 +12183,13 @@ async function _playStreamTTSQueue() {
       const _ttsWaitT0 = performance.now();
       const blob = await bp;
       console.log(`[tts-wait] player waited ${Math.round(performance.now() - _ttsWaitT0)}ms for "${t.slice(0,35)}..."`);
-      if (!blob || cancel()) continue;
+      if (cancel()) break;
+      if (blob?._offline) {
+        if (!_firstClipPlayed) showTTSError('Voice server not connected — Poppy’s voice requires the local TTS server.');
+        if (btn) btn.classList.remove('loading', 'speaking');
+        break;
+      }
+      if (!blob) continue;
 
       let buf;
       try {
