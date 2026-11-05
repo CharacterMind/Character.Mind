@@ -5221,9 +5221,11 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   const kokoroVoice = req.body?.kokoroVoice && typeof req.body.kokoroVoice === 'string' ? req.body.kokoroVoice : 'af_bella';
   if (!text) return res.status(400).json({ error: 'no_text' });
 
-  // Characters with a registered voice file always use the clone path — ignore client-side provider choice.
-  // Exception: if the user explicitly chose 'user' provider, respect that so their recording is used.
-  const effectiveProvider = (provider !== 'user' && CHARACTER_VOICE_MAP[charId]) ? 'character' : provider;
+  // Characters with a registered voice file always use the clone path — UNLESS the client explicitly
+  // chose a text-to-speech provider (gemini/edge/kokoro/browser/off): respect explicit choices so
+  // Gemini fallback requests aren't silently re-routed back to an offline character voice server.
+  const EXPLICIT_TTS_PROVIDERS = new Set(['gemini', 'edge', 'kokoro', 'browser', 'off']);
+  const effectiveProvider = (!EXPLICIT_TTS_PROVIDERS.has(provider) && CHARACTER_VOICE_MAP[charId]) ? 'character' : provider;
 
   // Kokoro provider — lightweight local TTS with named voice styles, no speaker sample needed
   if (effectiveProvider === 'kokoro') {
@@ -5303,6 +5305,24 @@ app.post('/api/tts', requireAuth, async (req, res) => {
       const _hasCloneUrl = !!(process.env.TTS_CLONE_URL || runtimeTtsUrl);
       if (!_hasCloneUrl && !process.env.REPLICATE_API_TOKEN) {
         return res.status(503).json({ error: 'voice_server_offline', retry: true });
+      }
+      // Quick reachability check (3s): if the registered URL is unreachable (stale tunnel, server off)
+      // return 503 immediately instead of hanging for up to 90s on the full synthesis request.
+      if (_hasCloneUrl && !process.env.REPLICATE_API_TOKEN) {
+        const _rUrl = process.env.TTS_CLONE_URL || runtimeTtsUrl;
+        const _rBase = _rUrl.replace(/\/tts$/, '');
+        const _pingCtrl = new AbortController();
+        const _pingTimeout = setTimeout(() => _pingCtrl.abort(), 3000);
+        let _reachable = false;
+        try {
+          const _ping = await fetch(_rBase, { method: 'HEAD', signal: _pingCtrl.signal });
+          _reachable = true; // any response (even 404) means server is up
+        } catch { /* AbortError or connection refused → server is down */ }
+        finally { clearTimeout(_pingTimeout); }
+        if (!_reachable) {
+          console.warn('[char-tts] ping failed — voice server unreachable, returning 503 immediately');
+          return res.status(503).json({ error: 'voice_server_offline', retry: true });
+        }
       }
 
       // 1. Replicate XTTS-v2 (free credits — no local server needed; set REPLICATE_API_TOKEN)
@@ -5395,8 +5415,20 @@ app.post('/api/tts', requireAuth, async (req, res) => {
     }
 
     if (userSpeakerFile) {
+      // Quick reachability check for user voice path (same as character path)
+      const _uHasCloneUrl = !!(process.env.TTS_CLONE_URL || runtimeTtsUrl);
+      if (_uHasCloneUrl && !process.env.REPLICATE_API_TOKEN) {
+        const _uRUrl = process.env.TTS_CLONE_URL || runtimeTtsUrl;
+        const _uBase = _uRUrl.replace(/\/tts$/, '');
+        const _uPingCtrl = new AbortController();
+        const _uPingTimeout = setTimeout(() => _uPingCtrl.abort(), 3000);
+        let _uReachable = false;
+        try { await fetch(_uBase, { method: 'HEAD', signal: _uPingCtrl.signal }); _uReachable = true; }
+        catch { /* offline */ } finally { clearTimeout(_uPingTimeout); }
+        if (!_uReachable) userSpeakerFile = null; // fall through to Gemini
+      }
       // Try Replicate XTTS-v2
-      if (process.env.REPLICATE_API_TOKEN) {
+      if (userSpeakerFile && process.env.REPLICATE_API_TOKEN) {
         try {
           const repAudio = await replicateVoiceClone(text, userSpeakerFile);
           if (repAudio) {
@@ -5409,8 +5441,8 @@ app.post('/api/tts', requireAuth, async (req, res) => {
           console.warn('[user-tts] replicate error:', e.message);
         }
       }
-      // Try local/remote XTTS clone server
-      try {
+      // Try local/remote XTTS clone server (only if file still set after ping check)
+      if (userSpeakerFile) try {
         const effectiveCloneUrl = process.env.TTS_CLONE_URL || runtimeTtsUrl;
         const clonePort = process.env.TTS_CLONE_PORT || '8765';
         const cloneBase = effectiveCloneUrl

@@ -2058,6 +2058,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '508': {
+    date: 'November 2026',
+    label: 'Fix Voice & Thinking Delay',
+    fixed: [
+      'Voice no longer comes through silent on calls: Gemini fallback requests were being silently re-routed back to the offline character voice server — now explicit provider requests (gemini/edge/kokoro) are always respected',
+      'Thinking state now clears in ~3s instead of ~90s when voice server is registered but offline: quick ping before synthesis detects unreachable servers immediately',
+    ],
+  },
   '507': {
     date: 'November 2026',
     label: 'Call Timer Anchored to First Call',
