@@ -2058,6 +2058,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '481': {
+    date: 'November 2026',
+    label: 'Chat Mode Separation + Free Tier Display',
+    fixed: [
+      'Chat mode now stays truly separate from Roleplay — Poppy and other characters no longer slip factory, doll, or lore references into casual chat. The character description is explicitly scoped to personality/voice only in chat mode',
+      'Chat mode reminder strengthened: even subtle RP framing (asterisk actions, being wound up, factory mentions) is blocked in chat',
+      'Free tier users now see a live message count — "~X messages left this session" — above the input bar once they\'ve started chatting (up to ~300 messages per session at low effort)',
+    ],
+  },
   '480': {
     date: 'November 2026',
     label: 'Faster Voice Start',
@@ -7905,6 +7914,21 @@ function renderUsageBanners(usage) {
   const isFreeUser = !usage.subscriptionTier || usage.subscriptionTier === 'free';
   if (isFreeUser) {
     [...container.querySelectorAll('.warning-banner[data-usage-kind]:not([data-usage-kind="calls"])')].forEach(b => b.remove());
+    // Show message count indicator for free users
+    const freeBar = document.getElementById('freeSessionBar');
+    const freeMsg = document.getElementById('freeSessionMsg');
+    if (freeBar && freeMsg) {
+      const tokUsed = usage.sessionTokens || 0;
+      if (tokUsed > 0 && !lockoutVisible) {
+        const msgsLeft = Math.max(0, 300 - Math.floor(tokUsed / 200));
+        freeMsg.textContent = msgsLeft <= 30
+          ? `${msgsLeft} messages left this session`
+          : `~${msgsLeft} messages left this session`;
+        freeBar.style.display = 'flex';
+      } else {
+        freeBar.style.display = 'none';
+      }
+    }
     return;
   }
 
