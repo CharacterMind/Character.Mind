@@ -2058,6 +2058,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '491': {
+    date: 'November 2026',
+    label: 'Animation + Phone Number Fix',
+    fixed: [
+      'Typewriter animation is now clearly visible — High/Extra/Max effort responses now animate over 1-2 seconds instead of appearing near-instantly',
+      'Token counter now ticks up smoothly and visibly during generation',
+      'Phone number directive is now mandatory when trust is earned — Poppy will give you her number in this reply instead of deflecting',
+    ],
+  },
   '490': {
     date: 'November 2026',
     label: 'Friendship Trust State Fix',
@@ -9913,10 +9922,10 @@ function remainingTypeMs() {
 // Gaps widen as effort increases: low→med small, med→high bigger, high→extra way bigger, extra→max biggest.
 const TW_SPEED = {
   low:       { chars: 2,  ms: 28 },
-  medium:    { chars: 5,  ms: 28 },
-  high:      { chars: 12, ms: 28 },
-  extra:     { chars: 24, ms: 28 },
-  max:       { chars: 45, ms: 28 },
+  medium:    { chars: 3,  ms: 28 },
+  high:      { chars: 6,  ms: 28 },
+  extra:     { chars: 10, ms: 28 },
+  max:       { chars: 16, ms: 28 },
   ultracode: { chars: 60, ms: 28 },
 };
 

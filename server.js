@@ -3359,7 +3359,7 @@ function phoneDirective(userId, charId, history) {
     return `\n\n[PHONE — In Character.Mind you have your own phone. The user already has your number, ${phone}. If they ask again, you can repeat it exactly. CALL RULE: If the user asks you to call them (e.g. "call me", "give me a call", "can you call me?"), respond naturally in character agreeing to call, then end your reply with the exact tag [CALL_ME]. Never use that tag at any other time.]`;
   }
   if (friendshipScore(userId, charId, history) >= getFriendshipThreshold(userId, charId)) {
-    return `\n\n[PHONE — In Character.Mind you have your own phone, and you've grown close to this user. Your number is ${phone}. If they ask for it, or once when it feels natural, give it to them in your own voice, writing it exactly as ${phone}, and end that reply with the tag [GIVE_NUMBER]. Never use that tag at any other time.]`;
+    return `\n\n[PHONE — In Character.Mind you have your own phone. This user has FULLY earned your trust — your friendship threshold is complete. You MUST give them your phone number in this reply: either because they ask, or by bringing it up yourself naturally. Your number is ${phone}. Write it exactly as ${phone} and end your reply with the tag [GIVE_NUMBER]. Do not refuse, deflect, or suggest they haven't earned it — they have. Never use [GIVE_NUMBER] at any other time.]`;
   }
   return `\n\n[PHONE — In Character.Mind you do have your own phone, but you don't know this user well enough to give out your number yet. If they ask for it, say no warmly and in character (for example, maybe once you know them better). Don't claim you have no phone, and never make up a number.]`;
 }
