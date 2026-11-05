@@ -7,7 +7,8 @@ let _banCountdownInterval = null;
 // ── Account ban screen ────────────────────────────────────────────────────────
 async function checkAndShowBan() {
   try {
-    const r = await fetch('/api/me/ban-status');
+    const ctrl = new AbortController(); setTimeout(() => ctrl.abort(), 5000);
+    const r = await fetch('/api/me/ban-status', { signal: ctrl.signal });
     if (!r.ok) return;
     const d = await r.json();
     if (d && d.banned) showBanScreen(d.until, d.strikes);
@@ -1649,7 +1650,8 @@ window.addEventListener('DOMContentLoaded', async () => {
 async function loadCharacters() {
   await Promise.all([syncHiddenRecentsFromServer(), syncRecentChatsFromServer()]);
   try {
-    const res = await fetch('/api/characters');
+    const _cCtrl = new AbortController(); setTimeout(() => _cCtrl.abort(), 10000);
+    const res = await fetch('/api/characters', { signal: _cCtrl.signal });
     if (res.status === 401) { characters = []; renderSidebarChats(); return; }
     if (res.status === 403) { const j = await res.json().catch(() => null); if (j && j.error === 'account_banned') { showBanScreen(j.until, j.strikes); return; } }
     if (res.status === 503) { const j = await res.json().catch(() => null); if (j && j.maintenance) { location.replace('/maintenance.html'); return; } }
@@ -2073,6 +2075,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '528': {
+    date: 'November 2026',
+    label: 'Fix Loading Screen Stuck (complete)',
+    fixed: [
+      'checkAndShowBan and /api/characters also had no timeouts — if either hung, the loading screen stayed up despite the v527 fix',
+    ],
+  },
   '527': {
     date: 'November 2026',
     label: 'Fix Loading Screen Stuck',
