@@ -2075,6 +2075,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '529': {
+    date: 'November 2026',
+    label: 'Fix JS Parse Crash (Loading Screen)',
+    fixed: [
+      'Smart/curly quotes used as JS string delimiters on lines 12262-12263 caused a SyntaxError that crashed the entire app.js — loading screen was stuck because DOMContentLoaded never fired',
+    ],
+  },
   '528': {
     date: 'November 2026',
     label: 'Fix Loading Screen Stuck (complete)',
@@ -12259,8 +12266,8 @@ async function _playStreamTTSQueue() {
       console.log(`[tts-wait] player waited ${Math.round(performance.now() - _ttsWaitT0)}ms for "${t.slice(0,35)}..."`);
       if (cancel()) break;
       if (blob?._offline) {
-        showTTSError(‘Voice server not responding — start Chatterbox (start-voice.py) or check your tunnel URL.’);
-        if (btn) btn.classList.remove(‘loading’, ‘speaking’);
+        showTTSError('Voice server not responding — start Chatterbox (start-voice.py) or check your tunnel URL.');
+        if (btn) btn.classList.remove('loading', 'speaking');
         break;
       }
       if (!blob) continue;
