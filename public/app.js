@@ -2058,6 +2058,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '511': {
+    date: 'November 2026',
+    label: 'Call Delay & Cutoff Fix',
+    fixed: [
+      'Major call delay eliminated: Chatterbox now starts synthesizing the first sentence immediately during AI response streaming instead of waiting for the full response — drastically reduces time before voice starts',
+      'Chatterbox timeout tightened from 25s to 15s — Gemini fallback kicks in sooner when Chatterbox is slow',
+      'Chatterbox user voice provider (uploaded voices) now also gets immediate first-sentence fetch and Gemini fallback',
+    ],
+  },
   '510': {
     date: 'November 2026',
     label: 'Call Voice Reliability Fix',
@@ -12618,9 +12627,9 @@ function _fetchCallTTSBlob(rawText) {
   if (!clean || ttsProvider === 'off' || ttsProvider === 'browser') return Promise.resolve(null);
   const prov = ttsProvider;
   const charId = (callContextChar || currentChar)?.id;
-  // For character/user voice use a shorter timeout (25s) so we fall back to Gemini quickly
-  // rather than making the user wait up to 90s for Chatterbox.
-  const timeoutMs = (prov === 'character' || prov === 'user') ? 25000 : 90000;
+  // For character/user voice use a short timeout (15s) so we fall back to Gemini quickly.
+  // Chatterbox typically responds in 10-15s; anything longer means it's struggling.
+  const timeoutMs = (prov === 'character' || prov === 'user') ? 15000 : 90000;
   const ctrl = new AbortController();
   const tmo = setTimeout(() => ctrl.abort(), timeoutMs);
   return fetch('/api/tts', {
@@ -12672,10 +12681,16 @@ function _feedCallTTSPipeline(chunk) {
   if (!callModeActive || ttsProvider === 'off' || ttsProvider === 'browser') return;
   _callTTSPipelineOn = true;
   _callTTSPipelineBuf += chunk;
-  if (ttsProvider === 'character') {
-    // Merge into ~300-char chunks to match callModeTTS_server strategy for Chatterbox
+  if (ttsProvider === 'character' || ttsProvider === 'user') {
     const parts = _callTTSPipelineBuf.split(/(?<=[.!?])\s+/);
     const tail = parts.pop() || '';
+    // Always start the FIRST sentence fetch immediately (even if short) so Chatterbox
+    // has maximum overlap with AI generation time — eliminates the initial silence gap.
+    if (_callTTSPipeline.length === 0 && parts.length > 0) {
+      const first = parts.shift();
+      if (first.trim().length > 2) _callTTSPipeline.push(_fetchCallTTSBlob(first));
+    }
+    // Batch remaining complete sentences into ~300-char chunks
     let cur = '';
     for (const s of parts) {
       if (cur && cur.length + 1 + s.length > 300) {
