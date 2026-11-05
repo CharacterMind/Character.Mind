@@ -2058,6 +2058,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '514': {
+    date: 'November 2026',
+    label: 'Custom Voice Only + Live Cooldowns',
+    fixed: [
+      'Removed all Edge TTS / Gemini / Kokoro fallbacks from voice calls — only custom voice (Chatterbox) is used, no surprise voice switches mid-call',
+      'Call warning banners (almost at limit / limit hit) now update their countdown every second in real time instead of showing a stale time',
+      'Call reset countdown in usage modal now ticks every second (was stuck at 30-second intervals)',
+    ],
+  },
   '513': {
     date: 'November 2026',
     label: 'Always-On Voice Calls',
@@ -8836,6 +8845,7 @@ function renderUsageBanners(usage) {
     cw.className = 'warning-banner';
     cw.dataset.usageKind = 'calls-warn';
     cw.dataset.usageLevel = '90';
+    if (usage.callWindowResetsAt) cw.dataset.resetsAt = usage.callWindowResetsAt;
     const cwText = document.createElement('span');
     cwText.textContent = "\uD83D\uDCF5 You\u2019re almost at your call limit \u2014 resets in " + (usage.callWindowResetsAt ? formatCountdown(usage.callWindowResetsAt - Date.now()) : "~15 hours") + ".";
     cw.appendChild(cwText);
@@ -8860,6 +8870,7 @@ function renderUsageBanners(usage) {
     cb.className = 'warning-banner warning-banner-calls';
     cb.dataset.usageKind = 'calls';
     cb.dataset.usageLevel = 'max';
+    if (usage.callWindowResetsAt) cb.dataset.resetsAt = usage.callWindowResetsAt;
     const cbText = document.createElement('span');
     cbText.textContent = `\uD83D\uDCF5 Call limit hit \u2014 they\u2019re filing a restraining order. Resets in ${_callResetStr}.`;
     cb.appendChild(cbText);
@@ -8926,6 +8937,41 @@ function renderUsageBanners(usage) {
       const textEl = existingActiveBanner.querySelector('span');
       if (textEl && textEl.textContent !== active.msg) textEl.textContent = active.msg;
     }
+  }
+
+  // Start/stop live countdown timer for call banners
+  _startBannerCountdownTimer();
+}
+
+function _tickBannerCountdowns() {
+  const container = document.getElementById('warningBanners');
+  if (!container) return;
+  const banners = container.querySelectorAll('.warning-banner[data-resets-at]');
+  if (!banners.length) {
+    if (_bannerCountdownTimer) { clearInterval(_bannerCountdownTimer); _bannerCountdownTimer = null; }
+    return;
+  }
+  banners.forEach(b => {
+    const resetsAt = parseInt(b.dataset.resetsAt, 10);
+    if (!resetsAt) return;
+    const span = b.querySelector('span');
+    if (!span) return;
+    const countdown = formatCountdown(resetsAt - Date.now());
+    if (b.dataset.usageKind === 'calls-warn') {
+      span.textContent = `📵 You’re almost at your call limit — resets in ${countdown}.`;
+    } else if (b.dataset.usageKind === 'calls') {
+      span.textContent = `📵 Call limit hit — they’re filing a restraining order. Resets in ${countdown}.`;
+    }
+  });
+}
+
+function _startBannerCountdownTimer() {
+  const container = document.getElementById('warningBanners');
+  const hasBanner = container && container.querySelector('.warning-banner[data-resets-at]');
+  if (hasBanner && !_bannerCountdownTimer) {
+    _bannerCountdownTimer = setInterval(_tickBannerCountdowns, 1000);
+  } else if (!hasBanner && _bannerCountdownTimer) {
+    clearInterval(_bannerCountdownTimer); _bannerCountdownTimer = null;
   }
 }
 
@@ -9876,7 +9922,7 @@ function updateUsageModal(u) {
     : `${callMinsUsed} of ${callMinsLimit} min · ${callsToday} of ${callsLimit} calls`;
   setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct, callSubStr, callsLimit >= 9999);
 
-  // Daily resets subtitle — live countdown (ticks every 30s)
+  // Daily resets subtitle — live countdown (ticks every second)
   if (_callsResetCountdownTimer) { clearInterval(_callsResetCountdownTimer); _callsResetCountdownTimer = null; }
   const callsResetAt = u.callWindowResetsAt;
   if (callsResetAt) {
@@ -9888,7 +9934,7 @@ function updateUsageModal(u) {
       el.textContent = 'Resets in ' + formatCountdown(rem);
     };
     _tickCallsReset();
-    _callsResetCountdownTimer = setInterval(_tickCallsReset, 30000);
+    _callsResetCountdownTimer = setInterval(_tickCallsReset, 1000);
   }
 
   // Game cooldown bar hidden for now
@@ -12645,45 +12691,20 @@ function _fetchCallTTSBlob(rawText) {
   if (!clean || ttsProvider === 'off' || ttsProvider === 'browser') return Promise.resolve(null);
   const prov = ttsProvider;
   const charId = (callContextChar || currentChar)?.id;
-  // For character/user voice use a short timeout (15s); if the server-side Edge fallback also hangs, give up quickly.
-  const timeoutMs = (prov === 'character' || prov === 'user') ? 15000 : 90000;
+  const timeoutMs = 15000;
   const ctrl = new AbortController();
   const tmo = setTimeout(() => ctrl.abort(), timeoutMs);
-  const _edgeFallback = async (t) => {
-    const ctrl2 = new AbortController();
-    const tmo2 = setTimeout(() => ctrl2.abort(), 8000);
-    try {
-      const r2 = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: t, charId, provider: 'edge', edgeVoice: edgeVoiceName || 'en-US-AvaNeural' }),
-        signal: ctrl2.signal,
-      });
-      if (r2.ok) return r2.blob();
-    } catch (_) {} finally { clearTimeout(tmo2); }
-    return null;
-  };
   return fetch('/api/tts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text: clean, charId, provider: prov, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName }),
     signal: ctrl.signal,
-  }).then(async r => {
+  }).then(r => {
     clearTimeout(tmo);
     if (r.ok) return r.blob();
-    // 503 = character/user voice offline — fall back to Edge TTS (always available, no local server needed)
-    if (r.status === 503 && (prov === 'character' || prov === 'user')) {
-      _callCharVoiceOffline = true;
-      return _edgeFallback(clean);
-    }
     return null;
-  }).catch(async (err) => {
+  }).catch(() => {
     clearTimeout(tmo);
-    // Timeout (AbortError) on character/user voice — fall back to Edge TTS
-    if (err.name === 'AbortError' && (prov === 'character' || prov === 'user')) {
-      _callCharVoiceOffline = true;
-      return _edgeFallback(clean);
-    }
     return null;
   });
 }
@@ -12869,30 +12890,12 @@ async function callModeTTS_server(text) {
     return chunks;
   })() : rawCallSentences;
 
-  // Server falls back to Edge TTS automatically if no clone voice is registered for a character.
   const callProvider = ttsProvider;
-  const _fetchEdgeFallback = async (s) => {
-    const ctrl = new AbortController();
-    const tmo = setTimeout(() => ctrl.abort(), 8000);
-    try {
-      const r = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: s, charId: (callContextChar || currentChar)?.id, provider: 'edge', edgeVoice: edgeVoiceName || 'en-US-AvaNeural' }),
-        signal: ctrl.signal,
-      });
-      if (r.ok) return r.blob();
-    } catch (_) {} finally { clearTimeout(tmo); }
-    return null;
-  };
   const fetchBlob = async (s) => {
     if (ttsProvider === 'off') return null;
-    // If the voice server already failed this call, skip straight to Edge TTS (avoid 15s timeout)
-    if (_callCharVoiceOffline && (callProvider === 'character' || callProvider === 'user')) {
-      return _fetchEdgeFallback(s);
-    }
+    if (_callCharVoiceOffline && (callProvider === 'character' || callProvider === 'user')) return null;
     const ctrl = new AbortController();
-    const tmo = setTimeout(() => ctrl.abort(), 15000); // 15s — Chatterbox typically responds in 10-15s
+    const tmo = setTimeout(() => ctrl.abort(), 15000);
     try {
       const r = await fetch('/api/tts', {
         method: 'POST',
@@ -12902,14 +12905,12 @@ async function callModeTTS_server(text) {
       });
       if (!r.ok) {
         if (r.status === 501) serverTTSOk = false;
-        // 503 means the character/user voice server is offline — fall back to Kokoro (local).
         if (r.status === 503 && (callProvider === 'character' || callProvider === 'user')) {
           _callCharVoiceOffline = true;
           const offBadge = document.getElementById('callVoiceOffBadge');
           if (offBadge) offBadge.style.display = '';
-          return _fetchEdgeFallback(s);
         }
-        throw new Error('tts ' + r.status);
+        return null;
       }
       return r.blob();
     } finally {
@@ -12954,25 +12955,7 @@ async function callModeTTS_server(text) {
       nextFetch = prefetch;
     }
   } catch (_) {
-    // Server TTS failed — try Edge TTS before falling back to browser speech
     if (callModeActive && gen === callGen) {
-      if (callProvider !== 'edge' && callProvider !== 'off' && callProvider !== 'browser') {
-        try {
-          const ctrl2 = new AbortController();
-          const tmo2 = setTimeout(() => ctrl2.abort(), 8000);
-          const r2 = await fetch('/api/tts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: clean.slice(0, 499), charId: (callContextChar || currentChar)?.id, provider: 'edge', edgeVoice: edgeVoiceName || 'en-US-AvaNeural' }),
-            signal: ctrl2.signal,
-          }).finally(() => clearTimeout(tmo2));
-          if (r2.ok && callModeActive && gen === callGen) {
-            setCallState('responding');
-            await playCallBlob(await r2.blob());
-            return;
-          }
-        } catch (_2) {}
-      }
       setCallState('responding');
       if (window.speechSynthesis) callModeTTS_browser(text, gen);
       else afterCallTTSDone();
@@ -13291,6 +13274,7 @@ let _callLimitTimer = null;
 let _callsResetCountdownTimer = null;
 let _sessionCountdownTimer = null;
 let _sessionCountdownUntil = null;
+let _bannerCountdownTimer = null;
 const CALL_LIMIT_MESSAGES = [
   // Doll witness collection
   "*looks at Candy, then back at you, then at Candy again* She knew. She told me before you even started. I told her to be kind about it. She's choosing not to.",
