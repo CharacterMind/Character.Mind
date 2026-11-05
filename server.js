@@ -5534,6 +5534,20 @@ app.post('/api/tts', requireAuth, async (req, res) => {
       // Don't try localhost:8765 on Render (it hangs for 60s before timing out).
       const _hasCloneUrl = !!(process.env.TTS_CLONE_URL || runtimeTtsUrl);
       if (!_hasCloneUrl && !process.env.REPLICATE_API_TOKEN) {
+        // No local TTS server configured — use Edge TTS with the character's designated fallback voice
+        const _charEdgeVoice = EDGE_VOICE_MAP[charId] || EDGE_DEFAULT_VOICE;
+        try {
+          const _edgeAudio = await edgeSynthesize(text, _charEdgeVoice);
+          if (_edgeAudio && _edgeAudio.length > 0) {
+            res.setHeader('Content-Type', 'audio/mpeg');
+            res.setHeader('Cache-Control', 'no-store');
+            res.setHeader('X-TTS-Provider', 'edge-char-fallback');
+            res.setHeader('X-Voice-Fallback', 'edge');
+            return res.send(_edgeAudio);
+          }
+        } catch (_edgeErr) {
+          console.warn('[char-tts] edge fallback failed:', _edgeErr.message);
+        }
         return res.status(503).json({ error: 'voice_server_offline', retry: true });
       }
       // Quick reachability check (3s): if the registered URL is unreachable (stale tunnel, server off)
@@ -5550,7 +5564,20 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         } catch { /* AbortError or connection refused → server is down */ }
         finally { clearTimeout(_pingTimeout); }
         if (!_reachable) {
-          console.warn('[char-tts] ping failed — voice server unreachable, returning 503 immediately');
+          console.warn('[char-tts] ping failed — voice server unreachable, trying Edge TTS fallback');
+          const _charEdgeVoice = EDGE_VOICE_MAP[charId] || EDGE_DEFAULT_VOICE;
+          try {
+            const _edgeAudio = await edgeSynthesize(text, _charEdgeVoice);
+            if (_edgeAudio && _edgeAudio.length > 0) {
+              res.setHeader('Content-Type', 'audio/mpeg');
+              res.setHeader('Cache-Control', 'no-store');
+              res.setHeader('X-TTS-Provider', 'edge-char-fallback');
+              res.setHeader('X-Voice-Fallback', 'edge');
+              return res.send(_edgeAudio);
+            }
+          } catch (_edgeErr) {
+            console.warn('[char-tts] edge fallback failed:', _edgeErr.message);
+          }
           return res.status(503).json({ error: 'voice_server_offline', retry: true });
         }
       }
@@ -5606,8 +5633,20 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         }
       } catch (e) {
         if (e.name !== 'AbortError') console.warn('[char-tts] clone server unavailable:', e.message);
-        // When client explicitly chose the character voice, return 503 so it knows no audio is available.
-        // This prevents silent fallback to a completely different voice (Gemini/Edge) that the user didn't select.
+        // Clone server offline or timed out — use Edge TTS with the character's fallback voice so calls always have audio
+        const _charEdgeVoice = EDGE_VOICE_MAP[charId] || EDGE_DEFAULT_VOICE;
+        try {
+          const _edgeAudio = await edgeSynthesize(text, _charEdgeVoice);
+          if (_edgeAudio && _edgeAudio.length > 0) {
+            res.setHeader('Content-Type', 'audio/mpeg');
+            res.setHeader('Cache-Control', 'no-store');
+            res.setHeader('X-TTS-Provider', 'edge-char-fallback');
+            res.setHeader('X-Voice-Fallback', 'edge');
+            return res.send(_edgeAudio);
+          }
+        } catch (_edgeErr) {
+          console.warn('[char-tts] edge fallback failed:', _edgeErr.message);
+        }
         if (provider === 'character') {
           return res.status(503).json({ error: 'voice_server_offline', retry: true });
         }

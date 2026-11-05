@@ -2058,6 +2058,16 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '513': {
+    date: 'November 2026',
+    label: 'Always-On Voice Calls',
+    fixed: [
+      'Poppy silent on calls: when the local voice server is offline, calls now fall back to Edge TTS (Microsoft Neural voices) instead of going silent — Poppy uses en-US-AvaNeural, Huggy uses en-US-GuyNeural',
+      'Voice fallback chain is now: Poppy voice server → Edge TTS (cloud) → browser speech — calls always have audio',
+      'Call delay eliminated when voice server offline: Edge TTS responds in 1-2s instead of waiting for a 15s timeout',
+      'Mixed-voice glitches fixed: once the fallback activates, all subsequent pipeline blobs skip straight to Edge TTS (no more mixing Poppy and a different voice mid-sentence)',
+    ],
+  },
   '512': {
     date: 'November 2026',
     label: 'Local-First Mode',
@@ -12541,7 +12551,7 @@ function callModeTTS(bubble) {
   const _ctPipeline = _callTTSPipeline.splice(0);
   _callTTSPipelineOn = false;
   if (_ctPipeline.length > 0) {
-    _playCallTTSPipeline(_ctPipeline);
+    _playCallTTSPipeline(_ctPipeline, text);
   } else {
     callModeTTS_server(text);
   }
@@ -12635,11 +12645,24 @@ function _fetchCallTTSBlob(rawText) {
   if (!clean || ttsProvider === 'off' || ttsProvider === 'browser') return Promise.resolve(null);
   const prov = ttsProvider;
   const charId = (callContextChar || currentChar)?.id;
-  // For character/user voice use a short timeout (15s) so we fall back to Gemini quickly.
-  // Chatterbox typically responds in 10-15s; anything longer means it's struggling.
+  // For character/user voice use a short timeout (15s); if the server-side Edge fallback also hangs, give up quickly.
   const timeoutMs = (prov === 'character' || prov === 'user') ? 15000 : 90000;
   const ctrl = new AbortController();
   const tmo = setTimeout(() => ctrl.abort(), timeoutMs);
+  const _edgeFallback = async (t) => {
+    const ctrl2 = new AbortController();
+    const tmo2 = setTimeout(() => ctrl2.abort(), 8000);
+    try {
+      const r2 = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: t, charId, provider: 'edge', edgeVoice: edgeVoiceName || 'en-US-AvaNeural' }),
+        signal: ctrl2.signal,
+      });
+      if (r2.ok) return r2.blob();
+    } catch (_) {} finally { clearTimeout(tmo2); }
+    return null;
+  };
   return fetch('/api/tts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -12648,38 +12671,18 @@ function _fetchCallTTSBlob(rawText) {
   }).then(async r => {
     clearTimeout(tmo);
     if (r.ok) return r.blob();
-    // 503 = character/user voice offline — fall back to Kokoro (local) so the pipeline always produces audio
+    // 503 = character/user voice offline — fall back to Edge TTS (always available, no local server needed)
     if (r.status === 503 && (prov === 'character' || prov === 'user')) {
       _callCharVoiceOffline = true;
-      const ctrl2 = new AbortController();
-      const tmo2 = setTimeout(() => ctrl2.abort(), 12000);
-      try {
-        const r2 = await fetch('/api/tts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: clean, charId, provider: 'kokoro', kokoroVoice: kokoroVoiceName }),
-          signal: ctrl2.signal,
-        });
-        if (r2.ok) return r2.blob();
-      } catch (_) {} finally { clearTimeout(tmo2); }
+      return _edgeFallback(clean);
     }
     return null;
   }).catch(async (err) => {
     clearTimeout(tmo);
-    // Timeout (AbortError) on character/user voice — fall back to Kokoro (local)
+    // Timeout (AbortError) on character/user voice — fall back to Edge TTS
     if (err.name === 'AbortError' && (prov === 'character' || prov === 'user')) {
       _callCharVoiceOffline = true;
-      const ctrl2 = new AbortController();
-      const tmo2 = setTimeout(() => ctrl2.abort(), 12000);
-      try {
-        const r2 = await fetch('/api/tts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: clean, charId, provider: 'kokoro', kokoroVoice: kokoroVoiceName }),
-          signal: ctrl2.signal,
-        });
-        if (r2.ok) return r2.blob();
-      } catch (_) {} finally { clearTimeout(tmo2); }
+      return _edgeFallback(clean);
     }
     return null;
   });
@@ -12689,10 +12692,10 @@ function _feedCallTTSPipeline(chunk) {
   if (!callModeActive || ttsProvider === 'off' || ttsProvider === 'browser') return;
   _callTTSPipelineOn = true;
   _callTTSPipelineBuf += chunk;
-  if (ttsProvider === 'character' || ttsProvider === 'user') {
+  if ((ttsProvider === 'character' || ttsProvider === 'user') && !_callCharVoiceOffline) {
     const parts = _callTTSPipelineBuf.split(/(?<=[.!?])\s+/);
     const tail = parts.pop() || '';
-    // Always start the FIRST sentence fetch immediately (even if short) so Chatterbox
+    // Always start the FIRST sentence fetch immediately (even if short) so the voice server
     // has maximum overlap with AI generation time — eliminates the initial silence gap.
     if (_callTTSPipeline.length === 0 && parts.length > 0) {
       const first = parts.shift();
@@ -12742,7 +12745,7 @@ function _playCallBlobOnly(blob) {
   });
 }
 
-async function _playCallTTSPipeline(pipeline) {
+async function _playCallTTSPipeline(pipeline, fallbackText) {
   const gen = callGen;
   let started = false;
   for (let i = 0; i < pipeline.length; i++) {
@@ -12759,8 +12762,11 @@ async function _playCallTTSPipeline(pipeline) {
       return;
     }
   }
-  // All blobs null — still need to advance the call
-  if (gen === callGen && callModeActive) afterCallTTSDone();
+  // All blobs null — use browser TTS as final fallback so the call never goes silent
+  if (gen === callGen && callModeActive) {
+    if (fallbackText) { callModeTTS_browser(fallbackText, gen); return; }
+    afterCallTTSDone();
+  }
 }
 
 async function speakAndHangUp(text, resetsAt) {
@@ -12865,14 +12871,14 @@ async function callModeTTS_server(text) {
 
   // Server falls back to Edge TTS automatically if no clone voice is registered for a character.
   const callProvider = ttsProvider;
-  const _fetchKokoroFallback = async (s) => {
+  const _fetchEdgeFallback = async (s) => {
     const ctrl = new AbortController();
-    const tmo = setTimeout(() => ctrl.abort(), 12000);
+    const tmo = setTimeout(() => ctrl.abort(), 8000);
     try {
       const r = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: s, charId: (callContextChar || currentChar)?.id, provider: 'kokoro', kokoroVoice: kokoroVoiceName }),
+        body: JSON.stringify({ text: s, charId: (callContextChar || currentChar)?.id, provider: 'edge', edgeVoice: edgeVoiceName || 'en-US-AvaNeural' }),
         signal: ctrl.signal,
       });
       if (r.ok) return r.blob();
@@ -12881,9 +12887,9 @@ async function callModeTTS_server(text) {
   };
   const fetchBlob = async (s) => {
     if (ttsProvider === 'off') return null;
-    // If the voice server already failed this call, skip straight to Kokoro
+    // If the voice server already failed this call, skip straight to Edge TTS (avoid 15s timeout)
     if (_callCharVoiceOffline && (callProvider === 'character' || callProvider === 'user')) {
-      return _fetchKokoroFallback(s);
+      return _fetchEdgeFallback(s);
     }
     const ctrl = new AbortController();
     const tmo = setTimeout(() => ctrl.abort(), 15000); // 15s — Chatterbox typically responds in 10-15s
@@ -12901,7 +12907,7 @@ async function callModeTTS_server(text) {
           _callCharVoiceOffline = true;
           const offBadge = document.getElementById('callVoiceOffBadge');
           if (offBadge) offBadge.style.display = '';
-          return _fetchKokoroFallback(s);
+          return _fetchEdgeFallback(s);
         }
         throw new Error('tts ' + r.status);
       }
@@ -12930,6 +12936,7 @@ async function callModeTTS_server(text) {
 
   try {
     let nextFetch = fetchBlob(sentences[0]);
+    let _anyPlayed = false;
     for (let i = 0; i < sentences.length; i++) {
       if (gen !== callGen) return;
       // Pre-fetch next sentence in parallel while waiting for current blob
@@ -12938,24 +12945,25 @@ async function callModeTTS_server(text) {
       if (gen !== callGen) return;
       if (i === 0) setCallState('responding'); // switch to 'responding' only when audio is ready
       if (i < sentences.length - 1) {
-        if (blob) await playBlobOnly(blob); // blob is null when voice is off — skip silently
+        if (blob) { _anyPlayed = true; await playBlobOnly(blob); } // blob is null when voice is off — skip silently
       } else {
-        if (blob) await playCallBlob(blob); // last sentence — playCallBlob calls listenForSpeech when done
-        else afterCallTTSDone(); // voice off — no audio, but still need to trigger next listen cycle
+        if (blob) { _anyPlayed = true; await playCallBlob(blob); } // last sentence
+        else if (!_anyPlayed) { callModeTTS_browser(clean, gen); return; } // all blobs null — browser TTS fallback
+        else afterCallTTSDone(); // partial audio played — continue call cycle
       }
       nextFetch = prefetch;
     }
   } catch (_) {
-    // Server TTS failed — try Gemini first before falling back to robotic browser speech
+    // Server TTS failed — try Edge TTS before falling back to browser speech
     if (callModeActive && gen === callGen) {
-      if (callProvider !== 'gemini' && callProvider !== 'edge' && callProvider !== 'off' && callProvider !== 'browser') {
+      if (callProvider !== 'edge' && callProvider !== 'off' && callProvider !== 'browser') {
         try {
           const ctrl2 = new AbortController();
-          const tmo2 = setTimeout(() => ctrl2.abort(), 18000);
+          const tmo2 = setTimeout(() => ctrl2.abort(), 8000);
           const r2 = await fetch('/api/tts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: clean.slice(0, 499), charId: (callContextChar || currentChar)?.id, provider: 'gemini', geminiVoice: geminiVoiceName }),
+            body: JSON.stringify({ text: clean.slice(0, 499), charId: (callContextChar || currentChar)?.id, provider: 'edge', edgeVoice: edgeVoiceName || 'en-US-AvaNeural' }),
             signal: ctrl2.signal,
           }).finally(() => clearTimeout(tmo2));
           if (r2.ok && callModeActive && gen === callGen) {
