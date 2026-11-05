@@ -2015,6 +2015,29 @@ const MEMORY_EXTRACT_TIERS = {
 const memExtractBusy = new Set(); // userId -> extraction in progress
 
 async function geminiOnce(apiKey, model, system, user, maxTokens) {
+  // Use Groq for memory/story extraction when it's the primary provider — no Gemini needed.
+  if (process.env.GROQ_PRIMARY === 'true' && process.env.GROQ_API_KEY) {
+    const groqModel = 'llama-3.3-70b-versatile';
+    const body = JSON.stringify({
+      model: groqModel,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+      max_tokens: maxTokens,
+      temperature: 0.3,
+    });
+    const ctrl = new AbortController();
+    const tmo = setTimeout(() => ctrl.abort(), 25000);
+    try {
+      const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
+        body, signal: ctrl.signal,
+      });
+      if (!r.ok) throw new Error('Groq HTTP ' + r.status);
+      const j = await r.json();
+      return String(j.choices?.[0]?.message?.content || '').trim();
+    } finally { clearTimeout(tmo); }
+  }
+
   // Use Ollama for memory/story extraction when configured — keeps everything local.
   if (process.env.OLLAMA_BASE_URL) {
     const baseUrl = (process.env.OLLAMA_BASE_URL || '').replace(/\/$/, '');
@@ -3660,6 +3683,99 @@ function callGroqBackupStream(systemPrompt, messages, onChunk, onDone, onError, 
   req.end();
 }
 
+// ── Groq primary streaming helper ────────────────────────────────────────────
+// When GROQ_PRIMARY=true: Groq is the main AI (Llama 3.3 70B), Gemini is fallback.
+// No GPU needed. Set GROQ_PRIMARY=true in Render env vars to enable.
+
+const GROQ_PRIMARY_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'llama-3.1-8b-instant'];
+const groqPrimBlockedUntil = {};
+
+function callGroqPrimaryStream(systemPrompt, messages, onChunk, onDone, onError, ctx, effortCfg, modelIndex, attempt) {
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!groqKey) return onError(new Error('GROQ_API_KEY not set'));
+  ctx = ctx || {};
+  modelIndex = modelIndex || 0;
+  attempt = attempt || 0;
+
+  const now = Date.now();
+  while (modelIndex < GROQ_PRIMARY_MODELS.length && (groqPrimBlockedUntil[GROQ_PRIMARY_MODELS[modelIndex]] || 0) > now) modelIndex++;
+  if (modelIndex >= GROQ_PRIMARY_MODELS.length) {
+    const soonest = Math.min(...GROQ_PRIMARY_MODELS.map(m => groqPrimBlockedUntil[m] || 0));
+    const wait = Math.max(2000, soonest - now + 500);
+    if (!ctx.aborted && attempt < 3 && wait <= 60000) {
+      console.log(`[groq-primary] all models rate-limited, retrying in ${wait}ms`);
+      return setTimeout(() => {
+        if (ctx.aborted) return onError(new Error('client aborted'));
+        callGroqPrimaryStream(systemPrompt, messages, onChunk, onDone, onError, ctx, effortCfg, 0, attempt + 1);
+      }, wait);
+    }
+    return onError(new Error('Groq primary all models rate-limited'));
+  }
+
+  const model = GROQ_PRIMARY_MODELS[modelIndex];
+  const maxTokens = Math.min((effortCfg && effortCfg.maxOutputTokens) || 1200, 8000);
+  const body = JSON.stringify({
+    model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      ...messages.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '') })),
+    ],
+    max_tokens: maxTokens,
+    temperature: (effortCfg && effortCfg.temperature) || 0.9,
+    stream: true,
+  });
+
+  const req = https.request({
+    hostname: 'api.groq.com',
+    path: '/openai/v1/chat/completions',
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${groqKey}`, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+  }, (res) => {
+    if (res.statusCode !== 200) {
+      let errBody = '';
+      if (typeof res.setEncoding === 'function') res.setEncoding('utf8');
+      res.on('data', d => { errBody += d; });
+      res.on('end', () => {
+        if (res.statusCode === 429) {
+          const retryAfterSec = Number(res.headers['retry-after'] || 60);
+          groqPrimBlockedUntil[model] = Date.now() + retryAfterSec * 1000;
+          console.log(`[groq-primary] ${model} rate-limited for ${retryAfterSec}s, trying next`);
+          return callGroqPrimaryStream(systemPrompt, messages, onChunk, onDone, onError, ctx, effortCfg, modelIndex + 1, attempt);
+        }
+        onError(new Error(`Groq primary ${res.statusCode}: ${errBody.slice(0, 200)}`));
+      });
+      return;
+    }
+    if (typeof res.setEncoding === 'function') res.setEncoding('utf8');
+    let buf = '';
+    res.on('data', (chunk) => {
+      buf += chunk;
+      const lines = buf.split('\n');
+      buf = lines.pop() || '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') continue;
+        try { const j = JSON.parse(data); const t = j.choices?.[0]?.delta?.content || ''; if (t) onChunk(t); } catch (_) {}
+      }
+    });
+    res.on('end', () => {
+      if (buf) {
+        const d = buf.replace(/^data:\s*/, '').trim();
+        if (d && d !== '[DONE]') { try { const j = JSON.parse(d); const t = j.choices?.[0]?.delta?.content || ''; if (t) onChunk(t); } catch (_) {} }
+      }
+      onDone();
+      console.log(`[groq-primary] served reply via ${model}`);
+    });
+    res.on('error', onError);
+  });
+  req.setTimeout(60000, () => { req.destroy(); onError(new Error('Groq primary timeout')); });
+  req.on('error', onError);
+  if (ctx) ctx.req = req;
+  req.write(body);
+  req.end();
+}
+
 // ── Gemini API streaming helper ──────────────────────────────────────────────
 
 const GEMINI_HOST = 'generativelanguage.googleapis.com';
@@ -3912,6 +4028,16 @@ function startReplyStream(o) {
       callGeminiStream(apiKey, system, messages, handleChunk, handleDone, tryGroqBackup, undefined, effortCfgFit, modelList, ctx);
     };
     callOllamaStream(system, messages, handleChunk, handleDone, tryGeminiFallback, ctx, effortCfgFit);
+  } else if (process.env.GROQ_PRIMARY === 'true' && process.env.GROQ_API_KEY) {
+    // Groq as primary (GROQ_PRIMARY=true): uses Llama 3.3 70B, falls back to Gemini.
+    // No GPU needed — set GROQ_PRIMARY=true in Render env vars to enable.
+    const tryGeminiFallback = (groqErr) => {
+      if (released) return fail(groqErr);
+      fullResponse = ''; held = '';
+      console.log('[groq-primary] failed, falling back to Gemini:', groqErr && groqErr.message);
+      callGeminiStream(apiKey, system, messages, handleChunk, handleDone, tryGroqBackup, undefined, effortCfgFit, modelList, ctx);
+    };
+    callGroqPrimaryStream(system, messages, handleChunk, handleDone, tryGeminiFallback, ctx, effortCfgFit);
   } else if (PLAYTIME_MIND_CHAR_IDS.has(charId) && process.env.HF_TOKEN && !isCallMode) {
     callHuggingFaceStream(system, messages, handleChunk, handleDone, (hfErr) => {
       if (released) return fail(hfErr);
