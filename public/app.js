@@ -2058,6 +2058,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '502': {
+    date: 'November 2026',
+    label: 'Call Screen & Voice Fix',
+    fixed: [
+      'Character art now fills the entire call screen centered, blending into the gradient — no more small box in the corner',
+      'Voice delay reduced: once the voice server is detected offline, subsequent sentences skip straight to Gemini instead of wasting a round-trip each time',
+    ],
+  },
   '501': {
     date: 'November 2026',
     label: 'Voice Fallback in Calls',
@@ -12595,8 +12603,26 @@ async function callModeTTS_server(text) {
 
   // Server falls back to Edge TTS automatically if no clone voice is registered for a character.
   const callProvider = ttsProvider;
+  const _fetchGeminiFallback = async (s) => {
+    const ctrl = new AbortController();
+    const tmo = setTimeout(() => ctrl.abort(), 18000);
+    try {
+      const r = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: s, charId: (callContextChar || currentChar)?.id, provider: 'gemini', geminiVoice: geminiVoiceName }),
+        signal: ctrl.signal,
+      });
+      if (r.ok) return r.blob();
+    } catch (_) {} finally { clearTimeout(tmo); }
+    return null;
+  };
   const fetchBlob = async (s) => {
     if (ttsProvider === 'off') return null;
+    // If the voice server already failed this call, skip straight to Gemini
+    if (_callCharVoiceOffline && (callProvider === 'character' || callProvider === 'user')) {
+      return _fetchGeminiFallback(s);
+    }
     const ctrl = new AbortController();
     const tmo = setTimeout(() => ctrl.abort(), 90000); // 90s — Chatterbox can take 45s+ to synthesize
     try {
@@ -12608,22 +12634,12 @@ async function callModeTTS_server(text) {
       });
       if (!r.ok) {
         if (r.status === 501) serverTTSOk = false;
-        // 503 means the character/user voice server is offline — fall back to Gemini so the call isn't silent.
+        // 503 means the character/user voice server is offline — cache this and fall back to Gemini.
         if (r.status === 503 && (callProvider === 'character' || callProvider === 'user')) {
+          _callCharVoiceOffline = true;
           const offBadge = document.getElementById('callVoiceOffBadge');
           if (offBadge) offBadge.style.display = '';
-          try {
-            const ctrlFb = new AbortController();
-            const tmoFb = setTimeout(() => ctrlFb.abort(), 18000);
-            const rfb = await fetch('/api/tts', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ text: s, charId: (callContextChar || currentChar)?.id, provider: 'gemini', geminiVoice: geminiVoiceName }),
-              signal: ctrlFb.signal,
-            }).finally(() => clearTimeout(tmoFb));
-            if (rfb.ok) return rfb.blob();
-          } catch (_fb) {}
-          return null;
+          return _fetchGeminiFallback(s);
         }
         throw new Error('tts ' + r.status);
       }
@@ -12711,6 +12727,7 @@ let callGenSeconds = 0;     // total generation+TTS wait time this call
 let lastKnownCallResetsAt = 0;
 let callVobTimer = null;
 let callThinkingTimeoutId = null; // safety: returns to listening if thinking state stalls
+let _callCharVoiceOffline = false; // set on first 503; subsequent sentences skip straight to Gemini
 
 // ── Multi-char call state ─────────────────────────────────────────────────────
 let callCharacters = [];        // all chars currently on the call
@@ -12909,6 +12926,7 @@ async function _doStartCall(overlay) {
   callModeActive = true;
   if (!window._gpuBoostActive) window._farmBoostMult = 3;
   serverTTSOk = true;
+  _callCharVoiceOffline = false;
   callMuted = false;
   callFirstConnect = true;
   callCharacters = currentChar ? [currentChar] : [];

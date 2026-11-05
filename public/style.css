@@ -1348,23 +1348,22 @@ html, body {
 .call-mic-error strong { font-size: 15px; font-weight: 700; color: #fff; }
 .call-mic-error p { font-size: 13px; color: rgba(255,255,255,.68); line-height: 1.45; margin: 0; }
 
-/* Avatar — removed from flex flow; rendered as background layer instead */
+/* Avatar wrap — empty spacer kept only for .keypad-open hiding */
 .call-avatar-wrap {
   flex: 0; min-height: 0; overflow: visible; pointer-events: none;
 }
-/* Character image — centered in the middle area, screen-blended so dark PNG backgrounds vanish */
+/* Character image — covers the full overlay, screen-blended so dark PNG backgrounds vanish into the gradient */
 .call-char-img {
   position: absolute;
-  left: 0; right: 0;
-  top: 18%;
-  bottom: 210px;
+  inset: 0;
   background-size: contain;
-  background-position: center;
+  background-position: center center;
   background-repeat: no-repeat;
-  opacity: 0.72;
+  opacity: 0.80;
   mix-blend-mode: screen;
   z-index: 1;
   pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
 }
 /* No-photo placeholder — hide it when in background mode */
 .call-no-photo { display: none; }
@@ -1481,9 +1480,8 @@ html, body {
 }
 .call-char-picker-close:hover { background: rgba(255,255,255,0.2); }
 
-/* Desktop: larger character */
+/* Desktop: larger name text only — char image uses inset:0 so no size override needed */
 @media (min-width: 768px) {
-  .call-char-img { width: min(55vh, 440px); height: clamp(300px, 65vh, 500px); }
   .call-char-name { font-size: 34px; }
 }
 
@@ -6446,6 +6444,7 @@ html, body {
 /* ── Call: keypad (everything else hides while it's open) ── */
 .call-overlay.keypad-open .call-top,
 .call-overlay.keypad-open .call-avatar-wrap,
+.call-overlay.keypad-open .call-char-img,
 .call-overlay.keypad-open .call-icon-row,
 .call-overlay.keypad-open .call-party-row { display: none !important; }
 .call-overlay.keypad-open .call-controls { flex: 1; justify-content: flex-end; gap: 18px; }
