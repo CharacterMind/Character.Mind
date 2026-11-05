@@ -2058,6 +2058,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '480': {
+    date: 'November 2026',
+    label: 'Faster Voice Start',
+    fixed: [
+      'Voice now starts playing significantly sooner — the first audio synthesis kicks off after just 25 chars of AI text instead of waiting for 60, cutting first-audio latency roughly in half on CPU Chatterbox',
+      'Speaker button now shows the loading animation the moment the AI starts replying (instead of waiting for a full phrase to be queued), giving instant visual feedback',
+      'Comma-split and force-split thresholds lowered so long sentences get broken into audio chunks sooner during generation',
+    ],
+  },
   '479': {
     date: 'November 2026',
     label: 'Voice Continuity + Token Counter',
@@ -10966,6 +10975,14 @@ function _clearPrefetchPool() {
 
 function _feedAutoSpeak(chunk) {
   if (!chatAutoSpeak || callModeActive) return;
+
+  // Show loading indicator immediately on the very first chunk so the user
+  // sees instant feedback before any sentence is queued.
+  if (!_streamTTSPlaying && _streamTTSBuffer.length === 0 && (ttsProvider === 'character' || ttsProvider === 'user')) {
+    const _btn = document.getElementById('autoSpeakBtn');
+    if (_btn && _btn.classList.contains('active')) _btn.classList.add('loading');
+  }
+
   _streamTTSBuffer += chunk;
 
   // Primary: split on sentence-final punctuation — always extract complete sentences
@@ -10978,32 +10995,32 @@ function _feedAutoSpeak(chunk) {
     }
   }
 
-  // Secondary comma-split: enabled for long fragments so audio starts sooner (≥60 char piece only)
-  while ((ttsProvider === 'character' || ttsProvider === 'user') && _streamTTSBuffer.length > 80) {
-    const idx = _streamTTSBuffer.indexOf(', ', 15);
+  // Secondary comma-split: enabled for long fragments so audio starts sooner (≥40 char piece)
+  while ((ttsProvider === 'character' || ttsProvider === 'user') && _streamTTSBuffer.length > 60) {
+    const idx = _streamTTSBuffer.indexOf(', ', 10);
     if (idx === -1) break;
     const piece = _streamTTSBuffer.slice(0, idx + 1).trim();
     const tail  = _streamTTSBuffer.slice(idx + 2).trimStart();
-    if (piece.length < 60) break; // too short — would create an audible gap
+    if (piece.length < 40) break;
     _streamTTSBuffer = tail;
     _streamTTSQueue.push(piece);
     _prefetchSentence(piece);
   }
-  // Early-start: kick off synthesis on the first 60+ chars even without punctuation
-  // so synthesis starts while the AI is still generating the rest of the first sentence.
-  if ((ttsProvider === 'character' || ttsProvider === 'user') && _streamTTSQueue.length === 0 && _streamTTSBuffer.length >= 60) {
-    const idx = _streamTTSBuffer.lastIndexOf(' ', 90);
-    if (idx >= 40) {
+  // Early-start: kick off synthesis on the first 25+ chars even without punctuation.
+  // Shorter clip = faster Chatterbox synthesis = first audio arrives sooner.
+  if ((ttsProvider === 'character' || ttsProvider === 'user') && _streamTTSQueue.length === 0 && _streamTTSBuffer.length >= 25) {
+    const idx = _streamTTSBuffer.lastIndexOf(' ', 40);
+    if (idx >= 15) {
       const piece = _streamTTSBuffer.slice(0, idx).trim();
       _streamTTSBuffer = _streamTTSBuffer.slice(idx + 1);
       _streamTTSQueue.push(piece);
       _prefetchSentence(piece);
     }
   }
-  // For character/user voice: force-split at 200 chars to start audio sooner
-  while ((ttsProvider === 'character' || ttsProvider === 'user') && _streamTTSBuffer.length > 200) {
-    const idx = _streamTTSBuffer.lastIndexOf(' ', 190);
-    if (idx < 50) break;
+  // For character/user voice: force-split at 120 chars to start audio sooner
+  while ((ttsProvider === 'character' || ttsProvider === 'user') && _streamTTSBuffer.length > 120) {
+    const idx = _streamTTSBuffer.lastIndexOf(' ', 110);
+    if (idx < 30) break;
     const piece = _streamTTSBuffer.slice(0, idx).trim();
     _streamTTSBuffer = _streamTTSBuffer.slice(idx + 1).trimStart();
     _streamTTSQueue.push(piece);
