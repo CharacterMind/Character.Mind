@@ -2058,6 +2058,18 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '503': {
+    date: 'November 2026',
+    label: 'Voicemail Voice & Callback',
+    added: [
+      'Voicemail now auto-plays in the character\'s voice as soon as it opens — no clicking Play',
+      'Characters call you back 1.5–3 minutes after leaving a voicemail',
+      'Callback indicator shown on the voicemail card so you know to expect the call',
+    ],
+    fixed: [
+      'Voicemail audio no longer hangs for 90 seconds when voice server is offline — tries Gemini immediately as fallback',
+    ],
+  },
   '502': {
     date: 'November 2026',
     label: 'Call Screen & Voice Fix',
@@ -3826,25 +3838,33 @@ function clearCallList(type) {
 async function playCallLogVoicemail(charId, vmText) {
   const char = (characters||[]).find(c=>c.id===charId);
   if (!char || !vmText) return;
-  // Try Chatterbox voice first
-  try {
+  const _try = async (provider, ms) => {
     const ctrl = new AbortController();
-    const tmo = setTimeout(() => ctrl.abort(), 90000);
-    const r = await fetch('/api/tts', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: vmText.slice(0, 499), charId, provider: ttsProvider }),
-      signal: ctrl.signal,
-    }).finally(() => clearTimeout(tmo));
-    if (r.ok) {
-      const ab = await (await r.blob()).arrayBuffer();
+    const tmo = setTimeout(() => ctrl.abort(), ms);
+    try {
+      const r = await fetch('/api/tts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: vmText.slice(0, 499), charId, provider, geminiVoice: geminiVoiceName }),
+        signal: ctrl.signal,
+      });
+      if (r.ok) return r.blob();
+    } catch(_) {} finally { clearTimeout(tmo); }
+    return null;
+  };
+  let blob = await _try(ttsProvider, ttsProvider === 'character' || ttsProvider === 'user' ? 8000 : 15000);
+  if (!blob && ttsProvider !== 'gemini') blob = await _try('gemini', 15000);
+  if (blob) {
+    try {
+      const ab = await blob.arrayBuffer();
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
       const src = ctx.createBufferSource();
       src.buffer = await ctx.decodeAudioData(ab);
       src.connect(ctx.destination);
       src.start(0);
       return;
-    }
-  } catch(_) {}
+    } catch(_) {}
+  }
   // Fallback: browser TTS
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
@@ -4634,6 +4654,7 @@ let vmChar = null;
 let vmSpeaking = false;
 let vmAudioNode = null;
 let vmLoading = false;
+let _vmCallbackTimer = null;
 
 function charVoicemailText(char) {
   const name = char.name || 'me';
@@ -4675,6 +4696,25 @@ function showVoicemailOverlay(char) {
   const playBtn = document.getElementById('vmPlayBtn');
   if (playBtn) { playBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M8 5v14l11-7z"/></svg> Play`; }
   overlay.style.display = 'flex';
+  // Auto-play the voicemail message
+  setTimeout(() => playVoicemailAudio(), 400);
+  // Schedule a callback — char will call back in 1.5-3 minutes
+  _scheduleVmCallback(char);
+}
+
+function _scheduleVmCallback(char) {
+  clearTimeout(_vmCallbackTimer);
+  const hintEl = document.getElementById('vmCallbackHint');
+  if (hintEl) {
+    const pronoun = char.name ? char.name.split(' ')[0] : 'They';
+    hintEl.textContent = `📲 ${pronoun} will call you back soon…`;
+    hintEl.style.display = '';
+  }
+  const delay = 90000 + Math.random() * 90000; // 1.5–3 min
+  _vmCallbackTimer = setTimeout(() => {
+    _vmCallbackTimer = null;
+    showIncomingCall(char);
+  }, delay);
 }
 
 async function playVoicemailAudio() {
@@ -4692,17 +4732,28 @@ async function playVoicemailAudio() {
   vmLoading = true;
   const text = charVoicemailText(vmChar);
   if (playBtn) playBtn.innerHTML = `<span style="font-size:12px;opacity:.8">Loading…</span>`;
-  // Try Chatterbox voice first via /api/tts
-  try {
+
+  const _tryProvider = async (provider, timeoutMs) => {
     const ctrl = new AbortController();
-    const tmo = setTimeout(() => ctrl.abort(), 90000);
-    const r = await fetch('/api/tts', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.slice(0, 499), charId: vmChar.id || '', provider: ttsProvider }),
-      signal: ctrl.signal,
-    }).finally(() => clearTimeout(tmo));
-    if (r.ok) {
-      const ab = await (await r.blob()).arrayBuffer();
+    const tmo = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const r = await fetch('/api/tts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.slice(0, 499), charId: vmChar?.id || '', provider, geminiVoice: geminiVoiceName }),
+        signal: ctrl.signal,
+      });
+      if (r.ok) return r.blob();
+    } catch(_) {} finally { clearTimeout(tmo); }
+    return null;
+  };
+
+  // Try character voice (short timeout), then Gemini, then browser speech
+  let blob = await _tryProvider(ttsProvider, ttsProvider === 'character' || ttsProvider === 'user' ? 8000 : 15000);
+  if (!blob && ttsProvider !== 'gemini') blob = await _tryProvider('gemini', 15000);
+
+  if (blob) {
+    try {
+      const ab = await blob.arrayBuffer();
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
       const src = ctx.createBufferSource();
@@ -4713,11 +4764,12 @@ async function playVoicemailAudio() {
       src.onended = () => { vmSpeaking = false; vmAudioNode = null; if (playBtn) playBtn.innerHTML = playSvg; };
       src.start(0);
       return;
-    }
-  } catch(_) {}
+    } catch(_) {}
+  }
+
   vmLoading = false;
-  // Fallback: browser speech synthesis
   if (playBtn) playBtn.innerHTML = playSvg;
+  // Final fallback: browser speech synthesis
   if (!window.speechSynthesis) return;
   const u = new SpeechSynthesisUtterance(text);
   _applyCharVoice(u, vmChar);

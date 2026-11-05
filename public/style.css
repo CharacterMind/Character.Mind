@@ -5321,6 +5321,11 @@ html, body {
 .vm-btn:hover { opacity: .82; }
 .vm-btn-play { background: #4ade80; color: #0a2a0a; border: none; }
 .vm-btn-msg  { background: var(--surface2, rgba(255,255,255,.08)); color: var(--text, #f1f5f9); border: 1px solid var(--border, rgba(255,255,255,.08)); }
+.vm-callback-hint {
+  font-size: 12px; color: var(--muted, #64748b); text-align: center;
+  margin-top: 2px; animation: vmCallbackPulse 2.4s ease-in-out infinite;
+}
+@keyframes vmCallbackPulse { 0%,100%{opacity:.55} 50%{opacity:1} }
 .vm-close { background: none; border: none; color: var(--muted, #64748b); font-size: 13px; cursor: pointer; margin-top: 4px; }
 .vm-close:hover { color: var(--text); }
 
