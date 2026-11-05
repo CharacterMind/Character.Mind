@@ -2058,6 +2058,16 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '493': {
+    date: 'November 2026',
+    label: 'Voice Stability Fix',
+    fixed: [
+      'Voicemail audio no longer silently fails on Chrome — AudioContext is now resumed before playback',
+      'Double-clicking Play on voicemail no longer starts two overlapping audio streams',
+      'Opening a new voicemail while one is already playing now stops the old one cleanly',
+      'Phone number is now completely suppressed from crisis responses (even if asked)',
+    ],
+  },
   '492': {
     date: 'November 2026',
     label: 'Voice & Crisis Fix',
@@ -4531,6 +4541,7 @@ function showPhoneRingingThenVoicemail(char, prevChar) {
 let vmChar = null;
 let vmSpeaking = false;
 let vmAudioNode = null;
+let vmLoading = false;
 
 function charVoicemailText(char) {
   const name = char.name || 'me';
@@ -4547,8 +4558,10 @@ function charVoicemailText(char) {
 }
 
 function showVoicemailOverlay(char) {
+  if (vmAudioNode) { try { vmAudioNode.stop(); } catch(_) {} vmAudioNode = null; }
+  window.speechSynthesis?.cancel();
   vmChar = char;
-  vmSpeaking = false;
+  vmSpeaking = false; vmLoading = false;
   _logCall(char, 'voicemail', { vmText: charVoicemailText(char) });
   const overlay = document.getElementById('voicemailOverlay');
   if (!overlay) return;
@@ -4577,13 +4590,14 @@ async function playVoicemailAudio() {
   const playBtn = document.getElementById('vmPlayBtn');
   const playSvg = `<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M8 5v14l11-7z"/></svg> Play`;
   const stopSvg = `<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> Stop`;
-  if (vmSpeaking) {
+  if (vmSpeaking || vmLoading) {
     if (vmAudioNode) { try { vmAudioNode.stop(); } catch(_) {} vmAudioNode = null; }
     window.speechSynthesis?.cancel();
-    vmSpeaking = false;
+    vmSpeaking = false; vmLoading = false;
     if (playBtn) playBtn.innerHTML = playSvg;
     return;
   }
+  vmLoading = true;
   const text = charVoicemailText(vmChar);
   if (playBtn) playBtn.innerHTML = `<span style="font-size:12px;opacity:.8">Loading…</span>`;
   // Try Chatterbox voice first via /api/tts
@@ -4598,16 +4612,18 @@ async function playVoicemailAudio() {
     if (r.ok) {
       const ab = await (await r.blob()).arrayBuffer();
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
       const src = ctx.createBufferSource();
       src.buffer = await ctx.decodeAudioData(ab);
       src.connect(ctx.destination);
-      vmSpeaking = true; vmAudioNode = src;
+      vmLoading = false; vmSpeaking = true; vmAudioNode = src;
       if (playBtn) playBtn.innerHTML = stopSvg;
       src.onended = () => { vmSpeaking = false; vmAudioNode = null; if (playBtn) playBtn.innerHTML = playSvg; };
       src.start(0);
       return;
     }
   } catch(_) {}
+  vmLoading = false;
   // Fallback: browser speech synthesis
   if (playBtn) playBtn.innerHTML = playSvg;
   if (!window.speechSynthesis) return;

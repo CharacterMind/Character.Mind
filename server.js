@@ -7639,7 +7639,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
   startReplyStream({
     res, apiKey,
-    system: applyEffortDirective(IMAGE_CAPABILITY_PREFIX + characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + (callMode || bookReq ? '' : phoneDirective(userId, charId, conversations[key])) + chatModeDirective + chatBlockDirective + characterEnforcement + swearDirective + gameKnowledgeDirective(modelTier), effort, modelTier),
+    system: applyEffortDirective(IMAGE_CAPABILITY_PREFIX + characterEnforcementPrefix + wrapPrompt(char.systemPrompt + memNote + bookNote, !isRpMode) + crisisContext + callModeDirective + (callMode || bookReq || crisisContext ? '' : phoneDirective(userId, charId, conversations[key])) + chatModeDirective + chatBlockDirective + characterEnforcement + swearDirective + gameKnowledgeDirective(modelTier), effort, modelTier),
     messages: withLengthSuffix(messagesForGroq, effort, modelTier, callMode), effortCfg, modelList, userId, modelTier, effort, releaseSlot, charId, callMode,
     onComplete: (text, meta) => {
       conversations[key].push({ role: 'assistant', content: text }); persistConv(key);
