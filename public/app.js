@@ -2058,6 +2058,19 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '497': {
+    date: 'November 2026',
+    label: 'Bug Fixes & Limit Corrections',
+    fixed: [
+      'Call window reset countdown was showing 8h instead of 15h in all three places it appeared',
+      'Call limit modal said "per 8h" — now correctly says "per 15h"',
+      'Fallback reset timer in 429 handler hardcoded 8h (28800000ms) — fixed to 15h (54000000ms)',
+      'Advanced plan card showed "Up to 6 calls" — corrected to Up to 12',
+      'Advanced plan weekly label was misleading Opes-only figure — now shows "~2,500 msgs / week at medium effort"',
+      'Settings panel showed "2-hour limit" for free users — now correctly says "6-hour limit"',
+      'Free tier call limit reduced from 250 min to 120 min per 15h window',
+    ],
+  },
   '496': {
     date: 'November 2026',
     label: 'Session & Call Cooldown Updates',
@@ -3363,7 +3376,7 @@ function updateSettingsUsage(u) {
   const sBar = document.getElementById('settingsSessionBar');
   if (sBar) { sBar.style.width = sPct + '%'; sBar.className = 'settings-usage-bar-fill ' + fillClass(sPct); }
   const sLabel = document.getElementById('settingsSessionLabel');
-  if (sLabel) sLabel.textContent = isFreeSettings ? '2-hour limit' : 'Session';
+  if (sLabel) sLabel.textContent = isFreeSettings ? '6-hour limit' : 'Session';
   const sPctEl = document.getElementById('settingsSessionPct');
   if (sPctEl) {
     if (isFreeSettings) {
@@ -8993,8 +9006,8 @@ function updateUsageModal(u) {
     const sessTokens = isAdv ? 120000 : 60000;
     const sessMsg = isAdv ? '~171 Opes or ~600 Opas / session' : '~85 Opes or ~300 Opas / session';
     const weeklyTokens = isAdv ? 1000000 : null;
-    const weeklyMsg = isAdv ? '~1,428 Opes msgs / week' : 'No weekly cap';
-    const callsDay = isAdv ? 'Up to 6 · 6 hrs total' : 'Up to 6 · 250 min total';
+    const weeklyMsg = isAdv ? '~2,500 msgs / week at medium effort' : 'No weekly cap';
+    const callsDay = isAdv ? 'Up to 12 · 6 hrs total' : 'Up to 6 · 120 min total';
     const models = isAdv ? 'Opas, Opes, Opis, Opos' : 'Opas, Opes';
     rowsEl.innerHTML =
       `<div style="color:var(--text3);font-size:11px">Session limit</div><div style="font-weight:600;color:var(--text1)">${sessMsg}</div>` +
@@ -12176,7 +12189,7 @@ let callInactivityTimer = null;
 let callInactivityWarnTimer = null;
 let callStarting = false; // mutex: prevents double-start race condition
 const CALL_INACTIVITY_MS = 15 * 60 * 1000;
-const CALL_DAILY_MAX_SECS = 250 * 60; // 250 minutes per 8h window (matches server limit)
+const CALL_DAILY_MAX_SECS = 120 * 60; // 120 minutes per 15h window (matches server limit)
 let callDurationTimer = null;
 let callSessionStartedAt = null;
 let callGenStart = null;    // when current thinking/responding phase started
@@ -12367,7 +12380,7 @@ async function _doStartCall(overlay) {
       if (overlay) overlay.style.display = 'none';
       if (r.status === 429) {
         const minsLimit = data.callSecondLimit ? Math.round(data.callSecondLimit / 60) : (data.callsLimit || null);
-        showCallLimitModal(data.resetsAt || data.cooldownUntil || Date.now() + 28800000, data.type === 'call_minute_limit' ? 'minutes' : null, minsLimit);
+        showCallLimitModal(data.resetsAt || data.cooldownUntil || Date.now() + 54000000, data.type === 'call_minute_limit' ? 'minutes' : null, minsLimit);
       } else {
         const msg = data.error || data.message || 'Call service unavailable. Please try again.';
         showWarning(msg, 5000);
@@ -12597,7 +12610,7 @@ function showCallLimitModal(resetsAt, reason, minsLimit) {
   const headEl = document.getElementById('callLimitHeadline');
   const subEl = document.getElementById('callLimitSub');
   const msgEl = document.getElementById('callLimitCharMsg');
-  const limitStr = minsLimit ? (reason === 'minutes' ? ` (${minsLimit} min per 8h)` : ` (${minsLimit} calls per 8h)`) : '';
+  const limitStr = minsLimit ? (reason === 'minutes' ? ` (${minsLimit} min per 15h)` : ` (${minsLimit} calls per 15h)`) : '';
   const headText = reason === 'minutes' ? `Call time limit reached${limitStr}.` : `Call limit reached${limitStr}.`;
   if (headEl) headEl.textContent = headText;
   if (subEl) subEl.textContent = '';

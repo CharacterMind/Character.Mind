@@ -1296,8 +1296,8 @@ const NSFW_BLOCK_TOKENS = 200;
 // Free = base. Advanced = 2× free. X20 = 20× free. X50/X100/X200 scale proportionally.
 const TIER_CALL_LIMITS  = { free: 6,   advanced: 12,  x20: 120,  x50: 300,  x100: 600,  x200: 1200  };
 // Call time per DAY (seconds; resets at 00:00 UTC). free=90min, advanced=3h, x20=12h, x50=18h, x100=21h, x200=unlimited
-// Call time per 8h window (seconds). free=250min, advanced=360min, x20=1200min, x50=1500min, x100/x200=unlimited
-const TIER_CALL_SECOND_LIMITS = { free: 15000, advanced: 21600, x20: 72000, x50: 90000, x100: Infinity, x200: Infinity };
+// Call time per 15h window (seconds). free=120min, advanced=360min, x20=1200min, x50=1500min, x100/x200=unlimited
+const TIER_CALL_SECOND_LIMITS = { free: 7200, advanced: 21600, x20: 72000, x50: 90000, x100: Infinity, x200: Infinity };
 const DAY_MS = 24 * 60 * 60 * 1000;
 function getCallDayStart() { return Math.floor(Date.now() / DAY_MS) * DAY_MS; }
 const TIER_MEMO_LIMITS  = { free: 50,  advanced: 150, x50: 2500, x100: 5000, x200: 10000 };
@@ -1676,7 +1676,7 @@ function getLimits(sid) {
   }
   // Daily window resets at 8 AM UTC (calls + memos)
   const callWindow = getCallWindowStart();
-  // Calls reset every 8 hours (same window as memos etc.)
+  // Calls reset every 15 hours (same window as memos etc.)
   if (!u.callDayStart  || u.callDayStart  < callWindow) { u.callsToday = 0; u.callSecondsToday = 0; u.callDayStart = callWindow; }
   if (!u.memoDayStart  || u.memoDayStart  < callWindow) { u.memosToday     = 0; u.memoDayStart  = callWindow; }
   if (!u.msgDayStart   || u.msgDayStart   < callWindow) { u.msgTokensToday = 0; u.msgDayStart   = callWindow; }
@@ -1752,7 +1752,7 @@ function buildUsagePayload(u, userId) {
     imageLimit: imgLimit === Infinity ? 9999 : imgLimit,
     imageResetAt: u.imageFirstUsedAt ? u.imageFirstUsedAt + 24 * 60 * 60 * 1000 : null,
     subscriptionTier: u.subscriptionTier || 'free',
-    callWindowResetsAt: getCallWindowStart() + 8 * 60 * 60 * 1000,
+    callWindowResetsAt: getCallWindowStart() + 15 * 60 * 60 * 1000,
     softLaunch: SOFT_LAUNCH,
     gameNextAvailableAt: (() => { const last = userId && gameLastPlayed ? gameLastPlayed.get(userId) : null; return last ? last + GAME_COOLDOWN_MS : null; })(),
     cmCoins: u.cmCoins || 0,
@@ -1853,7 +1853,7 @@ function addTokens(sid, tokens) {
     if (wPct >= t.pct && !u.warned[t.key]) { u.warned[t.key] = true; warnings.push({ type: 'weekly', pct: t.pct, msg: t.msg }); }
   }
   if (u.sessionTokens >= sessionLimitFor(u) && !u.cooldownUntil) {
-    // Block until the session window expires (not a fresh cooldown — enforces Anthropic-style 2h window)
+    // Block until the session window expires (not a fresh cooldown — enforces Anthropic-style 6h window)
     u.cooldownUntil = u.sessionStartedAt + LIMITS.SESSION_COOLDOWN_MS;
   }
   saveLimitsToDB(sid); // persist asynchronously — fire-and-forget
@@ -4213,7 +4213,7 @@ app.post('/api/call/start', requireAuth, (req, res) => {
   const u = getLimits(userId);
   const callLimit = getCallLimitForUser(userId);
   const callSecondLimit = getCallSecondLimitForUser(userId);
-  const resetsAt = getCallWindowStart() + 8 * 60 * 60 * 1000;
+  const resetsAt = getCallWindowStart() + 15 * 60 * 60 * 1000;
   if (callLimit !== Infinity && (u.callsToday || 0) >= callLimit) {
     return res.status(429).json({ allowed: false, type: 'call_daily_limit', callsToday: u.callsToday || 0, callsLimit: callLimit, resetsAt });
   }
@@ -5658,7 +5658,7 @@ app.post('/api/memo/use', requireAuth, (req, res) => {
   const u = getLimits(userId);
   const memoLimit = getMemoLimitForUser(userId);
   if ((u.memosToday || 0) >= memoLimit) {
-    return res.status(429).json({ allowed: false, type: 'memo_daily_limit', memosToday: u.memosToday, memoLimit, resetsAt: getCallWindowStart() + 8 * 60 * 60 * 1000 });
+    return res.status(429).json({ allowed: false, type: 'memo_daily_limit', memosToday: u.memosToday, memoLimit, resetsAt: getCallWindowStart() + 15 * 60 * 60 * 1000 });
   }
   const textLen = typeof req.body.textLen === 'number' ? req.body.textLen : 0;
   u.memosToday = (u.memosToday || 0) + 1;
