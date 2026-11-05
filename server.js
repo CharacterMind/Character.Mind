@@ -5958,7 +5958,7 @@ app.delete('/api/conversations/:charId/history', requireAuth, async (req, res) =
 
 // When true: only Lily/Poppy visible in character list. Set SOFT_LAUNCH=true in env vars to re-enable.
 const SOFT_LAUNCH = process.env.SOFT_LAUNCH === 'true';
-const OWNER_EMAILS = new Set(['support.charactermind@gmail.com']); // admin tools
+const OWNER_EMAILS = new Set(['support.charactermind@gmail.com', 'davey252572727@gmail.com']); // admin tools
 // Comma-separated IPs in OWNER_IPS env var are excluded from analytics (for owner's home/office connections)
 const OWNER_IPS = new Set((process.env.OWNER_IPS || '').split(',').map(s => s.trim()).filter(Boolean));
 
