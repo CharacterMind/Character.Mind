@@ -1176,7 +1176,7 @@ function saveLimitsToDB(userId) {
 }
 
 const LIMITS = {
-  SESSION_COOLDOWN_MS: 2 * 60 * 60 * 1000,
+  SESSION_COOLDOWN_MS: 6 * 60 * 60 * 1000,
   WEEKLY_MS: 7 * 24 * 60 * 60 * 1000,
   REGEN_FREE: 10, // kept for reference — actual limits use TIER_REGEN_LIMITS below
   CALL_DAILY: 3
@@ -1641,7 +1641,7 @@ function getImageLimitForUser(userId) {
 
 // Returns timestamp of the most recent 8:00 AM UTC (start of current call window)
 function getCallWindowStart() {
-  const WINDOW_MS = 8 * 60 * 60 * 1000; // 8-hour rolling windows (00:00, 08:00, 16:00 UTC)
+  const WINDOW_MS = 15 * 60 * 60 * 1000; // 15-hour rolling windows
   return Math.floor(Date.now() / WINDOW_MS) * WINDOW_MS;
 }
 

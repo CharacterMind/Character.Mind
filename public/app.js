@@ -2058,6 +2058,16 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '496': {
+    date: 'November 2026',
+    label: 'Session & Call Cooldown Updates',
+    changed: [
+      'Session cooldown extended from 2 hours to 6 hours',
+      'Call window extended from 8 hours to 15 hours',
+      'Games section removed from usage display (temporarily)',
+      'Usage screen now correctly shows 250 min limit (free) and 6 hrs (advanced)',
+    ],
+  },
   '495': {
     date: 'November 2026',
     label: 'Token-Based Call System',
@@ -8984,7 +8994,7 @@ function updateUsageModal(u) {
     const sessMsg = isAdv ? '~171 Opes or ~600 Opas / session' : '~85 Opes or ~300 Opas / session';
     const weeklyTokens = isAdv ? 1000000 : null;
     const weeklyMsg = isAdv ? '~1,428 Opes msgs / week' : 'No weekly cap';
-    const callsDay = isAdv ? 'Up to 12 · 3 hrs total' : 'Up to 6 · 90 min total';
+    const callsDay = isAdv ? 'Up to 6 · 6 hrs total' : 'Up to 6 · 250 min total';
     const models = isAdv ? 'Opas, Opes, Opis, Opos' : 'Opas, Opes';
     rowsEl.innerHTML =
       `<div style="color:var(--text3);font-size:11px">Session limit</div><div style="font-weight:600;color:var(--text1)">${sessMsg}</div>` +
@@ -9135,26 +9145,7 @@ function updateUsageModal(u) {
     _callsResetCountdownTimer = setInterval(_tickCallsReset, 30000);
   }
 
-  // Game cooldown bar — fills green when ready, drains to orange/yellow while waiting
-  const gamePctEl = document.getElementById('usageGamePct');
-  const gameBar = document.getElementById('usageGameBar');
-  const now = Date.now();
-  const gameSubEl = document.getElementById('usageGameSub');
-  if (u.gameNextAvailableAt && u.gameNextAvailableAt > now) {
-    const COOLDOWN_MS = 5 * 60 * 1000;
-    const remaining = u.gameNextAvailableAt - now;
-    const remainPct = Math.min(100, Math.round(remaining / COOLDOWN_MS * 100));
-    const secsLeft = Math.ceil(remaining / 1000);
-    const m = Math.floor(secsLeft / 60);
-    const s = secsLeft % 60;
-    if (gamePctEl) gamePctEl.textContent = '0% used';
-    if (gameBar) { gameBar.style.width = remainPct + '%'; gameBar.className = 'usage-fill-modal ' + usageFillClass(remainPct); }
-    if (gameSubEl) gameSubEl.textContent = `Cooldown: ${m}:${String(s).padStart(2, '0')} left · 5-minute cooldown between sessions`;
-  } else {
-    if (gamePctEl) gamePctEl.textContent = '0% used';
-    if (gameBar) { gameBar.style.width = '0%'; gameBar.className = 'usage-fill-modal green'; }
-    if (gameSubEl) gameSubEl.textContent = '5-minute cooldown between game sessions';
-  }
+  // Game cooldown bar hidden for now
 
 }
 
