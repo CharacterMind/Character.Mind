@@ -2058,6 +2058,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '501': {
+    date: 'November 2026',
+    label: 'Voice Fallback in Calls',
+    fixed: [
+      'Voice calls no longer go completely silent when the character voice server is offline — Gemini TTS is used as a fallback so calls always have audio',
+    ],
+  },
   '500': {
     date: 'November 2026',
     label: 'Poppy Voice Library Expansion',
@@ -12601,11 +12608,21 @@ async function callModeTTS_server(text) {
       });
       if (!r.ok) {
         if (r.status === 501) serverTTSOk = false;
-        // 503 means the voice server (clone/character) is offline. Skip TTS for this message
-        // rather than substituting a completely different voice the user didn't select.
+        // 503 means the character/user voice server is offline — fall back to Gemini so the call isn't silent.
         if (r.status === 503 && (callProvider === 'character' || callProvider === 'user')) {
           const offBadge = document.getElementById('callVoiceOffBadge');
           if (offBadge) offBadge.style.display = '';
+          try {
+            const ctrlFb = new AbortController();
+            const tmoFb = setTimeout(() => ctrlFb.abort(), 18000);
+            const rfb = await fetch('/api/tts', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text: s, charId: (callContextChar || currentChar)?.id, provider: 'gemini', geminiVoice: geminiVoiceName }),
+              signal: ctrlFb.signal,
+            }).finally(() => clearTimeout(tmoFb));
+            if (rfb.ok) return rfb.blob();
+          } catch (_fb) {}
           return null;
         }
         throw new Error('tts ' + r.status);
