@@ -2058,6 +2058,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '487': {
+    date: 'November 2026',
+    label: 'High Effort Speed + Length Fix',
+    fixed: [
+      'High effort now starts generating immediately — removed the extra thinking pause that caused the animation delay',
+      'High effort responses include the word-count target in the system prompt, giving the model a stronger length signal',
+      'When a reply stops short at High, Extra, or Max effort, the continuation prompt now stays strictly in-character and in-scene',
+    ],
+  },
   '486': {
     date: 'November 2026',
     label: 'Usage in Nav + TTS Speed + Longer Replies',

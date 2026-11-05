@@ -2245,8 +2245,8 @@ function lengthTargetWords(modelTier, effort) {
   return Math.round(WORDS_BY_EFFORT[effort] * MODEL_WORDS[base] * LENGTH_SCALE / 50) * 50;
 }
 function lengthTargetNote(modelTier, effort) {
-  // Only apply the word-count target for extra/max/ultracode — high and below use TIER UPGRADE or EFFORT_DIRECTIVE instead
-  if (!['extra', 'max', 'ultracode'].includes(effort)) return '';
+  // Apply word-count target for high/extra/max/ultracode in the system prompt to reinforce the user-message injection
+  if (!['high', 'extra', 'max', 'ultracode'].includes(effort)) return '';
   const words = lengthTargetWords(modelTier, effort);
   if (!words) return '';
   return 'LENGTH TARGET: this is a long-form reply. Write at least about ' + words + ' words. Do not stop or wrap the scene up before you reach that length: keep every paragraph full, and keep adding new detail, action, dialogue and emotion.';
@@ -3575,7 +3575,7 @@ const EFFORT_CONFIG = {
   opas: {
     low:    { maxOutputTokens: 550,   temperature: 0.75, reasoningEffort: 'low'    },
     medium: { maxOutputTokens: 800,   temperature: 0.95, reasoningEffort: 'low'    },
-    high:   { maxOutputTokens: 2200,  temperature: 1.05, reasoningEffort: 'medium' },
+    high:   { maxOutputTokens: 2200,  temperature: 1.05, reasoningEffort: 'low'    },
     extra:  { maxOutputTokens: 5500,  temperature: 1.1,  reasoningEffort: 'high'   },
     max:    { maxOutputTokens: 10000, temperature: 1.1,  reasoningEffort: 'high'   },
   },
@@ -3968,7 +3968,7 @@ function callGeminiStream(apiKey, systemPrompt, messages, onChunk, onDone, onErr
       if (have >= ctx.minWords * 0.6) return finishWithWhatWeHave();
       const need = Math.max(150, Math.round(ctx.minWords - have));
       const next = [...messages, { role: 'assistant', content: collected },
-        { role: 'user', content: '[Keep going with the same scene. Write about ' + need + ' more words that continue directly from your last paragraph, with new detail, action and emotion. Do not repeat anything, do not summarise, and do not wrap up yet.]' }];
+        { role: 'user', content: '[CONTINUE IN CHARACTER. Write about ' + need + ' more words as the character, continuing the scene exactly where you left off. Stay completely in character, in-world, and in-scene. Add new sensory detail, action, dialogue, or emotion. Do not repeat, do not summarise, do not step outside the fiction, and do not wrap up the scene yet.]' }];
       const cfgNext = fitOutputRoom(effortCfg, systemPrompt, next);
       if (cfgNext.maxOutputTokens < Math.min(800, effortCfg.maxOutputTokens)) return finishWithWhatWeHave();   // no room left in this request
       ctx.extensions = (ctx.extensions || 0) + 1;
