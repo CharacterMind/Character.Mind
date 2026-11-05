@@ -2058,6 +2058,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '507': {
+    date: 'November 2026',
+    label: 'Call Timer Anchored to First Call',
+    changed: [
+      'Call limit window now starts when you make your first call — if you call at 8 AM, it resets 15 hours later (not at some arbitrary UTC boundary)',
+      'Call limit banners (90% warning and limit-hit) now show the actual remaining time instead of a hardcoded "15 hours"',
+      'Banner countdown refreshes automatically every ~30 seconds',
+    ],
+  },
   '506': {
     date: 'November 2026',
     label: 'Call Limit Warning Banner',
@@ -8778,7 +8787,7 @@ function renderUsageBanners(usage) {
     cw.dataset.usageKind = 'calls-warn';
     cw.dataset.usageLevel = '90';
     const cwText = document.createElement('span');
-    cwText.textContent = '📵 You’re almost at your call limit — resets in 15 hours.';
+    cwText.textContent = `📵 You’re almost at your call limit — resets in ${usage.callWindowResetsAt ? formatCountdown(usage.callWindowResetsAt - Date.now()) : ‘~15 hours’}.`;
     cw.appendChild(cwText);
     const cwClose = document.createElement('button');
     cwClose.className = 'warning-banner-close';
@@ -8787,20 +8796,27 @@ function renderUsageBanners(usage) {
     cwClose.onclick = () => { cw.remove(); try { localStorage.setItem(_callWarnDismissKey, '1'); } catch (_) {} };
     cw.appendChild(cwClose);
     container.insertBefore(cw, container.firstChild);
+  } else if (showCallWarn && existingCallWarnBanner) {
+    const _cwTextEl = existingCallWarnBanner.querySelector('span');
+    if (_cwTextEl) _cwTextEl.textContent = `\uD83D\uDCF5 You\u2019re almost at your call limit \u2014 resets in ${usage.callWindowResetsAt ? formatCountdown(usage.callWindowResetsAt - Date.now()) : '~15 hours'}.`;
   } else if (!showCallWarn && existingCallWarnBanner) {
     existingCallWarnBanner.remove();
   }
 
   const existingCallBanner = container.querySelector('.warning-banner[data-usage-kind="calls"]');
+  const _callResetStr = usage.callWindowResetsAt ? formatCountdown(usage.callWindowResetsAt - Date.now()) : '~15 hours';
   if (callsMaxed && !existingCallBanner) {
     const cb = document.createElement('div');
     cb.className = 'warning-banner warning-banner-calls';
     cb.dataset.usageKind = 'calls';
     cb.dataset.usageLevel = 'max';
     const cbText = document.createElement('span');
-    cbText.textContent = "\uD83D\uDCF5 Call limit hit \u2014 they\u2019re filing a restraining order. Resets in 15 hours.";
+    cbText.textContent = `\uD83D\uDCF5 Call limit hit \u2014 they\u2019re filing a restraining order. Resets in ${_callResetStr}.`;
     cb.appendChild(cbText);
     container.appendChild(cb);
+  } else if (callsMaxed && existingCallBanner) {
+    const _cbTextEl = existingCallBanner.querySelector('span');
+    if (_cbTextEl) _cbTextEl.textContent = `\uD83D\uDCF5 Call limit hit \u2014 they\u2019re filing a restraining order. Resets in ${_callResetStr}.`;
   } else if (!callsMaxed && existingCallBanner) {
     existingCallBanner.remove();
   }
@@ -8810,7 +8826,7 @@ function renderUsageBanners(usage) {
   // One banner at a time \u2014 most severe wins.
   const isFreeUser = !usage.subscriptionTier || usage.subscriptionTier === 'free';
   if (isFreeUser) {
-    [...container.querySelectorAll('.warning-banner[data-usage-kind]:not([data-usage-kind="calls"])')].forEach(b => b.remove());
+    [...container.querySelectorAll('.warning-banner[data-usage-kind]:not([data-usage-kind="calls"]):not([data-usage-kind="calls-warn"])')].forEach(b => b.remove());
     return;
   }
 

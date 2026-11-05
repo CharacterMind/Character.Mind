@@ -1674,10 +1674,13 @@ function getLimits(sid) {
     u.weeklyTokens = 0; u.weeklyStart = null; u.warned = {};
     saveLimitsToDB(sid);
   }
-  // Daily window resets at 8 AM UTC (calls + memos)
+  // Calls: rolling 15h window anchored to first call (callDayStart = when user first called)
+  if (u.callDayStart && now >= u.callDayStart + 15 * 60 * 60 * 1000) {
+    u.callsToday = 0; u.callSecondsToday = 0; u.callDayStart = null;
+    saveLimitsToDB(sid);
+  }
+  // Memos + messages: epoch-aligned 15h window (unchanged)
   const callWindow = getCallWindowStart();
-  // Calls reset every 15 hours (same window as memos etc.)
-  if (!u.callDayStart  || u.callDayStart  < callWindow) { u.callsToday = 0; u.callSecondsToday = 0; u.callDayStart = callWindow; }
   if (!u.memoDayStart  || u.memoDayStart  < callWindow) { u.memosToday     = 0; u.memoDayStart  = callWindow; }
   if (!u.msgDayStart   || u.msgDayStart   < callWindow) { u.msgTokensToday = 0; u.msgDayStart   = callWindow; }
   // Image window is rolling 24h from first use, not a fixed daily window
@@ -1752,7 +1755,7 @@ function buildUsagePayload(u, userId) {
     imageLimit: imgLimit === Infinity ? 9999 : imgLimit,
     imageResetAt: u.imageFirstUsedAt ? u.imageFirstUsedAt + 24 * 60 * 60 * 1000 : null,
     subscriptionTier: u.subscriptionTier || 'free',
-    callWindowResetsAt: getCallWindowStart() + 15 * 60 * 60 * 1000,
+    callWindowResetsAt: u.callDayStart ? u.callDayStart + 15 * 60 * 60 * 1000 : null,
     softLaunch: SOFT_LAUNCH,
     gameNextAvailableAt: (() => { const last = userId && gameLastPlayed ? gameLastPlayed.get(userId) : null; return last ? last + GAME_COOLDOWN_MS : null; })(),
     cmCoins: u.cmCoins || 0,
@@ -4213,7 +4216,9 @@ app.post('/api/call/start', requireAuth, (req, res) => {
   const u = getLimits(userId);
   const callLimit = getCallLimitForUser(userId);
   const callSecondLimit = getCallSecondLimitForUser(userId);
-  const resetsAt = getCallWindowStart() + 15 * 60 * 60 * 1000;
+  const _callWinMs = 15 * 60 * 60 * 1000;
+  // resetsAt: based on first-call anchor; if no calls yet, project from now
+  const resetsAt = u.callDayStart ? u.callDayStart + _callWinMs : Date.now() + _callWinMs;
   if (callLimit !== Infinity && (u.callsToday || 0) >= callLimit) {
     return res.status(429).json({ allowed: false, type: 'call_daily_limit', callsToday: u.callsToday || 0, callsLimit: callLimit, resetsAt });
   }
