@@ -2014,7 +2014,34 @@ const MEMORY_EXTRACT_TIERS = {
 };
 const memExtractBusy = new Set(); // userId -> extraction in progress
 
-function geminiOnce(apiKey, model, system, user, maxTokens) {
+async function geminiOnce(apiKey, model, system, user, maxTokens) {
+  // Use Ollama for memory/story extraction when configured — keeps everything local.
+  if (process.env.OLLAMA_BASE_URL) {
+    const baseUrl = (process.env.OLLAMA_BASE_URL || '').replace(/\/$/, '');
+    const ollamaModel = process.env.OLLAMA_MODEL || 'llama3.1:8b';
+    const body = JSON.stringify({
+      model: ollamaModel,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+      max_tokens: maxTokens,
+      temperature: 0.3,
+      stream: false,
+    });
+    const ctrl = new AbortController();
+    const tmo = setTimeout(() => ctrl.abort(), 30000);
+    try {
+      const r = await fetch(`${baseUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        signal: ctrl.signal,
+      });
+      if (!r.ok) throw new Error('Ollama HTTP ' + r.status);
+      const j = await r.json();
+      return String(j.choices?.[0]?.message?.content || '').trim();
+    } finally { clearTimeout(tmo); }
+  }
+
+  // Gemini fallback (when Ollama not configured)
   return new Promise((resolve, reject) => {
     const body = JSON.stringify({
       systemInstruction: { parts: [{ text: system }] },
@@ -3470,6 +3497,71 @@ function callHuggingFaceStream(systemPrompt, messages, onChunk, onDone, onError,
   req.end();
 }
 
+// ── Ollama local streaming helper ─────────────────────────────────────────────
+// Ollama runs local LLMs (Llama, Qwen, Mistral…) with an OpenAI-compatible API.
+// Set OLLAMA_BASE_URL=http://localhost:11434 and OLLAMA_MODEL=llama3.1:8b to enable.
+// When set, Ollama is used as the primary AI provider instead of Gemini.
+// Falls back to Groq (if GROQ_API_KEY set) or Gemini on failure.
+
+function callOllamaStream(systemPrompt, messages, onChunk, onDone, onError, ctx, effortCfg) {
+  const baseUrl = (process.env.OLLAMA_BASE_URL || '').replace(/\/$/, '');
+  const model = process.env.OLLAMA_MODEL || 'llama3.1:8b';
+  if (!baseUrl) return onError(new Error('OLLAMA_BASE_URL not set'));
+
+  const body = JSON.stringify({
+    model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      ...messages.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '') })),
+    ],
+    max_tokens: Math.min((effortCfg && effortCfg.maxOutputTokens) || 1200, 8192),
+    temperature: (effortCfg && effortCfg.temperature) || 0.9,
+    stream: true,
+  });
+
+  const ctrl = new AbortController();
+  if (ctx) { ctx._ollamaAbort = () => ctrl.abort(); ctx.req = { destroy: () => ctrl.abort() }; }
+
+  fetch(`${baseUrl}/v1/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Content-Length': String(Buffer.byteLength(body)) },
+    body,
+    signal: ctrl.signal,
+  }).then(async (res) => {
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      return onError(new Error(`Ollama ${res.status}: ${errText.slice(0, 200)}`));
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      if (ctx && ctx.aborted) { reader.cancel(); return; }
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop() || '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') continue;
+        try { const j = JSON.parse(data); const t = j.choices?.[0]?.delta?.content || ''; if (t) onChunk(t); } catch (_) {}
+      }
+    }
+    if (buf) {
+      const d = buf.replace(/^data:\s*/, '').trim();
+      if (d && d !== '[DONE]') { try { const j = JSON.parse(d); const t = j.choices?.[0]?.delta?.content || ''; if (t) onChunk(t); } catch (_) {} }
+    }
+    onDone();
+    console.log(`[ollama] served reply via ${model}`);
+  }).catch((err) => {
+    if (err.name === 'AbortError') return;
+    onError(err);
+  });
+}
+
 // ── Groq backup streaming helper ─────────────────────────────────────────────
 // OpenAI-compatible API. Used automatically when Gemini exhausts all its models
 // on rate limits. The client never sees an error — requests queue here instead.
@@ -3809,7 +3901,18 @@ function startReplyStream(o) {
     console.log('[backup] Gemini rate-limited — switching to Groq:', geminiErr.message);
     callGroqBackupStream(system, messages, handleChunk, handleDone, (groqErr) => fail(groqErr), ctx, effortCfgFit);
   };
-  if (PLAYTIME_MIND_CHAR_IDS.has(charId) && process.env.HF_TOKEN && !isCallMode) {
+
+  // When Ollama is configured, use it as the primary provider.
+  // Falls back to Groq on any error, then to Gemini if Groq also fails.
+  if (process.env.OLLAMA_BASE_URL) {
+    const tryGeminiFallback = (ollamaErr) => {
+      if (released) return fail(ollamaErr);
+      fullResponse = ''; held = '';
+      console.log('[ollama] failed, falling back to Gemini:', ollamaErr && ollamaErr.message);
+      callGeminiStream(apiKey, system, messages, handleChunk, handleDone, tryGroqBackup, undefined, effortCfgFit, modelList, ctx);
+    };
+    callOllamaStream(system, messages, handleChunk, handleDone, tryGeminiFallback, ctx, effortCfgFit);
+  } else if (PLAYTIME_MIND_CHAR_IDS.has(charId) && process.env.HF_TOKEN && !isCallMode) {
     callHuggingFaceStream(system, messages, handleChunk, handleDone, (hfErr) => {
       if (released) return fail(hfErr);
       fullResponse = ''; held = '';

@@ -2058,6 +2058,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '512': {
+    date: 'November 2026',
+    label: 'Local-First Mode',
+    changed: [
+      'TTS fallback now uses Kokoro (local) instead of Gemini — calls stay fully on-device when Chatterbox is offline',
+      'Chatterbox timeout in callModeTTS_server tightened from 90s to 15s to match pipeline change',
+    ],
+  },
   '511': {
     date: 'November 2026',
     label: 'Call Delay & Cutoff Fix',
@@ -12640,16 +12648,16 @@ function _fetchCallTTSBlob(rawText) {
   }).then(async r => {
     clearTimeout(tmo);
     if (r.ok) return r.blob();
-    // 503 = character/user voice offline — fall back to Gemini so the pipeline always produces audio
+    // 503 = character/user voice offline — fall back to Kokoro (local) so the pipeline always produces audio
     if (r.status === 503 && (prov === 'character' || prov === 'user')) {
       _callCharVoiceOffline = true;
       const ctrl2 = new AbortController();
-      const tmo2 = setTimeout(() => ctrl2.abort(), 18000);
+      const tmo2 = setTimeout(() => ctrl2.abort(), 12000);
       try {
         const r2 = await fetch('/api/tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: clean, charId, provider: 'gemini', geminiVoice: geminiVoiceName }),
+          body: JSON.stringify({ text: clean, charId, provider: 'kokoro', kokoroVoice: kokoroVoiceName }),
           signal: ctrl2.signal,
         });
         if (r2.ok) return r2.blob();
@@ -12658,16 +12666,16 @@ function _fetchCallTTSBlob(rawText) {
     return null;
   }).catch(async (err) => {
     clearTimeout(tmo);
-    // Timeout (AbortError) on character/user voice — fall back to Gemini
+    // Timeout (AbortError) on character/user voice — fall back to Kokoro (local)
     if (err.name === 'AbortError' && (prov === 'character' || prov === 'user')) {
       _callCharVoiceOffline = true;
       const ctrl2 = new AbortController();
-      const tmo2 = setTimeout(() => ctrl2.abort(), 18000);
+      const tmo2 = setTimeout(() => ctrl2.abort(), 12000);
       try {
         const r2 = await fetch('/api/tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: clean, charId, provider: 'gemini', geminiVoice: geminiVoiceName }),
+          body: JSON.stringify({ text: clean, charId, provider: 'kokoro', kokoroVoice: kokoroVoiceName }),
           signal: ctrl2.signal,
         });
         if (r2.ok) return r2.blob();
@@ -12857,14 +12865,14 @@ async function callModeTTS_server(text) {
 
   // Server falls back to Edge TTS automatically if no clone voice is registered for a character.
   const callProvider = ttsProvider;
-  const _fetchGeminiFallback = async (s) => {
+  const _fetchKokoroFallback = async (s) => {
     const ctrl = new AbortController();
-    const tmo = setTimeout(() => ctrl.abort(), 18000);
+    const tmo = setTimeout(() => ctrl.abort(), 12000);
     try {
       const r = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: s, charId: (callContextChar || currentChar)?.id, provider: 'gemini', geminiVoice: geminiVoiceName }),
+        body: JSON.stringify({ text: s, charId: (callContextChar || currentChar)?.id, provider: 'kokoro', kokoroVoice: kokoroVoiceName }),
         signal: ctrl.signal,
       });
       if (r.ok) return r.blob();
@@ -12873,12 +12881,12 @@ async function callModeTTS_server(text) {
   };
   const fetchBlob = async (s) => {
     if (ttsProvider === 'off') return null;
-    // If the voice server already failed this call, skip straight to Gemini
+    // If the voice server already failed this call, skip straight to Kokoro
     if (_callCharVoiceOffline && (callProvider === 'character' || callProvider === 'user')) {
-      return _fetchGeminiFallback(s);
+      return _fetchKokoroFallback(s);
     }
     const ctrl = new AbortController();
-    const tmo = setTimeout(() => ctrl.abort(), 90000); // 90s — Chatterbox can take 45s+ to synthesize
+    const tmo = setTimeout(() => ctrl.abort(), 15000); // 15s — Chatterbox typically responds in 10-15s
     try {
       const r = await fetch('/api/tts', {
         method: 'POST',
@@ -12888,12 +12896,12 @@ async function callModeTTS_server(text) {
       });
       if (!r.ok) {
         if (r.status === 501) serverTTSOk = false;
-        // 503 means the character/user voice server is offline — cache this and fall back to Gemini.
+        // 503 means the character/user voice server is offline — fall back to Kokoro (local).
         if (r.status === 503 && (callProvider === 'character' || callProvider === 'user')) {
           _callCharVoiceOffline = true;
           const offBadge = document.getElementById('callVoiceOffBadge');
           if (offBadge) offBadge.style.display = '';
-          return _fetchGeminiFallback(s);
+          return _fetchKokoroFallback(s);
         }
         throw new Error('tts ' + r.status);
       }
