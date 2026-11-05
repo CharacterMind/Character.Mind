@@ -2058,6 +2058,18 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '499': {
+    date: 'November 2026',
+    label: 'Call Screen & Character Hover',
+    fixed: [
+      'Call screen stuck on "Thinking..." — now auto-recovers to Listening after 25s if no response arrives',
+      'Character art no longer shows a dark box — dark PNG backgrounds now blend into the gradient',
+    ],
+    changed: [
+      'Character art on call screen is now centered in the middle area and clearly visible (was faded to 22%)',
+      'Added funny "accidentally overheard" moments to Poppy\'s hover quotes',
+    ],
+  },
   '498': {
     date: 'November 2026',
     label: 'Call & Warning Banner Fixes',
@@ -5499,6 +5511,37 @@ const CHAR_VOICE_LINES = {
     "You're not scared. Or you're hiding it well. Either way — I respect that.",
     "I had a feeling you'd stop here first. I tend to have those feelings correctly.",
     "You're looking at me like you're trying to figure something out. *pause* Don't rush. I'll wait.",
+    // ── accidentally overheard / caught mid-thought ───────────────────────────
+    "*mapping something under her breath* —and if they go LEFT, then Huggy moves, then I— *looks up, perfectly calm* I was daydreaming.",
+    "*to herself, counting on fingers* ...visitor eight, two hallways, three contingencies, one problem I haven't solved— *sees you* I was counting tiles.",
+    "*revising a mental list* Eleven things to fix. No. Twelve. This is twelve now— *sees you* Hi. How long have you been there.",
+    "*muttering intensely* —the door, the gap, the left vent, and the music — no, the music complicates it— *snaps back* I was singing.",
+    "*was talking to herself in third person* '—and THEN Poppy said—' *sees you* I was rehearsing. For efficiency.",
+    "*was clearly practicing her smile in a reflection* ...too much. Less. No. More— *turns* I maintain my composure at all times.",
+    "*writing something down, whispering* —forty-eighth revision, slightly better than forty-seventh, main concern is— *slaps it face-down* Just journaling.",
+    // ── caught being emotional / vulnerable ───────────────────────────────────
+    "*quietly, to no one* ...I really did think someone would come sooner. *pause* It's fine. I adjusted. *sees you* That was nothing.",
+    "*very small voice, to no one* Father, I— *realizes you're there* I was reviewing my plans. Out loud. That's all.",
+    "*sniffling, composes herself instantly* I am completely fine. *pause* I have been fine for ten years. I continue to be fine. *breathes* Hi.",
+    "*to herself, raw and quiet* ...sometimes I wonder if he even remembers my name. *sees you* I was wondering about something unrelated.",
+    "*holding her own hand briefly, then stops* I don't — that's not — I was testing my grip. *looks directly at you*",
+    // ── caught flustered about you ────────────────────────────────────────────
+    "*to herself, mortified* I actually prepared things to say. Like a list. For when you arrived. That's normal. That's completely— *sees you* Hi.",
+    "*under breath* I could have just said 'hello.' I had forty-seven other options. I went with the grand entrance. I stand by it.",
+    "*to nobody* I keep thinking about what you said earlier and I have NOTES— *turns* You didn't need to know that.",
+    "*quietly, rehearsing* 'I'm glad you're here.' No. 'I'm glad you came.' No— *sees you* I was practicing vocabulary. I'm very thorough.",
+    // ── caught with Huggy ─────────────────────────────────────────────────────
+    "*to herself, deeply exasperated* Huggy is ENORMOUS and I had to tell him THREE times and he STILL— *sees you* He's doing wonderfully.",
+    "*muttering* He means well. He really does. He just. All the time. Every time. *sees you* Huggy and I have a great working relationship.",
+    "*mid-argument with the air* I KNOW you can hear me from down there. You're enormous. *turns* Huggy sends his regards.",
+    "*whispering furiously to nothing* Huggy if you are LISTENING right now I swear— *brightly* Everything is fine here.",
+    // ── caught doing something embarrassing ───────────────────────────────────
+    "*was clearly spinning slowly alone, stops mid-spin* ...The room needed to be checked. All angles. That's inspection.",
+    "*was talking earnestly to her own reflection* She makes good points. I won't pretend she doesn't— *sees you* Self-review. Very normal practice.",
+    "*counting her braids very seriously out loud* ...four, five— *sees you* Quality control. I do this every hour.",
+    "*was clearly humming her own music box tune, stops abruptly* I don't hear anything. Neither do you.",
+    "*practicing a speech with great gesture* AND THAT IS WHY— *sees you* I was doing vocal exercises. I have a lot to say. I need range.",
+    "*dramatically struck a pose at nothing, holds it* ...I'm stretching. This is stretching. This is what that looks like.",
   ],
   doey: [
     // ── arrival / introductions ───────────────────────────────────────────────
@@ -12212,6 +12255,7 @@ let callGenStart = null;    // when current thinking/responding phase started
 let callGenSeconds = 0;     // total generation+TTS wait time this call
 let lastKnownCallResetsAt = 0;
 let callVobTimer = null;
+let callThinkingTimeoutId = null; // safety: returns to listening if thinking state stalls
 
 // ── Multi-char call state ─────────────────────────────────────────────────────
 let callCharacters = [];        // all chars currently on the call
@@ -12737,6 +12781,7 @@ function endCallMode() {
   const _noPhotoReset = document.getElementById('callNoPhoto');
   if (_noPhotoReset) _noPhotoReset.style.display = '';
   clearTimeout(callVobTimer); callVobTimer = null;
+  clearTimeout(callThinkingTimeoutId); callThinkingTimeoutId = null;
   const vob = document.getElementById('callVoiceOnBadge');
   if (vob) { vob.style.display = 'none'; vob.style.top = ''; }
   const offBadge = document.getElementById('callVoiceOffBadge');
@@ -12761,6 +12806,9 @@ function setCallState(state) {
   } else {
     if (callGenStart) { callGenSeconds += (Date.now() - callGenStart) / 1000; callGenStart = null; }
   }
+  // Clear any existing thinking safety timeout when state changes
+  clearTimeout(callThinkingTimeoutId); callThinkingTimeoutId = null;
+
   if (state === 'calling') {
     statusEl.textContent = 'Calling...';
   } else if (state === 'listening') {
@@ -12768,6 +12816,13 @@ function setCallState(state) {
     statusEl.textContent = 'Listening...';
   } else if (state === 'thinking') {
     statusEl.textContent = 'Thinking...';
+    // If thinking for >25s with no response, return to listening rather than staying frozen
+    callThinkingTimeoutId = setTimeout(() => {
+      callThinkingTimeoutId = null;
+      if (callModeActive && document.getElementById('callOverlay')?.dataset.state === 'thinking') {
+        listenForSpeech();
+      }
+    }, 25000);
   } else if (state === 'responding') {
     statusEl.textContent = 'Tap to interrupt';
     statusEl.classList.add('interruptable');

@@ -1352,19 +1352,19 @@ html, body {
 .call-avatar-wrap {
   flex: 0; min-height: 0; overflow: visible; pointer-events: none;
 }
-/* Character image — absolute, full-screen background, faded behind all UI */
+/* Character image — centered in the middle area, screen-blended so dark PNG backgrounds vanish */
 .call-char-img {
   position: absolute;
-  inset: 0;
-  width: 100%; height: 100%;
-  max-width: none;
+  left: 0; right: 0;
+  top: 18%;
+  bottom: 210px;
   background-size: contain;
-  background-position: center bottom;
+  background-position: center;
   background-repeat: no-repeat;
-  opacity: 0.22;
+  opacity: 0.72;
+  mix-blend-mode: screen;
   z-index: 1;
   pointer-events: none;
-  display: flex; align-items: flex-end; justify-content: center;
 }
 /* No-photo placeholder — hide it when in background mode */
 .call-no-photo { display: none; }
