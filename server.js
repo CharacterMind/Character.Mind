@@ -3673,7 +3673,7 @@ function startReplyStream(o) {
   const { res, apiKey, system, messages, effortCfg, modelList, userId, charId, modelTier, effort, releaseSlot, onComplete, onFail, logLabel, callMode: isCallMode, greetMode: isGreetMode } = o;
   const effortCfgFit = fitOutputRoom(effortCfg, system, messages);   // never ask for more reply room than the request can hold
   const ctx = { aborted: false, req: null };
-  { const bLen = baseOf(modelTier); ctx.minWords = bLen === 'opos' ? lengthTargetWords(modelTier, effort) : 0; }
+  { const bLen = baseOf(modelTier); const isLong = effort === 'high' || effort === 'extra' || effort === 'max'; ctx.minWords = (isLong || bLen === 'opos') ? lengthTargetWords(modelTier, effort) : 0; }
   ctx.getWords = () => { const t = fullResponse.trim(); return t ? t.split(/\s+/).length : 0; };
   // The browser already left while the server was still preparing: do not start (or charge for) a reply nobody will see
   if (res.destroyed || res.writableEnded || (res.socket && res.socket.destroyed)) {

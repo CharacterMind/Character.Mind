@@ -2058,6 +2058,17 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '486': {
+    date: 'November 2026',
+    label: 'Usage in Nav + TTS Speed + Longer Replies',
+    fixed: [
+      'Usage added back to the account dropdown menu — open it to see your session tokens, calls, and weekly usage',
+      'Session message counts in Usage corrected: ~300 Opas messages (free) and ~600 Opas messages (advanced)',
+      'TTS now starts audio sooner: early-start threshold lowered to 15 characters so the first word plays faster',
+      'Reduced TTS parallel requests from 3 to 2 to cut server congestion and reduce pauses between sentences',
+      'High, Extra, and Max effort replies now automatically extend when the model stops short of the word target',
+    ],
+  },
   '485': {
     date: 'November 2026',
     label: 'TOS & Privacy Cleanup + Instant Response',
@@ -8829,7 +8840,7 @@ function updateUsageModal(u) {
     if (titleEl) titleEl.textContent = isAdv ? 'Advanced Plan' : 'Free Plan';
     if (upgradeBtn) upgradeBtn.style.display = isFree ? '' : 'none';
     const sessTokens = isAdv ? 120000 : 60000;
-    const sessMsg = isAdv ? '~171 Opes or ~300 Opas / session' : '~85 Opes or ~150 Opas / session';
+    const sessMsg = isAdv ? '~171 Opes or ~600 Opas / session' : '~85 Opes or ~300 Opas / session';
     const weeklyTokens = isAdv ? 1000000 : null;
     const weeklyMsg = isAdv ? '~1,428 Opes msgs / week' : 'No weekly cap';
     const callsDay = isAdv ? 'Up to 12 · 3 hrs total' : 'Up to 6 · 90 min total';
@@ -10883,7 +10894,7 @@ let _streamTTSDone = false; // true once _flushAutoSpeak fires; tells the wait t
 // Concurrency limiter — Chatterbox on CPU is single-threaded; more than 2 parallel
 // requests stack up at the server, explode the tunnel, and cause 71-second waits.
 let _ttsInFlight = 0;
-const _TTS_MAX_INFLIGHT = 3;
+const _TTS_MAX_INFLIGHT = 2;
 const _ttsPendingQueue = []; // { clean, ctrl, resolve } waiting for a free slot
 let _ttsPoolGen = 0; // incremented by _clearPrefetchPool to invalidate in-flight callbacks
 
@@ -11067,11 +11078,11 @@ function _feedAutoSpeak(chunk) {
     _streamTTSQueue.push(piece);
     _prefetchSentence(piece);
   }
-  // Early-start: kick off synthesis on the first 25+ chars even without punctuation.
+  // Early-start: kick off synthesis on the first 15+ chars even without punctuation.
   // Shorter clip = faster Chatterbox synthesis = first audio arrives sooner.
-  if ((ttsProvider === 'character' || ttsProvider === 'user') && _streamTTSQueue.length === 0 && _streamTTSBuffer.length >= 25) {
-    const idx = _streamTTSBuffer.lastIndexOf(' ', 40);
-    if (idx >= 15) {
+  if ((ttsProvider === 'character' || ttsProvider === 'user') && _streamTTSQueue.length === 0 && _streamTTSBuffer.length >= 15) {
+    const idx = _streamTTSBuffer.lastIndexOf(' ', 32);
+    if (idx >= 8) {
       const piece = _streamTTSBuffer.slice(0, idx).trim();
       _streamTTSBuffer = _streamTTSBuffer.slice(idx + 1);
       _streamTTSQueue.push(piece);
