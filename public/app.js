@@ -2058,6 +2058,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '521': {
+    date: 'November 2026',
+    label: 'Fix Auto-Speak Cutoff',
+    fixed: [
+      'Reverted auto-speak timeout to 45s — 20s was too short for Chatterbox synthesis and cut sentences off mid-generation',
+    ],
+  },
   '520': {
     date: 'November 2026',
     label: 'Faster Offline Detection',
@@ -11957,7 +11964,7 @@ function _prefetchSentence(rawText) {
 
 function _doTTSFetch(clean, ctrl, resolve) {
   const myGen = _ttsPoolGen;
-  const tmo = setTimeout(() => ctrl.abort(), 20000);
+  const tmo = setTimeout(() => ctrl.abort(), 45000);
   fetch('/api/tts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -12155,7 +12162,7 @@ async function _playStreamTTSQueue() {
       let bp = _poolEntry?.promise ?? null;
       if (!bp) {
         const ctrl2 = new AbortController();
-        const tmo2 = setTimeout(() => ctrl2.abort(), 20000);
+        const tmo2 = setTimeout(() => ctrl2.abort(), 45000);
         bp = fetch('/api/tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
