@@ -2058,6 +2058,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '520': {
+    date: 'November 2026',
+    label: 'Faster Offline Detection',
+    fixed: [
+      'Auto-speak now shows an error toast when all voice clips time out (server unresponsive or stale tunnel URL)',
+      'Auto-speak fetch timeout reduced from 90s to 20s — offline feedback is now 4× faster',
+    ],
+  },
   '519': {
     date: 'November 2026',
     label: 'Custom Voice — Full Audit',
@@ -11949,7 +11957,7 @@ function _prefetchSentence(rawText) {
 
 function _doTTSFetch(clean, ctrl, resolve) {
   const myGen = _ttsPoolGen;
-  const tmo = setTimeout(() => ctrl.abort(), 90000);
+  const tmo = setTimeout(() => ctrl.abort(), 20000);
   fetch('/api/tts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -12147,7 +12155,7 @@ async function _playStreamTTSQueue() {
       let bp = _poolEntry?.promise ?? null;
       if (!bp) {
         const ctrl2 = new AbortController();
-        const tmo2 = setTimeout(() => ctrl2.abort(), 90000);
+        const tmo2 = setTimeout(() => ctrl2.abort(), 20000);
         bp = fetch('/api/tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -12211,6 +12219,9 @@ async function _playStreamTTSQueue() {
     _streamTTSPlaying = false;
     _clearPrefetchPool();
     if (btn) btn.classList.remove('speaking', 'loading');
+    if (!_firstClipPlayed && ttsProvider !== 'off' && ttsProvider !== 'browser') {
+      showTTSError('Voice server not responding — start Chatterbox (start-voice.py) or check your tunnel URL.');
+    }
   }
 }
 
