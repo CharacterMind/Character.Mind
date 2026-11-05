@@ -2075,6 +2075,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '533': {
+    date: 'November 2026',
+    label: 'Simplify Calls Usage Display',
+    fixed: [
+      'Removed "Resets in Xh Xm Xs" countdown from the settings panel — no more ticking seconds',
+      'Changed calls sub-text from "X of 120 min · X of 20 calls" to "Up to 120 min · Up to 20 calls" — just shows the limits, not usage counts',
+    ],
+  },
   '532': {
     date: 'November 2026',
     label: 'Fix Call Voice Timeouts for Slow Synthesis',
@@ -10056,24 +10064,14 @@ function updateUsageModal(u) {
   const callMinsLimit = Math.round(callSecondLimit / 60);
   const callsPct = callSecondLimit > 0 ? Math.min(100, Math.round(callSecondsToday / callSecondLimit * 100)) : 0;
   const callSubStr = callsLimit >= 9999
-    ? `${callMinsUsed} min used · ${callsToday} calls`
-    : `${callMinsUsed} of ${callMinsLimit} min · ${callsToday} of ${callsLimit} calls`;
-  setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct, callSubStr, callsLimit >= 9999);
+    ? `Up to ${callMinsLimit} min`
+    : `Up to ${callMinsLimit} min · Up to ${callsLimit} calls`;
+  setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', 0, callSubStr, true);
 
-  // Daily resets subtitle — live countdown (ticks every second)
+  // Hide daily resets countdown
   if (_callsResetCountdownTimer) { clearInterval(_callsResetCountdownTimer); _callsResetCountdownTimer = null; }
-  const callsResetAt = u.callWindowResetsAt;
-  if (callsResetAt) {
-    const _tickCallsReset = () => {
-      const el = document.getElementById('usageDailyResetsSub');
-      if (!el) return;
-      const rem = callsResetAt - Date.now();
-      if (rem <= 0) { el.textContent = ''; clearInterval(_callsResetCountdownTimer); _callsResetCountdownTimer = null; return; }
-      el.textContent = 'Resets in ' + formatCountdown(rem);
-    };
-    _tickCallsReset();
-    _callsResetCountdownTimer = setInterval(_tickCallsReset, 1000);
-  }
+  const dailyResetEl = document.getElementById('usageDailyResetsSub');
+  if (dailyResetEl) dailyResetEl.textContent = '';
 
   // Game cooldown bar hidden for now
 
