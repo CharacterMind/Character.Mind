@@ -2058,6 +2058,17 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '519': {
+    date: 'November 2026',
+    label: 'Custom Voice — Full Audit',
+    fixed: [
+      'Voicemail player (call log + in-call) no longer falls back to browser TTS — silent when voice server offline',
+      'Group calls no longer use Gemini voices for extra characters — custom voice or silence',
+      'All call browser-TTS fallbacks removed: busy-AI message, all-blobs-null fallback, error catch',
+      'Server: user voice provider returns 503 when clone unavailable instead of falling through to Gemini',
+      'Auto-speak inline fetch now shows offline toast on 503 (was silently skipping)',
+    ],
+  },
   '517': {
     date: 'November 2026',
     label: 'Custom Voice Only — No Fallbacks',
@@ -3962,36 +3973,25 @@ async function playCallLogVoicemail(charId, vmText) {
     try {
       const r = await fetch('/api/tts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: vmText.slice(0, 499), charId, provider, geminiVoice: geminiVoiceName }),
+        body: JSON.stringify({ text: vmText.slice(0, 499), charId, provider }),
         signal: ctrl.signal,
       });
       if (r.ok) return r.blob();
+      if (r.status === 503) return { _offline: true };
     } catch(_) {} finally { clearTimeout(tmo); }
     return null;
   };
   const blob = await _try(ttsProvider, 15000);
-  if (blob && !blob._offline) {
-    try {
-      const ab = await blob.arrayBuffer();
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
-      const src = ctx.createBufferSource();
-      src.buffer = await ctx.decodeAudioData(ab);
-      src.connect(ctx.destination);
-      src.start(0);
-      return;
-    } catch(_) {}
-  }
-  // Fallback: browser TTS
-  if (!window.speechSynthesis) return;
-  window.speechSynthesis.cancel();
-  const utt = new SpeechSynthesisUtterance(vmText);
-  const vp = _getCharVoiceProfile(char);
-  const voices = window.speechSynthesis.getVoices();
-  const match = voices.find(v => vp.names.some(n => v.name.toLowerCase().includes(n)));
-  if (match) utt.voice = match;
-  utt.pitch = vp.pitch; utt.rate = vp.rate; utt.volume = 1;
-  window.speechSynthesis.speak(utt);
+  if (!blob || blob._offline) return;
+  try {
+    const ab = await blob.arrayBuffer();
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
+    const src = ctx.createBufferSource();
+    src.buffer = await ctx.decodeAudioData(ab);
+    src.connect(ctx.destination);
+    src.start(0);
+  } catch(_) {}
 }
 
 function charPhone(id) {
@@ -4909,41 +4909,32 @@ async function playVoicemailAudio() {
     try {
       const r = await fetch('/api/tts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text.slice(0, 499), charId: vmChar?.id || '', provider, geminiVoice: geminiVoiceName }),
+        body: JSON.stringify({ text: text.slice(0, 499), charId: vmChar?.id || '', provider }),
         signal: ctrl.signal,
       });
       if (r.ok) return r.blob();
+      if (r.status === 503) return { _offline: true };
     } catch(_) {} finally { clearTimeout(tmo); }
     return null;
   };
 
   const blob = await _tryProvider(ttsProvider, 15000);
 
-  if (blob) {
-    try {
-      const ab = await blob.arrayBuffer();
-      const ctx = getAudioCtx(); // reuse shared context — already unlocked at call-button tap
-      if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
-      const src = ctx.createBufferSource();
-      src.buffer = await ctx.decodeAudioData(ab);
-      src.connect(ctx.destination);
-      vmLoading = false; vmSpeaking = true; vmAudioNode = src;
-      if (playBtn) playBtn.innerHTML = stopSvg;
-      src.onended = () => { vmSpeaking = false; vmAudioNode = null; if (playBtn) playBtn.innerHTML = playSvg; };
-      src.start(0);
-      return;
-    } catch(_) {}
-  }
-
   vmLoading = false;
   if (playBtn) playBtn.innerHTML = playSvg;
-  // Final fallback: browser speech synthesis
-  if (!window.speechSynthesis) return;
-  const u = new SpeechSynthesisUtterance(text);
-  _applyCharVoice(u, vmChar);
-  u.onstart = () => { vmSpeaking = true; if (playBtn) playBtn.innerHTML = stopSvg; };
-  u.onend = u.onerror = () => { vmSpeaking = false; if (playBtn) playBtn.innerHTML = playSvg; };
-  window.speechSynthesis.speak(u);
+  if (!blob || blob._offline) return;
+  try {
+    const ab = await blob.arrayBuffer();
+    const ctx = getAudioCtx();
+    if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
+    const src = ctx.createBufferSource();
+    src.buffer = await ctx.decodeAudioData(ab);
+    src.connect(ctx.destination);
+    vmLoading = false; vmSpeaking = true; vmAudioNode = src;
+    if (playBtn) playBtn.innerHTML = stopSvg;
+    src.onended = () => { vmSpeaking = false; vmAudioNode = null; if (playBtn) playBtn.innerHTML = playSvg; };
+    src.start(0);
+  } catch(_) {}
 }
 
 function voicemailReplyChat() {
@@ -8141,15 +8132,7 @@ async function sendMessage(overrideText, skipAppend, allowEmpty, overrideEffort)
       appendMessage('ai', `⚠️ ${errMsg}`);
     }
     if (callModeActive) {
-      if (isTransient && window.speechSynthesis) {
-        // Speak the problem so the caller isn't just met with silence
-        const u = new SpeechSynthesisUtterance("Sorry, I'm a little busy right now. Give me a moment.");
-        if (selectedVoice) u.voice = selectedVoice;
-        u.onend = u.onerror = () => { if (callModeActive) setTimeout(() => listenForSpeech(), 500); };
-        window.speechSynthesis.speak(u);
-      } else {
-        setTimeout(() => listenForSpeech(), 2000);
-      }
+      setTimeout(() => { if (callModeActive) listenForSpeech(); }, 2000);
     }
   }
 }
@@ -12818,11 +12801,8 @@ async function _playCallTTSPipeline(pipeline, fallbackText) {
       return;
     }
   }
-  // All blobs null — use browser TTS as final fallback so the call never goes silent
-  if (gen === callGen && callModeActive) {
-    if (fallbackText) { callModeTTS_browser(fallbackText, gen); return; }
-    afterCallTTSDone();
-  }
+  // All blobs null (voice server offline) — advance call state silently
+  if (gen === callGen && callModeActive) afterCallTTSDone();
 }
 
 async function speakAndHangUp(text, resetsAt) {
@@ -12984,16 +12964,14 @@ async function callModeTTS_server(text) {
         if (blob) { _anyPlayed = true; await playBlobOnly(blob); } // blob is null when voice is off — skip silently
       } else {
         if (blob) { _anyPlayed = true; await playCallBlob(blob); } // last sentence
-        else if (!_anyPlayed) { callModeTTS_browser(clean, gen); return; } // all blobs null — browser TTS fallback
-        else afterCallTTSDone(); // partial audio played — continue call cycle
+        else afterCallTTSDone(); // blob null (voice offline) — advance call state
       }
       nextFetch = prefetch;
     }
   } catch (_) {
     if (callModeActive && gen === callGen) {
       setCallState('responding');
-      if (window.speechSynthesis) callModeTTS_browser(text, gen);
-      else afterCallTTSDone();
+      afterCallTTSDone();
     }
   }
 }
@@ -17289,17 +17267,7 @@ async function _advanceGcallTTS() {
       if (e.name !== 'AbortError') console.warn('[gcall-tts] fetch error:', e.message);
     }
 
-    // Browser synthesis fallback — ensures the character always speaks even when server TTS fails
-    if (!played && gcallActive && window.speechSynthesis) {
-      await new Promise(resolve => {
-        const u = new SpeechSynthesisUtterance(clean.slice(0, 200));
-        if (char.id === 'huggy_wuggy') { u.rate = 0.7; u.pitch = 0.2; }
-        else if (char.id === 'custom_1790776698867') { u.pitch = 1.4; }
-        u.onend = resolve; u.onerror = resolve;
-        window.speechSynthesis.speak(u);
-        setTimeout(resolve, 10000);
-      });
-    }
+    // No fallback — custom voice only; chars without a clone voice are silent
   }
 
   _gcallSetSpeaking(char.id, false);
