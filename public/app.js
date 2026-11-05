@@ -2058,6 +2058,16 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '479': {
+    date: 'November 2026',
+    label: 'Voice Continuity + Token Counter',
+    fixed: [
+      'Token counter now ticks up gradually on Low effort — was snapping to the final value instantly because the stream finishes in ~1s while the typewriter is still running',
+      'Voice pauses between sentences reduced — synthesis concurrency raised from 2 to 3 so sentence 3 starts synthesizing while sentences 1 and 2 are still playing',
+      'Auto-speak button now shows dim animated bars while synthesizing (waiting for audio) and bright bars when actually playing — clear visual distinction between loading and playing',
+      'AudioContext is resumed before each clip starts playing — prevents silent gaps caused by the browser suspending audio mid-response',
+    ],
+  },
   '478': {
     date: 'November 2026',
     label: 'Voice Speed + Poppy Hover Quotes',
@@ -9832,7 +9842,7 @@ function startTypewriter(bubble, msgEl) {
       twLastRender = now;
       scrollToBottom();
     }
-    updateStreamTokens(twMsgEl, Math.max(twRevealed.length, _streamedCharsLive));
+    updateStreamTokens(twMsgEl, twRevealed.length);
   }, spd.ms);
 }
 
@@ -10803,7 +10813,7 @@ let _streamTTSDone = false; // true once _flushAutoSpeak fires; tells the wait t
 // Concurrency limiter — Chatterbox on CPU is single-threaded; more than 2 parallel
 // requests stack up at the server, explode the tunnel, and cause 71-second waits.
 let _ttsInFlight = 0;
-const _TTS_MAX_INFLIGHT = 2;
+const _TTS_MAX_INFLIGHT = 3;
 const _ttsPendingQueue = []; // { clean, ctrl, resolve } waiting for a free slot
 let _ttsPoolGen = 0; // incremented by _clearPrefetchPool to invalidate in-flight callbacks
 
@@ -11056,7 +11066,8 @@ async function _playStreamTTSQueue() {
   _streamTTSPlaying = true;
   const myGen = _ttsGeneration;
   const btn = document.getElementById('autoSpeakBtn');
-  if (btn) btn.classList.add('speaking');
+  if (btn) { btn.classList.remove('speaking'); btn.classList.add('loading'); }
+  let _firstClipPlayed = false;
 
   const cancel = () => !_streamTTSPlaying || myGen !== _ttsGeneration;
 
@@ -11138,11 +11149,18 @@ async function _playStreamTTSQueue() {
       const now = ctx.currentTime;
       if (scheduleAt < now) scheduleAt = now + 0.04;
 
+      // Resume context in case the browser suspended it mid-response
+      if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
+
       const src = ctx.createBufferSource();
       src.buffer = buf;
       src.connect(ctx.destination);
       src.start(scheduleAt);
       scheduleAt += buf.duration;
+      if (!_firstClipPlayed) {
+        _firstClipPlayed = true;
+        if (btn) { btn.classList.remove('loading'); btn.classList.add('speaking'); }
+      }
       lastEndP = new Promise(r => { src.onended = r; });
     }
   } catch(_) {}
