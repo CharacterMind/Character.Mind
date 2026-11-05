@@ -2076,6 +2076,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '539': {
+    date: 'November 2026',
+    label: 'Call Voice Latency Fix',
+    fixed: [
+      'Cloudflare tunnel health check timeout raised from 5s to 15s — the first TTS request no longer silently fails when Cloudflare takes a few extra seconds to route',
+    ],
+  },
   '538': {
     date: 'November 2026',
     label: 'Call Voice Fixed',
@@ -13125,6 +13132,7 @@ async function callModeTTS_server(text) {
   })() : rawCallSentences;
 
   const callProvider = ttsProvider;
+  console.log('[callTTS] starting — provider:', callProvider, 'offline:', _callCharVoiceOffline, 'sentences:', sentences.length);
   const fetchBlob = async (s) => {
     if (ttsProvider === 'off') return null;
     if (_callCharVoiceOffline && (callProvider === 'character' || callProvider === 'user')) return null;
@@ -13137,6 +13145,7 @@ async function callModeTTS_server(text) {
         body: JSON.stringify({ text: s, charId: (callContextChar || currentChar)?.id, provider: callProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName }),
         signal: ctrl.signal,
       });
+      console.log('[callTTS] fetch result:', r.status, r.headers.get('X-TTS-Provider'));
       if (!r.ok) {
         if (r.status === 501) serverTTSOk = false;
         if (r.status === 503 && (callProvider === 'character' || callProvider === 'user')) {
@@ -13147,8 +13156,9 @@ async function callModeTTS_server(text) {
         return null;
       }
       return r.blob();
-    } catch (_) {
-      return null; // timeout or network error — return null so the loop handles it gracefully per-sentence
+    } catch (err) {
+      console.warn('[callTTS] fetch threw:', err?.message);
+      return null;
     } finally {
       clearTimeout(tmo);
     }

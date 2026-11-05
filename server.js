@@ -5535,20 +5535,22 @@ app.post('/api/tts', requireAuth, async (req, res) => {
       if (!_hasCloneUrl && !process.env.REPLICATE_API_TOKEN) {
         return res.status(503).json({ error: 'voice_server_offline', retry: true });
       }
-      // Quick reachability check (5s): GET /health so Cloudflare stale tunnels fail (HEAD returns 404 from CDN).
+      // Reachability check: GET /health so stale Cloudflare tunnels fail fast (CDN returns 404, real server returns 200).
+      // 15s timeout — Cloudflare free tunnels can take 5-12s on the very first request after the tunnel is established.
       if (_hasCloneUrl && !process.env.REPLICATE_API_TOKEN) {
         const _rUrl = process.env.TTS_CLONE_URL || runtimeTtsUrl;
         const _rBase = _rUrl.replace(/\/tts$/, '');
         const _pingCtrl = new AbortController();
-        const _pingTimeout = setTimeout(() => _pingCtrl.abort(), 5000);
+        const _pingTimeout = setTimeout(() => _pingCtrl.abort(), 15000);
         let _reachable = false;
         try {
           const _ping = await fetch(`${_rBase}/health`, { signal: _pingCtrl.signal });
           _reachable = _ping.ok; // must be 200 — Cloudflare CDN returns 404, real server returns 200
-        } catch { /* AbortError or connection refused → server is down */ }
+          console.log(`[char-tts] health check → ${_ping.status} (${_reachable ? 'ok' : 'failed'}) ${_rBase}`);
+        } catch (e) { console.warn(`[char-tts] health check threw: ${e.message}`); }
         finally { clearTimeout(_pingTimeout); }
         if (!_reachable) {
-          console.warn('[char-tts] health check failed — voice server unreachable, returning 503 immediately');
+          console.warn('[char-tts] health check failed — voice server unreachable, returning 503');
           return res.status(503).json({ error: 'voice_server_offline', retry: true });
         }
       }
@@ -5577,6 +5579,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
           : `http://127.0.0.1:${clonePort}`;
         const voiceId = await _ensureRemoteVoice(cloneBase, speakerFile, charEntry);
         const useChatterbox = charEntry?.cbExag !== undefined;
+        console.log(`[char-tts] synthesizing: char=${charId} engine=${useChatterbox ? 'chatterbox' : 'f5tts'} voice=${voiceId} len=${text.length}`);
         const cloneBody = useChatterbox
           ? { text, voice_id: voiceId, tts_engine: 'chatterbox', exaggeration: charEntry.cbExag, cfg_weight: charEntry.cbCfg, temperature: charEntry.cbTemp, pitch_semitones: charEntry.cbPitch ?? 0 }
           : { text, voice_id: voiceId, tts_engine: 'f5tts' };
@@ -5593,17 +5596,18 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         if (cloneRes.ok) {
           const cloneAudio = Buffer.from(await cloneRes.arrayBuffer());
           _ttsCacheSet(_charCacheKey, cloneAudio);
+          const synthTime = cloneRes.headers.get('X-Synthesis-Time');
+          console.log(`[char-tts] ✓ synthesis done: ${cloneAudio.length} bytes, ${synthTime || '?'}ms`);
           res.setHeader('Content-Type', 'audio/wav');
           res.setHeader('Cache-Control', 'no-store');
           res.setHeader('X-TTS-Provider', cloneRes.headers.get('X-TTS-Provider') || 'character-clone');
-          const synthTime = cloneRes.headers.get('X-Synthesis-Time');
           if (synthTime) res.setHeader('X-Synthesis-Time', synthTime);
           return res.send(cloneAudio);
         } else {
           throw new Error(`clone server error ${cloneRes.status}`);
         }
       } catch (e) {
-        if (e.name !== 'AbortError') console.warn('[char-tts] clone server unavailable:', e.message);
+        if (e.name !== 'AbortError') console.warn('[char-tts] clone server error:', e.message);
         if (provider === 'character') {
           return res.status(503).json({ error: 'voice_server_offline', retry: true });
         }
