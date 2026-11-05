@@ -2075,6 +2075,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '534': {
+    date: 'November 2026',
+    label: 'Countdown Polish',
+    fixed: [
+      'Removed seconds from all countdowns — "Resets in 57m" instead of "Resets in 57m 13s"',
+      'Restored calls reset countdown in usage panel (ticks every minute, no seconds)',
+    ],
+  },
   '533': {
     date: 'November 2026',
     label: 'Simplify Calls Usage Display',
@@ -9771,10 +9779,9 @@ function formatCountdown(ms) {
   const total = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  if (h > 0) return `${h}h ${m}m ${s}s`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m`;
+  return 'less than a minute';
 }
 
 function generateUsageHeadline(u) {
@@ -10068,10 +10075,23 @@ function updateUsageModal(u) {
     : `Up to ${callMinsLimit} min · Up to ${callsLimit} calls`;
   setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', 0, callSubStr, true);
 
-  // Hide daily resets countdown
+  // Calls reset countdown (no seconds)
   if (_callsResetCountdownTimer) { clearInterval(_callsResetCountdownTimer); _callsResetCountdownTimer = null; }
-  const dailyResetEl = document.getElementById('usageDailyResetsSub');
-  if (dailyResetEl) dailyResetEl.textContent = '';
+  const callsResetAt = u.callWindowResetsAt;
+  if (callsResetAt) {
+    const _tickCallsReset = () => {
+      const el = document.getElementById('usageDailyResetsSub');
+      if (!el) return;
+      const rem = callsResetAt - Date.now();
+      if (rem <= 0) { el.textContent = ''; clearInterval(_callsResetCountdownTimer); _callsResetCountdownTimer = null; return; }
+      el.textContent = 'Resets in ' + formatCountdown(rem);
+    };
+    _tickCallsReset();
+    _callsResetCountdownTimer = setInterval(_tickCallsReset, 60000);
+  } else {
+    const dailyResetEl = document.getElementById('usageDailyResetsSub');
+    if (dailyResetEl) dailyResetEl.textContent = '';
+  }
 
   // Game cooldown bar hidden for now
 
