@@ -443,6 +443,11 @@ def tts_endpoint():
     language     = (data.get("language")    or "en").strip()
     kokoro_voice = (data.get("kokoro_voice") or "").strip()
     tts_engine   = (data.get("tts_engine")  or _MODEL_KEY).lower()
+    # Never lazy-load a different engine than the one configured at startup.
+    # This prevents a stale Render prewarm (tts_engine=chatterbox) from loading
+    # Chatterbox on CPU when the server is running in f5tts mode.
+    if tts_engine == 'chatterbox' and _MODEL_KEY != 'chatterbox':
+        tts_engine = _MODEL_KEY
     # Chatterbox tuning params (passed per-request, or fall back to better defaults)
     cb_exaggeration    = float(data.get("exaggeration",    0.4))
     cb_cfg_weight      = float(data.get("cfg_weight",      0.6))
