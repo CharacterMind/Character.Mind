@@ -2058,6 +2058,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '477': {
+    date: 'November 2026',
+    label: 'Mode Switch + Voice Timing Fix',
+    fixed: [
+      'Switching between Chat and RP mode no longer resets the conversation — your chat history is preserved when you toggle modes',
+      'Voice now starts speaking sooner — comma-delimited phrases kick off audio synthesis without waiting for a full sentence to finish',
+      'Force-split threshold lowered from 400 to 200 chars so very long AI sentences start playing in half the time',
+    ],
+  },
   '476': {
     date: 'November 2026',
     label: 'TTS Pipeline Overhaul',
@@ -6696,8 +6705,6 @@ function toggleRpMode() {
   rpMode = !rpMode;
   saveRpMode();
   updateRpModeUI();
-  // start fresh so RP history doesn't bleed into chat mode (and vice versa)
-  if (currentChar) newChat();
 }
 
 function updateRpModeUI() {
@@ -10881,21 +10888,20 @@ function _feedAutoSpeak(chunk) {
     }
   }
 
-  // Secondary comma-split: disabled — both character and user voices use Chatterbox,
-  // and short fragments cause audio gaps. Wait for complete sentences only.
-  while (false && _streamTTSBuffer.length > 15) {
-    const idx = _streamTTSBuffer.indexOf(', ', 12);
+  // Secondary comma-split: enabled for long fragments so audio starts sooner (≥60 char piece only)
+  while ((ttsProvider === 'character' || ttsProvider === 'user') && _streamTTSBuffer.length > 80) {
+    const idx = _streamTTSBuffer.indexOf(', ', 15);
     if (idx === -1) break;
     const piece = _streamTTSBuffer.slice(0, idx + 1).trim();
     const tail  = _streamTTSBuffer.slice(idx + 2).trimStart();
-    if (piece.length < 10) break; // too short to synthesize alone
+    if (piece.length < 60) break; // too short — would create an audible gap
     _streamTTSBuffer = tail;
     _streamTTSQueue.push(piece);
     _prefetchSentence(piece);
   }
-  // For character/user voice: force-split at 400 chars to avoid server 500-char truncation
-  while ((ttsProvider === 'character' || ttsProvider === 'user') && _streamTTSBuffer.length > 400) {
-    const idx = _streamTTSBuffer.lastIndexOf(' ', 390);
+  // For character/user voice: force-split at 200 chars to start audio sooner
+  while ((ttsProvider === 'character' || ttsProvider === 'user') && _streamTTSBuffer.length > 200) {
+    const idx = _streamTTSBuffer.lastIndexOf(' ', 190);
     if (idx < 50) break;
     const piece = _streamTTSBuffer.slice(0, idx).trim();
     _streamTTSBuffer = _streamTTSBuffer.slice(idx + 1).trimStart();
