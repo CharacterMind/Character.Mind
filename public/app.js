@@ -2058,6 +2058,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '484': {
+    date: 'November 2026',
+    label: 'Usage Limits in TOS',
+    fixed: [
+      'Removed the "X messages left this session" bar from the chat UI — that info now lives in the Terms of Service (Section 04a)',
+      'Added Session Limits table to Terms of Service showing max messages per session by plan, model, and effort level',
+    ],
+  },
   '483': {
     date: 'November 2026',
     label: 'Settings Session Bar',
@@ -7946,21 +7954,6 @@ function renderUsageBanners(usage) {
   const isFreeUser = !usage.subscriptionTier || usage.subscriptionTier === 'free';
   if (isFreeUser) {
     [...container.querySelectorAll('.warning-banner[data-usage-kind]:not([data-usage-kind="calls"])')].forEach(b => b.remove());
-    // Show message count indicator for free users
-    const freeBar = document.getElementById('freeSessionBar');
-    const freeMsg = document.getElementById('freeSessionMsg');
-    if (freeBar && freeMsg) {
-      const tokUsed = usage.sessionTokens || 0;
-      if (tokUsed > 0 && !lockoutVisible) {
-        const msgsLeft = Math.max(0, 300 - Math.floor(tokUsed / 200));
-        freeMsg.textContent = msgsLeft <= 30
-          ? `${msgsLeft} messages left this session`
-          : `~${msgsLeft} messages left this session`;
-        freeBar.style.display = 'flex';
-      } else {
-        freeBar.style.display = 'none';
-      }
-    }
     return;
   }
 

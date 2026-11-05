@@ -1742,21 +1742,6 @@ html, body {
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Free tier session message count bar ────────────────────────────────── */
-.free-session-bar {
-  display: none; align-items: center; gap: 6px;
-  background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2);
-  border-radius: 8px; padding: 7px 12px; margin-bottom: 6px;
-  font-size: 12px; color: rgba(165,180,252,0.9);
-}
-.free-session-bar svg { color: rgba(165,180,252,0.65); flex-shrink: 0; }
-.free-session-upgrade-btn {
-  background: none; border: none; cursor: pointer; padding: 0 4px;
-  color: rgba(165,180,252,0.9); font-size: 12px; font-weight: 600;
-  text-decoration: underline; white-space: nowrap; flex-shrink: 0;
-  margin-left: auto; font-family: inherit;
-}
-.free-session-upgrade-btn:hover { opacity: .7; }
 
 /* ── Lockout / cooldown bar ──────────────────────────────────────────────── */
 .session-warn-bar {
