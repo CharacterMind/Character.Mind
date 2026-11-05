@@ -1552,6 +1552,13 @@ html, body {
   pointer-events: none; white-space: nowrap;
   transition: top .2s ease;
 }
+.call-voice-off-badge {
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+  z-index: 940; background: rgba(220,50,50,.55); backdrop-filter: blur(10px);
+  color: #fff; font-size: 12px; font-weight: 600; letter-spacing: .02em;
+  padding: 6px 16px; border-radius: 30px; border: 1px solid rgba(255,100,100,.35);
+  pointer-events: none; white-space: nowrap;
+}
 
 /* ── Voice & History overlay panels ─────────────────────────────────────────── */
 .ip-overlay {

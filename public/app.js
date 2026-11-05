@@ -2058,6 +2058,21 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '498': {
+    date: 'November 2026',
+    label: 'Call & Warning Banner Fixes',
+    fixed: [
+      'Speech recognition no longer doubles words or mismatches what you said',
+      'Voice offline badge now appears on call screen when Chatterbox TTS is unreachable',
+      'Call limit banner now correctly says "Resets in 15 hours" (was 8 hours)',
+      'Call seconds default fallback corrected from 15000s to 7200s (120 min)',
+    ],
+    changed: [
+      'Weekly usage banners now follow Anthropic-style thresholds: 25%, 50%, 75%, 90%',
+      '25% banner is dismissible; 50%+ banners stay up permanently',
+      '75% and 90% banners update the percentage live as usage climbs',
+    ],
+  },
   '497': {
     date: 'November 2026',
     label: 'Bug Fixes & Limit Corrections',
@@ -8118,7 +8133,7 @@ function renderUsageBanners(usage) {
   const callsToday_banner = usage.callsToday || 0;
   const callsLimit_banner = usage.callsLimit || 6;
   const callSecsTodayBanner = usage.callSecondsToday || 0;
-  const callSecLimitBanner = usage.callSecondLimit || 15000;
+  const callSecLimitBanner = usage.callSecondLimit || 7200;
   const callsMaxed = (callsLimit_banner > 0 && callsToday_banner >= callsLimit_banner) ||
                      (callSecLimitBanner > 0 && callSecsTodayBanner >= callSecLimitBanner);
   const existingCallBanner = container.querySelector('.warning-banner[data-usage-kind="calls"]');
@@ -8128,16 +8143,16 @@ function renderUsageBanners(usage) {
     cb.dataset.usageKind = 'calls';
     cb.dataset.usageLevel = 'max';
     const cbText = document.createElement('span');
-    cbText.textContent = "\uD83D\uDCF5 Call limit hit \u2014 they\u2019re filing a restraining order. Resets in 8 hours.";
+    cbText.textContent = "\uD83D\uDCF5 Call limit hit \u2014 they\u2019re filing a restraining order. Resets in 15 hours.";
     cb.appendChild(cbText);
     container.appendChild(cb);
   } else if (!callsMaxed && existingCallBanner) {
     existingCallBanner.remove();
   }
 
-  // \u2500\u2500 Weekly/session priority banner (paid users only) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-  // 50% weekly (sticky) \u2192 replaced by 90% session \u2192 blank \u2192 replaced by 90% weekly.
-  // Once session 90% fires in a weekly window, the 50% banner never returns that week.
+  // \u2500\u2500 Weekly banners (advanced users only) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // Thresholds: 25% (dismissible), 50%, 75%, 90% (non-dismissible, 75%+ live %).
+  // One banner at a time \u2014 most severe wins.
   const isFreeUser = !usage.subscriptionTier || usage.subscriptionTier === 'free';
   if (isFreeUser) {
     [...container.querySelectorAll('.warning-banner[data-usage-kind]:not([data-usage-kind="calls"])')].forEach(b => b.remove());
@@ -8146,53 +8161,50 @@ function renderUsageBanners(usage) {
 
   const wPct = usagePctOf(usage.weeklyTokens, usage.weeklyLimit);
   const userKey = currentUser?.googleId || 'anon';
-  const sess90Key = `cm_sess90_week_${usage.weeklyStart || 0}_${userKey}`;
-  const dismissed75Key = `cm_weekly75_dismissed_${usage.weeklyStart || 0}_${userKey}`;
-  if (sPct >= 90) { try { localStorage.setItem(sess90Key, '1'); } catch (_) {} }
-  const sessionHit90 = sPct >= 90 || (() => { try { return localStorage.getItem(sess90Key) === '1'; } catch (_) { return false; } })();
-  const dismissed75 = (() => { try { return localStorage.getItem(dismissed75Key) === '1'; } catch (_) { return false; } })();
+  const weekKey = usage.weeklyStart || 0;
+  const dismissed25Key = `cm_weekly25_dismissed_${weekKey}_${userKey}`;
+  const dismissed25 = (() => { try { return localStorage.getItem(dismissed25Key) === '1'; } catch (_) { return false; } })();
 
   let active = null;
   if (wPct >= 90) {
-    active = { kind: 'weekly',  level: 90, msg: `You\u2019ve used ${wPct}% of your weekly limit.`,  critical: true,  dismissible: false };
-  } else if (sPct >= 90) {
-    active = { kind: 'session', level: 90, msg: "You\u2019ve reached 90% of your session limit.",    critical: true,  dismissible: false };
-  } else if (!sessionHit90 && wPct >= 75 && !dismissed75) {
-    active = { kind: 'weekly',  level: 75, msg: `You\u2019ve used ${wPct}% of your weekly limit.`,  critical: false, dismissible: true  };
+    active = { kind: 'weekly', level: 90, msg: `You\u2019ve used ${wPct}% of your weekly limit.`, critical: true,  dismissible: false };
+  } else if (wPct >= 75) {
+    active = { kind: 'weekly', level: 75, msg: `You\u2019ve used ${wPct}% of your weekly limit.`, critical: false, dismissible: false };
+  } else if (wPct >= 50) {
+    active = { kind: 'weekly', level: 50, msg: 'Approaching your weekly limit.',                  critical: false, dismissible: false };
+  } else if (wPct >= 25 && !dismissed25) {
+    active = { kind: 'weekly', level: 25, msg: 'Approaching your weekly limit.',                  critical: false, dismissible: true  };
   }
 
-  // Remove stale weekly/session banners (never touches the calls banner)
+  // Remove stale weekly banners (never touches the calls banner)
   [...container.querySelectorAll('.warning-banner[data-usage-kind]:not([data-usage-kind="calls"])')].forEach(b => {
     if (!active || b.dataset.usageKind !== active.kind || b.dataset.usageLevel !== String(active.level)) b.remove();
   });
+
   const existingActiveBanner = active && container.querySelector(`.warning-banner[data-usage-kind="${active.kind}"][data-usage-level="${active.level}"]`);
   if (active && !existingActiveBanner) {
     const banner = document.createElement('div');
     banner.className = 'warning-banner' + (active.critical ? ' warning-banner-critical' : '');
     banner.dataset.usageKind = active.kind;
     banner.dataset.usageLevel = String(active.level);
-    banner.dataset.warnMsg = active.msg;
     const text = document.createElement('span');
     text.textContent = active.msg;
     banner.appendChild(text);
-    const btn = document.createElement('button');
-    btn.className = 'warning-banner-btn';
-    btn.textContent = 'Get more usage';
-    btn.onclick = () => openPricingModal();
-    banner.appendChild(btn);
     if (active.dismissible) {
       const close = document.createElement('button');
       close.className = 'warning-banner-close';
       close.setAttribute('aria-label', 'Dismiss');
       close.textContent = '\u2715';
-      close.onclick = () => { banner.remove(); try { localStorage.setItem(dismissed75Key, '1'); } catch (_) {} };
+      close.onclick = () => { banner.remove(); try { localStorage.setItem(dismissed25Key, '1'); } catch (_) {} };
       banner.appendChild(close);
     }
     container.appendChild(banner);
   } else if (active && existingActiveBanner) {
-    // Live-update the percentage text as usage ticks up
-    const textEl = existingActiveBanner.querySelector('span');
-    if (textEl && textEl.textContent !== active.msg) textEl.textContent = active.msg;
+    // Live-update percentage text for 75% and 90% banners
+    if (active.level >= 75) {
+      const textEl = existingActiveBanner.querySelector('span');
+      if (textEl && textEl.textContent !== active.msg) textEl.textContent = active.msg;
+    }
   }
 }
 
@@ -12110,7 +12122,11 @@ async function callModeTTS_server(text) {
         if (r.status === 501) serverTTSOk = false;
         // 503 means the voice server (clone/character) is offline. Skip TTS for this message
         // rather than substituting a completely different voice the user didn't select.
-        if (r.status === 503 && (callProvider === 'character' || callProvider === 'user')) return null;
+        if (r.status === 503 && (callProvider === 'character' || callProvider === 'user')) {
+          const offBadge = document.getElementById('callVoiceOffBadge');
+          if (offBadge) offBadge.style.display = '';
+          return null;
+        }
         throw new Error('tts ' + r.status);
       }
       return r.blob();
@@ -12723,6 +12739,8 @@ function endCallMode() {
   clearTimeout(callVobTimer); callVobTimer = null;
   const vob = document.getElementById('callVoiceOnBadge');
   if (vob) { vob.style.display = 'none'; vob.style.top = ''; }
+  const offBadge = document.getElementById('callVoiceOffBadge');
+  if (offBadge) offBadge.style.display = 'none';
   const partyRow = document.getElementById('callPartyRow');
   if (partyRow) partyRow.style.display = 'none';
   const picker = document.getElementById('callCharPicker');
@@ -12921,6 +12939,7 @@ function listenForSpeech() {
   }, CALL_USER_SILENCE_MS);
 
   let transcript = '';
+  let _finalsSoFar = ''; // confirmed final segments for this recognition session
   let silenceTimer = null;
   let dispatched = false;
   const SILENCE_MS = 1000; // wait 1s of quiet before sending
@@ -12960,16 +12979,20 @@ function listenForSpeech() {
   callRecognition.lang = 'en-US';
 
   callRecognition.onresult = (e) => {
+    // Track finals and interim separately to avoid the double-append bug:
+    // Chrome fires interim → overwrites transcript, then final → appends, producing doubled text.
+    // Instead: accumulate confirmed finals in _finalsSoFar, track latest interim separately,
+    // then combine them. Finals never duplicate because each segment fires isFinal exactly once.
+    let latestInterim = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const result = e.results[i];
-      // On Android (interimResults=true), grab interim text too so we get the
-      // phrase even if recognition ends before isFinal fires
       if (result.isFinal) {
-        transcript += (transcript ? ' ' : '') + result[0].transcript.trim();
-      } else if (result[0].transcript.trim()) {
-        transcript = result[0].transcript.trim(); // keep latest interim on all platforms
+        _finalsSoFar += (_finalsSoFar ? ' ' : '') + result[0].transcript.trim();
+      } else {
+        latestInterim = result[0].transcript.trim();
       }
     }
+    transcript = (_finalsSoFar + (latestInterim ? (_finalsSoFar ? ' ' : '') + latestInterim : '')).trim();
     if (transcript) {
       if (silenceTimer) clearTimeout(silenceTimer);
       silenceTimer = setTimeout(dispatch, isAndroid ? 800 : SILENCE_MS);
