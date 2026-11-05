@@ -2058,6 +2058,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '509': {
+    date: 'November 2026',
+    label: 'Splash Screen Fix',
+    fixed: [
+      'App was stuck on splash screen after v508 push: smart quote characters used as JS string delimiters in the call warning banner caused a syntax error at startup',
+    ],
+  },
   '508': {
     date: 'November 2026',
     label: 'Fix Voice & Thinking Delay',
@@ -8795,7 +8802,7 @@ function renderUsageBanners(usage) {
     cw.dataset.usageKind = 'calls-warn';
     cw.dataset.usageLevel = '90';
     const cwText = document.createElement('span');
-    cwText.textContent = `📵 You’re almost at your call limit — resets in ${usage.callWindowResetsAt ? formatCountdown(usage.callWindowResetsAt - Date.now()) : ‘~15 hours’}.`;
+    cwText.textContent = "\uD83D\uDCF5 You\u2019re almost at your call limit \u2014 resets in " + (usage.callWindowResetsAt ? formatCountdown(usage.callWindowResetsAt - Date.now()) : "~15 hours") + ".";
     cw.appendChild(cwText);
     const cwClose = document.createElement('button');
     cwClose.className = 'warning-banner-close';
