@@ -5536,21 +5536,20 @@ app.post('/api/tts', requireAuth, async (req, res) => {
       if (!_hasCloneUrl && !process.env.REPLICATE_API_TOKEN) {
         return res.status(503).json({ error: 'voice_server_offline', retry: true });
       }
-      // Quick reachability check (3s): if the registered URL is unreachable (stale tunnel, server off)
-      // return 503 immediately instead of hanging for up to 90s on the full synthesis request.
+      // Quick reachability check (5s): GET /health so Cloudflare stale tunnels fail (HEAD returns 404 from CDN).
       if (_hasCloneUrl && !process.env.REPLICATE_API_TOKEN) {
         const _rUrl = process.env.TTS_CLONE_URL || runtimeTtsUrl;
         const _rBase = _rUrl.replace(/\/tts$/, '');
         const _pingCtrl = new AbortController();
-        const _pingTimeout = setTimeout(() => _pingCtrl.abort(), 3000);
+        const _pingTimeout = setTimeout(() => _pingCtrl.abort(), 5000);
         let _reachable = false;
         try {
-          const _ping = await fetch(_rBase, { method: 'HEAD', signal: _pingCtrl.signal });
-          _reachable = true; // any response (even 404) means server is up
+          const _ping = await fetch(`${_rBase}/health`, { signal: _pingCtrl.signal });
+          _reachable = _ping.ok; // must be 200 — Cloudflare CDN returns 404, real server returns 200
         } catch { /* AbortError or connection refused → server is down */ }
         finally { clearTimeout(_pingTimeout); }
         if (!_reachable) {
-          console.warn('[char-tts] ping failed — voice server unreachable, returning 503 immediately');
+          console.warn('[char-tts] health check failed — voice server unreachable, returning 503 immediately');
           return res.status(503).json({ error: 'voice_server_offline', retry: true });
         }
       }
@@ -5584,7 +5583,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
           : { text, voice_id: voiceId, tts_engine: 'f5tts' };
         const ctrl = new AbortController();
         const localXtts = !effectiveCloneUrl;
-        const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 90000;
+        const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 25000;
         const cloneTimeout = setTimeout(() => ctrl.abort(), localXtts ? 90000 : remoteMs);
         const cloneRes = await fetch(`${cloneBase}/tts`, {
           method: 'POST',
@@ -5647,9 +5646,9 @@ app.post('/api/tts', requireAuth, async (req, res) => {
         const _uRUrl = process.env.TTS_CLONE_URL || runtimeTtsUrl;
         const _uBase = _uRUrl.replace(/\/tts$/, '');
         const _uPingCtrl = new AbortController();
-        const _uPingTimeout = setTimeout(() => _uPingCtrl.abort(), 3000);
+        const _uPingTimeout = setTimeout(() => _uPingCtrl.abort(), 5000);
         let _uReachable = false;
-        try { await fetch(_uBase, { method: 'HEAD', signal: _uPingCtrl.signal }); _uReachable = true; }
+        try { const _uPing = await fetch(`${_uBase}/health`, { signal: _uPingCtrl.signal }); _uReachable = _uPing.ok; }
         catch { /* offline */ } finally { clearTimeout(_uPingTimeout); }
         if (!_uReachable) userSpeakerFile = null; // fall through to 503 below
       }
@@ -5676,7 +5675,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
           : `http://127.0.0.1:${clonePort}`;
         const voiceId = await _ensureRemoteVoice(cloneBase, userSpeakerFile, null);
         const ctrl = new AbortController();
-        const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 90000;
+        const remoteMs = parseInt(process.env.TTS_CLONE_TIMEOUT_MS) || 25000;
         const cloneTimeout = setTimeout(() => ctrl.abort(), remoteMs);
         const cloneRes = await fetch(`${cloneBase}/tts`, {
           method: 'POST',

@@ -2058,6 +2058,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '525': {
+    date: 'November 2026',
+    label: 'Fix Stale Tunnel Pauses',
+    fixed: [
+      'Server-side health check now uses GET /health instead of HEAD / — Cloudflare CDN was returning 404 to HEAD requests even when Chatterbox was offline, making the server think the tunnel was live and hanging for 25s before returning 503',
+      'Server-side synthesis timeout reduced from 90s to 25s — stale tunnel failures now surface in 5–10s instead of 90s, then immediately return 503 so the client shows an error instead of a silent pause',
+    ],
+  },
   '524': {
     date: 'November 2026',
     label: 'Fix Call Pipeline Timeouts',
