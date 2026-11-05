@@ -2058,6 +2058,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '490': {
+    date: 'November 2026',
+    label: 'Friendship Trust State Fix',
+    fixed: [
+      'Friendship bar now shows "She\'ll give you her number — just ask!" and turns gold when you\'ve hit the trust threshold, instead of incorrectly saying "Almost there" at 100%',
+    ],
+  },
   '489': {
     date: 'November 2026',
     label: 'Token Counter + Voice Timing Fixes',
@@ -13744,12 +13751,18 @@ function renderFriendshipBar(d) {
 
   wrap.style.display = '';
   fill.style.width = pct + '%';
+  const ready = !d.unlocked && pct >= 100;
   fill.classList.toggle('ip-friendship-fill-full', d.unlocked);
+  fill.classList.toggle('ip-friendship-fill-ready', ready);
 
   if (d.unlocked) {
     scoreEl.textContent = '💕 Unlocked';
     scoreEl.style.display = '';
     hintEl.textContent = 'She trusts you — number is in Contacts';
+  } else if (ready) {
+    scoreEl.textContent = '✨ Trusted';
+    scoreEl.style.display = '';
+    hintEl.textContent = 'She\'ll give you her number — just ask!';
   } else {
     scoreEl.textContent = '';
     scoreEl.style.display = 'none';
@@ -13762,9 +13775,9 @@ function renderFriendshipBar(d) {
 
   if (resetBtn) resetBtn.style.display = score > 0 ? '' : 'none';
 
-  // Owner-only: fill friendship instantly for testing
+  // Owner-only: fill friendship instantly for testing (hidden once threshold met)
   let maxBtn = document.getElementById('ipFriendshipMaxBtn');
-  if (isOwner() && !d.unlocked) {
+  if (isOwner() && !d.unlocked && !ready) {
     if (!maxBtn) {
       maxBtn = document.createElement('button');
       maxBtn.id = 'ipFriendshipMaxBtn';
