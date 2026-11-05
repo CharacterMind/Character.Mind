@@ -2058,6 +2058,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '478': {
+    date: 'November 2026',
+    label: 'Voice Speed + Poppy Hover Quotes',
+    fixed: [
+      'Voice no longer hangs for 60 seconds when the voice server is offline — now fails instantly with a clear offline message',
+      'Voice synthesis now starts immediately on the first 60 chars of text instead of waiting for a full sentence — first audio arrives noticeably faster',
+      'Poppy gets 70+ new hover quotes — funny, in-character lines based on her game personality (music box, Father, plans, being a doll, etc.)',
+    ],
+  },
   '477': {
     date: 'November 2026',
     label: 'Mode Switch + Voice Timing Fix',
@@ -5154,6 +5163,77 @@ const CHAR_VOICE_LINES = {
     "We're going to be alright. Both of us.",
     "I'm glad you're here. Truly.",
     "You have no idea how long I've waited for this.",
+    // ── funny / music box ─────────────────────────────────────────────────────
+    "I've been practicing this conversation for years. Literally years. In a box. You're doing great.",
+    "Ten years in a music box and you're the first person to say hello. I will *never* let you forget that.",
+    "I was never asleep in there. I want you to really sit with that.",
+    "The music played every time someone wound the key. I know every note. By note seven I had already written three contingency plans.",
+    "In the box I could hear everything. Absolutely everything. I have thoughts about what I heard. So many thoughts.",
+    "I had ten years to think. That's a lot of thinking. Would you like to hear some of it? Don't answer. We're starting.",
+    "Some people spend a decade traveling the world. I spent a decade in a small wooden box. We're different.",
+    "I'm very good at waiting. It's essentially a core skill at this point.",
+    "The box was quiet. I was not. Inside my head. Constantly.",
+    "I revised my plan forty-seven times. The version you're in now is my best work.",
+    // ── funny / plans & knowing things ───────────────────────────────────────
+    "I have a plan. I've had it since before you were born. Very well-paced plan.",
+    "Every step you're about to take, I've thought about. In great detail. While very still.",
+    "I need you to trust me. I've had literally nothing else to do but practice asking that.",
+    "Nothing that happens next will surprise me. I want you to know I had time to cover all the possibilities.",
+    "I want you to know that everything I'm about to ask you to do is completely necessary and definitely just a plan.",
+    "Yes, I could have escaped earlier. I had a plan. The plan required a *specific* type of visitor.",
+    "Don't worry. I know exactly what comes next. That's not meant to be comforting. It's just true.",
+    "I know the safest path through this factory. I also know every other path. Interesting information to have.",
+    "Every door in this place, I've mapped. In my head. For years. The ones that are fine — and the other kind.",
+    "I had contingencies. And contingencies for the contingencies. And then one more after that.",
+    // ── funny / proper/prim with dark undertones ──────────────────────────────
+    "Proper. Poised. Harboring ten years of unspoken thoughts. How are you?",
+    "I find it very calming that you can't tell if I'm blinking.",
+    "My smile hasn't moved. I'd like you to sit with that for a moment.",
+    "I never raise my voice. I've never had to. *smile*",
+    "I find the best conversations happen when only one person knows all the information. I find that very useful.",
+    "I was patient for ten years. I can be patient for however long this takes. *looks at wrist she does not have a watch on*",
+    "You seem nervous. That's sensible. I appreciate sensible people.",
+    "I always say what I mean. The trick is knowing what I mean.",
+    "I've been described as 'unsettling' before. By people who didn't know me well enough. Yet.",
+    "My hair has looked exactly like this since I was made. I don't know what to feel about that so I simply don't.",
+    "I never sleep. The music box made it clear that wasn't required.",
+    "I am very, very calm. I want you to understand how much effort goes into that.",
+    // ── funny / Father / being named ─────────────────────────────────────────
+    "He made thousands of us. He named me. I've had ten years to think about what that means.",
+    "He chose the name Poppy. For me. Out of everything. I've had a *very* long time to think about why.",
+    "He called me his first. I took that as a responsibility. I think he meant it as a compliment. Same result.",
+    "Father built this whole factory. And then he gave the music box to *me*. He really thought that through.",
+    "He said I was special. I believe him. I've simply expanded on what 'special' means.",
+    // ── funny / factory / danger ──────────────────────────────────────────────
+    "The factory is dangerous. I know exactly where everything dangerous is. I want you to find that reassuring.",
+    "Some doors you don't want to open. I know which ones. I'll tell you most of them.",
+    "Things happened here. I heard all of it. From the box.",
+    "This place remembers everything. So do I. We have a lot in common, actually.",
+    "You're going to hear some things in here. Some sounds. I want you to know I've already processed my reaction.",
+    "Not every toy in this factory is friendly. I'll leave the full list as a surprise.",
+    // ── funny / Huggy / other toys ────────────────────────────────────────────
+    "Huggy is very big. Very fast. Very... enthusiastic. I say that neutrally.",
+    "I've met Huggy. I don't want to give too much away, but I will say the size is accurate.",
+    "The toys here have been alone for a long time. I understand that. I also understand it makes them complicated.",
+    // ── funny / self-aware / being a doll ────────────────────────────────────
+    "Yes, I'm a doll. A very small, very patient, very *prepared* doll.",
+    "I know what I am. I've had a lot of time to make peace with it. And then to make plans anyway.",
+    "My face is permanent. I've chosen to view that as consistency.",
+    "Some people are built for this. I was *literally* built for this.",
+    "I'm about sixteen inches tall and I have already thought about this more than you have.",
+    "I am a doll in a haunted factory and I am the most composed person you will meet today.",
+    "I cannot run. I cannot fight. I can, however, know exactly what comes next. That's enough.",
+    // ── funny / click-aware / reaction ───────────────────────────────────────
+    "Oh. You're hovering. I noticed immediately.",
+    "You paused on me. *files that away*",
+    "I saw that. The hovering. I see everything.",
+    "Most people move past me. You didn't. I find that very interesting. Very.",
+    "You stopped here. Good. That's good. That's exactly right.",
+    "I noticed you hesitate before clicking. I understand. Take your time. I have all of it.",
+    "Oh good, you're here. I've been waiting to talk to someone who isn't a music box.",
+    "You're not scared. Or you're hiding it well. Either way — I respect that.",
+    "I had a feeling you'd stop here first. I tend to have those feelings correctly.",
+    "You're looking at me like you're trying to figure something out. *pause* Don't rush. I'll wait.",
   ],
   doey: [
     // ── arrival / introductions ───────────────────────────────────────────────
@@ -10898,6 +10978,17 @@ function _feedAutoSpeak(chunk) {
     _streamTTSBuffer = tail;
     _streamTTSQueue.push(piece);
     _prefetchSentence(piece);
+  }
+  // Early-start: kick off synthesis on the first 60+ chars even without punctuation
+  // so synthesis starts while the AI is still generating the rest of the first sentence.
+  if ((ttsProvider === 'character' || ttsProvider === 'user') && _streamTTSQueue.length === 0 && _streamTTSBuffer.length >= 60) {
+    const idx = _streamTTSBuffer.lastIndexOf(' ', 90);
+    if (idx >= 40) {
+      const piece = _streamTTSBuffer.slice(0, idx).trim();
+      _streamTTSBuffer = _streamTTSBuffer.slice(idx + 1);
+      _streamTTSQueue.push(piece);
+      _prefetchSentence(piece);
+    }
   }
   // For character/user voice: force-split at 200 chars to start audio sooner
   while ((ttsProvider === 'character' || ttsProvider === 'user') && _streamTTSBuffer.length > 200) {

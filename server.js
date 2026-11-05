@@ -5263,6 +5263,13 @@ app.post('/api/tts', requireAuth, async (req, res) => {
       return res.status(503).json({ error: 'No voice file configured for this character' });
     }
     if (speakerFile) {
+      // Fail-fast: if no tunnel URL is registered and no env override, the voice server is offline.
+      // Don't try localhost:8765 on Render (it hangs for 60s before timing out).
+      const _hasCloneUrl = !!(process.env.TTS_CLONE_URL || runtimeTtsUrl);
+      if (!_hasCloneUrl && !process.env.REPLICATE_API_TOKEN) {
+        return res.status(503).json({ error: 'voice_server_offline', retry: true });
+      }
+
       // 1. Replicate XTTS-v2 (free credits — no local server needed; set REPLICATE_API_TOKEN)
       if (process.env.REPLICATE_API_TOKEN) {
         try {
