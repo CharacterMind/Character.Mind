@@ -2058,6 +2058,16 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '495': {
+    date: 'November 2026',
+    label: 'Token-Based Call System',
+    changed: [
+      'Call limit is now 250 minutes total per 8h window (up from 90 minutes)',
+      'Calls now count toward your session token limit — higher effort/model = faster bar',
+      'Generation wait time (Chatterbox thinking) also contributes to session cost',
+      'Calls bar in usage panel now shows minutes used out of 250, plus call count',
+    ],
+  },
   '494': {
     date: 'November 2026',
     label: 'Call Screen Redesign',
@@ -8084,7 +8094,10 @@ function renderUsageBanners(usage) {
   // \u2500\u2500 Call limit banner (all users, stacks below weekly/session banner) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   const callsToday_banner = usage.callsToday || 0;
   const callsLimit_banner = usage.callsLimit || 6;
-  const callsMaxed = callsLimit_banner > 0 && callsToday_banner >= callsLimit_banner;
+  const callSecsTodayBanner = usage.callSecondsToday || 0;
+  const callSecLimitBanner = usage.callSecondLimit || 15000;
+  const callsMaxed = (callsLimit_banner > 0 && callsToday_banner >= callsLimit_banner) ||
+                     (callSecLimitBanner > 0 && callSecsTodayBanner >= callSecLimitBanner);
   const existingCallBanner = container.querySelector('.warning-banner[data-usage-kind="calls"]');
   if (callsMaxed && !existingCallBanner) {
     const cb = document.createElement('div');
@@ -9094,14 +9107,17 @@ function updateUsageModal(u) {
     if (subEl && subText !== undefined) subEl.textContent = subText;
   }
 
-  // Calls (count-based, 8h window)
+  // Calls (time-based: minutes of 250 max + count cap of 6)
   const callsToday = u.callsToday || 0;
   const callsLimit = u.callsLimit || 6;
-  const callsRemaining = u.callsRemaining != null ? u.callsRemaining : Math.max(0, callsLimit - callsToday);
-  const callsPct = callsLimit > 0 ? Math.min(100, Math.round(callsToday / callsLimit * 100)) : 0;
+  const callSecondsToday = u.callSecondsToday || 0;
+  const callSecondLimit = u.callSecondLimit || 15000;
+  const callMinsUsed = Math.round(callSecondsToday / 60);
+  const callMinsLimit = Math.round(callSecondLimit / 60);
+  const callsPct = callSecondLimit > 0 ? Math.min(100, Math.round(callSecondsToday / callSecondLimit * 100)) : 0;
   const callSubStr = callsLimit >= 9999
-    ? `${callsToday} calls used`
-    : `up to ${callsLimit} calls`;
+    ? `${callMinsUsed} min used · ${callsToday} calls`
+    : `${callMinsUsed} of ${callMinsLimit} min · ${callsToday} of ${callsLimit} calls`;
   setBar('usageCallsBar', 'usageCallsPct', 'usageCallsSub', callsPct, callSubStr, callsLimit >= 9999);
 
   // Daily resets subtitle — live countdown (ticks every 30s)
@@ -12169,9 +12185,11 @@ let callInactivityTimer = null;
 let callInactivityWarnTimer = null;
 let callStarting = false; // mutex: prevents double-start race condition
 const CALL_INACTIVITY_MS = 15 * 60 * 1000;
-const CALL_DAILY_MAX_SECS = 15 * 60; // 15 minutes per day
+const CALL_DAILY_MAX_SECS = 250 * 60; // 250 minutes per 8h window (matches server limit)
 let callDurationTimer = null;
 let callSessionStartedAt = null;
+let callGenStart = null;    // when current thinking/responding phase started
+let callGenSeconds = 0;     // total generation+TTS wait time this call
 let lastKnownCallResetsAt = 0;
 let callVobTimer = null;
 
@@ -12211,7 +12229,9 @@ function stopCallDurationTimer() {
     addCallSecsUsed(elapsed);
     callSessionStartedAt = null;
     if (elapsed > 0 && currentUser) {
-      fetch('/api/call/end', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration: elapsed, groupCharCount: callCharacters.length }) })
+      const finalGenSecs = Math.round(callGenSeconds + (callGenStart ? (Date.now() - callGenStart) / 1000 : 0));
+      callGenStart = null; callGenSeconds = 0;
+      fetch('/api/call/end', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration: elapsed, groupCharCount: callCharacters.length, effort: selectedEffort, modelTier: selectedModelTier, genSeconds: finalGenSecs }) })
         .then(r => r.ok ? r.json() : null)
         .then(data => { if (data?.ok) setTimeout(() => loadUsage(), 300); }) // Bug 7 fix: sessionLimit was never in this response
         .catch(() => {});
@@ -12355,7 +12375,8 @@ async function _doStartCall(overlay) {
       }
       if (overlay) overlay.style.display = 'none';
       if (r.status === 429) {
-        showCallLimitModal(data.resetsAt || data.cooldownUntil || Date.now() + 28800000, null, data.callsLimit);
+        const minsLimit = data.callSecondLimit ? Math.round(data.callSecondLimit / 60) : (data.callsLimit || null);
+        showCallLimitModal(data.resetsAt || data.cooldownUntil || Date.now() + 28800000, data.type === 'call_minute_limit' ? 'minutes' : null, minsLimit);
       } else {
         const msg = data.error || data.message || 'Call service unavailable. Please try again.';
         showWarning(msg, 5000);
@@ -12378,6 +12399,7 @@ async function _doStartCall(overlay) {
   callHangupChar = null;
   callInterCharRounds = 0;
   callSilenceChainMode = false;
+  callGenStart = null; callGenSeconds = 0;
   clearTimeout(callUserSilenceTimer); callUserSilenceTimer = null;
   startCallDurationTimer();
   resetCallInactivityTimer();
@@ -12584,8 +12606,9 @@ function showCallLimitModal(resetsAt, reason, minsLimit) {
   const headEl = document.getElementById('callLimitHeadline');
   const subEl = document.getElementById('callLimitSub');
   const msgEl = document.getElementById('callLimitCharMsg');
-  const limitStr = minsLimit ? ` (${minsLimit} calls per 8h)` : '';
-  if (headEl) headEl.textContent = `Call limit reached${limitStr}.`;
+  const limitStr = minsLimit ? (reason === 'minutes' ? ` (${minsLimit} min per 8h)` : ` (${minsLimit} calls per 8h)`) : '';
+  const headText = reason === 'minutes' ? `Call time limit reached${limitStr}.` : `Call limit reached${limitStr}.`;
+  if (headEl) headEl.textContent = headText;
   if (subEl) subEl.textContent = '';
   if (msgEl) msgEl.textContent = CALL_LIMIT_MESSAGES[Math.floor(Math.random() * CALL_LIMIT_MESSAGES.length)];
   let cdEl = null;
@@ -12710,6 +12733,12 @@ function setCallState(state) {
   statusEl.classList.remove('interruptable');
   statusEl.onclick = null;
   statusEl.style.display = '';
+  // Track time spent waiting for AI or TTS (thinking + responding = "generation time")
+  if (state === 'thinking' || state === 'responding') {
+    if (!callGenStart) callGenStart = Date.now();
+  } else {
+    if (callGenStart) { callGenSeconds += (Date.now() - callGenStart) / 1000; callGenStart = null; }
+  }
   if (state === 'calling') {
     statusEl.textContent = 'Calling...';
   } else if (state === 'listening') {

@@ -1296,7 +1296,8 @@ const NSFW_BLOCK_TOKENS = 200;
 // Free = base. Advanced = 2× free. X20 = 20× free. X50/X100/X200 scale proportionally.
 const TIER_CALL_LIMITS  = { free: 6,   advanced: 12,  x20: 120,  x50: 300,  x100: 600,  x200: 1200  };
 // Call time per DAY (seconds; resets at 00:00 UTC). free=90min, advanced=3h, x20=12h, x50=18h, x100=21h, x200=unlimited
-const TIER_CALL_SECOND_LIMITS = { free: 5400, advanced: 10800, x20: 43200, x50: 64800, x100: 75600, x200: Infinity };
+// Call time per 8h window (seconds). free=250min, advanced=360min, x20=1200min, x50=1500min, x100/x200=unlimited
+const TIER_CALL_SECOND_LIMITS = { free: 15000, advanced: 21600, x20: 72000, x50: 90000, x100: Infinity, x200: Infinity };
 const DAY_MS = 24 * 60 * 60 * 1000;
 function getCallDayStart() { return Math.floor(Date.now() / DAY_MS) * DAY_MS; }
 const TIER_MEMO_LIMITS  = { free: 50,  advanced: 150, x50: 2500, x100: 5000, x200: 10000 };
@@ -1623,6 +1624,12 @@ function getCallLimitForUser(userId) {
   const tier = u?.subscriptionTier || 'free';
   return TIER_CALL_LIMITS[tier] ?? TIER_CALL_LIMITS.free;
 }
+function getCallSecondLimitForUser(userId) {
+  const u = userLimits[userId];
+  if (u?.neverLimit) return Infinity;
+  const tier = u?.subscriptionTier || 'free';
+  return TIER_CALL_SECOND_LIMITS[tier] ?? TIER_CALL_SECOND_LIMITS.free;
+}
 function getMemoLimitForUser(userId) {
   const tier = userLimits[userId]?.subscriptionTier || 'free';
   return TIER_MEMO_LIMITS[tier] ?? TIER_MEMO_LIMITS.free;
@@ -1714,6 +1721,7 @@ function checkLimits(sid) {
 
 function buildUsagePayload(u, userId) {
   const callLimit = userId ? getCallLimitForUser(userId) : (TIER_CALL_LIMITS[u.subscriptionTier || 'free'] ?? TIER_CALL_LIMITS.free);
+  const callSecondLimit = userId ? getCallSecondLimitForUser(userId) : (TIER_CALL_SECOND_LIMITS[u.subscriptionTier || 'free'] ?? TIER_CALL_SECOND_LIMITS.free);
   const memoLimit = userId ? getMemoLimitForUser(userId) : (TIER_MEMO_LIMITS[u.subscriptionTier || 'free'] ?? TIER_MEMO_LIMITS.free);
   const imgLimit  = userId ? getImageLimitForUser(userId) : (TIER_IMAGE_LIMITS[u.subscriptionTier || 'free'] ?? TIER_IMAGE_LIMITS.free);
   const callsToday = u.callsToday || 0;
@@ -1736,6 +1744,7 @@ function buildUsagePayload(u, userId) {
     callsLimit: callLimit === Infinity ? 9999 : callLimit,
     callsRemaining,
     callSecondsToday: u.callSecondsToday || 0,
+    callSecondLimit: callSecondLimit === Infinity ? 999999 : callSecondLimit,
     memosToday: u.memosToday || 0,
     memosLimit: memoLimit === Infinity ? 9999 : memoLimit,
     memosRemaining,
@@ -4203,8 +4212,13 @@ app.post('/api/call/start', requireAuth, (req, res) => {
   const userId = req.user.googleId;
   const u = getLimits(userId);
   const callLimit = getCallLimitForUser(userId);
+  const callSecondLimit = getCallSecondLimitForUser(userId);
+  const resetsAt = getCallWindowStart() + 8 * 60 * 60 * 1000;
   if (callLimit !== Infinity && (u.callsToday || 0) >= callLimit) {
-    return res.status(429).json({ allowed: false, type: 'call_daily_limit', callsToday: u.callsToday || 0, callsLimit: callLimit, resetsAt: getCallWindowStart() + 8 * 60 * 60 * 1000 });
+    return res.status(429).json({ allowed: false, type: 'call_daily_limit', callsToday: u.callsToday || 0, callsLimit: callLimit, resetsAt });
+  }
+  if (callSecondLimit !== Infinity && (u.callSecondsToday || 0) >= callSecondLimit) {
+    return res.status(429).json({ allowed: false, type: 'call_minute_limit', callSecondsToday: u.callSecondsToday || 0, callSecondLimit, resetsAt });
   }
   // A character who blocked this user won't pick up
   const { charId } = req.body || {};
@@ -4218,7 +4232,7 @@ app.post('/api/call/start', requireAuth, (req, res) => {
 
 app.post('/api/call/end', requireAuth, (req, res) => {
   const userId = req.user.googleId;
-  const { duration, groupCharCount } = req.body; // seconds this call lasted
+  const { duration, groupCharCount, effort, modelTier, genSeconds } = req.body;
   const u = getLimits(userId);
   // Calls < 5 s are instant-ends — don't count them
   if (typeof duration !== 'number' || !Number.isFinite(duration) || duration < 5) {
@@ -4229,7 +4243,15 @@ app.post('/api/call/end', requireAuth, (req, res) => {
   // Group calls cost more call time: each extra character adds a full duplicate of the duration
   u.callSecondsToday = (u.callSecondsToday || 0) + Math.ceil(duration * charCount);
   u.callsToday = (u.callsToday || 0) + 1;
-  // Group calls burn extra tokens for each additional character: more participants = more TTS synthesis.
+  // Token cost: call duration + generation wait time, weighted by effort and model
+  // This depletes the session token pool just like chat messages do
+  const callEffortMult = { low: 0.5, medium: 1.0, high: 1.5, extra: 2.0, max: 3.0 }[effort || 'medium'] ?? 1.0;
+  const callModelMult  = { opas: 1.0, opes: 0.8, opal: 0.6, opag: 0.4 }[modelTier || 'opas'] ?? 1.0;
+  const callGenSecs    = (typeof genSeconds === 'number' && Number.isFinite(genSeconds) && genSeconds > 0) ? genSeconds : 0;
+  // 1 token/min base × effort × model; generation wait adds half-rate cost (slow TTS = more session consumed)
+  const callTokenCost  = Math.ceil((duration / 60) * callEffortMult * callModelMult + (callGenSecs / 60) * 0.5 * callEffortMult * callModelMult);
+  if (callTokenCost > 0) addTokens(userId, callTokenCost);
+  // Group calls burn extra tokens for each additional character
   if (charCount > 1) {
     addTokens(userId, Math.ceil(duration * (charCount - 1) * 6));
   }
