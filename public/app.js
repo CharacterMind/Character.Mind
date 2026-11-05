@@ -2075,6 +2075,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '530': {
+    date: 'November 2026',
+    label: 'Fix Call Stuck in Thinking',
+    fixed: [
+      'sendCallCharResponse and triggerAreYouThere had no timeout on the AI fetch — if Render was slow the call stayed frozen in Thinking forever; added 30s AbortController',
+      'thinking-state safety timeout now bumps callGen so any in-flight AI/TTS fetch bails out cleanly instead of firing after recovery',
+    ],
+  },
   '529': {
     date: 'November 2026',
     label: 'Fix JS Parse Crash (Loading Screen)',
@@ -13646,6 +13654,7 @@ function setCallState(state) {
     callThinkingTimeoutId = setTimeout(() => {
       callThinkingTimeoutId = null;
       if (callModeActive && document.getElementById('callOverlay')?.dataset.state === 'thinking') {
+        callGen++; // invalidate any in-flight AI/TTS fetch so it doesn't fire after recovery
         listenForSpeech();
       }
     }, 55000);
@@ -14032,6 +14041,8 @@ async function sendCallCharResponse(charObj, userText) {
   updateCallSpeaker(charObj);
   setCallState('thinking');
   try {
+    const _chatCtrl = new AbortController();
+    const _chatTmo = setTimeout(() => _chatCtrl.abort(), 30000);
     const r = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -14039,8 +14050,10 @@ async function sendCallCharResponse(charObj, userText) {
         charId: charObj.id, message: prompt, modelTier: 'opas', effort: 'low',
         callMode: true, callChained: !answering, callTranscript: transcript,
         otherChars: callCharacters.filter(c => c.id !== charObj.id).map(c => ({ id: c.id, name: c.name }))
-      })
+      }),
+      signal: _chatCtrl.signal,
     });
+    clearTimeout(_chatTmo);
     if (gen !== callGen) return;
     if (!r.ok) { if (callModeActive && gen === callGen) afterCallTTSDone(); return; }
     const reader = r.body.getReader();
@@ -14106,11 +14119,15 @@ async function triggerAreYouThere() {
   const gen = callGen;
   setCallState('thinking');
   try {
+    const _areCtrl = new AbortController();
+    const _areTmo = setTimeout(() => _areCtrl.abort(), 30000);
     const r = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ charId: char.id, message: prompt, modelTier: 'opas', effort: 'low', callMode: true, callChained: true })
+      body: JSON.stringify({ charId: char.id, message: prompt, modelTier: 'opas', effort: 'low', callMode: true, callChained: true }),
+      signal: _areCtrl.signal,
     });
+    clearTimeout(_areTmo);
     if (gen !== callGen) return;
     if (!r.ok) { callContextChar = null; if (callModeActive && gen === callGen) listenForSpeech(); return; }
     const reader = r.body.getReader();
