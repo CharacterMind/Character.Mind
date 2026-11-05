@@ -2058,6 +2058,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '524': {
+    date: 'November 2026',
+    label: 'Fix Call Pipeline Timeouts',
+    fixed: [
+      'Call TTS pipeline timeout increased from 15s to 45s — the streaming pipeline (_fetchCallTTSBlob) was always timing out before v523\'s fix applied, so calls were still silent',
+      'Hang-up voice line now has a 45s timeout — previously had no timeout and could hang the end-of-call flow',
+      'Group call prefetch now has a 45s timeout — previously could hang indefinitely if the voice server stalled',
+    ],
+  },
   '523': {
     date: 'November 2026',
     label: 'Fix Call Voice Response',
@@ -12744,7 +12753,7 @@ function _fetchCallTTSBlob(rawText) {
   if (!clean || ttsProvider === 'off' || ttsProvider === 'browser') return Promise.resolve(null);
   const prov = ttsProvider;
   const charId = (callContextChar || currentChar)?.id;
-  const timeoutMs = 15000;
+  const timeoutMs = 45000;
   const ctrl = new AbortController();
   const tmo = setTimeout(() => ctrl.abort(), timeoutMs);
   return fetch('/api/tts', {
@@ -12852,11 +12861,15 @@ async function speakAndHangUp(text, resetsAt) {
   };
   try {
     const hangUpProvider = ttsProvider;
+    const ctrl = new AbortController();
+    const tmo = setTimeout(() => ctrl.abort(), 45000);
     const r = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: clean, charId: currentChar?.id, provider: hangUpProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName })
+      body: JSON.stringify({ text: clean, charId: currentChar?.id, provider: hangUpProvider, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName }),
+      signal: ctrl.signal,
     });
+    clearTimeout(tmo);
     if (r.ok) {
       const blob = await r.blob();
       if (gen !== callGen) return;
@@ -16648,10 +16661,13 @@ function _prefetchGroupSentence(sentence, charId, voiceParams) {
   if (_groupTTSCache.size >= _GROUP_TTS_CACHE_MAX) {
     _groupTTSCache.delete(_groupTTSCache.keys().next().value);
   }
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), 45000);
   const p = fetch('/api/tts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: sentence.slice(0, 499), charId, ...voiceParams })
+    body: JSON.stringify({ text: sentence.slice(0, 499), charId, ...voiceParams }),
+    signal: ctrl.signal,
   }).then(r => r.ok ? r.blob() : null).catch(() => null);
   _groupTTSCache.set(key, p);
   return p;
