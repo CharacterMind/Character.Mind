@@ -2075,6 +2075,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '532': {
+    date: 'November 2026',
+    label: 'Fix Call Voice Timeouts for Slow Synthesis',
+    fixed: [
+      'Call TTS fetch timeout raised 45s → 70s so CPU-mode Chatterbox synthesis (~25-30s per clip) does not get cut off mid-fetch',
+      'Call thinking safety timeout raised 55s → 90s — combined AI response time + synthesis could exceed 55s, causing premature recovery that dropped the in-flight audio',
+      'Server /api/xtts-status now returns gpu and model fields so GPU mode can be verified',
+    ],
+  },
   '531': {
     date: 'November 2026',
     label: 'Fix Voice Gaps and Pauses',
@@ -12820,7 +12829,7 @@ function _fetchCallTTSBlob(rawText) {
   if (_callCharVoiceOffline && (ttsProvider === 'character' || ttsProvider === 'user')) return Promise.resolve(null);
   const prov = ttsProvider;
   const charId = (callContextChar || currentChar)?.id;
-  const timeoutMs = 45000;
+  const timeoutMs = 70000;
   const ctrl = new AbortController();
   const tmo = setTimeout(() => ctrl.abort(), timeoutMs);
   return fetch('/api/tts', {
@@ -13030,7 +13039,7 @@ async function callModeTTS_server(text) {
     if (ttsProvider === 'off') return null;
     if (_callCharVoiceOffline && (callProvider === 'character' || callProvider === 'user')) return null;
     const ctrl = new AbortController();
-    const tmo = setTimeout(() => ctrl.abort(), 45000);
+    const tmo = setTimeout(() => ctrl.abort(), 70000);
     try {
       const r = await fetch('/api/tts', {
         method: 'POST',
@@ -13650,15 +13659,16 @@ function setCallState(state) {
     statusEl.textContent = 'Listening...';
   } else if (state === 'thinking') {
     statusEl.textContent = 'Thinking...';
-    // If thinking for >55s with no response, return to listening rather than staying frozen.
-    // Must be > 45s (client TTS timeout) so slow Chatterbox synthesis doesn't trigger this.
+    // If thinking for >90s with no response, return to listening rather than staying frozen.
+    // Must be > AI-time + synthesis-time; Chatterbox on CPU can take 25-30s to synthesize,
+    // so with AI response time (~20-30s) the total can reach 50-60s — 90s gives enough margin.
     callThinkingTimeoutId = setTimeout(() => {
       callThinkingTimeoutId = null;
       if (callModeActive && document.getElementById('callOverlay')?.dataset.state === 'thinking') {
         callGen++; // invalidate any in-flight AI/TTS fetch so it doesn't fire after recovery
         listenForSpeech();
       }
-    }, 55000);
+    }, 90000);
   } else if (state === 'responding') {
     statusEl.textContent = 'Tap to interrupt';
     statusEl.classList.add('interruptable');

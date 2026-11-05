@@ -5435,7 +5435,7 @@ app.get('/api/xtts-status', requireAuth, async (req, res) => {
     const t = setTimeout(() => ctrl.abort(), 4000);
     const r = await fetch(`${cloneBase}/health`, { signal: ctrl.signal }).finally(() => clearTimeout(t));
     const data = r.ok ? await r.json().catch(() => ({})) : {};
-    return res.json({ online: r.ok, modelReady: data.model_ready ?? false, url: cloneBase });
+    return res.json({ online: r.ok, modelReady: data.model_ready ?? false, url: cloneBase, gpu: data.gpu ?? null, model: data.model ?? null });
   } catch {
     return res.json({ online: false, modelReady: false, url: cloneBase });
   }
