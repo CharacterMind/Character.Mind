@@ -586,19 +586,20 @@ def tts_endpoint():
 
     # Chatterbox TTS path — ResembleAI zero-shot cloning (best free quality 2025)
     if tts_engine in ("chatterbox",):
-        import torchaudio
+        import soundfile as _sf_info_mod
         # Trim reference audio to 10s max — longer clips degrade Chatterbox quality
         _MAX_REF_SECS = 10.0
         effective_wav = speaker_wav
         try:
-            _ref_info = torchaudio.info(speaker_wav)
-            if _ref_info.num_frames / _ref_info.sample_rate > _MAX_REF_SECS:
+            _ref_info = _sf_info_mod.info(speaker_wav)
+            if _ref_info.duration > _MAX_REF_SECS:
                 _trimmed_path = speaker_wav + ".__trim10s.wav"
                 if not os.path.exists(_trimmed_path):
-                    _ref_wav, _ref_sr = torchaudio.load(speaker_wav)
+                    import numpy as _np_trim
+                    _ref_wav, _ref_sr = _sf_info_mod.read(speaker_wav, dtype='float32')
                     _max_frames = int(_MAX_REF_SECS * _ref_sr)
-                    _ref_wav = _ref_wav[..., :_max_frames]
-                    torchaudio.save(_trimmed_path, _ref_wav, _ref_sr)
+                    _ref_wav = _ref_wav[:_max_frames] if _ref_wav.ndim == 1 else _ref_wav[:_max_frames, :]
+                    _sf_info_mod.write(_trimmed_path, _ref_wav, _ref_sr)
                     print(f"[voice-ai] Trimmed reference to {_MAX_REF_SECS}s: {Path(_trimmed_path).name}", flush=True)
                 effective_wav = _trimmed_path
         except Exception as _trim_err:
@@ -641,7 +642,9 @@ def tts_endpoint():
                 factor = 2 ** (cb_pitch_semitones / 12)
                 wav = torchaudio.functional.resample(wav, int(model.sr * factor), model.sr)
             buf = io.BytesIO()
-            torchaudio.save(buf, wav, model.sr, format="wav")
+            import soundfile as _sf_cb
+            wav_np = wav.squeeze().cpu().numpy() if hasattr(wav, 'cpu') else wav
+            _sf_cb.write(buf, wav_np, model.sr, format="WAV")
             audio_bytes = buf.getvalue()
         except Exception as e:
             import traceback
@@ -736,7 +739,28 @@ if __name__ == "__main__":
             print("[voice-ai] Server will start anyway; requests will retry model load.", flush=True)
     elif _MODEL_KEY == "f5tts":
         try:
-            get_f5tts()
+            model = get_f5tts()
+            # Run a warmup synthesis to trigger CUDA JIT compilation.
+            # Without this, the first real request takes 30+ seconds on a cold GPU.
+            _prewarm_voices = [str(VOICES_DIR / "poppy.wav"), str(VOICES_DIR / "huggy.wav")]
+            _prewarm_voice  = next((v for v in _prewarm_voices if os.path.exists(v)), None)
+            if _prewarm_voice:
+                print("[voice-ai] F5-TTS warming up CUDA kernels (first run ~30s, subsequent ~7s)...", flush=True)
+                try:
+                    import io as _io
+                    _pw_ref_text = _f5tts_ref_text(_prewarm_voice)
+                    _t0 = time.time()
+                    _pw_wav, _pw_sr, _ = model.infer(ref_file=_prewarm_voice, ref_text=_pw_ref_text, gen_text="Hi.", seed=-1, nfe_step=128)
+                    _pw_elapsed = round(time.time() - _t0, 1)
+                    # Store in cache so "Hi." is also instant later
+                    _pw_buf = _io.BytesIO()
+                    import soundfile as _sf_pw
+                    _sf_pw.write(_pw_buf, _pw_wav, _pw_sr, format="WAV")
+                    _cache_set(_cache_key("f5tts", Path(_prewarm_voice).stem, "Hi."), _pw_buf.getvalue())
+                    del _pw_wav, _pw_buf
+                    print(f"[voice-ai] F5-TTS CUDA kernels ready ({_pw_elapsed}s warmup)", flush=True)
+                except Exception as _e:
+                    print(f"[voice-ai] F5-TTS warmup skipped: {_e}", flush=True)
         except Exception as e:
             print(f"[voice-ai] WARNING: F5-TTS failed to pre-load: {e}", flush=True)
             print("[voice-ai] Server will start anyway; requests will retry model load.", flush=True)
