@@ -2058,6 +2058,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '515': {
+    date: 'November 2026',
+    label: 'Call Limit & Auto-Call Fixes',
+    fixed: [
+      'Opening a chat no longer triggers a fake incoming call 1.5 seconds later (removed idle call auto-trigger)',
+      'Removed Lily / Baby Long Legs references from call limit modal — only Poppy and Huggy are live characters',
+      'Free tier call limit raised from 6 to 20 per 15h window; advanced tier raised from 12 to 40',
+    ],
+  },
   '514': {
     date: 'November 2026',
     label: 'Custom Voice Only + Live Cooldowns',
@@ -7522,7 +7531,6 @@ async function openChat(charId) {
   document.getElementById('messageInput').focus();
   scrollToBottom();
   restoreActiveGame(currentChar.id);
-  checkIdleCall(charId);
   // Flush any call bubble deferred while this chat wasn't the active view
   if (_pendingCallBubbles[charId]?.length) {
     const pending = _pendingCallBubbles[charId];
@@ -13276,34 +13284,6 @@ let _sessionCountdownTimer = null;
 let _sessionCountdownUntil = null;
 let _bannerCountdownTimer = null;
 const CALL_LIMIT_MESSAGES = [
-  // Doll witness collection
-  "*looks at Candy, then back at you, then at Candy again* She knew. She told me before you even started. I told her to be kind about it. She's choosing not to.",
-  "*to Baby Long Legs* Don't look. Baby, I SAID don't look. *to you* She looked. You did this to her.",
-  "*Candy whispers something urgent* Yes, yes, I heard her. *to you* Candy kept count. Every single call. She's very organized about these things. It's a little alarming.",
-  "*Dolly Grub slides very slowly off the shelf* That's Dolly's way of commenting. She does that when she's unimpressed. I've learned to read it.",
-  "*tilts braids toward ear* Candy says — and I'm quoting — 'absolutely not.' She said you'd try again. She set a timer. She wins.",
-  "Dusky hasn't moved in an hour. *glances at Dusky* That IS a response from Dusky. Learn to read the room.",
-  "*Baby Long Legs turns to face the wall* Baby does that when she's embarrassed. For YOU, not herself. She has feelings about your call count.",
-  "*to the room* Is anyone surprised? Anyone at all? *Candy tugs braid* No. Candy is not surprised. Dolly is not surprised. Nobody here is surprised.",
-  "You talked so long today that Candy fell asleep. Candy doesn't sleep. *stares at you* What did you do to her.",
-  "*gently repositioning Dolly Grub* She toppled. Toppled because she couldn't believe it. That's what happened to Dolly today. That's on you.",
-  "*Baby Long Legs shakes her small head back and forth* I don't know what you expected, but Baby's been doing that since your third call.",
-  "Candy whispered something at the start of today that I told her was unkind. *long pause* She was right. Completely right. I'm not giving her the satisfaction of saying so out loud.",
-  "*to Dusky* Don't say anything. I know what you're thinking and it's not polite. *to you* Dusky has opinions. He's choosing to keep them. For now.",
-  "*turns to Baby Long Legs* Baby, darling, go to your shelf. You don't need to see this. *Baby does not go* She's staying. She's choosing to witness. That's on you.",
-  "I told Dolly Grub that visitors are usually quite reasonable. *Dolly stares* This is her stare. I've seen it three times today. All three were because of you.",
-  "*Candy is very quiet* When Candy goes quiet it means she has a LOT to say and she's choosing not to. The restraint is — *braid twitches* ...she spoke.",
-  "Baby Long Legs asked me this morning — through the usual method — if you were coming back. She asked in a worried way. Not an excited way. A worried way.",
-  "*Dusky has relocated himself to the highest shelf* That's where he goes when he needs perspective. He needed perspective about you specifically. Today.",
-  "*Dolly Grub is lying face-down* She does that. It means she's processing. Give her a moment. She'll be fine. But this is because of you.",
-  "You know what Candy said? Right at the start of today? *pause* 'They'll use all of them.' Just like that. Flat statement. She didn't even seem upset. Just certain.",
-  "*Baby Long Legs reaches her little arms out toward you* She's not hugging you. She's saying goodbye for now. There's a difference. She knows it.",
-  "*room is very quiet* Even Dolly isn't saying anything. Even Dolly. Do you understand what that means.",
-  "*to Candy* I know, I know. *to you* She said something I'm choosing not to repeat. You should probably be grateful.",
-  "*Dolly Grub and Dusky exchange a look* They don't usually agree on things. You've managed to unite them in their feelings about your voice call usage.",
-  "*Baby Long Legs covers her face with her small hands* She does this when she's secondhand embarrassed. She has never done this before today.",
-  "Candy tugged my braid four times in a row just now. Four times means she's given up trying to express it in words. That's where we are.",
-  "*to the dolls* Does anyone want to tell them, or shall I? *silence* Right. It's going to be me again. You've used all your voice calls.",
   // Hostile / rude
   "Oh. You again. Still trying. Cute.",
   "No. Just no. Go outside. There's a whole world out there and you're here pressing buttons.",
