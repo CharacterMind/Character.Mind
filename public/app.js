@@ -2058,6 +2058,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '516': {
+    date: 'November 2026',
+    label: 'Live Countdown + Banner Dismiss',
+    fixed: [
+      'All countdown timers now show seconds (12h 58m 30s) — ticks every second so the counter is visibly live',
+      'Call limit hit banner now has an X button to dismiss it',
+    ],
+  },
   '515': {
     date: 'November 2026',
     label: 'Call Limit & Auto-Call Fixes',
@@ -8882,6 +8890,12 @@ function renderUsageBanners(usage) {
     const cbText = document.createElement('span');
     cbText.textContent = `\uD83D\uDCF5 Call limit hit \u2014 they\u2019re filing a restraining order. Resets in ${_callResetStr}.`;
     cb.appendChild(cbText);
+    const cbClose = document.createElement('button');
+    cbClose.className = 'warning-banner-close';
+    cbClose.setAttribute('aria-label', 'Dismiss');
+    cbClose.textContent = '\u2715';
+    cbClose.onclick = () => { cb.remove(); _startBannerCountdownTimer(); };
+    cb.appendChild(cbClose);
     container.appendChild(cb);
   } else if (callsMaxed && existingCallBanner) {
     const _cbTextEl = existingCallBanner.querySelector('span');
@@ -9631,12 +9645,13 @@ function formatResetTime(timestamp) {
 }
 
 function formatCountdown(ms) {
-  const total = Math.max(0, Math.ceil(ms / 1000));
+  const total = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m`;
-  return '< 1m';
+  const s = total % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
 }
 
 function generateUsageHeadline(u) {
