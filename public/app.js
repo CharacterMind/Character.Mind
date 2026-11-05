@@ -2058,6 +2058,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '523': {
+    date: 'November 2026',
+    label: 'Fix Call Voice Response',
+    fixed: [
+      'Call TTS timeout increased from 15s to 45s — Chatterbox synthesis takes 20-45s, so 15s always timed out and the character never spoke',
+      'Call TTS fetch now catches errors per-sentence instead of aborting the entire response on the first failure',
+    ],
+  },
   '522': {
     date: 'November 2026',
     label: 'Smooth Auto-Speak on Regenerate',
@@ -12937,7 +12945,7 @@ async function callModeTTS_server(text) {
     if (ttsProvider === 'off') return null;
     if (_callCharVoiceOffline && (callProvider === 'character' || callProvider === 'user')) return null;
     const ctrl = new AbortController();
-    const tmo = setTimeout(() => ctrl.abort(), 15000);
+    const tmo = setTimeout(() => ctrl.abort(), 45000);
     try {
       const r = await fetch('/api/tts', {
         method: 'POST',
@@ -12955,6 +12963,8 @@ async function callModeTTS_server(text) {
         return null;
       }
       return r.blob();
+    } catch (_) {
+      return null; // timeout or network error — return null so the loop handles it gracefully per-sentence
     } finally {
       clearTimeout(tmo);
     }
