@@ -2058,6 +2058,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '510': {
+    date: 'November 2026',
+    label: 'Call Voice Reliability Fix',
+    fixed: [
+      'Voice calls would silently fail with no audio when Chatterbox returned a 503 error — pipeline now falls back to Gemini TTS automatically',
+      'Calls felt stuck "thinking for too long" because Chatterbox had a 90-second timeout before giving up — reduced to 25 seconds so Gemini kicks in much faster',
+    ],
+  },
   '509': {
     date: 'November 2026',
     label: 'Splash Screen Fix',
@@ -12609,14 +12617,55 @@ function _fetchCallTTSBlob(rawText) {
   const clean = cleanTTSText(rawText).slice(0, 499);
   if (!clean || ttsProvider === 'off' || ttsProvider === 'browser') return Promise.resolve(null);
   const prov = ttsProvider;
+  const charId = (callContextChar || currentChar)?.id;
+  // For character/user voice use a shorter timeout (25s) so we fall back to Gemini quickly
+  // rather than making the user wait up to 90s for Chatterbox.
+  const timeoutMs = (prov === 'character' || prov === 'user') ? 25000 : 90000;
   const ctrl = new AbortController();
-  const tmo = setTimeout(() => ctrl.abort(), 90000);
+  const tmo = setTimeout(() => ctrl.abort(), timeoutMs);
   return fetch('/api/tts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: clean, charId: (callContextChar || currentChar)?.id, provider: prov, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName }),
+    body: JSON.stringify({ text: clean, charId, provider: prov, geminiVoice: geminiVoiceName, edgeVoice: edgeVoiceName || undefined, kokoroVoice: kokoroVoiceName }),
     signal: ctrl.signal,
-  }).then(r => r.ok ? r.blob() : null).catch(() => null).finally(() => clearTimeout(tmo));
+  }).then(async r => {
+    clearTimeout(tmo);
+    if (r.ok) return r.blob();
+    // 503 = character/user voice offline — fall back to Gemini so the pipeline always produces audio
+    if (r.status === 503 && (prov === 'character' || prov === 'user')) {
+      _callCharVoiceOffline = true;
+      const ctrl2 = new AbortController();
+      const tmo2 = setTimeout(() => ctrl2.abort(), 18000);
+      try {
+        const r2 = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: clean, charId, provider: 'gemini', geminiVoice: geminiVoiceName }),
+          signal: ctrl2.signal,
+        });
+        if (r2.ok) return r2.blob();
+      } catch (_) {} finally { clearTimeout(tmo2); }
+    }
+    return null;
+  }).catch(async (err) => {
+    clearTimeout(tmo);
+    // Timeout (AbortError) on character/user voice — fall back to Gemini
+    if (err.name === 'AbortError' && (prov === 'character' || prov === 'user')) {
+      _callCharVoiceOffline = true;
+      const ctrl2 = new AbortController();
+      const tmo2 = setTimeout(() => ctrl2.abort(), 18000);
+      try {
+        const r2 = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: clean, charId, provider: 'gemini', geminiVoice: geminiVoiceName }),
+          signal: ctrl2.signal,
+        });
+        if (r2.ok) return r2.blob();
+      } catch (_) {} finally { clearTimeout(tmo2); }
+    }
+    return null;
+  });
 }
 
 function _feedCallTTSPipeline(chunk) {

@@ -5297,6 +5297,7 @@ app.post('/api/tts', requireAuth, async (req, res) => {
     if (!speakerFile) speakerFile = charEntry?.file || null;
     if (!speakerFile) {
       // No voice file found — return 503 rather than silently falling through to Edge TTS
+      console.warn('[tts-no-voice]', { charId, provider, effectiveProvider, hasEntry: !!charEntry, entryFile: charEntry?.file || null });
       return res.status(503).json({ error: 'No voice file configured for this character' });
     }
     if (speakerFile) {
