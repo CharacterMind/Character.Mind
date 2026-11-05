@@ -2058,6 +2058,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '504': {
+    date: 'November 2026',
+    label: 'Live Availability Status',
+    added: [
+      'Contact availability dots and "Busy"/"Call" labels now update in real time — no need to close and reopen the phone',
+      'Contact profile card also updates live when a character goes busy or becomes free',
+    ],
+  },
   '503': {
     date: 'November 2026',
     label: 'Voicemail Voice & Callback',
@@ -3912,6 +3920,7 @@ async function loadPhoneContacts() {
 function renderPhoneContacts(query) {
   const container = document.getElementById('phoneContacts');
   if (!container) return;
+  _scheduleAvailabilityTick(); // keep dots live
   const q = (query || '').toLowerCase().trim();
   const list = _phoneContacts.filter(c => {
     if (!q) return true;
@@ -3970,7 +3979,7 @@ function renderPhoneContacts(query) {
           </button>
           <button class="${callBtnClass}" onclick="callCharFromPhone('${escHtml(c.id)}',event);event.stopPropagation()">
             <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
-            ${avail.busy ? 'Busy' : 'Call'}
+            <span class="ph-call-label">${avail.busy ? 'Busy' : 'Call'}</span>
           </button>
         </div>
       </div>`;
@@ -3985,14 +3994,14 @@ function renderPhoneContacts(query) {
     const availDot = avail.busy
       ? `<span class="ph-avail-dot ph-avail-busy" title="Busy right now"></span>`
       : `<span class="ph-avail-dot ph-avail-free" title="Available"></span>`;
-    return `<div class="ph-contact-card" style="--ph-color:${escHtml(color)};--ph-glow:${escHtml(color)}" onclick="showPhoneContactProfile('${escHtml(c.id)}',event)">
+    return `<div class="ph-contact-card" data-char-id="${escHtml(c.id)}" style="--ph-color:${escHtml(color)};--ph-glow:${escHtml(color)}" onclick="showPhoneContactProfile('${escHtml(c.id)}',event)">
       <div class="ph-contact-avatar" style="background:${escHtml(color)}">${avatarContent}</div>
       <div class="ph-contact-name">${availDot}${escHtml(displayName)}</div>
       <div class="ph-contact-num">${escHtml(phone)}</div>
       <div class="ph-contact-btns">
         <button class="${callBtnClass}" onclick="callCharFromPhone('${escHtml(c.id)}',event)">
           <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
-          ${avail.busy ? 'Busy' : 'Call'}
+          <span class="ph-call-label">${avail.busy ? 'Busy' : 'Call'}</span>
         </button>
         <button class="ph-contact-btn" onclick="openChat('${escHtml(c.id)}');event.stopPropagation()">
           <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
@@ -4517,6 +4526,47 @@ function charAvailability(charId) {
   const busy = (h % 10) === 0; // 10% of windows
   const msUntilNext = windowMs - (Date.now() % windowMs);
   return { busy, nextFreeMs: msUntilNext };
+}
+
+// Real-time availability: update dots + labels whenever the 20-min window flips
+let _availTickTimer = null;
+function _scheduleAvailabilityTick() {
+  clearTimeout(_availTickTimer);
+  const msUntilNext = (20 * 60 * 1000) - (Date.now() % (20 * 60 * 1000));
+  _availTickTimer = setTimeout(() => {
+    _applyAvailabilityToDOM();
+    _scheduleAvailabilityTick(); // schedule next flip
+  }, msUntilNext + 100); // +100ms buffer so the new window is definitely active
+}
+
+function _applyAvailabilityToDOM() {
+  // Update every visible contact card
+  document.querySelectorAll('.ph-contact-card[data-char-id]').forEach(card => {
+    const charId = card.dataset.charId;
+    const avail = charAvailability(charId);
+    // Availability dot
+    const dot = card.querySelector('.ph-avail-dot');
+    if (dot) {
+      dot.className = avail.busy ? 'ph-avail-dot ph-avail-busy' : 'ph-avail-dot ph-avail-free';
+      dot.title = avail.busy ? 'Busy right now' : 'Available';
+    }
+    // Call button class + label
+    const callBtn = card.querySelector('.ph-contact-btn-call, .ph-contact-btn-call.ph-contact-btn-busy');
+    if (callBtn) {
+      callBtn.className = avail.busy
+        ? 'ph-contact-btn ph-contact-btn-call ph-contact-btn-busy'
+        : 'ph-contact-btn ph-contact-btn-call';
+      const lbl = callBtn.querySelector('.ph-call-label');
+      if (lbl) lbl.textContent = avail.busy ? 'Busy' : 'Call';
+    }
+  });
+  // Update contact profile card if open
+  const profileOverlay = document.getElementById('phoneContactProfile');
+  if (profileOverlay && profileOverlay.style.display !== 'none' && _pcpCharId) {
+    const avail = charAvailability(_pcpCharId);
+    const numSub = profileOverlay.querySelector('.pcp-row-sub');
+    if (numSub) numSub.textContent = avail.busy ? 'Character · Busy' : 'Character · Mobile';
+  }
 }
 
 function checkIdleCall(charId) {
