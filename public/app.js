@@ -1556,10 +1556,23 @@ window.addEventListener('DOMContentLoaded', async () => {
     checkTemplateName();
   }).catch(() => { templatesLoaded = true; });
   checkSeasonalEvent();
+  // Master failsafe: if something hangs, show the auth landing after 12s regardless
+  const _loadingFailsafe = setTimeout(() => {
+    if (document.getElementById('appLoading')?.style.display !== 'none') {
+      document.getElementById('appLoading').style.display = 'none';
+      if (currentUser) {
+        document.getElementById('app').style.display = 'flex';
+      } else {
+        document.getElementById('authLanding').style.display = 'flex';
+      }
+    }
+  }, 12000);
+
   try {
-    const r = await fetch('/auth/me');
+    const _authCtrl = new AbortController(); setTimeout(() => _authCtrl.abort(), 10000);
+    const r = await fetch('/auth/me', { signal: _authCtrl.signal });
     // switched to maintenance mode: show the maintenance page, not a half-working app
-    if (r.status === 503) { const j = await r.json().catch(() => null); if (j && j.maintenance) { location.replace('/maintenance.html'); return; } }
+    if (r.status === 503) { const j = await r.json().catch(() => null); if (j && j.maintenance) { clearTimeout(_loadingFailsafe); location.replace('/maintenance.html'); return; } }
     // an error answer (a 500, a 429...) is not a signed-in person: only a real account object counts
     const data = r.ok ? await r.json().catch(() => null) : null;
     currentUser = (data && typeof data === 'object' && data.googleId) ? data : null;
@@ -1579,6 +1592,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       renderFeed();
     } catch (_) {}
     // Show the app only after characters are rendered — avoids a blank-page flash
+    clearTimeout(_loadingFailsafe);
     document.getElementById('appLoading').style.display = 'none';
     initSidebarState(); // Set sidebar state before app is visible so no flash/transition on load
     document.getElementById('app').style.display = 'flex';
@@ -1601,6 +1615,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       }
     }
   } else {
+    clearTimeout(_loadingFailsafe);
     document.getElementById('appLoading').style.display = 'none';
     document.getElementById('authLanding').style.display = 'flex';
     document.getElementById('app').style.display = 'none';
@@ -2058,6 +2073,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '527': {
+    date: 'November 2026',
+    label: 'Fix Loading Screen Stuck',
+    fixed: [
+      'App no longer gets stuck on the loading screen when the server is slow to respond — /auth/me now has a 10s timeout, the two startup sync calls each have 8s timeouts, and a 12s master failsafe forces the app open regardless of which fetch hangs',
+    ],
+  },
   '526': {
     date: 'November 2026',
     label: 'Fix Silent Call Voice Failure',
@@ -7160,7 +7182,8 @@ function setHiddenRecents(set) {
 async function syncHiddenRecentsFromServer() {
   if (!currentUser) return;
   try {
-    const res = await fetch('/api/user/hidden-recents');
+    const ctrl = new AbortController(); setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch('/api/user/hidden-recents', { signal: ctrl.signal });
     if (!res.ok) return;
     const { hidden } = await res.json();
     if (!hidden.length) return;
@@ -7175,10 +7198,12 @@ async function syncRecentChatsFromServer() {
   try {
     const local = getRecentChats();
     // Push local → server and get back merged result (MAX timestamp per char)
+    const ctrl = new AbortController(); setTimeout(() => ctrl.abort(), 8000);
     const res = await fetch('/api/user/recent-chats', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ recents: local })
+      body: JSON.stringify({ recents: local }),
+      signal: ctrl.signal,
     });
     if (!res.ok) return;
     const { recents: merged } = await res.json();
