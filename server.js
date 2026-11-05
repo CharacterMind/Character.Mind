@@ -3576,8 +3576,8 @@ const EFFORT_CONFIG = {
     low:    { maxOutputTokens: 550,   temperature: 0.75, reasoningEffort: 'low'    },
     medium: { maxOutputTokens: 800,   temperature: 0.95, reasoningEffort: 'low'    },
     high:   { maxOutputTokens: 2200,  temperature: 1.05, reasoningEffort: 'low'    },
-    extra:  { maxOutputTokens: 5500,  temperature: 1.1,  reasoningEffort: 'high'   },
-    max:    { maxOutputTokens: 10000, temperature: 1.1,  reasoningEffort: 'high'   },
+    extra:  { maxOutputTokens: 5500,  temperature: 1.1,  reasoningEffort: 'low'    },
+    max:    { maxOutputTokens: 10000, temperature: 1.1,  reasoningEffort: 'low'    },
   },
   opes: {
     low:    { maxOutputTokens: 900,   temperature: 0.75, reasoningEffort: 'low'    },

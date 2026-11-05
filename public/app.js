@@ -2058,6 +2058,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '488': {
+    date: 'November 2026',
+    label: 'Extra & Max Effort Speed Fix',
+    fixed: [
+      'Extra and Max effort now start generating immediately — removed the pre-generation thinking pause that caused animation delay at all high-effort levels',
+    ],
+  },
   '487': {
     date: 'November 2026',
     label: 'High Effort Speed + Length Fix',
