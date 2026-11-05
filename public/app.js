@@ -2076,6 +2076,13 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '538': {
+    date: 'November 2026',
+    label: 'Call Voice Fixed',
+    fixed: [
+      'Call voice was silently routing through Chatterbox (which crashes on the current GPU) instead of F5-TTS — both Poppy and Huggy now use F5-TTS for all voice synthesis',
+    ],
+  },
   '537': {
     date: 'November 2026',
     label: 'Voicemail Callback Fixed',

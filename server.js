@@ -5127,8 +5127,8 @@ function _ttsCacheSet(key, buf) {
 
 // Hardcoded character voice map — these chars have a real voice sample file
 const CHARACTER_VOICE_MAP = {
-  'custom_1790776698867': { name: 'Poppy',        voiceId: 'poppy',  file: path.join(__dirname, 'tts_server/voices/poppy.wav'),  edgeFallback: 'en-US-AvaNeural',  cbExag: 0.65, cbCfg: 0.4, cbTemp: 0.7, cbPitch: 0 },
-  'huggy_wuggy':          { name: 'Huggy Wuggy',  voiceId: 'huggy',  file: path.join(__dirname, 'public/assets/voices/huggy.wav'),  edgeFallback: 'en-US-GuyNeural',  cbExag: 0.75, cbCfg: 0.75, cbTemp: 0.5 },
+  'custom_1790776698867': { name: 'Poppy',       voiceId: 'poppy', file: path.join(__dirname, 'tts_server/voices/poppy.wav'),          edgeFallback: 'en-US-AvaNeural' },
+  'huggy_wuggy':          { name: 'Huggy Wuggy', voiceId: 'huggy', file: path.join(__dirname, 'public/assets/voices/huggy.wav'),        edgeFallback: 'en-US-GuyNeural' },
 };
 
 // All 30 prebuilt Gemini 2.5 Flash TTS voices
@@ -5403,19 +5403,19 @@ app.post('/api/tts/announce', express.json(), async (req, res) => {
   }
   console.log('[tts-announce] local TTS URL registered:', url);
   res.json({ ok: true, url });
-  // Pre-warm Chatterbox so the first real TTS request doesn't pay cold-start latency (~25s).
+  // Pre-warm F5-TTS so the first real TTS request doesn't pay cold-start latency.
   // Fire-and-forget: errors here are non-fatal.
   setTimeout(async () => {
-    const firstEntry = Object.values(CHARACTER_VOICE_MAP).find(e => e.cbExag !== undefined);
+    const firstEntry = Object.values(CHARACTER_VOICE_MAP)[0];
     if (!firstEntry) return;
     const cloneBase = url.replace(/\/+$/, '');
     try {
       await fetch(`${cloneBase}/tts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: 'Hi', voice_id: firstEntry.voiceId, tts_engine: 'chatterbox', exaggeration: firstEntry.cbExag, cfg_weight: firstEntry.cbCfg, temperature: firstEntry.cbTemp, pitch_semitones: firstEntry.cbPitch ?? 0 }),
+        body: JSON.stringify({ text: 'Hi', voice_id: firstEntry.voiceId, tts_engine: 'f5tts' }),
       });
-      console.log('[tts-announce] Chatterbox warmed up — first real request will be fast');
+      console.log('[tts-announce] F5-TTS warmed up — first real request will be fast');
     } catch (e) {
       console.log('[tts-announce] warmup skipped (will warm on first request):', e.message);
     }
