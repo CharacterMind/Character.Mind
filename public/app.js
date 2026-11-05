@@ -2058,6 +2058,14 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '526': {
+    date: 'November 2026',
+    label: 'Fix Silent Call Voice Failure',
+    fixed: [
+      'Call voice now shows the offline badge and stops retrying when the voice server returns 503 — previously _fetchCallTTSBlob silently returned null on 503 without setting the offline flag, so every sentence failed silently with no indication',
+      'Call thinking safety timeout raised from 25s to 55s — the old 25s timeout fired before Chatterbox finished synthesis (which takes 20-45s), dropping back to listening while the character\'s audio was still being fetched',
+    ],
+  },
   '525': {
     date: 'November 2026',
     label: 'Fix Stale Tunnel Pauses',
@@ -12759,6 +12767,7 @@ function _resetCallTTSPipeline() {
 function _fetchCallTTSBlob(rawText) {
   const clean = cleanTTSText(rawText).slice(0, 499);
   if (!clean || ttsProvider === 'off' || ttsProvider === 'browser') return Promise.resolve(null);
+  if (_callCharVoiceOffline && (ttsProvider === 'character' || ttsProvider === 'user')) return Promise.resolve(null);
   const prov = ttsProvider;
   const charId = (callContextChar || currentChar)?.id;
   const timeoutMs = 45000;
@@ -12772,6 +12781,11 @@ function _fetchCallTTSBlob(rawText) {
   }).then(r => {
     clearTimeout(tmo);
     if (r.ok) return r.blob();
+    if (r.status === 503 && (prov === 'character' || prov === 'user')) {
+      _callCharVoiceOffline = true;
+      const offBadge = document.getElementById('callVoiceOffBadge');
+      if (offBadge) offBadge.style.display = '';
+    }
     return null;
   }).catch(() => {
     clearTimeout(tmo);
@@ -13586,13 +13600,14 @@ function setCallState(state) {
     statusEl.textContent = 'Listening...';
   } else if (state === 'thinking') {
     statusEl.textContent = 'Thinking...';
-    // If thinking for >25s with no response, return to listening rather than staying frozen
+    // If thinking for >55s with no response, return to listening rather than staying frozen.
+    // Must be > 45s (client TTS timeout) so slow Chatterbox synthesis doesn't trigger this.
     callThinkingTimeoutId = setTimeout(() => {
       callThinkingTimeoutId = null;
       if (callModeActive && document.getElementById('callOverlay')?.dataset.state === 'thinking') {
         listenForSpeech();
       }
-    }, 25000);
+    }, 55000);
   } else if (state === 'responding') {
     statusEl.textContent = 'Tap to interrupt';
     statusEl.classList.add('interruptable');
