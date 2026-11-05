@@ -2075,6 +2075,15 @@ function openNavPolicies() {
 
 // ── Changelog ─────────────────────────────────────────────────────────────────────
 const CHANGELOG_DATA = {
+  '535': {
+    date: 'November 2026',
+    label: 'Instant Voicemail Audio',
+    fixed: [
+      'Voicemail audio now pre-fetches in the background as soon as you open a chat — plays instantly instead of showing "Loading…" for 8 seconds',
+      'Pre-fetch also starts during the ringing phase as a second warmup trigger',
+      'ArrayBuffer cache so replaying voicemail is always instant',
+    ],
+  },
   '534': {
     date: 'November 2026',
     label: 'Countdown Polish',
@@ -4946,6 +4955,7 @@ function showPhoneRingingThenVoicemail(char, prevChar) {
     overlay.style.display = 'flex';
   }
   startRingtone();
+  _prefetchVoicemailAudio(char); // start TTS during ringing so voicemail plays instantly
   setTimeout(() => {
     stopRingtone();
     if (overlay) overlay.style.display = 'none';
@@ -4961,6 +4971,21 @@ let vmSpeaking = false;
 let vmAudioNode = null;
 let vmLoading = false;
 let _vmCallbackTimer = null;
+const _vmAudioCache = {}; // charId → ArrayBuffer (pre-decoded, ready to play)
+
+function _prefetchVoicemailAudio(char) {
+  if (!char?.id || !ttsProvider || ttsProvider === 'off' || ttsProvider === 'browser') return;
+  if (_vmAudioCache[char.id]) return; // already cached
+  const text = charVoicemailText(char);
+  const ctrl = new AbortController();
+  fetch('/api/tts', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: text.slice(0, 499), charId: char.id, provider: ttsProvider }),
+    signal: ctrl.signal,
+  }).then(r => r.ok ? r.arrayBuffer() : null)
+    .then(ab => { if (ab) _vmAudioCache[char.id] = ab; })
+    .catch(() => {});
+}
 
 function charVoicemailText(char) {
   const name = char.name || 'me';
@@ -5040,34 +5065,32 @@ async function playVoicemailAudio() {
   }
   vmLoading = true;
   const text = charVoicemailText(vmChar);
-  if (playBtn) playBtn.innerHTML = `<span style="font-size:12px;opacity:.8">Loading…</span>`;
 
-  const _tryProvider = async (provider, timeoutMs) => {
+  // Check pre-fetched cache first — instant play if available
+  let ab = _vmAudioCache[vmChar.id] || null;
+  if (!ab) {
+    if (playBtn) playBtn.innerHTML = `<span style="font-size:12px;opacity:.8">Loading…</span>`;
     const ctrl = new AbortController();
-    const tmo = setTimeout(() => ctrl.abort(), timeoutMs);
+    const tmo = setTimeout(() => ctrl.abort(), 15000);
     try {
       const r = await fetch('/api/tts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text.slice(0, 499), charId: vmChar?.id || '', provider }),
+        body: JSON.stringify({ text: text.slice(0, 499), charId: vmChar?.id || '', provider: ttsProvider }),
         signal: ctrl.signal,
       });
-      if (r.ok) return r.blob();
-      if (r.status === 503) return { _offline: true };
+      if (r.ok) { ab = await r.arrayBuffer(); _vmAudioCache[vmChar.id] = ab; }
+      else if (r.status === 503) { vmLoading = false; if (playBtn) playBtn.innerHTML = playSvg; return; }
     } catch(_) {} finally { clearTimeout(tmo); }
-    return null;
-  };
-
-  const blob = await _tryProvider(ttsProvider, 15000);
+  }
 
   vmLoading = false;
   if (playBtn) playBtn.innerHTML = playSvg;
-  if (!blob || blob._offline) return;
+  if (!ab) return;
   try {
-    const ab = await blob.arrayBuffer();
     const ctx = getAudioCtx();
     if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
     const src = ctx.createBufferSource();
-    src.buffer = await ctx.decodeAudioData(ab);
+    src.buffer = await ctx.decodeAudioData(ab.slice(0)); // slice so buffer isn't detached on replay
     src.connect(ctx.destination);
     vmLoading = false; vmSpeaking = true; vmAudioNode = src;
     if (playBtn) playBtn.innerHTML = stopSvg;
@@ -7520,6 +7543,7 @@ async function openChat(charId) {
   applyChatTheme(currentChar);
   loadFriendship(currentChar.id);
   updateRpModeUI();
+  setTimeout(() => _prefetchVoicemailAudio(currentChar), 3000); // pre-warm so voicemail plays instantly
   if (lastKnownUsage) updateNavCoinDisplay(lastKnownUsage);
   // Never leave the previous character's messages on screen while the new chat loads
   const welcomeNow = document.getElementById('chatWelcome');
